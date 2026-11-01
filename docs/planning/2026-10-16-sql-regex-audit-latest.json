@@ -1,0 +1,4435 @@
+{
+  "root": "D:\\workspaces\\GolandProjects\\xmysql-server",
+  "go_files": 1133,
+  "regexp_import_files": [
+    "server/auth/engine_access.go",
+    "server/common/dynamic_privileges.go",
+    "server/dispatcher/enhanced_message_handler.go",
+    "server/dispatcher/system_variable_engine.go",
+    "server/innodb/engine/account_compatibility.go",
+    "server/innodb/engine/account_metadata_compatibility.go",
+    "server/innodb/engine/admin_compatibility.go",
+    "server/innodb/engine/alter_operation_compatibility.go",
+    "server/innodb/engine/check_runtime.go",
+    "server/innodb/engine/component_compatibility.go",
+    "server/innodb/engine/correlated_derived_compatibility.go",
+    "server/innodb/engine/correlated_dml_compatibility.go",
+    "server/innodb/engine/correlated_predicate_compatibility.go",
+    "server/innodb/engine/correlated_predicate_multiple_compatibility.go",
+    "server/innodb/engine/correlated_scalar_compatibility.go",
+    "server/innodb/engine/correlated_subquery_compatibility.go",
+    "server/innodb/engine/create_as_select_compatibility.go",
+    "server/innodb/engine/create_index_visibility_compatibility.go",
+    "server/innodb/engine/create_like_compatibility.go",
+    "server/innodb/engine/cte_compatibility.go",
+    "server/innodb/engine/date_extract_compatibility.go",
+    "server/innodb/engine/ddl_lock_coordinator.go",
+    "server/innodb/engine/dml_result_compatibility.go",
+    "server/innodb/engine/executor.go",
+    "server/innodb/engine/fulltext_spatial_compatibility.go",
+    "server/innodb/engine/handler_compatibility.go",
+    "server/innodb/engine/index_ddl_compatibility.go",
+    "server/innodb/engine/information_schema_aux_compatibility.go",
+    "server/innodb/engine/information_schema_catalog_compatibility.go",
+    "server/innodb/engine/information_schema_innodb_runtime_compatibility.go",
+    "server/innodb/engine/information_schema_registry.go",
+    "server/innodb/engine/information_schema_spatial_resource_compatibility.go",
+    "server/innodb/engine/innodb_foreign_compatibility.go",
+    "server/innodb/engine/innodb_metrics_compatibility.go",
+    "server/innodb/engine/innodb_tablespaces_compatibility.go",
+    "server/innodb/engine/innodb_trx_compatibility.go",
+    "server/innodb/engine/json_value_compatibility.go",
+    "server/innodb/engine/mysql_system_tables_compatibility.go",
+    "server/innodb/engine/optimizer_cost_compatibility.go",
+    "server/innodb/engine/partition_compatibility.go",
+    "server/innodb/engine/partition_routing.go",
+    "server/innodb/engine/partitioned_btree_manager.go",
+    "server/innodb/engine/performance_schema_io_compatibility.go",
+    "server/innodb/engine/performance_schema_registry.go",
+    "server/innodb/engine/persisted_variables_compatibility.go",
+    "server/innodb/engine/select_executor.go",
+    "server/innodb/engine/select_join_executor.go",
+    "server/innodb/engine/session_expression_compatibility.go",
+    "server/innodb/engine/show_binlog_compatibility.go",
+    "server/innodb/engine/show_create_database_compatibility.go",
+    "server/innodb/engine/show_filter.go",
+    "server/innodb/engine/show_parsing.go",
+    "server/innodb/engine/show_relaylog_compatibility.go",
+    "server/innodb/engine/show_replica_status_compatibility.go",
+    "server/innodb/engine/sql_event_runtime.go",
+    "server/innodb/engine/sql_prepared_statement_compatibility.go",
+    "server/innodb/engine/storage_integrated_dml_helper.go",
+    "server/innodb/engine/stored_object_compatibility.go",
+    "server/innodb/engine/table_import_discard_compatibility.go",
+    "server/innodb/engine/table_tablespace_compatibility.go",
+    "server/innodb/engine/tablespace_compatibility.go",
+    "server/innodb/engine/temporary_table_compatibility.go",
+    "server/innodb/engine/trigger_runtime.go",
+    "server/innodb/engine/warning_compatibility.go",
+    "server/innodb/engine/window_compatibility.go",
+    "server/innodb/engine/window_query_compatibility.go",
+    "server/innodb/manager/optimizer_manager.go",
+    "server/innodb/manager/schema_manager.go",
+    "server/innodb/manager/system_variable_analyzer.go",
+    "server/innodb/plan/expression.go",
+    "server/net/decoupled_handler.go",
+    "server/observability/metrics/runtime.go",
+    "server/observability/metrics/statement_digest.go",
+    "server/replication/runtime.go"
+  ],
+  "sites": [
+    {
+      "file": "server/auth/engine_access.go",
+      "line": 868,
+      "api": "QuoteMeta",
+      "function": "func matchHost",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/auth/engine_access.go",
+      "line": 872,
+      "api": "MatchString",
+      "function": "func matchHost",
+      "category": "syntax_candidate_or_value_match"
+    },
+    {
+      "file": "server/common/dynamic_privileges.go",
+      "line": 63,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/dispatcher/enhanced_message_handler.go",
+      "line": 1301,
+      "api": "MustCompile",
+      "function": "func isSelfServiceSetPassword",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/dispatcher/system_variable_engine.go",
+      "line": 441,
+      "api": "MustCompile",
+      "function": "func ExecuteQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/dispatcher/system_variable_engine.go",
+      "line": 442,
+      "api": "MustCompile",
+      "function": "func ExecuteQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/dispatcher/system_variable_engine.go",
+      "line": 553,
+      "api": "MustCompile",
+      "function": "func splitDirectSystemVariableSelectList",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/dispatcher/system_variable_engine.go",
+      "line": 554,
+      "api": "MustCompile",
+      "function": "func splitDirectSystemVariableSelectList",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/dispatcher/system_variable_engine.go",
+      "line": 621,
+      "api": "MustCompile",
+      "function": "func isInformationSchemaMetadataQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/dispatcher/system_variable_engine.go",
+      "line": 633,
+      "api": "MustCompile",
+      "function": "func isMySQLMetadataQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/dispatcher/system_variable_engine.go",
+      "line": 670,
+      "api": "QuoteMeta",
+      "function": "func matchesMetadataPattern",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/dispatcher/system_variable_engine.go",
+      "line": 673,
+      "api": "MatchString",
+      "function": "func matchesMetadataPattern",
+      "category": "syntax_candidate_or_value_match"
+    },
+    {
+      "file": "server/dispatcher/system_variable_engine.go",
+      "line": 1294,
+      "api": "MustCompile",
+      "function": "func parseSetNamesCollation",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/dispatcher/system_variable_engine.go",
+      "line": 1661,
+      "api": "MustCompile",
+      "function": "func evaluateSetValue",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 202,
+      "api": "MustCompile",
+      "function": "func parsePasswordHistoryOption",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 217,
+      "api": "MustCompile",
+      "function": "func parsePasswordReuseIntervalOption",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 232,
+      "api": "MustCompile",
+      "function": "func parsePasswordRequireCurrentOption",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 244,
+      "api": "MustCompile",
+      "function": "func parsePasswordLifetimeOption",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 256,
+      "api": "MustCompile",
+      "function": "func parseFailedLoginPolicyOptions",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 264,
+      "api": "MustCompile",
+      "function": "func parseFailedLoginPolicyOptions",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 299,
+      "api": "MustCompile",
+      "function": "func parseAccountResourceOptions",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 317,
+      "api": "MustCompile",
+      "function": "func parseTLSAccountOptions",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 335,
+      "api": "MustCompile",
+      "function": "func parseTLSAccountOptions",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 350,
+      "api": "MustCompile",
+      "function": "func parseUserAttributeOption",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 351,
+      "api": "MustCompile",
+      "function": "func parseUserAttributeOption",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 369,
+      "api": "MustCompile",
+      "function": "func parseUserCommentOption",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 452,
+      "api": "MustCompile",
+      "function": "func parsePasswordReplace",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 520,
+      "api": "MustCompile",
+      "function": "func accountTargetFromQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 528,
+      "api": "MustCompile",
+      "function": "func accountTargetsFromQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 539,
+      "api": "MustCompile",
+      "function": "func accountGranteeTargetsFromQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 547,
+      "api": "MustCompile",
+      "function": "func roleReferences",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 579,
+      "api": "QuoteMeta",
+      "function": "func accountHostMatches",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 583,
+      "api": "MatchString",
+      "function": "func accountHostMatches",
+      "category": "syntax_candidate_or_value_match"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 1437,
+      "api": "MustCompile",
+      "function": "func executeAccountStatement",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 1582,
+      "api": "MustCompile",
+      "function": "func executeAccountStatement",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 1611,
+      "api": "MustCompile",
+      "function": "func executeAccountStatement",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 1664,
+      "api": "MustCompile",
+      "function": "func executeAccountStatement",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 1736,
+      "api": "MustCompile",
+      "function": "func executeAccountStatement",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 1774,
+      "api": "MustCompile",
+      "function": "func executeAccountStatement",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 1778,
+      "api": "MustCompile",
+      "function": "func executeAccountStatement",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 1913,
+      "api": "MustCompile",
+      "function": "func executeAccountStatement",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 1939,
+      "api": "MustCompile",
+      "function": "func executeAccountStatement",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 1995,
+      "api": "MustCompile",
+      "function": "func executeAccountStatement",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 2270,
+      "api": "MustCompile",
+      "function": "func executeAccountStatement",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 2276,
+      "api": "MustCompile",
+      "function": "func executeAccountStatement",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 2279,
+      "api": "MustCompile",
+      "function": "func executeAccountStatement",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 2322,
+      "api": "MustCompile",
+      "function": "func executeAccountStatement",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 2383,
+      "api": "MustCompile",
+      "function": "func executeAccountStatement",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 2536,
+      "api": "MustCompile",
+      "function": "func parseGrantPrivileges",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 2539,
+      "api": "MustCompile",
+      "function": "func parseGrantPrivileges",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 2541,
+      "api": "MustCompile",
+      "function": "func parseGrantPrivileges",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 2543,
+      "api": "MustCompile",
+      "function": "func parseGrantPrivileges",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_metadata_compatibility.go",
+      "line": 323,
+      "api": "MustCompile",
+      "function": "func splitTopLevelKeywordAll",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_metadata_compatibility.go",
+      "line": 324,
+      "api": "MustCompile",
+      "function": "func splitTopLevelKeywordAll",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_metadata_compatibility.go",
+      "line": 325,
+      "api": "MustCompile",
+      "function": "func splitTopLevelKeywordAll",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_metadata_compatibility.go",
+      "line": 421,
+      "api": "MustCompile",
+      "function": "func executeMySQLProcsPrivSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_metadata_compatibility.go",
+      "line": 463,
+      "api": "MustCompile",
+      "function": "func executeMySQLProxiesPrivSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_metadata_compatibility.go",
+      "line": 503,
+      "api": "MustCompile",
+      "function": "func containsGrantPrivilege",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_metadata_compatibility.go",
+      "line": 504,
+      "api": "MustCompile",
+      "function": "func containsGrantPrivilege",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_metadata_compatibility.go",
+      "line": 505,
+      "api": "MustCompile",
+      "function": "func containsGrantPrivilege",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_metadata_compatibility.go",
+      "line": 851,
+      "api": "MustCompile",
+      "function": "func executeMySQLDefaultRolesSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_metadata_compatibility.go",
+      "line": 852,
+      "api": "MustCompile",
+      "function": "func executeMySQLDefaultRolesSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/account_metadata_compatibility.go",
+      "line": 853,
+      "api": "MustCompile",
+      "function": "func executeMySQLDefaultRolesSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/admin_compatibility.go",
+      "line": 430,
+      "api": "MustCompile",
+      "function": "func executeAdminCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/admin_compatibility.go",
+      "line": 431,
+      "api": "MustCompile",
+      "function": "func executeAdminCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/admin_compatibility.go",
+      "line": 562,
+      "api": "MustCompile",
+      "function": "func globalReadLockWriteStatement",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/admin_compatibility.go",
+      "line": 611,
+      "api": "MustCompile",
+      "function": "func ctxDatabaseName",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/admin_compatibility.go",
+      "line": 620,
+      "api": "MustCompile",
+      "function": "func executeSessionKill",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/admin_compatibility.go",
+      "line": 843,
+      "api": "MustCompile",
+      "function": "func executeReplicationControl",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/admin_compatibility.go",
+      "line": 845,
+      "api": "MustCompile",
+      "function": "func executeReplicationControl",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/admin_compatibility.go",
+      "line": 882,
+      "api": "MustCompile",
+      "function": "func parseResetReplicaStatement",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/admin_compatibility.go",
+      "line": 884,
+      "api": "MustCompile",
+      "function": "func parseResetReplicaStatement",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/admin_compatibility.go",
+      "line": 1029,
+      "api": "MustCompile",
+      "function": "func parseReplicationFilterValues",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/admin_compatibility.go",
+      "line": 1030,
+      "api": "MustCompile",
+      "function": "func parseReplicationFilterValues",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/admin_compatibility.go",
+      "line": 1031,
+      "api": "MustCompile",
+      "function": "func parseReplicationFilterValues",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/admin_compatibility.go",
+      "line": 1042,
+      "api": "MustCompile",
+      "function": "func parseBinlogPurgeTime",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/admin_compatibility.go",
+      "line": 1298,
+      "api": "MustCompile",
+      "function": "func parseReplicationBool",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/admin_compatibility.go",
+      "line": 1299,
+      "api": "MustCompile",
+      "function": "func parseReplicationBool",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/admin_compatibility.go",
+      "line": 1300,
+      "api": "MustCompile",
+      "function": "func parseReplicationBool",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/admin_compatibility.go",
+      "line": 1301,
+      "api": "MustCompile",
+      "function": "func parseReplicationBool",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/admin_compatibility.go",
+      "line": 1425,
+      "api": "MustCompile",
+      "function": "func parseHistogramMaintenance",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/admin_compatibility.go",
+      "line": 1934,
+      "api": "MustCompile",
+      "function": "func referencedTableForLockCheck",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 45,
+      "api": "MustCompile",
+      "function": "func parseAlterOperations",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 56,
+      "api": "MustCompile",
+      "function": "func parseAlterOperations",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 65,
+      "api": "MustCompile",
+      "function": "func parseAlterOperations",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 66,
+      "api": "MustCompile",
+      "function": "func parseAlterOperations",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 67,
+      "api": "MustCompile",
+      "function": "func parseAlterOperations",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 68,
+      "api": "MustCompile",
+      "function": "func parseAlterOperations",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 88,
+      "api": "MustCompile",
+      "function": "func validateAlterExecutionOptions",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 121,
+      "api": "MustCompile",
+      "function": "func parseSingleAlterOperation",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 124,
+      "api": "MustCompile",
+      "function": "func parseSingleAlterOperation",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 127,
+      "api": "MustCompile",
+      "function": "func parseSingleAlterOperation",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 131,
+      "api": "MustCompile",
+      "function": "func parseSingleAlterOperation",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 134,
+      "api": "MustCompile",
+      "function": "func parseSingleAlterOperation",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 138,
+      "api": "MustCompile",
+      "function": "func parseSingleAlterOperation",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 142,
+      "api": "MustCompile",
+      "function": "func parseSingleAlterOperation",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 145,
+      "api": "MustCompile",
+      "function": "func parseSingleAlterOperation",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 148,
+      "api": "MustCompile",
+      "function": "func parseSingleAlterOperation",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 235,
+      "api": "MustCompile",
+      "function": "func alterUsesInstantAlgorithm",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 297,
+      "api": "MustCompile",
+      "function": "func normalizeQualifiedAlterTableTarget",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 745,
+      "api": "MustCompile",
+      "function": "func parseColumnPosition",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 746,
+      "api": "MustCompile",
+      "function": "func parseColumnPosition",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 749,
+      "api": "MustCompile",
+      "function": "func parseColumnPosition",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 750,
+      "api": "MustCompile",
+      "function": "func parseColumnPosition",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 826,
+      "api": "MustCompile",
+      "function": "func checkExpressionReferencesColumn",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/alter_operation_compatibility.go",
+      "line": 826,
+      "api": "QuoteMeta",
+      "function": "func checkExpressionReferencesColumn",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/check_runtime.go",
+      "line": 79,
+      "api": "MustCompile",
+      "function": "func checkConstraintIsEnforced",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/component_compatibility.go",
+      "line": 58,
+      "api": "MustCompile",
+      "function": "func savePersistedComponents",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/component_compatibility.go",
+      "line": 59,
+      "api": "MustCompile",
+      "function": "func savePersistedComponents",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/component_compatibility.go",
+      "line": 67,
+      "api": "MustCompile",
+      "function": "func parseComponentStatement",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_derived_compatibility.go",
+      "line": 28,
+      "api": "MustCompile",
+      "function": "func executeCorrelatedDerivedOuterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_derived_compatibility.go",
+      "line": 45,
+      "api": "MustCompile",
+      "function": "func executeCorrelatedDerivedOuterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_derived_compatibility.go",
+      "line": 55,
+      "api": "MustCompile",
+      "function": "func executeCorrelatedDerivedOuterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_derived_compatibility.go",
+      "line": 78,
+      "api": "MustCompile",
+      "function": "func executeCorrelatedDerivedOuterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_derived_compatibility.go",
+      "line": 78,
+      "api": "QuoteMeta",
+      "function": "func executeCorrelatedDerivedOuterCompatibility",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/correlated_derived_compatibility.go",
+      "line": 129,
+      "api": "MustCompile",
+      "function": "func executeCorrelatedDerivedOuterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_derived_compatibility.go",
+      "line": 129,
+      "api": "QuoteMeta",
+      "function": "func executeCorrelatedDerivedOuterCompatibility",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/correlated_derived_compatibility.go",
+      "line": 129,
+      "api": "QuoteMeta",
+      "function": "func executeCorrelatedDerivedOuterCompatibility",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/correlated_derived_compatibility.go",
+      "line": 259,
+      "api": "MustCompile",
+      "function": "func correlatedDerivedLimit",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_dml_compatibility.go",
+      "line": 172,
+      "api": "MustCompile",
+      "function": "func rewriteCorrelatedDMLScalarAssignment",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_dml_compatibility.go",
+      "line": 269,
+      "api": "MustCompile",
+      "function": "func correlatedDMLScalarSubqueryRanges",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_dml_compatibility.go",
+      "line": 269,
+      "api": "QuoteMeta",
+      "function": "func correlatedDMLScalarSubqueryRanges",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/correlated_dml_compatibility.go",
+      "line": 304,
+      "api": "MustCompile",
+      "function": "func rewriteCorrelatedDMLMultiScalarAssignment",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_dml_compatibility.go",
+      "line": 425,
+      "api": "MustCompile",
+      "function": "func rewriteCorrelatedDMLPredicate",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_dml_compatibility.go",
+      "line": 440,
+      "api": "MustCompile",
+      "function": "func rewriteCorrelatedDMLPredicate",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_dml_compatibility.go",
+      "line": 440,
+      "api": "QuoteMeta",
+      "function": "func rewriteCorrelatedDMLPredicate",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/correlated_dml_compatibility.go",
+      "line": 564,
+      "api": "MustCompile",
+      "function": "func parseCorrelatedDMLTarget",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_predicate_compatibility.go",
+      "line": 51,
+      "api": "MustCompile",
+      "function": "func executeCorrelatedPredicateSubqueryCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_predicate_compatibility.go",
+      "line": 67,
+      "api": "MustCompile",
+      "function": "func executeCorrelatedPredicateSubqueryCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_predicate_compatibility.go",
+      "line": 221,
+      "api": "MustCompile",
+      "function": "func executeCorrelatedPredicateSubqueryCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_predicate_compatibility.go",
+      "line": 221,
+      "api": "QuoteMeta",
+      "function": "func executeCorrelatedPredicateSubqueryCompatibility",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/correlated_predicate_compatibility.go",
+      "line": 221,
+      "api": "QuoteMeta",
+      "function": "func executeCorrelatedPredicateSubqueryCompatibility",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/correlated_predicate_compatibility.go",
+      "line": 274,
+      "api": "MustCompile",
+      "function": "func splitCorrelatedConditionConnector",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_predicate_compatibility.go",
+      "line": 281,
+      "api": "MustCompile",
+      "function": "func splitCorrelatedConditionConnector",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_predicate_multiple_compatibility.go",
+      "line": 50,
+      "api": "MustCompile",
+      "function": "func executeMultipleCorrelatedPredicateSubqueriesCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_predicate_multiple_compatibility.go",
+      "line": 72,
+      "api": "MustCompile",
+      "function": "func executeMultipleCorrelatedPredicateSubqueriesCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_predicate_multiple_compatibility.go",
+      "line": 73,
+      "api": "MustCompile",
+      "function": "func executeMultipleCorrelatedPredicateSubqueriesCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_predicate_multiple_compatibility.go",
+      "line": 209,
+      "api": "MustCompile",
+      "function": "func executeMultipleCorrelatedPredicateSubqueriesCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_predicate_multiple_compatibility.go",
+      "line": 209,
+      "api": "QuoteMeta",
+      "function": "func executeMultipleCorrelatedPredicateSubqueriesCompatibility",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/correlated_predicate_multiple_compatibility.go",
+      "line": 209,
+      "api": "QuoteMeta",
+      "function": "func executeMultipleCorrelatedPredicateSubqueriesCompatibility",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/correlated_scalar_compatibility.go",
+      "line": 313,
+      "api": "MustCompile",
+      "function": "func executeCorrelatedScalarSubqueryCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_scalar_compatibility.go",
+      "line": 313,
+      "api": "QuoteMeta",
+      "function": "func executeCorrelatedScalarSubqueryCompatibility",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/correlated_scalar_compatibility.go",
+      "line": 313,
+      "api": "QuoteMeta",
+      "function": "func executeCorrelatedScalarSubqueryCompatibility",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/correlated_scalar_compatibility.go",
+      "line": 507,
+      "api": "MustCompile",
+      "function": "func evaluateCorrelatedScalarPredicate",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_scalar_compatibility.go",
+      "line": 507,
+      "api": "QuoteMeta",
+      "function": "func evaluateCorrelatedScalarPredicate",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/correlated_scalar_compatibility.go",
+      "line": 507,
+      "api": "QuoteMeta",
+      "function": "func evaluateCorrelatedScalarPredicate",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/correlated_scalar_compatibility.go",
+      "line": 590,
+      "api": "MustCompile",
+      "function": "func correlatedClauseContainsScalarAlias",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_scalar_compatibility.go",
+      "line": 590,
+      "api": "QuoteMeta",
+      "function": "func correlatedClauseContainsScalarAlias",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/correlated_scalar_compatibility.go",
+      "line": 608,
+      "api": "MustCompile",
+      "function": "func sortCorrelatedRecords",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_scalar_compatibility.go",
+      "line": 609,
+      "api": "MustCompile",
+      "function": "func sortCorrelatedRecords",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_scalar_compatibility.go",
+      "line": 623,
+      "api": "MustCompile",
+      "function": "func sortCorrelatedRecords",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_scalar_compatibility.go",
+      "line": 901,
+      "api": "MustCompile",
+      "function": "func correlatedAggregateExpression",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_scalar_compatibility.go",
+      "line": 923,
+      "api": "MustCompile",
+      "function": "func parseCorrelatedOuterSource",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_scalar_compatibility.go",
+      "line": 930,
+      "api": "MustCompile",
+      "function": "func parseCorrelatedOuterSource",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_scalar_compatibility.go",
+      "line": 946,
+      "api": "MustCompile",
+      "function": "func normalizeCorrelatedInnerAlias",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_scalar_compatibility.go",
+      "line": 950,
+      "api": "MustCompile",
+      "function": "func normalizeCorrelatedInnerAlias",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_scalar_compatibility.go",
+      "line": 950,
+      "api": "QuoteMeta",
+      "function": "func normalizeCorrelatedInnerAlias",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/correlated_subquery_compatibility.go",
+      "line": 22,
+      "api": "MustCompile",
+      "function": "func executeCorrelatedSubqueryCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_subquery_compatibility.go",
+      "line": 37,
+      "api": "MustCompile",
+      "function": "func executeCorrelatedSubqueryCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_subquery_compatibility.go",
+      "line": 53,
+      "api": "MustCompile",
+      "function": "func executeCorrelatedSubqueryCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_subquery_compatibility.go",
+      "line": 104,
+      "api": "MustCompile",
+      "function": "func executeCorrelatedSubqueryCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_subquery_compatibility.go",
+      "line": 104,
+      "api": "QuoteMeta",
+      "function": "func executeCorrelatedSubqueryCompatibility",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/correlated_subquery_compatibility.go",
+      "line": 209,
+      "api": "MustCompile",
+      "function": "func executeCorrelatedSubqueryCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_subquery_compatibility.go",
+      "line": 209,
+      "api": "QuoteMeta",
+      "function": "func executeCorrelatedSubqueryCompatibility",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/correlated_subquery_compatibility.go",
+      "line": 209,
+      "api": "QuoteMeta",
+      "function": "func executeCorrelatedSubqueryCompatibility",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/correlated_subquery_compatibility.go",
+      "line": 298,
+      "api": "MustCompile",
+      "function": "func correlatedOuterSourceSQL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_subquery_compatibility.go",
+      "line": 338,
+      "api": "MustCompile",
+      "function": "func correlatedOuterSourceAliases",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_subquery_compatibility.go",
+      "line": 343,
+      "api": "MustCompile",
+      "function": "func correlatedOuterSourceAliases",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/correlated_subquery_compatibility.go",
+      "line": 350,
+      "api": "MustCompile",
+      "function": "func correlatedOuterSourceAliases",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/create_as_select_compatibility.go",
+      "line": 14,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/create_as_select_compatibility.go",
+      "line": 15,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/create_as_select_compatibility.go",
+      "line": 16,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/create_index_visibility_compatibility.go",
+      "line": 14,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/create_index_visibility_compatibility.go",
+      "line": 37,
+      "api": "MustCompile",
+      "function": "func executeRawCreateTableIndexVisibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/create_index_visibility_compatibility.go",
+      "line": 41,
+      "api": "MustCompile",
+      "function": "func executeRawCreateTableIndexVisibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/create_like_compatibility.go",
+      "line": 12,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/cte_compatibility.go",
+      "line": 79,
+      "api": "MustCompile",
+      "function": "func isRawSetCTECompatibilityQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/cte_compatibility.go",
+      "line": 177,
+      "api": "MustCompile",
+      "function": "func executeCTECompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/cte_compatibility.go",
+      "line": 178,
+      "api": "MustCompile",
+      "function": "func executeCTECompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/cte_compatibility.go",
+      "line": 439,
+      "api": "MustCompile",
+      "function": "func materializeRecursiveCTESingleColumnLegacy",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/cte_compatibility.go",
+      "line": 440,
+      "api": "MustCompile",
+      "function": "func materializeRecursiveCTESingleColumnLegacy",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/cte_compatibility.go",
+      "line": 1146,
+      "api": "MustCompile",
+      "function": "func executeRecursiveCTEInsert",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/cte_compatibility.go",
+      "line": 1200,
+      "api": "QuoteMeta",
+      "function": "func executeRecursiveCTEDML",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/cte_compatibility.go",
+      "line": 1201,
+      "api": "QuoteMeta",
+      "function": "func executeRecursiveCTEDML",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/cte_compatibility.go",
+      "line": 1202,
+      "api": "MustCompile",
+      "function": "func executeRecursiveCTEDML",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/cte_compatibility.go",
+      "line": 1876,
+      "api": "MustCompile",
+      "function": "func parseCTECompatibilityQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/date_extract_compatibility.go",
+      "line": 75,
+      "api": "MustCompile",
+      "function": "func rewriteExtractDateFunctions",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/ddl_lock_coordinator.go",
+      "line": 1243,
+      "api": "MustCompile",
+      "function": "func acquireDatabaseDDLTableLocks",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/ddl_lock_coordinator.go",
+      "line": 1244,
+      "api": "MustCompile",
+      "function": "func acquireDatabaseDDLTableLocks",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/ddl_lock_coordinator.go",
+      "line": 1245,
+      "api": "MustCompile",
+      "function": "func acquireDatabaseDDLTableLocks",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/ddl_lock_coordinator.go",
+      "line": 1246,
+      "api": "MustCompile",
+      "function": "func acquireDatabaseDDLTableLocks",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/ddl_lock_coordinator.go",
+      "line": 1247,
+      "api": "MustCompile",
+      "function": "func acquireDatabaseDDLTableLocks",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/dml_result_compatibility.go",
+      "line": 176,
+      "api": "MustCompile",
+      "function": "func zeroTemporalColumnValue",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/dml_result_compatibility.go",
+      "line": 177,
+      "api": "MustCompile",
+      "function": "func zeroTemporalColumnValue",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 39,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3636,
+      "api": "MustCompile",
+      "function": "func executeRawAlterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3656,
+      "api": "MustCompile",
+      "function": "func executeRawAlterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3661,
+      "api": "MustCompile",
+      "function": "func executeRawAlterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3666,
+      "api": "MustCompile",
+      "function": "func executeRawAlterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3671,
+      "api": "MustCompile",
+      "function": "func executeRawAlterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3676,
+      "api": "MustCompile",
+      "function": "func executeRawAlterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3712,
+      "api": "MustCompile",
+      "function": "func executeRawAlterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3717,
+      "api": "MustCompile",
+      "function": "func executeRawAlterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3718,
+      "api": "MustCompile",
+      "function": "func executeRawAlterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3725,
+      "api": "MustCompile",
+      "function": "func executeRawAlterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3726,
+      "api": "MustCompile",
+      "function": "func executeRawAlterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3734,
+      "api": "MustCompile",
+      "function": "func executeRawAlterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3742,
+      "api": "MustCompile",
+      "function": "func executeRawAlterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3754,
+      "api": "MustCompile",
+      "function": "func executeRawAlterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3755,
+      "api": "MustCompile",
+      "function": "func executeRawAlterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3762,
+      "api": "MustCompile",
+      "function": "func executeRawAlterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3763,
+      "api": "MustCompile",
+      "function": "func executeRawAlterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3770,
+      "api": "MustCompile",
+      "function": "func executeRawAlterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3771,
+      "api": "MustCompile",
+      "function": "func executeRawAlterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3772,
+      "api": "MustCompile",
+      "function": "func executeRawAlterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3793,
+      "api": "MustCompile",
+      "function": "func executeRawAlterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3855,
+      "api": "MustCompile",
+      "function": "func persistAlterTableRowFormat",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3877,
+      "api": "MustCompile",
+      "function": "func executeCompoundAlterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3896,
+      "api": "MustCompile",
+      "function": "func executeCompoundAlterCompatibility",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 3926,
+      "api": "MustCompile",
+      "function": "func alterPartsContainConstraint",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 4826,
+      "api": "MustCompile",
+      "function": "func renameSQLIdentifier",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 4826,
+      "api": "QuoteMeta",
+      "function": "func renameSQLIdentifier",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 4947,
+      "api": "MustCompile",
+      "function": "func rewriteForeignKeyReferenceTable",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 4947,
+      "api": "QuoteMeta",
+      "function": "func rewriteForeignKeyReferenceTable",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 4947,
+      "api": "QuoteMeta",
+      "function": "func rewriteForeignKeyReferenceTable",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 5161,
+      "api": "MustCompile",
+      "function": "func parseDropTableTargets",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 5170,
+      "api": "MustCompile",
+      "function": "func parseDropTableTargets",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 5197,
+      "api": "MustCompile",
+      "function": "func parseDropViewTargets",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 5310,
+      "api": "MustCompile",
+      "function": "func parseRenameTablePairs",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 5318,
+      "api": "MustCompile",
+      "function": "func parseRenameTablePairs",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 5782,
+      "api": "MustCompile",
+      "function": "func alterTableIndexDDL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 5783,
+      "api": "MustCompile",
+      "function": "func alterTableIndexDDL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 5784,
+      "api": "MustCompile",
+      "function": "func alterTableIndexDDL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 5785,
+      "api": "MustCompile",
+      "function": "func alterTableIndexDDL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 5786,
+      "api": "MustCompile",
+      "function": "func alterTableIndexDDL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 5965,
+      "api": "MustCompile",
+      "function": "func alterTableColumnDDL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 6020,
+      "api": "MustCompile",
+      "function": "func alterTableColumnDDL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 6021,
+      "api": "MustCompile",
+      "function": "func alterTableColumnDDL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 6065,
+      "api": "MustCompile",
+      "function": "func alterTableColumnDDL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 7003,
+      "api": "MustCompile",
+      "function": "func bindJoinOuterReferences",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 7003,
+      "api": "QuoteMeta",
+      "function": "func bindJoinOuterReferences",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 7003,
+      "api": "QuoteMeta",
+      "function": "func bindJoinOuterReferences",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 7066,
+      "api": "MustCompile",
+      "function": "func executeConstantSelectStatement",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 7067,
+      "api": "MustCompile",
+      "function": "func executeConstantSelectStatement",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 7730,
+      "api": "MustCompile",
+      "function": "func rewriteSimpleInSubquery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 7788,
+      "api": "MustCompile",
+      "function": "func rewriteSimpleQuantifiedSubqueries",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 8097,
+      "api": "MustCompile",
+      "function": "func executeUserVariableAssignment",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 8109,
+      "api": "MustCompile",
+      "function": "func executeUserVariableAssignment",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 8117,
+      "api": "MustCompile",
+      "function": "func executeUserVariableAssignment",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 8445,
+      "api": "MustCompile",
+      "function": "func matchingParenIndex",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 8447,
+      "api": "MustCompile",
+      "function": "func matchingParenIndex",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 8448,
+      "api": "MustCompile",
+      "function": "func matchingParenIndex",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 8449,
+      "api": "MustCompile",
+      "function": "func matchingParenIndex",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 8450,
+      "api": "MustCompile",
+      "function": "func matchingParenIndex",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 8992,
+      "api": "QuoteMeta",
+      "function": "func checkPerformanceSchemaTableSelectPrivileges",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 8993,
+      "api": "MustCompile",
+      "function": "func checkPerformanceSchemaTableSelectPrivileges",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 9031,
+      "api": "QuoteMeta",
+      "function": "func checkMySQLMetadataTableSelectPrivileges",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 9032,
+      "api": "MustCompile",
+      "function": "func checkMySQLMetadataTableSelectPrivileges",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 9079,
+      "api": "QuoteMeta",
+      "function": "func checkInformationSchemaProcessPrivileges",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 9080,
+      "api": "MustCompile",
+      "function": "func checkInformationSchemaProcessPrivileges",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 9259,
+      "api": "MustCompile",
+      "function": "func performanceSchemaDigestText",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 10645,
+      "api": "MustCompile",
+      "function": "func isTemporaryTableDDL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 10663,
+      "api": "MustCompile",
+      "function": "func isTemporaryTableDDL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 10692,
+      "api": "MustCompile",
+      "function": "func isTemporaryTableDML",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 11525,
+      "api": "MustCompile",
+      "function": "func performanceSchemaYesNo",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 11527,
+      "api": "MustCompile",
+      "function": "func performanceSchemaYesNo",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 11529,
+      "api": "MustCompile",
+      "function": "func performanceSchemaYesNo",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 11530,
+      "api": "MustCompile",
+      "function": "func performanceSchemaYesNo",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 11532,
+      "api": "MustCompile",
+      "function": "func performanceSchemaYesNo",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 11533,
+      "api": "MustCompile",
+      "function": "func performanceSchemaYesNo",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 11737,
+      "api": "MustCompile",
+      "function": "func executePerformanceSchemaThreadsUpdate",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 12016,
+      "api": "QuoteMeta",
+      "function": "func parsePerformanceSchemaSetupPredicates",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 12018,
+      "api": "MustCompile",
+      "function": "func parsePerformanceSchemaSetupPredicates",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 12023,
+      "api": "MustCompile",
+      "function": "func parsePerformanceSchemaSetupPredicates",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 12194,
+      "api": "MustCompile",
+      "function": "func filterPerformanceSchemaVariableRows",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 14051,
+      "api": "MustCompile",
+      "function": "func performanceSchemaSummaryFilterMatches",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 14051,
+      "api": "QuoteMeta",
+      "function": "func performanceSchemaSummaryFilterMatches",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 14066,
+      "api": "MustCompile",
+      "function": "func performanceSchemaSummaryFilterMatches",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 14066,
+      "api": "QuoteMeta",
+      "function": "func performanceSchemaSummaryFilterMatches",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 14089,
+      "api": "MustCompile",
+      "function": "func performanceSchemaSummaryNullFilterMatches",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 14089,
+      "api": "QuoteMeta",
+      "function": "func performanceSchemaSummaryNullFilterMatches",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 14395,
+      "api": "MustCompile",
+      "function": "func performanceSchemaFilterQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 14403,
+      "api": "MustCompile",
+      "function": "func performanceSchemaSummaryFilterSpecified",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 14403,
+      "api": "QuoteMeta",
+      "function": "func performanceSchemaSummaryFilterSpecified",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 14403,
+      "api": "QuoteMeta",
+      "function": "func performanceSchemaSummaryFilterSpecified",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 15540,
+      "api": "MustCompile",
+      "function": "func isInformationSchemaMetadataQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 15567,
+      "api": "MustCompile",
+      "function": "func isMySQLMetadataQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 15683,
+      "api": "MustCompile",
+      "function": "func executeInformationSchemaEnabledRolesSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 15685,
+      "api": "MustCompile",
+      "function": "func executeInformationSchemaEnabledRolesSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 15687,
+      "api": "MustCompile",
+      "function": "func executeInformationSchemaEnabledRolesSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 16931,
+      "api": "MustCompile",
+      "function": "func executeInformationSchemaViewsSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 16975,
+      "api": "MustCompile",
+      "function": "func informationSchemaViewUpdatability",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 16978,
+      "api": "MustCompile",
+      "function": "func informationSchemaViewUpdatability",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 17044,
+      "api": "MustCompile",
+      "function": "func checkViewDefinerPrivilege",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 17066,
+      "api": "MustCompile",
+      "function": "func checkViewDefinerClausePrivilege",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 17115,
+      "api": "MustCompile",
+      "function": "func executeInformationSchemaStatisticsSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 17219,
+      "api": "MustCompile",
+      "function": "func requestedInformationSchemaColumns",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 17251,
+      "api": "MustCompile",
+      "function": "func normalizeInformationSchemaAggregate",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 17262,
+      "api": "MustCompile",
+      "function": "func normalizeInformationSchemaAggregate",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 17287,
+      "api": "MustCompile",
+      "function": "func informationSchemaSelectsAllColumns",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 17292,
+      "api": "MustCompile",
+      "function": "func informationSchemaSelectListContains",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 18103,
+      "api": "MustCompile",
+      "function": "func informationSchemaMetadataFilters",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 18104,
+      "api": "MustCompile",
+      "function": "func informationSchemaMetadataFilters",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 18105,
+      "api": "MustCompile",
+      "function": "func informationSchemaMetadataFilters",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 18153,
+      "api": "QuoteMeta",
+      "function": "func metadataPatternMatchesAllowEmpty",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 18156,
+      "api": "MatchString",
+      "function": "func metadataPatternMatchesAllowEmpty",
+      "category": "syntax_candidate_or_value_match"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 18169,
+      "api": "MustCompile",
+      "function": "func executeInformationSchemaParametersSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 18178,
+      "api": "MustCompile",
+      "function": "func executeInformationSchemaParametersSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 18179,
+      "api": "MustCompile",
+      "function": "func executeInformationSchemaParametersSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 18452,
+      "api": "MustCompile",
+      "function": "func executeInformationSchemaCollationsSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 18482,
+      "api": "MustCompile",
+      "function": "func executeInformationSchemaCharacterSetsSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 18512,
+      "api": "MustCompile",
+      "function": "func executeInformationSchemaEnginesSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 20083,
+      "api": "MustCompile",
+      "function": "func parseSetNamesCollation",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 21421,
+      "api": "MustCompile",
+      "function": "func checkAlterForeignKeyPrivileges",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 21577,
+      "api": "MustCompile",
+      "function": "func initializeCreateTableAutoIncrement",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 22886,
+      "api": "MustCompile",
+      "function": "func parseCreateTableForeignKeysFallback",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 22920,
+      "api": "MustCompile",
+      "function": "func cascadeActionFromTail",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 22920,
+      "api": "QuoteMeta",
+      "function": "func cascadeActionFromTail",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 22929,
+      "api": "MustCompile",
+      "function": "func validateForeignKeyReferentialActions",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 23082,
+      "api": "MustCompile",
+      "function": "func extractFallbackGeneratedExpression",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 23379,
+      "api": "MustCompile",
+      "function": "func parseTableOptionValue",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 23387,
+      "api": "MustCompile",
+      "function": "func parseTableCommentOption",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 23523,
+      "api": "MustCompile",
+      "function": "func executeShowPlugins",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 23547,
+      "api": "MustCompile",
+      "function": "func executeShowOpenTables",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 23551,
+      "api": "MustCompile",
+      "function": "func executeShowOpenTables",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 23611,
+      "api": "MustCompile",
+      "function": "func executeShowOpenTables",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 23663,
+      "api": "MustCompile",
+      "function": "func executeShowIndex",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 24021,
+      "api": "MustCompile",
+      "function": "func executeShowTableStatus",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 24087,
+      "api": "MustCompile",
+      "function": "func executeShowTriggers",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 24153,
+      "api": "MustCompile",
+      "function": "func executeShowEvents",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 24188,
+      "api": "MustCompile",
+      "function": "func executeShowEvents",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 24192,
+      "api": "MustCompile",
+      "function": "func executeShowEvents",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 24235,
+      "api": "MustCompile",
+      "function": "func executeShowRoutineStatus",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 24523,
+      "api": "MustCompile",
+      "function": "func isViewMetadataTable",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 24644,
+      "api": "MustCompile",
+      "function": "func executeShowFullColumns",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 25295,
+      "api": "MustCompile",
+      "function": "func executeAdminReadQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 25354,
+      "api": "MustCompile",
+      "function": "func executeViewDDL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 25355,
+      "api": "MustCompile",
+      "function": "func executeViewDDL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 25411,
+      "api": "MustCompile",
+      "function": "func executeViewDDL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 25412,
+      "api": "MustCompile",
+      "function": "func executeViewDDL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 25449,
+      "api": "MustCompile",
+      "function": "func executeViewDDL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 25462,
+      "api": "MustCompile",
+      "function": "func executeViewDDL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 25535,
+      "api": "MustCompile",
+      "function": "func executeViewDDL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 25538,
+      "api": "MustCompile",
+      "function": "func executeViewDDL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 25541,
+      "api": "MustCompile",
+      "function": "func executeViewDDL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 25623,
+      "api": "MustCompile",
+      "function": "func executeShowCreateView",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 25695,
+      "api": "MustCompile",
+      "function": "func applyViewExecutionSecurity",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 25724,
+      "api": "MustCompile",
+      "function": "func applyViewExecutionSecurity",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 25735,
+      "api": "MustCompile",
+      "function": "func rewriteViewQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 25891,
+      "api": "MustCompile",
+      "function": "func rewriteSimpleCTEQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 25950,
+      "api": "MustCompile",
+      "function": "func rewriteSimpleCTEQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 25964,
+      "api": "MustCompile",
+      "function": "func rewriteSimpleCTEQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 26005,
+      "api": "MustCompile",
+      "function": "func rewriteCTEInsertQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 26013,
+      "api": "MustCompile",
+      "function": "func rewriteCTEInsertQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 26080,
+      "api": "MustCompile",
+      "function": "func replaceCTESourceReferences",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 26080,
+      "api": "QuoteMeta",
+      "function": "func replaceCTESourceReferences",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 26143,
+      "api": "MustCompile",
+      "function": "func rewriteCTEDMLQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 26147,
+      "api": "MustCompile",
+      "function": "func rewriteCTEDMLQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 26147,
+      "api": "QuoteMeta",
+      "function": "func rewriteCTEDMLQuery",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 26164,
+      "api": "MustCompile",
+      "function": "func rewriteMaterializedCTEQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 26172,
+      "api": "MustCompile",
+      "function": "func rewriteMaterializedCTEQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 26204,
+      "api": "MustCompile",
+      "function": "func rewriteCTEJoinQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 26213,
+      "api": "MustCompile",
+      "function": "func rewriteCTEJoinQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 26261,
+      "api": "MustCompile",
+      "function": "func executeSimpleWindowQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 26351,
+      "api": "MustCompile",
+      "function": "func executeExplainQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/executor.go",
+      "line": 26673,
+      "api": "MustCompile",
+      "function": "func extractQualifiedTableFromShowCreate",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/fulltext_spatial_compatibility.go",
+      "line": 23,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/fulltext_spatial_compatibility.go",
+      "line": 24,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/fulltext_spatial_compatibility.go",
+      "line": 25,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/fulltext_spatial_compatibility.go",
+      "line": 26,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/fulltext_spatial_compatibility.go",
+      "line": 1305,
+      "api": "MustCompile",
+      "function": "func spatialBounds",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/fulltext_spatial_compatibility.go",
+      "line": 1323,
+      "api": "MustCompile",
+      "function": "func spatialPoint",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/handler_compatibility.go",
+      "line": 34,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/handler_compatibility.go",
+      "line": 125,
+      "api": "MustCompile",
+      "function": "func handlerOpenAlias",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/handler_compatibility.go",
+      "line": 252,
+      "api": "MustCompile",
+      "function": "func handlerReadLimit",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/handler_compatibility.go",
+      "line": 255,
+      "api": "MustCompile",
+      "function": "func handlerReadLimit",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/handler_compatibility.go",
+      "line": 258,
+      "api": "MustCompile",
+      "function": "func handlerReadLimit",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/handler_compatibility.go",
+      "line": 362,
+      "api": "MustCompile",
+      "function": "func handlerLookupPredicate",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/index_ddl_compatibility.go",
+      "line": 13,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/index_ddl_compatibility.go",
+      "line": 14,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/index_ddl_compatibility.go",
+      "line": 15,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/information_schema_aux_compatibility.go",
+      "line": 202,
+      "api": "MustCompile",
+      "function": "func informationSchemaConnectionControlUserHostMatches",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/information_schema_catalog_compatibility.go",
+      "line": 65,
+      "api": "MustCompile",
+      "function": "func informationSchemaVisibleViewDefinitions",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/information_schema_catalog_compatibility.go",
+      "line": 432,
+      "api": "MustCompile",
+      "function": "func innodbVirtualBasePositions",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/information_schema_catalog_compatibility.go",
+      "line": 442,
+      "api": "QuoteMeta",
+      "function": "func innodbVirtualBasePositions",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/information_schema_catalog_compatibility.go",
+      "line": 443,
+      "api": "MustCompile",
+      "function": "func innodbVirtualBasePositions",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/information_schema_catalog_compatibility.go",
+      "line": 451,
+      "api": "QuoteMeta",
+      "function": "func informationSchemaRoutineCallMatches",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/information_schema_catalog_compatibility.go",
+      "line": 455,
+      "api": "QuoteMeta",
+      "function": "func informationSchemaRoutineCallMatches",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/information_schema_catalog_compatibility.go",
+      "line": 456,
+      "api": "MustCompile",
+      "function": "func informationSchemaRoutineCallMatches",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/information_schema_catalog_compatibility.go",
+      "line": 462,
+      "api": "MustCompile",
+      "function": "func informationSchemaRoutineCallMatches",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/information_schema_catalog_compatibility.go",
+      "line": 581,
+      "api": "MustCompile",
+      "function": "func executeInformationSchemaSTGeometryColumnsSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/information_schema_innodb_runtime_compatibility.go",
+      "line": 17,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/information_schema_registry.go",
+      "line": 312,
+      "api": "MustCompile",
+      "function": "func executeInformationSchemaKeywordsSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/information_schema_registry.go",
+      "line": 362,
+      "api": "MustCompile",
+      "function": "func informationSchemaKeywordReservedMatches",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/information_schema_registry.go",
+      "line": 365,
+      "api": "MustCompile",
+      "function": "func informationSchemaKeywordReservedMatches",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/information_schema_registry.go",
+      "line": 487,
+      "api": "MustCompile",
+      "function": "func informationSchemaRawString",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/information_schema_registry.go",
+      "line": 554,
+      "api": "MustCompile",
+      "function": "func executeInformationSchemaExtensionRows",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/information_schema_spatial_resource_compatibility.go",
+      "line": 96,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/innodb_foreign_compatibility.go",
+      "line": 161,
+      "api": "MustCompile",
+      "function": "func innodbForeignFilterMatches",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/innodb_metrics_compatibility.go",
+      "line": 884,
+      "api": "MustCompile",
+      "function": "func informationSchemaMetricNameFilter",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/innodb_metrics_compatibility.go",
+      "line": 899,
+      "api": "QuoteMeta",
+      "function": "func metricNameMatches",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/innodb_metrics_compatibility.go",
+      "line": 902,
+      "api": "MatchString",
+      "function": "func metricNameMatches",
+      "category": "syntax_candidate_or_value_match"
+    },
+    {
+      "file": "server/innodb/engine/innodb_tablespaces_compatibility.go",
+      "line": 603,
+      "api": "MustCompile",
+      "function": "func informationSchemaTablespaceNamePattern",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/innodb_trx_compatibility.go",
+      "line": 93,
+      "api": "MustCompile",
+      "function": "func informationSchemaUint64Filter",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/innodb_trx_compatibility.go",
+      "line": 93,
+      "api": "QuoteMeta",
+      "function": "func informationSchemaUint64Filter",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/json_value_compatibility.go",
+      "line": 12,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/json_value_compatibility.go",
+      "line": 14,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/mysql_system_tables_compatibility.go",
+      "line": 107,
+      "api": "MustCompile",
+      "function": "func executeMySQLSystemTableSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/mysql_system_tables_compatibility.go",
+      "line": 108,
+      "api": "MustCompile",
+      "function": "func executeMySQLSystemTableSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/mysql_system_tables_compatibility.go",
+      "line": 109,
+      "api": "MustCompile",
+      "function": "func executeMySQLSystemTableSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/optimizer_cost_compatibility.go",
+      "line": 247,
+      "api": "MustCompile",
+      "function": "func ensureOptimizerCostModelLoaded",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/optimizer_cost_compatibility.go",
+      "line": 248,
+      "api": "MustCompile",
+      "function": "func ensureOptimizerCostModelLoaded",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/optimizer_cost_compatibility.go",
+      "line": 249,
+      "api": "MustCompile",
+      "function": "func ensureOptimizerCostModelLoaded",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/partition_compatibility.go",
+      "line": 55,
+      "api": "MustCompile",
+      "function": "func executeRawPartitionMaintenance",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/partition_compatibility.go",
+      "line": 59,
+      "api": "MustCompile",
+      "function": "func executeRawPartitionMaintenance",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/partition_compatibility.go",
+      "line": 63,
+      "api": "MustCompile",
+      "function": "func executeRawPartitionMaintenance",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/partition_compatibility.go",
+      "line": 67,
+      "api": "MustCompile",
+      "function": "func executeRawPartitionMaintenance",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/partition_compatibility.go",
+      "line": 71,
+      "api": "MustCompile",
+      "function": "func executeRawPartitionMaintenance",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/partition_compatibility.go",
+      "line": 1100,
+      "api": "MustCompile",
+      "function": "func parsePartitionDefinitions",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/partition_routing.go",
+      "line": 109,
+      "api": "MustCompile",
+      "function": "func partitionCastValue",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/partition_routing.go",
+      "line": 131,
+      "api": "MustCompile",
+      "function": "func partitionArithmeticValue",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/partition_routing.go",
+      "line": 170,
+      "api": "MustCompile",
+      "function": "func partitionDateFunction",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/partitioned_btree_manager.go",
+      "line": 504,
+      "api": "MustCompile",
+      "function": "func partitionConstantBetweenPredicate",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/partitioned_btree_manager.go",
+      "line": 504,
+      "api": "QuoteMeta",
+      "function": "func partitionConstantBetweenPredicate",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/partitioned_btree_manager.go",
+      "line": 519,
+      "api": "MustCompile",
+      "function": "func partitionConstantNotBetweenPredicate",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/partitioned_btree_manager.go",
+      "line": 519,
+      "api": "QuoteMeta",
+      "function": "func partitionConstantNotBetweenPredicate",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/partitioned_btree_manager.go",
+      "line": 534,
+      "api": "MustCompile",
+      "function": "func partitionConstantTextBetweenPredicate",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/partitioned_btree_manager.go",
+      "line": 534,
+      "api": "QuoteMeta",
+      "function": "func partitionConstantTextBetweenPredicate",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/partitioned_btree_manager.go",
+      "line": 551,
+      "api": "MustCompile",
+      "function": "func partitionConstantTextNotBetweenPredicate",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/partitioned_btree_manager.go",
+      "line": 551,
+      "api": "QuoteMeta",
+      "function": "func partitionConstantTextNotBetweenPredicate",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/partitioned_btree_manager.go",
+      "line": 568,
+      "api": "MustCompile",
+      "function": "func partitionConstantNotInPredicate",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/partitioned_btree_manager.go",
+      "line": 568,
+      "api": "QuoteMeta",
+      "function": "func partitionConstantNotInPredicate",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/partitioned_btree_manager.go",
+      "line": 636,
+      "api": "MustCompile",
+      "function": "func partitionConstantInPredicate",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/partitioned_btree_manager.go",
+      "line": 636,
+      "api": "QuoteMeta",
+      "function": "func partitionConstantInPredicate",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/performance_schema_io_compatibility.go",
+      "line": 84,
+      "api": "MustCompile",
+      "function": "func refreshPerformanceSchemaTableInstancesLost",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/performance_schema_registry.go",
+      "line": 499,
+      "api": "MustCompile",
+      "function": "func performanceSchemaTLSStatusQueryMatches",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/performance_schema_registry.go",
+      "line": 499,
+      "api": "QuoteMeta",
+      "function": "func performanceSchemaTLSStatusQueryMatches",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/performance_schema_registry.go",
+      "line": 503,
+      "api": "MustCompile",
+      "function": "func performanceSchemaTLSStatusQueryMatches",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/performance_schema_registry.go",
+      "line": 503,
+      "api": "QuoteMeta",
+      "function": "func performanceSchemaTLSStatusQueryMatches",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/persisted_variables_compatibility.go",
+      "line": 22,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/select_executor.go",
+      "line": 31,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/select_executor.go",
+      "line": 32,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/select_executor.go",
+      "line": 638,
+      "api": "MustCompile",
+      "function": "func determineStorageProjectionColumns",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/select_executor.go",
+      "line": 790,
+      "api": "MustCompile",
+      "function": "func partitionConstantPredicate",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/select_executor.go",
+      "line": 790,
+      "api": "QuoteMeta",
+      "function": "func partitionConstantPredicate",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/select_executor.go",
+      "line": 3253,
+      "api": "MustCompile",
+      "function": "func determineRequiredColumns",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/select_join_executor.go",
+      "line": 522,
+      "api": "MatchString",
+      "function": "func evalJoinComparisonTruth",
+      "category": "syntax_candidate_or_value_match"
+    },
+    {
+      "file": "server/innodb/engine/session_expression_compatibility.go",
+      "line": 19,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/show_binlog_compatibility.go",
+      "line": 22,
+      "api": "MustCompile",
+      "function": "func isShowBinlogEventsQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/show_create_database_compatibility.go",
+      "line": 11,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/show_filter.go",
+      "line": 42,
+      "api": "QuoteMeta",
+      "function": "func sqlLikeMatch",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/show_filter.go",
+      "line": 46,
+      "api": "Compile",
+      "function": "func sqlLikeMatch",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/show_parsing.go",
+      "line": 131,
+      "api": "MustCompile",
+      "function": "func extractShowTablesLikePatternFromQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/show_parsing.go",
+      "line": 144,
+      "api": "MustCompile",
+      "function": "func extractShowTableStatusLikePatternFromQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/show_parsing.go",
+      "line": 157,
+      "api": "MustCompile",
+      "function": "func extractShowTriggersLikePatternFromQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/show_parsing.go",
+      "line": 170,
+      "api": "MustCompile",
+      "function": "func extractShowEventsLikePatternFromQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/show_parsing.go",
+      "line": 183,
+      "api": "MustCompile",
+      "function": "func extractShowRoutineStatusLikePatternFromQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/show_parsing.go",
+      "line": 196,
+      "api": "MustCompile",
+      "function": "func extractShowDatabasesLikePatternFromQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/show_parsing.go",
+      "line": 211,
+      "api": "MustCompile",
+      "function": "func extractShowVariablesLikePatternFromQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/show_parsing.go",
+      "line": 226,
+      "api": "MustCompile",
+      "function": "func extractShowStatusLikePatternFromQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/show_parsing.go",
+      "line": 277,
+      "api": "MustCompile",
+      "function": "func extractShowTablesWhereExprFromQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/show_parsing.go",
+      "line": 300,
+      "api": "MustCompile",
+      "function": "func extractShowTableStatusWhereExprFromQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/show_parsing.go",
+      "line": 322,
+      "api": "MustCompile",
+      "function": "func extractShowTriggersWhereExprFromQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/show_parsing.go",
+      "line": 344,
+      "api": "MustCompile",
+      "function": "func extractShowEventsWhereExprFromQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/show_parsing.go",
+      "line": 366,
+      "api": "MustCompile",
+      "function": "func extractShowRoutineStatusWhereExprFromQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/show_parsing.go",
+      "line": 476,
+      "api": "MustCompile",
+      "function": "func extractShowCharsetLikePatternFromQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/show_parsing.go",
+      "line": 488,
+      "api": "MustCompile",
+      "function": "func extractShowCharsetWhereExprFromQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/show_parsing.go",
+      "line": 509,
+      "api": "MustCompile",
+      "function": "func extractShowColumnsLikePatternFromQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/show_parsing.go",
+      "line": 523,
+      "api": "MustCompile",
+      "function": "func extractShowColumnsWhereExprFromQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/show_relaylog_compatibility.go",
+      "line": 18,
+      "api": "MustCompile",
+      "function": "func isShowRelaylogEventsQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/show_replica_status_compatibility.go",
+      "line": 23,
+      "api": "MustCompile",
+      "function": "func isShowReplicaStatusQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/sql_event_runtime.go",
+      "line": 67,
+      "api": "MustCompile",
+      "function": "func parseSQLEventSchedule",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/sql_event_runtime.go",
+      "line": 77,
+      "api": "MustCompile",
+      "function": "func parseSQLEventSchedule",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/sql_event_runtime.go",
+      "line": 91,
+      "api": "MustCompile",
+      "function": "func parseSQLEventSchedule",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/sql_event_runtime.go",
+      "line": 121,
+      "api": "MustCompile",
+      "function": "func parseSQLEventSchedule",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/sql_prepared_statement_compatibility.go",
+      "line": 152,
+      "api": "MustCompile",
+      "function": "func Snapshot",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/sql_prepared_statement_compatibility.go",
+      "line": 153,
+      "api": "MustCompile",
+      "function": "func Snapshot",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/sql_prepared_statement_compatibility.go",
+      "line": 154,
+      "api": "MustCompile",
+      "function": "func Snapshot",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/storage_integrated_dml_helper.go",
+      "line": 2289,
+      "api": "MatchString",
+      "function": "func evalPredicateTruth",
+      "category": "syntax_candidate_or_value_match"
+    },
+    {
+      "file": "server/innodb/engine/storage_integrated_dml_helper.go",
+      "line": 2424,
+      "api": "QuoteMeta",
+      "function": "func sqlLikePatternMatchWithEscape",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/storage_integrated_dml_helper.go",
+      "line": 2438,
+      "api": "QuoteMeta",
+      "function": "func sqlLikePatternMatchWithEscape",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/storage_integrated_dml_helper.go",
+      "line": 2442,
+      "api": "QuoteMeta",
+      "function": "func sqlLikePatternMatchWithEscape",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/storage_integrated_dml_helper.go",
+      "line": 2445,
+      "api": "Compile",
+      "function": "func sqlLikePatternMatchWithEscape",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 224,
+      "api": "MustCompile",
+      "function": "func executeStoredObjectDDL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 225,
+      "api": "MustCompile",
+      "function": "func executeStoredObjectDDL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 226,
+      "api": "MustCompile",
+      "function": "func executeStoredObjectDDL",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 420,
+      "api": "MustCompile",
+      "function": "func executeStoredObjectAlter",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 454,
+      "api": "MustCompile",
+      "function": "func executeStoredObjectAlter",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 459,
+      "api": "MustCompile",
+      "function": "func executeStoredObjectAlter",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 463,
+      "api": "MustCompile",
+      "function": "func executeStoredObjectAlter",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 467,
+      "api": "MustCompile",
+      "function": "func executeStoredObjectAlter",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 493,
+      "api": "MustCompile",
+      "function": "func executeStoredObjectAlter",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 525,
+      "api": "MustCompile",
+      "function": "func executeStoredObjectAlter",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 571,
+      "api": "MustCompile",
+      "function": "func executeStoredObjectAlter",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 609,
+      "api": "MustCompile",
+      "function": "func replaceRoutineClause",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 622,
+      "api": "MustCompile",
+      "function": "func parseStoredObjectCreate",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 666,
+      "api": "MustCompile",
+      "function": "func executeStoredObjectCall",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 735,
+      "api": "MustCompile",
+      "function": "func storedProcedureParameterModes",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 813,
+      "api": "MustCompile",
+      "function": "func executeStoredProcedureCall",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 832,
+      "api": "MustCompile",
+      "function": "func executeStoredProcedureCall",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 832,
+      "api": "QuoteMeta",
+      "function": "func executeStoredProcedureCall",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1025,
+      "api": "MustCompile",
+      "function": "func executeStoredRoutineStatements",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1057,
+      "api": "MustCompile",
+      "function": "func executeStoredRoutineStatements",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1066,
+      "api": "MustCompile",
+      "function": "func executeStoredRoutineStatements",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1102,
+      "api": "MustCompile",
+      "function": "func executeStoredRoutineStatements",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1121,
+      "api": "MustCompile",
+      "function": "func executeStoredRoutineStatements",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1133,
+      "api": "MustCompile",
+      "function": "func executeStoredRoutineStatements",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1149,
+      "api": "MustCompile",
+      "function": "func executeStoredRoutineStatements",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1153,
+      "api": "MustCompile",
+      "function": "func executeStoredRoutineStatements",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1190,
+      "api": "MustCompile",
+      "function": "func executeStoredRoutineStatements",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1212,
+      "api": "MustCompile",
+      "function": "func executeStoredRoutineStatements",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1228,
+      "api": "MustCompile",
+      "function": "func executeStoredRoutineStatements",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1284,
+      "api": "MustCompile",
+      "function": "func executeStoredRoutineStatements",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1311,
+      "api": "MustCompile",
+      "function": "func executeStoredRoutineStatements",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1314,
+      "api": "MustCompile",
+      "function": "func executeStoredRoutineStatements",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1403,
+      "api": "MustCompile",
+      "function": "func executeStoredRoutineStatements",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1593,
+      "api": "MustCompile",
+      "function": "func executeStoredRoutineStatements",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1604,
+      "api": "MustCompile",
+      "function": "func executeStoredRoutineStatements",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1608,
+      "api": "MustCompile",
+      "function": "func executeStoredRoutineStatements",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1760,
+      "api": "MustCompile",
+      "function": "func parseStoredRoutineSignal",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1771,
+      "api": "MustCompile",
+      "function": "func parseStoredRoutineSignal",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1775,
+      "api": "MustCompile",
+      "function": "func parseStoredRoutineSignal",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1857,
+      "api": "MustCompile",
+      "function": "func parseStoredRoutineHandlerDeclaration",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1898,
+      "api": "MustCompile",
+      "function": "func consumeStoredRoutineHandlerCondition",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 1903,
+      "api": "MustCompile",
+      "function": "func consumeStoredRoutineHandlerCondition",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 2047,
+      "api": "MustCompile",
+      "function": "func findStoredRoutineHandler",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 2052,
+      "api": "MustCompile",
+      "function": "func findStoredRoutineHandler",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 2053,
+      "api": "MustCompile",
+      "function": "func findStoredRoutineHandler",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 2257,
+      "api": "MustCompile",
+      "function": "func parseRoutineDeclare",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 2301,
+      "api": "MustCompile",
+      "function": "func executeStoredFunctionCall",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 2411,
+      "api": "MustCompile",
+      "function": "func resolveStoredFunctionReturnExpression",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 2416,
+      "api": "MustCompile",
+      "function": "func resolveStoredFunctionReturnExpression",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 2430,
+      "api": "MustCompile",
+      "function": "func substituteStoredRoutineValues",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 2430,
+      "api": "QuoteMeta",
+      "function": "func substituteStoredRoutineValues",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 2454,
+      "api": "MustCompile",
+      "function": "func storedObjectDefiner",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 2570,
+      "api": "MustCompile",
+      "function": "func parseRoutineReturnType",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 2578,
+      "api": "MustCompile",
+      "function": "func parseRoutineLocalVariables",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 2592,
+      "api": "MustCompile",
+      "function": "func parseRoutineReturnExpression",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 2623,
+      "api": "MustCompile",
+      "function": "func executeShowCreateStoredObject",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 3031,
+      "api": "MustCompile",
+      "function": "func findStoredObjectTableDependency",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 3031,
+      "api": "QuoteMeta",
+      "function": "func findStoredObjectTableDependency",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 3090,
+      "api": "MustCompile",
+      "function": "func executeInformationSchemaRoutinesSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 3182,
+      "api": "MustCompile",
+      "function": "func storedRoutineBodyDefinition",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 3188,
+      "api": "MustCompile",
+      "function": "func storedRoutineBodyDefinition",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 3246,
+      "api": "MustCompile",
+      "function": "func parseRoutineComment",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 3260,
+      "api": "MustCompile",
+      "function": "func routineIsDeterministic",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 3263,
+      "api": "MustCompile",
+      "function": "func routineIsDeterministic",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 3269,
+      "api": "MustCompile",
+      "function": "func routineSQLDataAccess",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 3271,
+      "api": "MustCompile",
+      "function": "func routineSQLDataAccess",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 3273,
+      "api": "MustCompile",
+      "function": "func routineSQLDataAccess",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 3338,
+      "api": "MustCompile",
+      "function": "func parseTriggerInformationSchemaMetadata",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 3368,
+      "api": "MustCompile",
+      "function": "func executeInformationSchemaEventsSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 3372,
+      "api": "MustCompile",
+      "function": "func executeInformationSchemaEventsSelect",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 3431,
+      "api": "MustCompile",
+      "function": "func parseEventInformationSchemaMetadata",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/stored_object_compatibility.go",
+      "line": 3434,
+      "api": "MustCompile",
+      "function": "func parseEventInformationSchemaMetadata",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/table_import_discard_compatibility.go",
+      "line": 13,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/table_tablespace_compatibility.go",
+      "line": 14,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/tablespace_compatibility.go",
+      "line": 18,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/tablespace_compatibility.go",
+      "line": 19,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/tablespace_compatibility.go",
+      "line": 20,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/tablespace_compatibility.go",
+      "line": 21,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/tablespace_compatibility.go",
+      "line": 124,
+      "api": "MustCompile",
+      "function": "func validTablespaceCreateOptions",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/temporary_table_compatibility.go",
+      "line": 22,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/temporary_table_compatibility.go",
+      "line": 23,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/temporary_table_compatibility.go",
+      "line": 24,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/temporary_table_compatibility.go",
+      "line": 386,
+      "api": "QuoteMeta",
+      "function": "func rewriteTemporaryTableReferences",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/temporary_table_compatibility.go",
+      "line": 387,
+      "api": "QuoteMeta",
+      "function": "func rewriteTemporaryTableReferences",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/temporary_table_compatibility.go",
+      "line": 388,
+      "api": "MustCompile",
+      "function": "func rewriteTemporaryTableReferences",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/temporary_table_compatibility.go",
+      "line": 390,
+      "api": "MustCompile",
+      "function": "func rewriteTemporaryTableReferences",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/trigger_runtime.go",
+      "line": 39,
+      "api": "MustCompile",
+      "function": "func applyBeforeTriggers",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/trigger_runtime.go",
+      "line": 69,
+      "api": "MustCompile",
+      "function": "func applyAfterTriggers",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/trigger_runtime.go",
+      "line": 106,
+      "api": "MustCompile",
+      "function": "func applyAfterTriggers",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/trigger_runtime.go",
+      "line": 106,
+      "api": "QuoteMeta",
+      "function": "func applyAfterTriggers",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/trigger_runtime.go",
+      "line": 109,
+      "api": "MustCompile",
+      "function": "func applyAfterTriggers",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/trigger_runtime.go",
+      "line": 109,
+      "api": "QuoteMeta",
+      "function": "func applyAfterTriggers",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/engine/trigger_runtime.go",
+      "line": 167,
+      "api": "MustCompile",
+      "function": "func loadTableTriggers",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/trigger_runtime.go",
+      "line": 220,
+      "api": "MustCompile",
+      "function": "func triggerOrderReference",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/trigger_runtime.go",
+      "line": 239,
+      "api": "MustCompile",
+      "function": "func triggerBody",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/trigger_runtime.go",
+      "line": 249,
+      "api": "MustCompile",
+      "function": "func stripTriggerOrderPrefix",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/trigger_runtime.go",
+      "line": 268,
+      "api": "MustCompile",
+      "function": "func triggerLiteralValue",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/warning_compatibility.go",
+      "line": 47,
+      "api": "MustCompile",
+      "function": "func recordSessionError",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/window_compatibility.go",
+      "line": 16,
+      "api": "MustCompile",
+      "function": "func executeAdvancedWindowQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/window_query_compatibility.go",
+      "line": 37,
+      "api": "MustCompile",
+      "function": "func executeGeneralWindowQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/window_query_compatibility.go",
+      "line": 45,
+      "api": "MustCompile",
+      "function": "func executeGeneralWindowQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/window_query_compatibility.go",
+      "line": 58,
+      "api": "MustCompile",
+      "function": "func executeGeneralWindowQuery",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/window_query_compatibility.go",
+      "line": 289,
+      "api": "MustCompile",
+      "function": "func executeWindowOnlyProjection",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/window_query_compatibility.go",
+      "line": 299,
+      "api": "MustCompile",
+      "function": "func executeWindowOnlyProjection",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/window_query_compatibility.go",
+      "line": 397,
+      "api": "MustCompile",
+      "function": "func executeMultipleWindowExpressions",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/engine/window_query_compatibility.go",
+      "line": 801,
+      "api": "MustCompile",
+      "function": "func parseWindowSpecification",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/manager/optimizer_manager.go",
+      "line": 180,
+      "api": "MustCompile",
+      "function": "func optimizerIndexMatchesConditions",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/manager/optimizer_manager.go",
+      "line": 180,
+      "api": "QuoteMeta",
+      "function": "func optimizerIndexMatchesConditions",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/manager/optimizer_manager.go",
+      "line": 181,
+      "api": "MustCompile",
+      "function": "func optimizerIndexMatchesConditions",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/manager/optimizer_manager.go",
+      "line": 181,
+      "api": "QuoteMeta",
+      "function": "func optimizerIndexMatchesConditions",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/manager/optimizer_manager.go",
+      "line": 182,
+      "api": "MustCompile",
+      "function": "func optimizerIndexMatchesConditions",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/manager/optimizer_manager.go",
+      "line": 182,
+      "api": "QuoteMeta",
+      "function": "func optimizerIndexMatchesConditions",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/manager/schema_manager.go",
+      "line": 1135,
+      "api": "MustCompile",
+      "function": "func validateDatabaseName",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/manager/system_variable_analyzer.go",
+      "line": 44,
+      "api": "MatchString",
+      "function": "func IsSystemVariableQuery",
+      "category": "syntax_candidate_or_value_match"
+    },
+    {
+      "file": "server/innodb/manager/system_variable_analyzer.go",
+      "line": 51,
+      "api": "MatchString",
+      "function": "func IsSystemVariableQuery",
+      "category": "syntax_candidate_or_value_match"
+    },
+    {
+      "file": "server/innodb/manager/system_variable_analyzer.go",
+      "line": 271,
+      "api": "Compile",
+      "function": "func parseWithRegex",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 1503,
+      "api": "MustCompile",
+      "function": "func parseFixedTimezoneOffset",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 1530,
+      "api": "MustCompile",
+      "function": "func evalTimeConversionFunction",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 2440,
+      "api": "MustCompile",
+      "function": "func evalNetworkAndDigestFunction",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 2967,
+      "api": "Compile",
+      "function": "func compileMySQLRegexp",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 3589,
+      "api": "MatchString",
+      "function": "func validateJSONSchemaCompatibility",
+      "category": "syntax_candidate_or_value_match"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 4479,
+      "api": "QuoteMeta",
+      "function": "func jsonSearchPattern",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 4483,
+      "api": "QuoteMeta",
+      "function": "func jsonSearchPattern",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 4486,
+      "api": "Compile",
+      "function": "func jsonSearchPattern",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 5133,
+      "api": "MatchString",
+      "function": "func evalRegexp",
+      "category": "syntax_candidate_or_value_match"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 5422,
+      "api": "MatchString",
+      "function": "func evalLike",
+      "category": "syntax_candidate_or_value_match"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 5438,
+      "api": "MatchString",
+      "function": "func evalLikeWithEscape",
+      "category": "syntax_candidate_or_value_match"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 5455,
+      "api": "QuoteMeta",
+      "function": "func sqlLikePatternRegexWithEscape",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 5469,
+      "api": "QuoteMeta",
+      "function": "func sqlLikePatternRegexWithEscape",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 5473,
+      "api": "QuoteMeta",
+      "function": "func sqlLikePatternRegexWithEscape",
+      "category": "value_match_or_escaping"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 5959,
+      "api": "MatchString",
+      "function": "func Eval",
+      "category": "syntax_candidate_or_value_match"
+    },
+    {
+      "file": "server/net/decoupled_handler.go",
+      "line": 1553,
+      "api": "MustCompile",
+      "function": "func multiStatementsEnabled",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/net/decoupled_handler.go",
+      "line": 1554,
+      "api": "MustCompile",
+      "function": "func multiStatementsEnabled",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/observability/metrics/runtime.go",
+      "line": 155,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/observability/metrics/statement_digest.go",
+      "line": 11,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition"
+    },
+    {
+      "file": "server/replication/runtime.go",
+      "line": 2822,
+      "api": "MustCompile",
+      "function": "func setError",
+      "category": "pattern_definition"
+    }
+  ],
+  "parse_errors": [
+    "cmd/demo_architecture_separation/main.go: D:\\workspaces\\GolandProjects\\xmysql-server\\cmd\\demo_architecture_separation\\main.go:48:14: string literal not terminated (and 10 more errors)",
+    "cmd/demo_btree/test_table_specific_btree.go: D:\\workspaces\\GolandProjects\\xmysql-server\\cmd\\demo_btree\\test_table_specific_btree.go:56:15: string literal not terminated (and 10 more errors)",
+    "cmd/demo_btree_lock/test_lock_fix.go: D:\\workspaces\\GolandProjects\\xmysql-server\\cmd\\demo_btree_lock\\test_lock_fix.go:94:14: string literal not terminated (and 2 more errors)",
+    "cmd/demo_btree_table/test_btree_manager_fix.go: D:\\workspaces\\GolandProjects\\xmysql-server\\cmd\\demo_btree_table\\test_btree_manager_fix.go:33:15: string literal not terminated (and 10 more errors)",
+    "cmd/demo_btree_user_data/test_btree_user_init.go: D:\\workspaces\\GolandProjects\\xmysql-server\\cmd\\demo_btree_user_data\\test_btree_user_init.go:53:15: string literal not terminated (and 10 more errors)",
+    "cmd/demo_enhanced_btree/test_enhanced_btree.go: D:\\workspaces\\GolandProjects\\xmysql-server\\cmd\\demo_enhanced_btree\\test_enhanced_btree.go:53:15: string literal not terminated (and 10 more errors)",
+    "cmd/demo_storage_init/main.go: D:\\workspaces\\GolandProjects\\xmysql-server\\cmd\\demo_storage_init\\main.go:65:15: string literal not terminated (and 10 more errors)",
+    "cmd/demo_system_space_manager/main.go: D:\\workspaces\\GolandProjects\\xmysql-server\\cmd\\demo_system_space_manager\\main.go:65:14: string literal not terminated (and 11 more errors)",
+    "cmd/test_jdbc_connection/main.go: D:\\workspaces\\GolandProjects\\xmysql-server\\cmd\\test_jdbc_connection\\main.go:19:2: expected declaration, found sessionID (and 3 more errors)",
+    "cmd/test_volcano_system_vars/volcano_system_variables.go: D:\\workspaces\\GolandProjects\\xmysql-server\\cmd\\test_volcano_system_vars\\volcano_system_variables.go:19:2: expected declaration, found sessionID (and 3 more errors)"
+  ],
+  "skipped_dirs": [
+    ".ai",
+    ".codex",
+    ".git",
+    ".github",
+    ".idea",
+    ".superpowers"
+  ]
+}

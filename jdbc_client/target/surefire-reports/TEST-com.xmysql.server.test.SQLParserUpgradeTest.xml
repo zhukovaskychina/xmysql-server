@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report-3.0.xsd" version="3.0" name="com.xmysql.server.test.SQLParserUpgradeTest" time="0.294" tests="1" errors="0" skipped="0" failures="0">
+  <properties>
+    <property name="java.specification.version" value="17"/>
+    <property name="sun.cpu.isalist" value="amd64"/>
+    <property name="sun.jnu.encoding" value="UTF-8"/>
+    <property name="java.class.path" value="D:\workspaces\GolandProjects\xmysql-server\jdbc_client\target\test-classes;D:\workspaces\GolandProjects\xmysql-server\jdbc_client\target\classes;D:\maven-repository\com\mysql\mysql-connector-j\8.0.33\mysql-connector-j-8.0.33.jar;D:\maven-repository\com\google\protobuf\protobuf-java\3.21.9\protobuf-java-3.21.9.jar;D:\maven-repository\org\junit\jupiter\junit-jupiter-api\5.10.1\junit-jupiter-api-5.10.1.jar;D:\maven-repository\org\opentest4j\opentest4j\1.3.0\opentest4j-1.3.0.jar;D:\maven-repository\org\junit\platform\junit-platform-commons\1.10.1\junit-platform-commons-1.10.1.jar;D:\maven-repository\org\apiguardian\apiguardian-api\1.1.2\apiguardian-api-1.1.2.jar;D:\maven-repository\org\junit\jupiter\junit-jupiter-engine\5.10.1\junit-jupiter-engine-5.10.1.jar;D:\maven-repository\org\junit\platform\junit-platform-engine\1.10.1\junit-platform-engine-1.10.1.jar;D:\maven-repository\org\junit\jupiter\junit-jupiter-params\5.10.1\junit-jupiter-params-5.10.1.jar;D:\maven-repository\org\junit\platform\junit-platform-suite-api\1.10.1\junit-platform-suite-api-1.10.1.jar;D:\maven-repository\org\junit\platform\junit-platform-suite-engine\1.10.1\junit-platform-suite-engine-1.10.1.jar;D:\maven-repository\org\junit\platform\junit-platform-suite-commons\1.10.1\junit-platform-suite-commons-1.10.1.jar;D:\maven-repository\org\junit\platform\junit-platform-launcher\1.10.1\junit-platform-launcher-1.10.1.jar;D:\maven-repository\org\assertj\assertj-core\3.24.2\assertj-core-3.24.2.jar;D:\maven-repository\net\bytebuddy\byte-buddy\1.12.21\byte-buddy-1.12.21.jar;D:\maven-repository\org\mockito\mockito-core\5.8.0\mockito-core-5.8.0.jar;D:\maven-repository\net\bytebuddy\byte-buddy-agent\1.14.10\byte-buddy-agent-1.14.10.jar;D:\maven-repository\org\objenesis\objenesis\3.3\objenesis-3.3.jar;D:\maven-repository\org\mockito\mockito-junit-jupiter\5.8.0\mockito-junit-jupiter-5.8.0.jar;"/>
+    <property name="java.vm.vendor" value="Eclipse Adoptium"/>
+    <property name="sun.arch.data.model" value="64"/>
+    <property name="user.variant" value=""/>
+    <property name="java.vendor.url" value="https://adoptium.net/"/>
+    <property name="user.timezone" value="Asia/Shanghai"/>
+    <property name="os.name" value="Windows 11"/>
+    <property name="java.vm.specification.version" value="17"/>
+    <property name="sun.java.launcher" value="SUN_STANDARD"/>
+    <property name="user.country" value="CN"/>
+    <property name="sun.boot.library.path" value="C:\Program Files\Eclipse Adoptium\jdk-17.0.20.8-hotspot\bin"/>
+    <property name="sun.java.command" value="C:\Users\zx187\AppData\Local\Temp\surefire9517543924028818329\surefirebooter-20261017103917343_3.jar C:\Users\zx187\AppData\Local\Temp\surefire9517543924028818329 2026-10-17T10-39-17_164-jvmRun1 surefire-20261017103917343_1tmp surefire_0-20261017103917343_2tmp"/>
+    <property name="jdk.debug" value="release"/>
+    <property name="test" value="SQLParserUpgradeTest"/>
+    <property name="surefire.test.class.path" value="D:\workspaces\GolandProjects\xmysql-server\jdbc_client\target\test-classes;D:\workspaces\GolandProjects\xmysql-server\jdbc_client\target\classes;D:\maven-repository\com\mysql\mysql-connector-j\8.0.33\mysql-connector-j-8.0.33.jar;D:\maven-repository\com\google\protobuf\protobuf-java\3.21.9\protobuf-java-3.21.9.jar;D:\maven-repository\org\junit\jupiter\junit-jupiter-api\5.10.1\junit-jupiter-api-5.10.1.jar;D:\maven-repository\org\opentest4j\opentest4j\1.3.0\opentest4j-1.3.0.jar;D:\maven-repository\org\junit\platform\junit-platform-commons\1.10.1\junit-platform-commons-1.10.1.jar;D:\maven-repository\org\apiguardian\apiguardian-api\1.1.2\apiguardian-api-1.1.2.jar;D:\maven-repository\org\junit\jupiter\junit-jupiter-engine\5.10.1\junit-jupiter-engine-5.10.1.jar;D:\maven-repository\org\junit\platform\junit-platform-engine\1.10.1\junit-platform-engine-1.10.1.jar;D:\maven-repository\org\junit\jupiter\junit-jupiter-params\5.10.1\junit-jupiter-params-5.10.1.jar;D:\maven-repository\org\junit\platform\junit-platform-suite-api\1.10.1\junit-platform-suite-api-1.10.1.jar;D:\maven-repository\org\junit\platform\junit-platform-suite-engine\1.10.1\junit-platform-suite-engine-1.10.1.jar;D:\maven-repository\org\junit\platform\junit-platform-suite-commons\1.10.1\junit-platform-suite-commons-1.10.1.jar;D:\maven-repository\org\junit\platform\junit-platform-launcher\1.10.1\junit-platform-launcher-1.10.1.jar;D:\maven-repository\org\assertj\assertj-core\3.24.2\assertj-core-3.24.2.jar;D:\maven-repository\net\bytebuddy\byte-buddy\1.12.21\byte-buddy-1.12.21.jar;D:\maven-repository\org\mockito\mockito-core\5.8.0\mockito-core-5.8.0.jar;D:\maven-repository\net\bytebuddy\byte-buddy-agent\1.14.10\byte-buddy-agent-1.14.10.jar;D:\maven-repository\org\objenesis\objenesis\3.3\objenesis-3.3.jar;D:\maven-repository\org\mockito\mockito-junit-jupiter\5.8.0\mockito-junit-jupiter-5.8.0.jar;"/>
+    <property name="sun.cpu.endian" value="little"/>
+    <property name="user.home" value="C:\Users\zx187"/>
+    <property name="user.language" value="zh"/>
+    <property name="java.specification.vendor" value="Oracle Corporation"/>
+    <property name="java.version.date" value="2026-07-21"/>
+    <property name="java.home" value="C:\Program Files\Eclipse Adoptium\jdk-17.0.20.8-hotspot"/>
+    <property name="file.separator" value="\"/>
+    <property name="basedir" value="D:\workspaces\GolandProjects\xmysql-server\jdbc_client"/>
+    <property name="java.vm.compressedOopsMode" value="Zero based"/>
+    <property name="line.separator" value="&#10;"/>
+    <property name="java.vm.specification.vendor" value="Oracle Corporation"/>
+    <property name="java.specification.name" value="Java Platform API Specification"/>
+    <property name="surefire.real.class.path" value="C:\Users\zx187\AppData\Local\Temp\surefire9517543924028818329\surefirebooter-20261017103917343_3.jar"/>
+    <property name="user.script" value=""/>
+    <property name="sun.management.compiler" value="HotSpot 64-Bit Tiered Compilers"/>
+    <property name="java.runtime.version" value="17.0.20+8"/>
+    <property name="user.name" value="zx187"/>
+    <property name="path.separator" value=";"/>
+    <property name="os.version" value="10.0"/>
+    <property name="java.runtime.name" value="OpenJDK Runtime Environment"/>
+    <property name="file.encoding" value="UTF-8"/>
+    <property name="java.vm.name" value="OpenJDK 64-Bit Server VM"/>
+    <property name="java.vendor.version" value="Temurin-17.0.20+8"/>
+    <property name="localRepository" value="D:\maven-repository"/>
+    <property name="java.vendor.url.bug" value="https://github.com/adoptium/adoptium-support/issues"/>
+    <property name="java.io.tmpdir" value="C:\Users\zx187\AppData\Local\Temp\"/>
+    <property name="java.version" value="17.0.20"/>
+    <property name="user.dir" value="D:\workspaces\GolandProjects\xmysql-server\jdbc_client"/>
+    <property name="os.arch" value="amd64"/>
+    <property name="java.vm.specification.name" value="Java Virtual Machine Specification"/>
+    <property name="sun.os.patch.level" value=""/>
+    <property name="native.encoding" value="UTF-8"/>
+    <property name="java.library.path" value="C:\Program Files\Eclipse Adoptium\jdk-17.0.20.8-hotspot\bin;C:\WINDOWS\Sun\Java\bin;C:\WINDOWS\system32;C:\WINDOWS;C:\Users\zx187\.codex\tmp\arg0\codex-arg0FJvRNX;C:\Users\zx187\AppData\Local\JetBrains\GoLand2026.2\acp-agents\codex-acp\2.2.2\node_modules\@openai\codex-win32-x64\vendor\x86_64-pc-windows-msvc\codex-path;C:\Users\zx187\AppData\Local\JetBrains\GoLand2026.2\acp-agents\codex-acp\2.2.2\node_modules\.bin;C:\Users\zx187\AppData\Local\JetBrains\GoLand2026.2\acp-agents\codex-acp\node_modules\.bin;C:\Users\zx187\AppData\Local\JetBrains\GoLand2026.2\acp-agents\node_modules\.bin;C:\Users\zx187\AppData\Local\JetBrains\GoLand2026.2\node_modules\.bin;C:\Users\zx187\AppData\Local\JetBrains\node_modules\.bin;C:\Users\zx187\AppData\Local\node_modules\.bin;C:\Users\zx187\AppData\node_modules\.bin;C:\Users\zx187\node_modules\.bin;C:\Users\node_modules\.bin;C:\node_modules\.bin;C:\Users\zx187\AppData\Local\JetBrains\GoLand2026.2\acp-agents\.runtimes\node\24.19.0\node_modules\npm\node_modules\@npmcli\run-script\lib\node-gyp-bin;C:\Users\zx187\AppData\Local\JetBrains\GoLand2026.2\acp-agents\.runtimes\node\24.19.0;C:\Program Files\Eclipse Adoptium\jdk-17.0.20.8-hotspot\bin;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files (x86)\Windows Kits\10\Windows Performance Toolkit\;C:\Program Files\dotnet\;C:\Program Files (x86)\HP\Common\HPDestPlgIn\;C:\Program Files\nodejs\;C:\Program Files (x86)\Tencent\微信web开发者工具\dll;C:\Program Fi;es\Git-Xet\;C:\Program Files\Docker\Docker\resources\bin;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;D:\softwares\Git\cmd;C:\Program Files\PuTTY\;C:\Users\zx187\AppData\Local\Microsoft\WindowsApps;C:\Program Files (x86)\HP\Common\HPDestPlgIn\;D:\softwares\Microsoft VS Code\bin;C:\Users\zx187\AppData\Roaming\npm;D:\softwares\cursor\resources\app\bin;C:\Program Files\Eclipse Adoptium\jdk-17.0.20.8-hotspot\bin;C:\Program Files\JetBrains\IntelliJ IDEA 2026.2.1\bin;C:\Users\zx187\tools\apache-maven-3.9.16\bin;C:\Users\zx187\AppData\Local\Microsoft\WinGet\Packages\oschwartz10612.Poppler_Microsoft.Winget.Source_8wekyb3d8bbwe\poppler-25.07.0\Library\bin;C:\Users\zx187\AppData\Local\Python\bin;C:\Users\zx187\AppData\Local\Programs\DockerDesktop\resources\bin;."/>
+    <property name="java.vm.info" value="mixed mode, sharing"/>
+    <property name="java.vendor" value="Eclipse Adoptium"/>
+    <property name="java.vm.version" value="17.0.20+8"/>
+    <property name="java.specification.maintenance.version" value="1"/>
+    <property name="sun.io.unicode.encoding" value="UnicodeLittle"/>
+    <property name="java.class.version" value="61.0"/>
+  </properties>
+  <testcase name="showDdlAndPreparedMatrix" classname="com.xmysql.server.test.SQLParserUpgradeTest" time="0.108">
+    <system-out><![CDATA[✅ 数据库连接已建立
+]]></system-out>
+  </testcase>
+</testsuite>

@@ -1,0 +1,164 @@
+{
+  "status": "diagnosed without source edits",
+  "checks": [
+    {
+      "target": "HEAD scheduler pair",
+      "exit_code": 0,
+      "seconds": 6.055,
+      "log": "baseline-scheduler-pair.log"
+    },
+    {
+      "target": "current scheduler pair",
+      "exit_code": 0,
+      "seconds": 5.42,
+      "log": "current-scheduler-pair.log"
+    },
+    {
+      "target": "HEAD exact batch18 round1",
+      "exit_code": 1,
+      "seconds": 44.237,
+      "log": "baseline-scheduler-batch.log",
+      "failures": [
+        "TestSQLEventProgramSummaryTracksExecutionResults",
+        "TestStoredObjectCreateIfNotExistsIsIdempotentAndEventRenameMovesRegistration",
+        "TestSQLEventOnCompletionControlsOneShotMetadataRetention"
+      ],
+      "symptom": "Eventually timeout and concurrent SELECT saw incomplete FRM JSON; ExecutesDo passed"
+    },
+    {
+      "target": "HEAD exact batch18 round2",
+      "exit_code": 0,
+      "seconds": 42.33,
+      "log": "baseline-scheduler-batch-round2.log"
+    },
+    {
+      "target": "HEAD replica reconnect alone",
+      "exit_code": 1,
+      "seconds": 16.419,
+      "log": "baseline-replica-reconnect.log",
+      "symptom": "second Eventually 8-second timeout; polling SELECT saw app.items not found"
+    },
+    {
+      "target": "current replica reconnect alone",
+      "exit_code": 0,
+      "seconds": 8.409,
+      "log": "current-replica-reconnect.log"
+    },
+    {
+      "target": "current exact batch18 original root run",
+      "exit_code": 1,
+      "log": "current-scheduler-batch-original.log",
+      "failures": [
+        "TestSQLEventExecutesDoStatementWhenSchedulerIsEnabled",
+        "TestSQLEventProgramSummaryTracksExecutionResults"
+      ],
+      "symptom": "2-second Eventually timeout followed by btree manager shutdown in poll SELECT",
+      "provenance": "original root engine-batch-18.log and engine-batch-result.json"
+    },
+    {
+      "target": "HEAD exact root batch18 binary verbose condition",
+      "exit_code": 0,
+      "seconds": 45.673,
+      "build_exit_code": 0,
+      "cwd": "D:/workspaces/GolandProjects/xmysql-server/.superpowers/full-unification/baseline/server/innodb/engine",
+      "args": [
+        "-test.run",
+        "^(TestProcedureCursorHandlerAndLoopCanConsumeRows|TestProcedureExitHandlerLeavesRoutineAfterNotFound|TestProcedureCursorRequiresOpenBeforeFetch|TestProcedureCursorCanReopenAfterClose|TestProcedureCursorSupportsFetchNextFromSyntax|TestProcedureCursorEvaluatesQueryAtOpen|TestProcedureCursorRejectsOpeningAnAlreadyOpenCursor|TestProcedureFetchRejectsMismatchedOrUndeclaredTargets|TestProcedureNestedBlockPreservesVariableScope|TestProcedureRejectsDuplicateLocalVariableInSameBlock|TestProcedureContinueHandlerCatchesSQLExceptions|TestProcedureSignalSQLStateUsesSpecificHandler|TestProcedureHandlerSupportsMultipleConditions|TestProcedureHandlerConditionAliasSupportsConditionLists|TestProcedureHandlerPrefersSpecificConditionOverGenericHandler|TestProcedureSupportsSimpleAndSearchedCaseStatements|TestProcedureConditionAliasSelectsSQLStateHandler|TestProcedureSignalSQLStateWarningUsesWarningHandler|TestProcedureResignalRewritesActiveConditionMessage|TestProcedureResignalCanRewriteMySQLErrorNumber|TestProcedureGetDiagnosticsReadsSignaledMessage|TestProcedureSignalCanSetMySQLErrorNumber|TestProcedureSignalReturnsCustomErrorContractWithoutHandler|TestProcedureGetDiagnosticsReadsStatementErrorMessage|TestProcedureGetDiagnosticsReadsStatementErrorNumber|TestProcedureGetDiagnosticsReadsStatementSQLState|TestProcedureGetDiagnosticsReadsSelectIntoCardinalityError|TestProcedureDynamicSQLPrepareExecuteAndDeallocate|TestProcedureContinueHandlerCatchesSQLWarnings|TestProcedureExitHandlerExitsOnlyDeclaringNestedBlock|TestProcedureDynamicSQLExecuteUsingBindsUserVariables|TestProcedureDynamicSQLBindsMultipleMarkersWithoutReplacingQuotedQuestionMarks|TestProcedureDynamicSQLExecuteUsingBindsLocalVariable|TestStoredFunctionCanBeUsedInsideRowProjection|TestBeforeInsertTriggerMutatesRowBeforeValidation|TestBeforeInsertTriggerProgramSummaryTracksExecution|TestDMLWaitsForExplicitTriggerMetadataLock|TestBeforeInsertTriggerExecutesMultipleNewAssignments|TestBeforeInsertTriggerEvaluatesNewColumnExpression|TestBeforeTriggersRespectFollowsOrdering|TestBeforeTriggersRespectPrecedesOrdering|TestBeforeUpdateTriggerMutatesStoredRow|TestAfterTriggerRunsAtPostWriteBoundaryAndRejectsNewMutation|TestAfterUpdateAndDeleteTriggerFailuresRestoreBaseRows|TestAfterInsertTriggerExecutesAuditSideEffect|TestAfterTriggerRejectsRecursiveTriggerCycle|TestAfterTriggersWithOrderingExecuteSideEffects|TestAfterUpdateAndDeleteTriggersExecuteAuditSideEffects|TestAfterUpdateTriggerReceivesDistinctOldAndNewRows|TestStoredObjectDefinerMustExistAndInvokerNeedsExecute|TestMySQLProcsPrivReflectsRoutineExecuteGrant|TestDropTableProtectsStoredObjectDependencies|TestRoutineMetadataPersistsReturnAndLocalVariableDefinitions|TestInformationSchemaParametersReturnsStoredRoutineMetadata|TestInformationSchemaParametersReturnValueUsesNativeNullName|TestInformationSchemaParametersSupportsNullPredicates|TestInformationSchemaRoutinesReturnsNativeRoutineColumns|TestInformationSchemaStoredObjectsApplyNativeFieldFilters|TestStoredFunctionCanBeInvokedFromSelect|TestStoredFunctionCanBeUsedInWherePredicate|TestStoredFunctionRowExpressionsEnforceExecutePrivilege|TestStoredFunctionExecutePrivilegeInheritsActiveRole|TestStoredFunctionDerivedTableExpressionsEnforceExecutePrivilege|TestSQLEventExecutesDoStatementWhenSchedulerIsEnabled|TestSQLEventProgramSummaryTracksExecutionResults|TestSQLEventAlterDisableAndEnableUpdatesSchedulerLifecycle|TestStoredObjectCreateIfNotExistsIsIdempotentAndEventRenameMovesRegistration|TestSQLEventOnCompletionControlsOneShotMetadataRetention|TestSubqueryOperatorCachesUncorrelatedNullScalar|TestApplyOperatorEvaluatesQualifiedJoinConditions|TestSubqueryOperator_Scalar|TestSubqueryOperator_IN|TestSubqueryOperatorINConsumesBatchChildren|TestSubqueryOperator_EXISTS|TestApplyOperator_SEMI|TestApplyOperator_SEMIReturnsEachMatchedOuterRecord|TestApplyOperator_ANTI|TestTableCommentPersistsAcrossCreateAlterAndInformationSchema|TestTablespaceDDLCompatibilityManagesPhysicalFile|TestTablespaceDDLImplicitlyCommitsTransaction|TestExplicitTransactionBlocksAlterTableTablespaceUntilCommit|TestTablespaceDropRejectsTableOwnedSpace|TestTablespaceCreateRejectsUnknownOptions|TestTablespaceCreateIfNotExistsMatchesSQLSemantics|TestTablespaceCanBeMountedByMultipleTables|TestAlterTableTablespaceMovesRowsAndKeepsGeneralSpace|TestFilePerTableTablespaceDiscardAndImportRoundTrip|TestPartitionedFilePerTableTablespaceDiscardAndImportRoundTrip|TestTablespaceDiscardRejectsGeneralTablespaceAttachment|TestAlterPartitionedTableTablespaceMovesEachPartitionIntoSharedSpace|TestTransactionBeginCommit|TestStorageCommitInvokesPostCommitBarrierAfterRealCommit|TestTransactionRollback|TestTransactionIsolationLevel|TestTransactionReadOnly|TestTransactionWithoutManager|TestTypeFunctionCompatibilityMatrix|TestUUIDShortThroughEnginePersistsAcrossRestart|TestAdditionalStringAndJSONFunctions|TestIntervalFunctionThroughStorageSelect)$",
+        "-test.v",
+        "-test.timeout",
+        "300s"
+      ],
+      "log": "baseline-scheduler-exact-verbose.log",
+      "binary_sha256": "7a60d2b86c23047c3b8fc7fd3b5a2765425d9b86f6dc42246c0a2441e9b04843",
+      "failures": [],
+      "passed": 100,
+      "skipped": 0,
+      "missing": []
+    }
+  ],
+  "original_current_batch18": "current-scheduler-batch-original.log copied from root engine-batch-18.log preserving two scheduler timeouts followed by btree shutdown",
+  "unchanged_sha256_files": [
+    "engine/event_scheduler.go",
+    "engine/sql_event_runtime.go",
+    "engine/enginx.go",
+    "engine/replication_engine_integration_test.go",
+    "engine/executor_ddl_test.go"
+  ],
+  "additional_unchanged_source": [
+    "engine/storage_integrated_dml_executor.go",
+    "engine/select_executor.go"
+  ],
+  "mechanism": [
+    "Testify1.8.4 assert.Eventually executes condition in a goroutine, returns at deadline without cancel/join",
+    "Tests call mustQuerySQL inside that condition; require.Eventually failure runs deferred StopEventScheduler and t.Cleanup(engine.Close)",
+    "Engine.Close shuts table BTree managers; a still-running condition SELECT may then report manager shutdown. Log ordering supports shutdown being a secondary cleanup symptom, not proven primary cause",
+    "StorageIntegratedDMLExecutor.persistTableRootPage rewrites .frm using os.WriteFile on each INSERT; SelectExecutor.loadPersistedTableRootPage concurrently reads and unmarshals that same file. This unchanged non-atomic path plausibly explains incomplete JSON, but this review did not instrument it to prove each observed occurrence"
+  ],
+  "limits": [
+    "HEAD batch18 reproduced scheduler timeout class and exact ProgramSummary case, but did not reproduce ExecutesDo shutdown during either recorded round",
+    "HEAD replica reconnect failed, but its missing-table inner error differs from current full-run incomplete-JSON error",
+    "Isolated or second-round passes do not establish stability; all recorded rounds retained",
+    "No scheduler, timeout, fixture, source or test modifications made"
+  ],
+  "source_hashes": [
+    {
+      "file": "server/innodb/engine/event_scheduler.go",
+      "current_sha256": "3384ECF402CEAE2A7EC0278172015C5D775EF1B41FF6ED42AA205699A5581B19",
+      "baseline_sha256": "3384ECF402CEAE2A7EC0278172015C5D775EF1B41FF6ED42AA205699A5581B19"
+    },
+    {
+      "file": "server/innodb/engine/sql_event_runtime.go",
+      "current_sha256": "6A78247B070D4ECD5B065CEBB8FF7DF1C8A2438ECB6330A1F6D03C2DFB5D27B2",
+      "baseline_sha256": "6A78247B070D4ECD5B065CEBB8FF7DF1C8A2438ECB6330A1F6D03C2DFB5D27B2"
+    },
+    {
+      "file": "server/innodb/engine/enginx.go",
+      "current_sha256": "B118F3322DBBEE8754B0F0C9506D927F5F4F7ACD30B88763CED7E31377EA0968",
+      "baseline_sha256": "B118F3322DBBEE8754B0F0C9506D927F5F4F7ACD30B88763CED7E31377EA0968"
+    },
+    {
+      "file": "server/innodb/engine/replication_engine_integration_test.go",
+      "current_sha256": "93916CDB0D84BE3134E5C24CA36F909EB73D2CED8B3A2EAE8EC7492DD2404544",
+      "baseline_sha256": "93916CDB0D84BE3134E5C24CA36F909EB73D2CED8B3A2EAE8EC7492DD2404544"
+    },
+    {
+      "file": "server/innodb/engine/executor_ddl_test.go",
+      "current_sha256": "304CB33D2B225E9F67AB4A88488FCEDF6068BC7B9644A299F577CF6278FE98C7",
+      "baseline_sha256": "304CB33D2B225E9F67AB4A88488FCEDF6068BC7B9644A299F577CF6278FE98C7"
+    }
+  ],
+  "classification": "HEAD demonstrates runtime timing instability under the earlier go-test condition, but current ExecutesDo batch failure remains not fully attributed. The matched direct-binary verbose HEAD experiment passed100/100 and did not exactly reproduce either scheduler failure; no full-suite green claim or stable-pass claim.",
+  "current_full_process_extra_failure": {
+    "log": "engine-full-tests.log",
+    "test": "TestEngineSourceReplicaReconnectsAfterSourceRestartWithoutDuplicateTransactions",
+    "test_seconds": 10.99,
+    "result": "failed second Eventually with incomplete-JSON SELECT error",
+    "limitation": "HEAD isolated run failed the same test/Eventually boundary with a different missing-table inner error; not asserted as an identical root cause"
+  },
+  "comparability_experiment": {
+    "purpose": "Match root binary invocation rather than repeat the earlier go-test condition",
+    "earlier": "go test entry point, no -v, -count=1, package timeout180s for batch, PowerShell output redirection",
+    "matched": "Fresh HEAD go test -c binary; direct executable -test.run exact same100 names -test.v -test.timeout300s; cwd baseline/server/innodb/engine; stdout/stderr inherited same direct file descriptor as root subprocess style",
+    "cwd_note": "Earlier go test already executes the test process in the package directory; its outer shell cwd was the baseline root. The material matched differences are direct-binary invocation and verbose/direct-file output.",
+    "result": "100 PASS, 0 SKIP, 0 FAIL, 0 missing; exit0; 45.673seconds",
+    "executes_do_exact_reproduction": "NOT REPRODUCED",
+    "program_summary_exact_reproduction": "NOT REPRODUCED in this matched condition",
+    "limit": "A single matched HEAD pass does not prove stability, identify the failure cause, or exclude a current regression. Earlier baseline failures remain recorded under their original different condition."
+  },
+  "subsequent_complete_current_verification": {
+    "test_count": 1899,
+    "passed": 1897,
+    "skipped": 2,
+    "failed": 0,
+    "missing": 0,
+    "note": "Only failure-time state/profile capture deferred in the two event tests; all original test assertions and production code unchanged; probe removed and original test bytes restored after run",
+    "final_uninstrumented_batch18": {
+      "passed": 100,
+      "failed": 0,
+      "missing": 0,
+      "exit_code": 0
+    },
+    "source_binary_sha256": "bc1e5c42cddf6d1d1ce18191e33b678e715a1eabc6f918d0c823bb553f737487",
+    "historical_failures": "Preserved; subsequent success does not establish a stable timing fix or a proven root cause"
+  }
+}
