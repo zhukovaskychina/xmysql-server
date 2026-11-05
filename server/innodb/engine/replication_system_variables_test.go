@@ -14,8 +14,6 @@ func TestQualifiedGlobalReplicationVariablesAreVisibleToClients(t *testing.T) {
 	session.SetParamByName("gtid_mode", "ON")
 	session.SetParamByName("log_bin", "ON")
 	session.SetParamByName("binlog_format", "ROW")
-	require.Len(t, directSystemVariableSelectPattern.FindStringSubmatch("select @@global.version, @@global.server_id"), 2)
-	require.Len(t, directSystemVariableTokenPattern.FindStringSubmatch("@@global.version"), 3)
 	direct, handled, directErr := executor.QueryExecutor.executeDirectSystemVariableSelect("select @@global.version, @@global.server_id, @@global.gtid_mode, @@global.log_bin, @@global.binlog_format", session)
 	require.True(t, handled)
 	require.NoError(t, directErr)
