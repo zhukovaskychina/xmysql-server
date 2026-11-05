@@ -168,6 +168,7 @@ var keywords = map[string]int{
 	"exists":             EXISTS,
 	"exit":               UNUSED,
 	"explain":            EXPLAIN,
+	"extract":            EXTRACT,
 	"expansion":          EXPANSION,
 	"extended":           EXTENDED,
 	"false":              FALSE,

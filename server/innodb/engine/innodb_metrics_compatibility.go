@@ -1,12 +1,12 @@
 package engine
 
 import (
-	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 const (
@@ -881,24 +881,33 @@ func nonNegativeMetricValue(value int64) int64 {
 }
 
 func informationSchemaMetricNameFilter(query string) (string, string, bool) {
-	match := regexp.MustCompile(`(?is)\bname\b\s*(=|like)\s*('([^']*)'|"([^"]*)")`).FindStringSubmatch(query)
-	if len(match) != 5 {
+	expr, err := metadataPredicateFromQuery(query)
+	if err != nil || expr == nil {
 		return "", "", false
 	}
-	value := match[3]
-	if value == "" {
-		value = match[4]
-	}
-	return value, strings.ToLower(match[1]), true
+	var value, operator string
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		if value != "" {
+			return false, nil
+		}
+		comparison, ok := node.(*sqlparser.ComparisonExpr)
+		if !ok || (comparison.Operator != sqlparser.EqualStr && !strings.EqualFold(comparison.Operator, sqlparser.LikeStr)) {
+			return true, nil
+		}
+		column, columnOK := comparison.Left.(*sqlparser.ColName)
+		literal, literalOK := comparison.Right.(*sqlparser.SQLVal)
+		if !columnOK || !literalOK || !strings.EqualFold(column.Name.String(), "name") || literal.Type != sqlparser.StrVal {
+			return true, nil
+		}
+		value, operator = string(literal.Val), strings.ToLower(comparison.Operator)
+		return false, nil
+	}, expr)
+	return value, operator, value != ""
 }
 
 func metricNameMatches(name, operator, pattern string) bool {
 	if operator == "=" {
 		return strings.EqualFold(name, pattern)
 	}
-	regex := "^" + regexp.QuoteMeta(strings.ToLower(pattern)) + "$"
-	regex = strings.ReplaceAll(regex, "%", ".*")
-	regex = strings.ReplaceAll(regex, "_", ".")
-	matched, _ := regexp.MatchString(regex, strings.ToLower(name))
-	return matched
+	return sqlLikePatternMatchFold(name, pattern)
 }

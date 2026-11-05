@@ -2,16 +2,25 @@ package engine
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
-var jsonValueReturningPattern = regexp.MustCompile(`(?is)^(.*?)\s+returning\s+(signed|unsigned|decimal(?:\s*\(\s*\d+\s*(?:,\s*\d+\s*)?\))?|char(?:\s*\(\s*\d+\s*\))?|date|datetime|time|json)(.*)$`)
+type jsonValueReturningPatternMatcher struct{}
 
-var jsonValuePolicyPattern = regexp.MustCompile(`(?is)^(null|error|default\s+(.+?))\s+on\s+(empty|error)(?:\s+(.*))?$`)
+// Keep the old matcher-shaped seam for callers and tests while sourcing its
+// captures from the structured JSON_VALUE clause parser instead of regexp.
+var jsonValueReturningPattern jsonValueReturningPatternMatcher
+
+func (jsonValueReturningPatternMatcher) FindStringSubmatch(raw string) []string {
+	clause, err := sqlparser.ParseJSONValueReturningClause(raw)
+	if err != nil {
+		return nil
+	}
+	return []string{raw, clause.Path, clause.ReturningType, clause.Policies}
+}
 
 // rewriteJSONValueReturningQuery lowers every JSON_VALUE RETURNING call in a
 // query to the internal seven-argument function understood by the regular
@@ -168,34 +177,35 @@ func (e *XMySQLExecutor) executeRawJSONValueCompatibility(ctx *ExecutionContext,
 func parseJSONValuePolicies(suffix string) (string, string, string, string, error) {
 	emptyMode, emptyDefault := "NULL", "NULL"
 	errorMode, errorDefault := "NULL", "NULL"
-	remaining := strings.TrimSpace(suffix)
-	for remaining != "" {
-		match := jsonValuePolicyPattern.FindStringSubmatch(remaining)
-		if len(match) != 5 {
-			return "", "", "", "", fmt.Errorf("unsupported JSON_VALUE policy clause %q", remaining)
-		}
-		mode := strings.ToUpper(strings.TrimSpace(match[1]))
+	seenEmpty, seenError := false, false
+	policies, err := sqlparser.ParseJSONValuePolicies(suffix)
+	if err != nil {
+		return "", "", "", "", err
+	}
+	for _, policy := range policies {
+		mode := strings.ToUpper(strings.TrimSpace(policy.Mode))
 		defaultValue := "NULL"
-		if strings.HasPrefix(mode, "DEFAULT ") {
+		if mode == "DEFAULT" {
 			mode = "DEFAULT"
-			defaultValue = strings.TrimSpace(match[2])
+			defaultValue = strings.TrimSpace(policy.Default)
 			if defaultValue == "" {
 				return "", "", "", "", fmt.Errorf("JSON_VALUE DEFAULT requires a value")
 			}
 		}
-		target := strings.ToLower(strings.TrimSpace(match[3]))
+		target := strings.ToLower(strings.TrimSpace(policy.Target))
 		if target == "empty" {
-			if emptyMode != "NULL" || emptyDefault != "NULL" {
+			if seenEmpty {
 				return "", "", "", "", fmt.Errorf("duplicate JSON_VALUE ON EMPTY clause")
 			}
+			seenEmpty = true
 			emptyMode, emptyDefault = mode, defaultValue
 		} else {
-			if errorMode != "NULL" || errorDefault != "NULL" {
+			if seenError {
 				return "", "", "", "", fmt.Errorf("duplicate JSON_VALUE ON ERROR clause")
 			}
+			seenError = true
 			errorMode, errorDefault = mode, defaultValue
 		}
-		remaining = strings.TrimSpace(match[4])
 	}
 	return emptyMode, emptyDefault, errorMode, errorDefault, nil
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 type persistedAccount struct {
@@ -198,79 +199,93 @@ func appendPasswordHistory(account *persistedAccount) {
 }
 
 func parsePasswordHistoryOption(query string) (*int64, bool, error) {
-	match := regexp.MustCompile(`(?is)\bpassword\s+history\s+(default|[0-9]+)\b`).FindStringSubmatch(query)
-	if len(match) != 2 {
-		return nil, false, nil
+	if value, ok := structuredAccountOption(query, "password history"); ok {
+		if strings.EqualFold(value, "default") {
+			return nil, true, nil
+		}
+		parsed, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || parsed < 0 {
+			return nil, true, fmt.Errorf("invalid PASSWORD HISTORY value %q", value)
+		}
+		return &parsed, true, nil
 	}
-	if strings.EqualFold(match[1], "default") {
-		return nil, true, nil
-	}
-	value, err := strconv.ParseInt(match[1], 10, 64)
-	if err != nil || value < 0 {
-		return nil, true, fmt.Errorf("invalid PASSWORD HISTORY value %q", match[1])
-	}
-	return &value, true, nil
+	return nil, false, nil
 }
 
 func parsePasswordReuseIntervalOption(query string) (*int64, bool, error) {
-	match := regexp.MustCompile(`(?is)\bpassword\s+reuse\s+interval\s+(default|[0-9]+)\s+day\b`).FindStringSubmatch(query)
-	if len(match) != 2 {
-		return nil, false, nil
+	if value, ok := structuredAccountOption(query, "password reuse interval"); ok {
+		if strings.EqualFold(value, "default") {
+			return nil, true, nil
+		}
+		parsed, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || parsed < 0 {
+			return nil, true, fmt.Errorf("invalid PASSWORD REUSE INTERVAL value %q", value)
+		}
+		return &parsed, true, nil
 	}
-	if strings.EqualFold(match[1], "default") {
-		return nil, true, nil
-	}
-	value, err := strconv.ParseInt(match[1], 10, 64)
-	if err != nil || value < 0 {
-		return nil, true, fmt.Errorf("invalid PASSWORD REUSE INTERVAL value %q", match[1])
-	}
-	return &value, true, nil
+	return nil, false, nil
 }
 
 func parsePasswordRequireCurrentOption(query string) (*bool, bool, error) {
-	match := regexp.MustCompile(`(?is)\bpassword\s+require\s+current\b(?:\s+(default|optional))?`).FindStringSubmatch(query)
-	if len(match) != 2 {
-		return nil, false, nil
+	if value, ok := structuredAccountOption(query, "password require current"); ok {
+		if strings.EqualFold(value, "default") {
+			return nil, true, nil
+		}
+		if value == "" {
+			result := true
+			return &result, true, nil
+		}
+		result := !strings.EqualFold(value, "optional")
+		return &result, true, nil
 	}
-	if strings.EqualFold(match[1], "default") {
-		return nil, true, nil
-	}
-	value := !strings.EqualFold(match[1], "optional")
-	return &value, true, nil
+	return nil, false, nil
 }
 
 func parsePasswordLifetimeOption(query string) (*int64, bool, error) {
-	match := regexp.MustCompile(`(?is)\bpassword\s+expire\s+interval\s+([0-9]+)\s+day\b`).FindStringSubmatch(query)
-	if len(match) != 2 {
-		return nil, false, nil
+	if value, ok := structuredAccountOption(query, "password expire interval"); ok {
+		parsed, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || parsed < 0 || parsed > 65535 {
+			return nil, true, fmt.Errorf("invalid PASSWORD EXPIRE INTERVAL value %q", value)
+		}
+		return &parsed, true, nil
 	}
-	value, err := strconv.ParseInt(match[1], 10, 64)
-	if err != nil || value < 0 || value > 65535 {
-		return nil, true, fmt.Errorf("invalid PASSWORD EXPIRE INTERVAL value %q", match[1])
+	return nil, false, nil
+}
+
+func structuredAccountOption(query, key string) (string, bool) {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return "", false
 	}
-	return &value, true, nil
+	statement, ok := parsed.AST.(*sqlparser.AccountStatement)
+	if !ok {
+		return "", false
+	}
+	value, exists := statement.Options[key]
+	return value, exists
 }
 
 func parseFailedLoginPolicyOptions(query string) (attempts *int64, lockTime *int64, unbounded bool, hasAttempts, hasLockTime bool, err error) {
-	if match := regexp.MustCompile(`(?is)\bfailed_login_attempts\s+([0-9]+)\b`).FindStringSubmatch(query); len(match) == 2 {
-		value, parseErr := strconv.ParseInt(match[1], 10, 64)
-		if parseErr != nil || value < 0 || value > 32767 {
-			return nil, nil, false, true, false, fmt.Errorf("invalid FAILED_LOGIN_ATTEMPTS value %q", match[1])
+	if value, ok := structuredAccountOption(query, "failed_login_attempts"); ok {
+		parsed, parseErr := strconv.ParseInt(value, 10, 64)
+		if parseErr != nil || parsed < 0 || parsed > 32767 {
+			return nil, nil, false, true, false, fmt.Errorf("invalid FAILED_LOGIN_ATTEMPTS value %q", value)
 		}
-		attempts = &value
+		attempts = &parsed
 		hasAttempts = true
 	}
-	if match := regexp.MustCompile(`(?is)\bpassword_lock_time\s+(unbounded|[0-9]+)\b`).FindStringSubmatch(query); len(match) == 2 {
+	if value, ok := structuredAccountOption(query, "password_lock_time"); ok {
 		hasLockTime = true
-		if strings.EqualFold(match[1], "unbounded") {
+		if strings.EqualFold(value, "unbounded") {
 			unbounded = true
-			return attempts, nil, unbounded, hasAttempts, hasLockTime, nil
+			return attempts, nil, true, hasAttempts, true, nil
 		}
-		value, parseErr := strconv.ParseInt(match[1], 10, 64)
-		if parseErr != nil || value < 0 || value > 32767 {
-			return nil, nil, false, hasAttempts, true, fmt.Errorf("invalid PASSWORD_LOCK_TIME value %q", match[1])
+		parsed, parseErr := strconv.ParseInt(value, 10, 64)
+		if parseErr != nil || parsed < 0 || parsed > 32767 {
+			return nil, nil, false, hasAttempts, true, fmt.Errorf("invalid PASSWORD_LOCK_TIME value %q", value)
 		}
-		lockTime = &value
+		lockTime = &parsed
+		return attempts, lockTime, false, hasAttempts, true, nil
 	}
 	return attempts, lockTime, unbounded, hasAttempts, hasLockTime, nil
 }
@@ -295,46 +310,41 @@ func parseAccountResourceOptions(query string) (accountResourceOptions, bool, er
 		{"max_user_connections", &options.MaxUserConnections},
 	}
 	for _, definition := range definitions {
-		pattern := regexp.MustCompile(`(?is)\b` + definition.name + `\s+([0-9]+)\b`)
-		match := pattern.FindStringSubmatch(query)
-		if len(match) != 2 {
+		if value, ok := structuredAccountOption(query, definition.name); ok {
+			parsed, err := strconv.ParseInt(value, 10, 64)
+			if err != nil || parsed < 0 || parsed > 4294967295 {
+				return accountResourceOptions{}, true, fmt.Errorf("invalid %s value %q", strings.ToUpper(definition.name), value)
+			}
+			valueCopy := parsed
+			*definition.target = &valueCopy
+			hasOption = true
 			continue
 		}
-		value, err := strconv.ParseInt(match[1], 10, 64)
-		if err != nil || value < 0 || value > 4294967295 {
-			return accountResourceOptions{}, true, fmt.Errorf("invalid %s value %q", strings.ToUpper(definition.name), match[1])
-		}
-		valueCopy := value
-		*definition.target = &valueCopy
-		hasOption = true
 	}
 	return options, hasOption, nil
 }
 
 func parseTLSAccountOptions(query string) (tlsRequired, x509Required bool, cipher, issuer, subject string, hasRequirement bool) {
-	lower := strings.ToLower(query)
-	requirement := regexp.MustCompile(`(?is)\brequire\s+(none|ssl|x509)\b`).FindStringSubmatch(lower)
-	if len(requirement) == 2 {
+	requirement, requirementOK := structuredAccountOption(query, "require")
+	if requirementOK {
 		hasRequirement = true
-		switch requirement[1] {
+		switch strings.ToLower(requirement) {
 		case "ssl":
 			tlsRequired = true
 		case "x509":
 			tlsRequired, x509Required = true, true
 		}
+		cipher, _ = structuredAccountOption(query, "cipher")
+		issuer, _ = structuredAccountOption(query, "issuer")
+		subject, _ = structuredAccountOption(query, "subject")
+		return tlsRequired, x509Required, cipher, issuer, subject, hasRequirement
 	}
 	for _, item := range []struct {
 		name   string
 		target *string
-	}{
-		{"cipher", &cipher},
-		{"issuer", &issuer},
-		{"subject", &subject},
-	} {
-		pattern := regexp.MustCompile(`(?is)\b` + item.name + `\s+'((?:''|[^'])*)'`)
-		match := pattern.FindStringSubmatch(query)
-		if len(match) == 2 {
-			*item.target = strings.ReplaceAll(match[1], "''", "'")
+	}{{"cipher", &cipher}, {"issuer", &issuer}, {"subject", &subject}} {
+		if value, ok := structuredAccountOption(query, item.name); ok {
+			*item.target = value
 			tlsRequired = true
 			hasRequirement = true
 		}
@@ -346,12 +356,10 @@ func parseTLSAccountOptions(query string) (tlsRequired, x509Required bool, ciphe
 // USER ... ATTRIBUTE.  MySQL stores this value in mysql.user.User_attributes
 // and exposes the same document through INFORMATION_SCHEMA.USER_ATTRIBUTES.
 func parseUserAttributeOption(query string) (string, bool, error) {
-	if !regexp.MustCompile(`(?is)\battribute\s+default\b`).MatchString(query) {
-		match := regexp.MustCompile(`(?is)\battribute\s+'((?:''|[^'])*)'`).FindStringSubmatch(query)
-		if len(match) != 2 {
-			return "", false, nil
-		}
-		value := strings.ReplaceAll(match[1], "''", "'")
+	if _, ok := structuredAccountOption(query, "attribute default"); ok {
+		return "", true, nil
+	}
+	if value, ok := structuredAccountOption(query, "attribute"); ok {
 		var document interface{}
 		if err := json.Unmarshal([]byte(value), &document); err != nil {
 			return "", true, fmt.Errorf("invalid user ATTRIBUTE JSON: %w", err)
@@ -361,15 +369,14 @@ func parseUserAttributeOption(query string) (string, bool, error) {
 		}
 		return value, true, nil
 	}
-	return "", true, nil
+	return "", false, nil
 }
 
 func parseUserCommentOption(query string) (string, bool, error) {
-	match := regexp.MustCompile(`(?is)\bcomment\s+'((?:''|[^'])*)'`).FindStringSubmatch(query)
-	if len(match) != 2 {
-		return "", false, nil
+	if value, ok := structuredAccountOption(query, "comment"); ok {
+		return value, true, nil
 	}
-	return strings.ReplaceAll(match[1], "''", "'"), true, nil
+	return "", false, nil
 }
 
 func userAttributesWithComment(existing, comment string) (string, error) {
@@ -448,11 +455,8 @@ func (e *XMySQLExecutor) passwordRequireCurrent(account persistedAccount) bool {
 }
 
 func parsePasswordReplace(query string) (string, bool) {
-	match := regexp.MustCompile(`(?is)\breplace\s+'([^']*)'`).FindStringSubmatch(query)
-	if len(match) != 2 {
-		return "", false
-	}
-	return match[1], true
+	value, ok := structuredAccountOption(query, "replace")
+	return value, ok
 }
 
 func (e *XMySQLExecutor) validateCurrentPasswordForSelf(session server.MySQLServerSession, account persistedAccount, query string) error {
@@ -516,38 +520,82 @@ func (e *XMySQLExecutor) validatePasswordReuse(account persistedAccount, passwor
 }
 
 func accountTargetFromQuery(query string) (user, host string, ok bool) {
-	match := regexp.MustCompile(`(?is)'([^']*)'\s*@\s*'([^']*)'`).FindStringSubmatch(query)
-	if len(match) != 3 {
+	accounts := accountTargetsFromQuery(query)
+	if len(accounts) == 0 {
 		return "", "", false
 	}
-	return match[1], match[2], true
+	return accounts[0][0], accounts[0][1], true
+}
+
+func accountTargetsFromContext(ctx *ExecutionContext, query string) [][2]string {
+	if ctx != nil && ctx.Parsed != nil {
+		if statement, ok := ctx.Parsed.AST.(*sqlparser.AccountStatement); ok && len(statement.Accounts) > 0 {
+			result := make([][2]string, 0, len(statement.Accounts))
+			for _, account := range statement.Accounts {
+				result = append(result, [2]string{account.User, account.Host})
+			}
+			return result
+		}
+	}
+	return accountTargetsFromQuery(query)
 }
 
 func accountTargetsFromQuery(query string) [][2]string {
-	matches := regexp.MustCompile(`(?is)'([^']*)'\s*@\s*'([^']*)'`).FindAllStringSubmatch(query, -1)
-	result := make([][2]string, 0, len(matches))
-	for _, match := range matches {
-		if len(match) == 3 {
-			result = append(result, [2]string{match[1], match[2]})
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err == nil {
+		if statement, ok := parsed.AST.(*sqlparser.AccountStatement); ok {
+			result := make([][2]string, 0, len(statement.Accounts))
+			for _, account := range statement.Accounts {
+				result = append(result, [2]string{account.User, account.Host})
+			}
+			if len(result) > 0 {
+				return result
+			}
 		}
+	}
+	return scanAccountQuotes(query)
+}
+
+func accountGranteeTargetsFromQuery(query string) [][2]string {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return nil
+	}
+	statement, ok := parsed.AST.(*sqlparser.AccountStatement)
+	if !ok {
+		return nil
+	}
+	result := make([][2]string, 0, len(statement.Accounts))
+	for _, account := range statement.Accounts {
+		result = append(result, [2]string{account.User, account.Host})
 	}
 	return result
 }
 
-func accountGranteeTargetsFromQuery(query string) [][2]string {
-	match := regexp.MustCompile(`(?is)\b(?:to|from)\b\s+(.+?)(?:\s+with\s+(?:grant|admin)\s+option)?\s*;?\s*$`).FindStringSubmatch(query)
-	if len(match) != 2 {
+func roleReferences(raw string) []string {
+	parsed, err := sqlparser.ParseForExecution("GRANT " + strings.TrimSpace(raw) + " TO 'role_target'@'localhost'")
+	if err != nil {
 		return nil
 	}
-	return accountTargetsFromQuery(match[1])
-}
-
-func roleReferences(raw string) []string {
-	matches := regexp.MustCompile(`(?is)'([^']*)'\s*@\s*'([^']*)'`).FindAllStringSubmatch(raw, -1)
-	roles := make([]string, 0, len(matches))
-	for _, match := range matches {
-		if len(match) == 3 {
-			roles = append(roles, match[1]+"@"+match[2])
+	statement, ok := parsed.AST.(*sqlparser.AccountStatement)
+	if !ok {
+		return nil
+	}
+	roles := make([]string, 0, len(statement.RoleSources))
+	for _, role := range statement.RoleSources {
+		roles = append(roles, role.User+"@"+role.Host)
+	}
+	if len(roles) == 0 {
+		for _, part := range splitTopLevelComma(raw) {
+			at := strings.Index(part, "@")
+			if at <= 0 || at+1 >= len(part) {
+				continue
+			}
+			user := strings.Trim(strings.TrimSpace(part[:at]), "'` ")
+			host := strings.Trim(strings.TrimSpace(part[at+1:]), "'` ")
+			if user != "" && host != "" {
+				roles = append(roles, user+"@"+host)
+			}
 		}
 	}
 	return roles
@@ -562,6 +610,7 @@ func accountHasRole(account persistedAccount, role string) bool {
 	return false
 }
 
+// regexp-value: retained. Host patterns are values ('%' and '_'), not SQL structure.
 func accountHostMatches(host, pattern string) bool {
 	if pattern == host {
 		return true
@@ -1029,7 +1078,7 @@ func (e *XMySQLExecutor) executeRoleStatement(ctx *ExecutionContext, lower, quer
 		return
 	}
 	if strings.HasPrefix(lower, "set default role") {
-		targets := accountTargetsFromQuery(query)
+		targets := accountTargetsFromContext(ctx, query)
 		granteeTargets := accountGranteeTargetsFromQuery(query)
 		if len(granteeTargets) == 0 && len(targets) > 0 {
 			granteeTargets = targets[len(targets)-1:]
@@ -1428,12 +1477,17 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 	}
 	if strings.HasPrefix(lower, "show create user") {
 		user, host, ok := accountTargetFromQuery(query)
+		if ctx != nil && ctx.Parsed != nil {
+			if statement, parsedOK := ctx.Parsed.AST.(*sqlparser.AccountStatement); parsedOK && len(statement.Accounts) == 1 {
+				user, host, ok = statement.Accounts[0].User, statement.Accounts[0].Host, true
+			}
+		}
 		file, err := e.accountFileForSession(ctx)
 		if err != nil {
 			ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
 			return true
 		}
-		if !ok && regexp.MustCompile(`(?is)^show\s+create\s+user\s+current_user\s*\(?(?:\s*\))?\s*$`).MatchString(lower) {
+		if !ok && strings.HasPrefix(lower, "show create user current_user") {
 			if current := sessionAccount(file, ctx.Session); current != nil {
 				user, host, ok = current.User, current.Host, true
 			}
@@ -1568,8 +1622,17 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 		return true
 	}
 	if strings.HasPrefix(lower, "set password") {
-		user, host, ok := accountTargetFromQuery(query)
-		if !ok && regexp.MustCompile(`(?is)\bset\s+password\s+for\s+(?:user|current_user)\s*\(\s*\)`).MatchString(lower) {
+		var user, host string
+		var ok bool
+		if ctx != nil && ctx.Parsed != nil {
+			if statement, parsedOK := ctx.Parsed.AST.(*sqlparser.AccountStatement); parsedOK && len(statement.Accounts) == 1 {
+				user, host, ok = statement.Accounts[0].User, statement.Accounts[0].Host, true
+			}
+		}
+		if !ok {
+			user, host, ok = accountTargetFromQuery(query)
+		}
+		if !ok && (strings.Contains(lower, "set password for user(") || strings.Contains(lower, "set password for current_user(")) {
 			if current := sessionAccount(file, ctx.Session); current != nil {
 				user, host, ok = current.User, current.Host, true
 			}
@@ -1591,8 +1654,13 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 			ctx.Results <- &Result{Err: fmt.Errorf("access denied: current account cannot change password for '%s'@'%s'", user, host), ResultType: common.RESULT_TYPE_QUERY}
 			return true
 		}
-		passwordMatch := regexp.MustCompile(`(?is)set\s+password(?:\s+for\s+(?:'[^']*'\s*@\s*'[^']*'|(?:user|current_user)\s*\(\s*\)))?\s*=\s*'([^']*)'`).FindStringSubmatch(query)
-		if len(passwordMatch) != 2 {
+		passwordText := ""
+		if ctx != nil && ctx.Parsed != nil {
+			if statement, parsedOK := ctx.Parsed.AST.(*sqlparser.AccountStatement); parsedOK {
+				passwordText = statement.Password
+			}
+		}
+		if passwordText == "" {
 			ctx.Results <- &Result{Err: fmt.Errorf("invalid SET PASSWORD syntax"), ResultType: common.RESULT_TYPE_QUERY}
 			return true
 		}
@@ -1611,7 +1679,7 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 			ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
 			return true
 		}
-		newPassword := passwordHashForPlugin(file.Accounts[idx].Plugin, passwordMatch[1])
+		newPassword := passwordHashForPlugin(file.Accounts[idx].Plugin, passwordText)
 		if err := e.validatePasswordReuse(file.Accounts[idx], newPassword); err != nil {
 			ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
 			return true
@@ -1640,7 +1708,14 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 				}
 			}
 		}
-		pairs := regexp.MustCompile(`(?is)'([^']*)'\s*@\s*'([^']*)'\s+to\s+'([^']*)'\s*@\s*'([^']*)'`).FindAllStringSubmatch(query, -1)
+		pairs := make([][]string, 0)
+		if ctx != nil && ctx.Parsed != nil {
+			if statement, parsedOK := ctx.Parsed.AST.(*sqlparser.AccountStatement); parsedOK {
+				for _, pair := range statement.RenamePairs {
+					pairs = append(pairs, []string{"", pair.Source.User, pair.Source.Host, pair.Destination.User, pair.Destination.Host})
+				}
+			}
+		}
 		if len(pairs) == 0 {
 			ctx.Results <- &Result{Err: fmt.Errorf("invalid RENAME USER syntax"), ResultType: common.RESULT_TYPE_QUERY}
 			return true
@@ -1712,7 +1787,7 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 		return true
 	}
 	user, host, ok := accountTargetFromQuery(query)
-	if !ok && regexp.MustCompile(`(?is)^alter\s+user\s+(?:user|current_user)\s*\(\s*\)`).MatchString(lower) {
+	if !ok && (strings.HasPrefix(lower, "alter user user(") || strings.HasPrefix(lower, "alter user current_user(")) {
 		if current := sessionAccount(file, ctx.Session); current != nil {
 			user, host, ok = current.User, current.Host, true
 		}
@@ -1732,7 +1807,7 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 
 	switch {
 	case strings.HasPrefix(lower, "create user"):
-		accountTargets := accountTargetsFromQuery(query)
+		accountTargets := accountTargetsFromContext(ctx, query)
 		if len(accountTargets) == 0 {
 			ctx.Results <- &Result{Err: fmt.Errorf("CREATE USER requires an account"), ResultType: common.RESULT_TYPE_QUERY}
 			return true
@@ -1749,13 +1824,10 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 				}
 			}
 		}
-		password := ""
-		if match := regexp.MustCompile(`(?is)identified(?:\s+with\s+[a-z0-9_]+)?\s+by\s+'([^']*)'`).FindStringSubmatch(query); len(match) == 2 {
-			password = match[1]
-		}
+		password, _ := structuredAccountOption(query, "identified_by")
 		plugin := "mysql_native_password"
-		if match := regexp.MustCompile(`(?is)identified\s+with\s+([a-z0-9_]+)`).FindStringSubmatch(query); len(match) == 2 {
-			plugin = strings.ToLower(match[1])
+		if parsedPlugin, ok := structuredAccountOption(query, "identified_with"); ok && parsedPlugin != "" {
+			plugin = strings.ToLower(parsedPlugin)
 		}
 		tlsRequired, parsedX509Required, sslCipher, x509Issuer, x509Subject, hasTLSRequirement := parseTLSAccountOptions(query)
 		x509Required := parsedX509Required || strings.Contains(lower, "require x509")
@@ -1858,7 +1930,7 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 			}
 		}
 	case strings.HasPrefix(lower, "create role"):
-		accountTargets := accountTargetsFromQuery(query)
+		accountTargets := accountTargetsFromContext(ctx, query)
 		if len(accountTargets) == 0 {
 			ctx.Results <- &Result{Err: fmt.Errorf("CREATE ROLE requires a role"), ResultType: common.RESULT_TYPE_QUERY}
 			return true
@@ -1888,8 +1960,8 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 			}
 		}
 	case strings.HasPrefix(lower, "alter user"):
-		accountTargets := accountTargetsFromQuery(query)
-		if len(accountTargets) == 0 && regexp.MustCompile(`(?is)^alter\s+user\s+(?:user|current_user)\s*\(\s*\)`).MatchString(lower) && ok {
+		accountTargets := accountTargetsFromContext(ctx, query)
+		if len(accountTargets) == 0 && (strings.HasPrefix(lower, "alter user user(") || strings.HasPrefix(lower, "alter user current_user(")) && ok {
 			accountTargets = [][2]string{{user, host}}
 		}
 		if len(accountTargets) == 0 {
@@ -1914,10 +1986,8 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 				return true
 			}
 		}
-		plugin := ""
-		if match := regexp.MustCompile(`(?is)identified\s+with\s+([a-z0-9_]+)`).FindStringSubmatch(query); len(match) == 2 {
-			plugin = strings.ToLower(match[1])
-		}
+		plugin, _ := structuredAccountOption(query, "identified_with")
+		plugin = strings.ToLower(plugin)
 		passwordHistory, hasPasswordHistory, policyErr := parsePasswordHistoryOption(query)
 		if policyErr != nil {
 			ctx.Results <- &Result{Err: policyErr, ResultType: common.RESULT_TYPE_QUERY}
@@ -1971,7 +2041,8 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 			}
 			hasUserAttributes = true
 		}
-		if match := regexp.MustCompile(`(?is)identified(?:\s+with\s+[a-z0-9_]+)?\s+by\s+'([^']*)'`).FindStringSubmatch(query); len(match) == 2 {
+		passwordText, hasPassword := structuredAccountOption(query, "identified_by")
+		if hasPassword {
 			for _, idx := range indices {
 				if idx >= 0 {
 					if err := e.validateCurrentPasswordForSelf(ctx.Session, file.Accounts[idx], query); err != nil {
@@ -1982,7 +2053,7 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 					if hashPlugin == "" {
 						hashPlugin = file.Accounts[idx].Plugin
 					}
-					newPassword := passwordHashForPlugin(hashPlugin, match[1])
+					newPassword := passwordHashForPlugin(hashPlugin, passwordText)
 					if err := e.validatePasswordReuse(file.Accounts[idx], newPassword); err != nil {
 						ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
 						return true
@@ -2091,7 +2162,7 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 			ctx.Results <- &Result{Err: fmt.Errorf("access denied: current account cannot drop users"), ResultType: common.RESULT_TYPE_QUERY}
 			return true
 		}
-		targets := accountTargetsFromQuery(query)
+		targets := accountTargetsFromContext(ctx, query)
 		if len(targets) == 0 {
 			ctx.Results <- &Result{Err: fmt.Errorf("DROP USER requires an account"), ResultType: common.RESULT_TYPE_QUERY}
 			return true
@@ -2138,7 +2209,7 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 			ctx.Results <- &Result{Err: fmt.Errorf("access denied: current account cannot drop roles"), ResultType: common.RESULT_TYPE_QUERY}
 			return true
 		}
-		targets := accountTargetsFromQuery(query)
+		targets := accountTargetsFromContext(ctx, query)
 		if len(targets) == 0 {
 			ctx.Results <- &Result{Err: fmt.Errorf("DROP ROLE requires a role"), ResultType: common.RESULT_TYPE_QUERY}
 			return true
@@ -2179,11 +2250,30 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 		}
 		file.Accounts = filtered
 	case strings.HasPrefix(lower, "grant ") || strings.HasPrefix(lower, "revoke "):
-		targets := accountTargetsFromQuery(query)
+		targets := accountTargetsFromContext(ctx, query)
+		if ctx != nil && ctx.Parsed != nil {
+			if statement, parsedOK := ctx.Parsed.AST.(*sqlparser.AccountStatement); parsedOK && len(statement.Accounts) > 0 {
+				targets = make([][2]string, 0, len(statement.RoleSources)+len(statement.Accounts))
+				for _, account := range statement.RoleSources {
+					targets = append(targets, [2]string{account.User, account.Host})
+				}
+				for _, account := range statement.Accounts {
+					targets = append(targets, [2]string{account.User, account.Host})
+				}
+			}
+		}
 		isRoleGrant := strings.HasPrefix(lower, "grant '") && len(targets) >= 2 && strings.Contains(lower, " to ")
 		isRoleRevoke := strings.HasPrefix(lower, "revoke '") && len(targets) >= 2 && strings.Contains(lower, " from ")
 		if isRoleGrant || isRoleRevoke {
 			granteeTargets := accountGranteeTargetsFromQuery(query)
+			if ctx != nil && ctx.Parsed != nil {
+				if statement, parsedOK := ctx.Parsed.AST.(*sqlparser.AccountStatement); parsedOK && len(statement.Accounts) > 0 {
+					granteeTargets = make([][2]string, 0, len(statement.Accounts))
+					for _, account := range statement.Accounts {
+						granteeTargets = append(granteeTargets, [2]string{account.User, account.Host})
+					}
+				}
+			}
 			if len(granteeTargets) == 0 {
 				granteeTargets = targets[len(targets)-1:]
 			}
@@ -2246,16 +2336,23 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 			accountResult(ctx, nil, nil, message)
 			return true
 		}
-		grantMatch := regexp.MustCompile(`(?is)^(?:grant|revoke)\s+(.+?)\s+on\s+(?:(?:procedure|function)\s+)?([^\s]+)\s+(?:to|from)\s+`).FindStringSubmatch(query)
-		if len(grantMatch) != 3 {
+		privilegeSpec, key := "", ""
+		if ctx != nil && ctx.Parsed != nil {
+			if statement, parsedOK := ctx.Parsed.AST.(*sqlparser.AccountStatement); parsedOK && statement.Scope != "" {
+				key = strings.Trim(statement.Scope, "` ")
+				privilegeSpec = statement.PrivilegeSpec
+				if privilegeSpec == "" {
+					privilegeSpec = strings.Join(statement.Privileges, ", ")
+				}
+			}
+		}
+		if key == "" || privilegeSpec == "" {
 			ctx.Results <- &Result{Err: fmt.Errorf("invalid GRANT/REVOKE syntax"), ResultType: common.RESULT_TYPE_QUERY}
 			return true
 		}
-		key := strings.Trim(grantMatch[2], "` ")
-		revokeGrantOptionFor := regexp.MustCompile(`(?is)^revoke\s+grant\s+option\s+for\b`).MatchString(query)
-		privilegeSpec := grantMatch[1]
+		revokeGrantOptionFor := strings.HasPrefix(strings.ToLower(strings.TrimSpace(privilegeSpec)), "grant option for")
 		if revokeGrantOptionFor {
-			privilegeSpec = regexp.MustCompile(`(?is)^grant\s+option\s+for\s+`).ReplaceAllString(privilegeSpec, "")
+			privilegeSpec = strings.TrimSpace(strings.TrimPrefix(strings.ToLower(strings.TrimSpace(privilegeSpec)), "grant option for"))
 		}
 		privileges, columnGrants := parseGrantPrivileges(privilegeSpec, key)
 		if strings.Contains(strings.ToLower(query), "with grant option") {
@@ -2275,6 +2372,14 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 			return true
 		}
 		granteeTargets := accountGranteeTargetsFromQuery(query)
+		if ctx != nil && ctx.Parsed != nil {
+			if statement, parsedOK := ctx.Parsed.AST.(*sqlparser.AccountStatement); parsedOK && len(statement.Accounts) > 0 {
+				granteeTargets = make([][2]string, 0, len(statement.Accounts))
+				for _, account := range statement.Accounts {
+					granteeTargets = append(granteeTargets, [2]string{account.User, account.Host})
+				}
+			}
+		}
 		if len(granteeTargets) == 0 && len(targets) > 0 {
 			granteeTargets = targets[len(targets)-1:]
 		}
@@ -2298,7 +2403,7 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 			indices[targetIndex] = idx
 		}
 		if strings.HasPrefix(lower, "grant ") {
-			if strings.EqualFold(key, "*.*") && regexp.MustCompile(`(?is)\ball(?:\s+privileges)?\b`).MatchString(grantMatch[1]) {
+			if strings.EqualFold(key, "*.*") && grantPrivilegeSpecIsAll(privilegeSpec) {
 				privileges = appendUniqueStrings(privileges, common.RegisteredDynamicPrivileges()...)
 			}
 			for _, idx := range indices {
@@ -2359,7 +2464,7 @@ func (e *XMySQLExecutor) executeAccountStatement(ctx *ExecutionContext, query st
 						deletePersistedColumnGrantor(&file.Accounts[idx], column, "GRANT OPTION")
 					}
 				}
-			} else if regexp.MustCompile(`(?is)\ball(?:\s+privileges)?\b`).MatchString(grantMatch[1]) {
+			} else if grantPrivilegeSpecIsAll(privilegeSpec) {
 				for _, idx := range indices {
 					delete(file.Accounts[idx].Grants, key)
 					deletePersistedGrantorsForScope(&file.Accounts[idx], key)
@@ -2512,28 +2617,35 @@ func splitGrantPrivileges(raw string) []string {
 
 func parseGrantPrivileges(raw, scope string) ([]string, map[string][]string) {
 	columns := map[string][]string{}
-	if regexp.MustCompile(`(?is)^\s*grant\s+option\s+for\b`).MatchString(raw) {
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(raw)), "grant option for") {
 		return []string{"GRANT OPTION"}, columns
 	}
-	grantOption := regexp.MustCompile(`(?is)\s+with\s+grant\s+option\s*$`).MatchString(raw)
+	trimmed := strings.TrimSpace(raw)
+	lower := strings.ToLower(trimmed)
+	grantOption := strings.HasSuffix(lower, " with grant option")
 	if grantOption {
-		raw = regexp.MustCompile(`(?is)\s+with\s+grant\s+option\s*$`).ReplaceAllString(raw, "")
+		raw = strings.TrimSpace(trimmed[:len(trimmed)-len(" with grant option")])
 	}
-	columnPattern := regexp.MustCompile(`(?is)([a-z][a-z0-9 _]*)\s*\(([^)]*)\)`)
-	plain := columnPattern.ReplaceAllStringFunc(raw, func(match string) string {
-		parts := columnPattern.FindStringSubmatch(match)
-		if len(parts) != 3 {
-			return match
-		}
-		privilege := strings.ToUpper(strings.TrimSpace(parts[1]))
-		for _, column := range strings.Split(parts[2], ",") {
-			column = strings.Trim(strings.TrimSpace(column), "` ")
-			if column != "" {
-				columns[scope+"."+column] = appendUniqueStrings(columns[scope+"."+column], privilege)
+	plainParts := make([]string, 0)
+	for _, part := range splitTopLevelComma(raw) {
+		part = strings.TrimSpace(part)
+		open := strings.Index(part, "(")
+		close := strings.LastIndex(part, ")")
+		if open > 0 && close > open {
+			privilege := strings.ToUpper(strings.TrimSpace(part[:open]))
+			for _, column := range strings.Split(part[open+1:close], ",") {
+				column = strings.Trim(strings.TrimSpace(column), "` ")
+				if column != "" {
+					columns[scope+"."+column] = appendUniqueStrings(columns[scope+"."+column], privilege)
+				}
 			}
+			continue
 		}
-		return ""
-	})
+		if part != "" {
+			plainParts = append(plainParts, part)
+		}
+	}
+	plain := strings.Join(plainParts, ",")
 	privileges := splitGrantPrivileges(plain)
 	if grantOption {
 		// A column grant's WITH GRANT OPTION belongs to the column
@@ -2549,6 +2661,11 @@ func parseGrantPrivileges(raw, scope string) ([]string, map[string][]string) {
 		}
 	}
 	return privileges, columns
+}
+
+func grantPrivilegeSpecIsAll(raw string) bool {
+	parts := strings.Fields(strings.ToLower(strings.TrimSpace(raw)))
+	return len(parts) == 1 && parts[0] == "all" || len(parts) == 2 && parts[0] == "all" && parts[1] == "privileges"
 }
 
 func appendUniqueStrings(target []string, values ...string) []string {

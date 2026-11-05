@@ -73,6 +73,21 @@ func TestSelfServiceSetPasswordDoesNotRequireGlobalPrivilege(t *testing.T) {
 	}
 }
 
+func TestSelfServicePasswordUsesParsedAccountIdentity(t *testing.T) {
+	for _, tc := range []struct {
+		query string
+		self  bool
+	}{
+		{"SET PASSWORD FOR 'o''brien'@'localhost' = 'secret'", true},
+		{"SET PASSWORD FOR 'other'@'localhost' = 'secret'", false},
+		{"SET PASSWORD = 'secret'; SELECT 1", false},
+	} {
+		if got := isSelfServiceSetPassword("o'brien", "localhost", tc.query); got != tc.self {
+			t.Fatalf("self service for %s = %v", tc.query, got)
+		}
+	}
+}
+
 func TestFeatureSpecificPrivilegeRoutingKeepsObjectTableContext(t *testing.T) {
 	tests := []struct {
 		name   string

@@ -3,13 +3,13 @@ package engine
 import (
 	"fmt"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 // validatePartitionRows enforces the logical partition contract before rows
@@ -106,11 +106,15 @@ func partitionExpressionValue(row map[string]interface{}, expression string) (in
 }
 
 func partitionCastValue(row map[string]interface{}, expression string) (interface{}, bool) {
-	match := regexp.MustCompile("(?is)^\\s*cast\\s*\\(\\s*([^()]+?)\\s+as\\s+(signed|unsigned)\\s*\\)\\s*$").FindStringSubmatch(expression)
-	if len(match) != 3 {
+	cast, ok := partitionScalarAST(expression).(*sqlparser.ConvertExpr)
+	if !ok || cast.Type == nil || (cast.Type.Type != "signed" && cast.Type.Type != "unsigned") {
 		return nil, false
 	}
-	value, exists := partitionRowValue(row, strings.Trim(strings.TrimSpace(match[1]), "` "))
+	column, ok := cast.Expr.(*sqlparser.ColName)
+	if !ok {
+		return nil, false
+	}
+	value, exists := partitionRowValue(row, column.Name.String())
 	if !exists || value == nil {
 		return nil, false
 	}
@@ -118,7 +122,7 @@ func partitionCastValue(row map[string]interface{}, expression string) (interfac
 	if err != nil {
 		return nil, false
 	}
-	if strings.EqualFold(match[2], "unsigned") {
+	if strings.EqualFold(cast.Type.Type, "unsigned") {
 		if numeric < 0 {
 			return nil, false
 		}
@@ -128,11 +132,15 @@ func partitionCastValue(row map[string]interface{}, expression string) (interfac
 }
 
 func partitionArithmeticValue(row map[string]interface{}, expression string) (interface{}, bool) {
-	match := regexp.MustCompile("(?is)^\\s*([a-zA-Z0-9_$`.]+)\\s*(div|[+*/%-])\\s*(-?[0-9]+)\\s*$").FindStringSubmatch(expression)
-	if len(match) != 4 {
+	binary, ok := partitionScalarAST(expression).(*sqlparser.BinaryExpr)
+	if !ok {
 		return nil, false
 	}
-	base, exists := partitionRowValue(row, strings.Trim(strings.TrimSpace(match[1]), "` "))
+	column, ok := binary.Left.(*sqlparser.ColName)
+	if !ok {
+		return nil, false
+	}
+	base, exists := partitionRowValue(row, column.Name.String())
 	if !exists || base == nil {
 		return nil, false
 	}
@@ -140,11 +148,15 @@ func partitionArithmeticValue(row map[string]interface{}, expression string) (in
 	if err != nil {
 		return nil, false
 	}
-	right, err := strconv.ParseInt(match[3], 10, 64)
+	rightValue, err := evaluateExpressionWithRow(binary.Right, nil)
 	if err != nil {
 		return nil, false
 	}
-	switch strings.ToLower(match[2]) {
+	right, err := partitionNumericValue(rightValue)
+	if err != nil {
+		return nil, false
+	}
+	switch strings.ToLower(binary.Operator) {
 	case "+":
 		return left + right, true
 	case "-":
@@ -167,11 +179,40 @@ func partitionArithmeticValue(row map[string]interface{}, expression string) (in
 }
 
 func partitionDateFunction(expression string) (string, string, bool) {
-	match := regexp.MustCompile(`(?is)^\s*(year|month|day|dayofmonth|to_days)\s*\(\s*([^()]+?)\s*\)\s*$`).FindStringSubmatch(expression)
-	if len(match) != 3 {
+	function, ok := partitionScalarAST(expression).(*sqlparser.FuncExpr)
+	if !ok || len(function.Exprs) != 1 {
 		return "", "", false
 	}
-	return strings.ToUpper(match[1]), strings.Trim(strings.TrimSpace(match[2]), "` "), true
+	switch strings.ToLower(function.Name.String()) {
+	case "year", "month", "day", "dayofmonth", "to_days":
+	default:
+		return "", "", false
+	}
+	argument, ok := function.Exprs[0].(*sqlparser.AliasedExpr)
+	if !ok {
+		return "", "", false
+	}
+	column, ok := argument.Expr.(*sqlparser.ColName)
+	if !ok {
+		return "", "", false
+	}
+	return strings.ToUpper(function.Name.String()), column.Name.String(), true
+}
+
+func partitionScalarAST(expression string) sqlparser.Expr {
+	parsed, err := sqlparser.ParseForExecution("select " + expression)
+	if err != nil {
+		return nil
+	}
+	stmt, ok := parsed.AST.(*sqlparser.Select)
+	if !ok || len(stmt.SelectExprs) != 1 || stmt.Where != nil {
+		return nil
+	}
+	aliased, ok := stmt.SelectExprs[0].(*sqlparser.AliasedExpr)
+	if !ok {
+		return nil
+	}
+	return aliased.Expr
 }
 
 func partitionDateFunctionValue(function string, value interface{}) (interface{}, bool) {

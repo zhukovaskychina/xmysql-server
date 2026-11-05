@@ -2,13 +2,13 @@ package engine
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 	"github.com/zhukovaskychina/xmysql-server/server/observability/compatibility"
 )
 
@@ -148,23 +148,25 @@ func (m *sqlPreparedStatementManager) Snapshot() []compatibility.PreparedStateme
 	return result
 }
 
-var (
-	sqlPreparePattern    = regexp.MustCompile(`(?is)^prepare\s+([a-zA-Z0-9_$]+)\s+from\s+(.+)$`)
-	sqlExecutePattern    = regexp.MustCompile(`(?is)^execute\s+([a-zA-Z0-9_$]+)(?:\s+using\s+(.+))?$`)
-	sqlDeallocatePattern = regexp.MustCompile(`(?is)^deallocate\s+(?:prepare\s+)?([a-zA-Z0-9_$]+)$`)
-)
-
 // executeSQLPreparedStatementCompatibility implements the SQL text-protocol
 // PREPARE/EXECUTE/DEALLOCATE forms. Binary COM_STMT_* statements continue to
 // use the protocol-owned manager; both inventories are projected by
 // performance_schema.prepared_statements_instances.
 func (e *XMySQLExecutor) executeSQLPreparedStatementCompatibility(ctx *ExecutionContext, session server.MySQLServerSession, query, databaseName string, results chan *Result) (bool, error) {
-	trimmed := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(query), ";"))
-	if match := sqlPreparePattern.FindStringSubmatch(trimmed); len(match) == 3 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return false, nil
+	}
+	statement, ok := parsed.AST.(*sqlparser.PreparedStatement)
+	if !ok {
+		return false, nil
+	}
+	switch strings.ToLower(statement.Kind) {
+	case "prepare":
 		if session == nil {
 			return true, fmt.Errorf("PREPARE requires a session")
 		}
-		expression := e.rewriteSessionUserVariables(strings.TrimSpace(match[2]), session)
+		expression := e.rewriteSessionUserVariables(strings.TrimSpace(statement.SourceExpression), session)
 		value, err := evaluateStoredRoutineScalarExpression(expression)
 		if err != nil {
 			return true, err
@@ -173,32 +175,30 @@ func (e *XMySQLExecutor) executeSQLPreparedStatementCompatibility(ctx *Execution
 		if !ok || strings.TrimSpace(statementSQL) == "" {
 			return true, fmt.Errorf("PREPARE source must evaluate to a non-empty string")
 		}
-		sqlPreparedStatementManagerForSession(session).Prepare(match[1], statementSQL)
+		sqlPreparedStatementManagerForSession(session).Prepare(statement.Name, statementSQL)
 		results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Message: "statement prepared successfully"}
 		return true, nil
-	}
-	if match := sqlDeallocatePattern.FindStringSubmatch(trimmed); len(match) == 2 {
+	case "deallocate":
 		if session == nil {
 			return true, fmt.Errorf("DEALLOCATE PREPARE requires a session")
 		}
-		if !sqlPreparedStatementManagerForSession(session).Deallocate(match[1]) {
-			return true, fmt.Errorf("Unknown prepared statement handler (%s)", match[1])
+		if !sqlPreparedStatementManagerForSession(session).Deallocate(statement.Name) {
+			return true, fmt.Errorf("Unknown prepared statement handler (%s)", statement.Name)
 		}
 		results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Message: "statement deallocated successfully"}
 		return true, nil
-	}
-	if match := sqlExecutePattern.FindStringSubmatch(trimmed); len(match) >= 2 {
+	case "execute":
 		if session == nil {
 			return true, fmt.Errorf("EXECUTE requires a session")
 		}
 		manager := sqlPreparedStatementManagerForSession(session)
-		statement, ok := manager.Get(match[1])
+		snapshot, ok := manager.Get(statement.Name)
 		if !ok {
-			return true, fmt.Errorf("Unknown prepared statement handler (%s)", match[1])
+			return true, fmt.Errorf("Unknown prepared statement handler (%s)", statement.Name)
 		}
 		values := make([]interface{}, 0)
-		if len(match) == 3 && strings.TrimSpace(match[2]) != "" {
-			for _, argument := range splitTopLevelComma(match[2]) {
+		if len(statement.Parameters) > 0 {
+			for _, argument := range statement.Parameters {
 				argument = strings.TrimSpace(argument)
 				value := session.GetParamByName(argument)
 				if value == nil && strings.HasPrefix(argument, "@") {
@@ -207,7 +207,7 @@ func (e *XMySQLExecutor) executeSQLPreparedStatementCompatibility(ctx *Execution
 				values = append(values, value)
 			}
 		}
-		boundSQL, err := bindRoutineParameterMarkers(statement.SQL, values)
+		boundSQL, err := bindRoutineParameterMarkers(snapshot.SQL, values)
 		if err != nil {
 			return true, err
 		}
@@ -229,7 +229,7 @@ func (e *XMySQLExecutor) executeSQLPreparedStatementCompatibility(ctx *Execution
 			}
 			results <- result
 		}
-		_ = manager.RecordExecution(match[1], compatibility.PreparedStatementExecutionStats{
+		_ = manager.RecordExecution(statement.Name, compatibility.PreparedStatementExecutionStats{
 			Duration: time.Since(startedAt), Failed: failed, Warnings: uint64(maxInt64(0, warnings)),
 			RowsAffected: uint64(maxInt64(0, rowsAffected)), RowsSent: uint64(maxInt64(0, rowsSent)),
 			RowsExamined: uint64(maxInt64(0, nestedContext.statementRowsExamined.Load())),

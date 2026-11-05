@@ -2,9 +2,10 @@ package engine
 
 import (
 	"fmt"
-	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 // executeInformationSchemaInnoDBForeignSelect exposes the persisted foreign
@@ -140,23 +141,14 @@ func stringListFromForeignValue(value interface{}) []string {
 }
 
 func innodbForeignFilterMatches(query, id, forName, refName string) bool {
-	for _, filter := range []struct {
-		column string
-		value  string
-	}{
-		{"id", id}, {"for_name", forName}, {"ref_name", refName},
-	} {
-		pattern := regexp.MustCompile(`(?is)\b` + filter.column + `\b\s*=\s*('([^']*)'|"([^"]*)")`)
-		match := pattern.FindStringSubmatch(query)
-		if len(match) == 0 {
-			continue
-		}
-		expected := match[2]
-		if expected == "" {
-			expected = match[3]
-		}
-		if !strings.EqualFold(filter.value, expected) {
-			return false
+	if parsed, err := sqlparser.ParseForExecution(query); err == nil {
+		if selectStmt, ok := parsed.AST.(*sqlparser.Select); ok && selectStmt.Where != nil {
+			keep, evalErr := evaluateMetadataPredicate(selectStmt.Where.Expr, map[string]interface{}{
+				"id": id, "for_name": forName, "ref_name": refName,
+			})
+			if evalErr == nil {
+				return keep
+			}
 		}
 	}
 	return true

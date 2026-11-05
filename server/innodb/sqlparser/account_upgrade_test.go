@@ -71,6 +71,17 @@ func TestAccountUpgradeGrantAndRoleTargets(t *testing.T) {
 	}
 }
 
+func TestAccountUpgradeDefaultRoleTargets(t *testing.T) {
+	parsed, err := ParseForExecution("SET DEFAULT ROLE 'reader'@'localhost' TO 'alice'@'localhost', 'bob'@'localhost'")
+	if err != nil {
+		t.Fatal(err)
+	}
+	statement := parsed.AST.(*AccountStatement)
+	if statement.Kind != "set default role" || len(statement.Accounts) != 2 || statement.Accounts[1].User != "bob" {
+		t.Fatalf("statement=%#v", statement)
+	}
+}
+
 func TestAccountUpgradeShowCreateUserTarget(t *testing.T) {
 	parsed, err := ParseForExecution("SHOW CREATE USER 'alice'@'localhost'")
 	if err != nil {

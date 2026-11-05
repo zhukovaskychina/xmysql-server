@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -19,10 +18,6 @@ const temporaryTableSessionStateParam = "__xmysql_temporary_tables__"
 const temporaryTableCreatePrivilegeBypassParam = "__xmysql_creating_temporary_table__"
 
 var (
-	temporaryTableCreatePattern = regexp.MustCompile(`(?is)^\s*create\s+temporary\s+table\s+(if\s+not\s+exists\s+)?((?:` + "`?" + `[a-zA-Z0-9_$]+` + "`?" + `\s*\.\s*)?` + "`?" + `[a-zA-Z0-9_$]+` + "`?" + `)\s+(.+?)\s*;?\s*$`)
-	temporaryTableRenamePattern = regexp.MustCompile(`(?is)^\s*(?:alter\s+table\s+(.+?)\s+rename\s+to\s+(.+?)|rename\s+table\s+(.+?)\s+to\s+(.+?))\s*;?\s*$`)
-	temporaryTableDropPattern   = regexp.MustCompile(`(?is)^\s*drop\s+(temporary\s+)?table\s+(if\s+exists\s+)?(.+?)\s*;?\s*$`)
-
 	temporaryTableSequence atomic.Uint64
 )
 
@@ -57,13 +52,120 @@ func temporaryTableKey(database, table string) string {
 	return strings.ToLower(strings.TrimSpace(database) + "\x00" + strings.TrimSpace(table))
 }
 
+func (e *XMySQLExecutor) renameTemporaryTable(ctx *ExecutionContext, databaseName, sourceRaw, targetRaw string) (bool, error) {
+	if ctx == nil || ctx.Session == nil {
+		return false, nil
+	}
+	databaseName = temporaryTableDatabaseName(ctx, databaseName)
+	sourceDB, sourceTable := compatibilityQualifiedTable(sourceRaw, databaseName)
+	targetDB, targetTable := compatibilityQualifiedTable(targetRaw, databaseName)
+	if sourceDB == "" || sourceTable == "" || targetDB == "" || targetTable == "" {
+		return true, fmt.Errorf("RENAME TABLE requires valid source and target names")
+	}
+	state := getTemporaryTableSessionState(ctx.Session, false)
+	if state == nil {
+		return false, nil
+	}
+	sourceKey, targetKey := temporaryTableKey(sourceDB, sourceTable), temporaryTableKey(targetDB, targetTable)
+	state.mu.Lock()
+	binding, exists := state.tables[sourceKey]
+	_, targetExists := state.tables[targetKey]
+	if !exists {
+		state.mu.Unlock()
+		return false, nil
+	}
+	if !strings.EqualFold(sourceDB, targetDB) {
+		state.mu.Unlock()
+		return true, fmt.Errorf("temporary table rename across databases is unsupported")
+	}
+	if targetExists {
+		state.mu.Unlock()
+		return true, fmt.Errorf("temporary table '%s.%s' already exists", targetDB, targetTable)
+	}
+	delete(state.tables, sourceKey)
+	binding.Database, binding.Logical = targetDB, targetTable
+	state.tables[targetKey] = binding
+	state.mu.Unlock()
+	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_DDL, Message: fmt.Sprintf("Temporary table '%s' renamed successfully", targetTable)}
+	return true, nil
+}
+
+func parseTemporaryDropTargets(query, currentDB string, session server.MySQLServerSession) ([]string, bool, bool, error) {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return nil, false, false, nil
+	}
+	statement, ok := parsed.AST.(*sqlparser.TableDDLStatement)
+	if !ok || !strings.EqualFold(statement.Action, "drop") || len(statement.Targets) == 0 {
+		return nil, false, false, nil
+	}
+	if !statement.Temporary {
+		if session == nil {
+			return nil, false, false, nil
+		}
+		for _, target := range statement.Targets {
+			databaseName, tableName := target.Qualifier.String(), target.Name.String()
+			if databaseName == "" {
+				databaseName = currentDB
+			}
+			if databaseName == "" || tableName == "" || !isSessionTemporaryTable(session, databaseName, tableName) {
+				return nil, false, false, nil
+			}
+		}
+	}
+	targets := make([]string, 0, len(statement.Targets))
+	for _, target := range statement.Targets {
+		name := target.Name.String()
+		if target.Qualifier.String() != "" {
+			name = target.Qualifier.String() + "." + name
+		}
+		if name == "" {
+			return nil, false, true, fmt.Errorf("DROP TEMPORARY TABLE requires valid table names")
+		}
+		targets = append(targets, name)
+	}
+	return targets, statement.IfExists, true, nil
+}
+
 func (e *XMySQLExecutor) executeRawTemporaryTableCompatibility(ctx *ExecutionContext, query, databaseName string) (bool, error) {
-	if match := temporaryTableCreatePattern.FindStringSubmatch(strings.TrimSpace(query)); len(match) == 4 {
+	type temporaryCreateSpec struct {
+		target      string
+		ifNotExists bool
+		definition  string
+	}
+	var createSpec *temporaryCreateSpec
+	if parsed, err := sqlparser.ParseForExecution(query); err == nil {
+		if statement, ok := parsed.AST.(*sqlparser.TableDDLStatement); ok && statement.Temporary && len(statement.Targets) == 1 {
+			definition := statement.Definition
+			if statement.AsSelect != nil {
+				definition = ""
+				if statement.Definition != "" {
+					definition = "(" + statement.Definition + ") "
+				}
+				if statement.TableOptions != "" {
+					definition += statement.TableOptions + " "
+				}
+				if statement.SelectMode != "" {
+					definition += statement.SelectMode + " "
+				}
+				definition += "as " + statement.AsSelectSQL
+			} else if statement.Like.Name.String() != "" {
+				definition = "like " + sqlparser.String(statement.Like)
+			} else if definition != "" {
+				definition = "(" + definition + ")"
+				if statement.TableOptions != "" {
+					definition += " " + statement.TableOptions
+				}
+			}
+			createSpec = &temporaryCreateSpec{target: sqlparser.String(statement.Targets[0]), ifNotExists: statement.IfNotExists, definition: strings.TrimSpace(definition)}
+		}
+	}
+	if createSpec != nil {
 		if ctx == nil || ctx.Session == nil {
 			return true, fmt.Errorf("CREATE TEMPORARY TABLE requires a session")
 		}
 		databaseName = temporaryTableDatabaseName(ctx, databaseName)
-		targetDB, targetTable := compatibilityQualifiedTable(match[2], databaseName)
+		targetDB, targetTable := compatibilityQualifiedTable(createSpec.target, databaseName)
 		if targetDB == "" || targetTable == "" {
 			return true, fmt.Errorf("CREATE TEMPORARY TABLE requires a database and table name")
 		}
@@ -79,7 +181,7 @@ func (e *XMySQLExecutor) executeRawTemporaryTableCompatibility(ctx *ExecutionCon
 		existing, exists := state.tables[key]
 		state.mu.RUnlock()
 		if exists {
-			if strings.TrimSpace(match[1]) != "" {
+			if createSpec.ifNotExists {
 				ctx.Results <- &Result{ResultType: common.RESULT_TYPE_DDL, Message: fmt.Sprintf("Table '%s' already exists", targetTable)}
 				return true, nil
 			}
@@ -88,7 +190,7 @@ func (e *XMySQLExecutor) executeRawTemporaryTableCompatibility(ctx *ExecutionCon
 
 		tableID := temporaryTableSequence.Add(1)
 		physical := fmt.Sprintf("__xmysql_tmp_%d", tableID)
-		createSQL := fmt.Sprintf("create table `%s` %s", physical, strings.TrimSpace(match[3]))
+		createSQL := fmt.Sprintf("create table `%s` %s", physical, createSpec.definition)
 		createSQL = e.rewriteTemporaryTableReferences(ctx.Session, createSQL)
 		childResults := make(chan *Result, 1)
 		child := *ctx
@@ -100,10 +202,10 @@ func (e *XMySQLExecutor) executeRawTemporaryTableCompatibility(ctx *ExecutionCon
 		defer ctx.Session.SetParamByName(temporaryTableCreatePrivilegeBypassParam, previousTemporaryCreate)
 		var handled bool
 		var err error
-		definition := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(match[3]), ";"))
+		definition := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(createSpec.definition), ";"))
 		if strings.HasPrefix(strings.ToLower(definition), "like ") {
 			handled, err = e.executeRawCreateTableLikeCompatibility(&child, createSQL, targetDB)
-		} else if createTableAsSelectDefinitionPattern.MatchString(definition) || strings.Contains(strings.ToLower(definition), ") as select ") || strings.Contains(strings.ToLower(definition), ") select ") || strings.Contains(strings.ToLower(definition), ") ignore as select ") || strings.Contains(strings.ToLower(definition), ") replace as select ") {
+		} else if createTableAsSelectAST(createSQL) != nil {
 			handled, err = e.executeRawCreateTableAsSelectCompatibility(&child, createSQL, targetDB)
 		} else {
 			var stmt interface{}
@@ -140,60 +242,27 @@ func (e *XMySQLExecutor) executeRawTemporaryTableCompatibility(ctx *ExecutionCon
 		return true, nil
 	}
 
-	if match := temporaryTableRenamePattern.FindStringSubmatch(strings.TrimSpace(query)); len(match) == 5 {
-		if ctx == nil || ctx.Session == nil {
-			return false, nil
+	if parsed, err := sqlparser.ParseForExecution(query); err == nil {
+		if statement, ok := parsed.AST.(*sqlparser.AlterTable); ok && len(statement.Operations) == 1 &&
+			statement.Operations[0].Kind == sqlparser.AlterOperationRenameTable && statement.Operations[0].RenameTableTo.Name.String() != "" {
+			return e.renameTemporaryTable(ctx, databaseName, sqlparser.String(statement.Table), sqlparser.String(statement.Operations[0].RenameTableTo))
 		}
-		sourceRaw, targetRaw := match[1], match[2]
-		if sourceRaw == "" {
-			sourceRaw, targetRaw = match[3], match[4]
+		if statement, ok := parsed.AST.(*sqlparser.TableDDLStatement); ok &&
+			((strings.EqualFold(statement.Action, "rename") && len(statement.Targets) == 1 && len(statement.RenameTo) == 1) ||
+				(strings.EqualFold(statement.Action, "alter") && len(statement.Targets) == 1 && len(statement.RenameTo) == 1)) {
+			return e.renameTemporaryTable(ctx, databaseName, sqlparser.String(statement.Targets[0]), sqlparser.String(statement.RenameTo[0]))
 		}
-		databaseName = temporaryTableDatabaseName(ctx, databaseName)
-		sourceDB, sourceTable := compatibilityQualifiedTable(sourceRaw, databaseName)
-		targetDB, targetTable := compatibilityQualifiedTable(targetRaw, databaseName)
-		if sourceDB == "" || sourceTable == "" || targetDB == "" || targetTable == "" {
-			return true, fmt.Errorf("RENAME TABLE requires valid source and target names")
-		}
-		state := getTemporaryTableSessionState(ctx.Session, false)
-		if state == nil {
-			return false, nil
-		}
-		sourceKey := temporaryTableKey(sourceDB, sourceTable)
-		targetKey := temporaryTableKey(targetDB, targetTable)
-		state.mu.Lock()
-		binding, exists := state.tables[sourceKey]
-		_, targetExists := state.tables[targetKey]
-		if !exists {
-			state.mu.Unlock()
-			return false, nil
-		}
-		if !strings.EqualFold(sourceDB, targetDB) {
-			state.mu.Unlock()
-			return true, fmt.Errorf("temporary table rename across databases is unsupported")
-		}
-		if targetExists {
-			state.mu.Unlock()
-			return true, fmt.Errorf("temporary table '%s.%s' already exists", targetDB, targetTable)
-		}
-		delete(state.tables, sourceKey)
-		binding.Database = targetDB
-		binding.Logical = targetTable
-		state.tables[targetKey] = binding
-		state.mu.Unlock()
-		ctx.Results <- &Result{ResultType: common.RESULT_TYPE_DDL, Message: fmt.Sprintf("Temporary table '%s' renamed successfully", targetTable)}
-		return true, nil
 	}
 
-	if match := temporaryTableDropPattern.FindStringSubmatch(strings.TrimSpace(query)); len(match) == 4 {
+	if targets, ifExists, matched, parseErr := parseTemporaryDropTargets(query, databaseName, sessionFromExecutionContext(ctx)); matched {
+		if parseErr != nil {
+			return true, parseErr
+		}
 		if ctx == nil || ctx.Session == nil {
-			if strings.TrimSpace(match[1]) != "" {
-				return true, fmt.Errorf("DROP TEMPORARY TABLE requires a session")
-			}
-			return false, nil
+			return true, fmt.Errorf("DROP TEMPORARY TABLE requires a session")
 		}
 		databaseName = temporaryTableDatabaseName(ctx, databaseName)
 		state := getTemporaryTableSessionState(ctx.Session, false)
-		targets := splitTopLevelComma(match[3])
 		if len(targets) == 0 {
 			return true, fmt.Errorf("DROP TABLE requires at least one table name")
 		}
@@ -219,14 +288,14 @@ func (e *XMySQLExecutor) executeRawTemporaryTableCompatibility(ctx *ExecutionCon
 			}
 			if !ok {
 				missing = true
-				if strings.TrimSpace(match[1]) != "" && strings.TrimSpace(match[2]) == "" {
+				if ifExists == false {
 					return true, fmt.Errorf("temporary table '%s.%s' does not exist", dropDB, dropTable)
 				}
 				continue
 			}
 			drops = append(drops, temporaryDrop{key: key, logical: dropTable, binding: binding})
 		}
-		if strings.TrimSpace(match[1]) == "" && missing {
+		if !ifExists && missing {
 			// A mixed ordinary DROP TABLE must remain available to the normal
 			// DDL path; consuming it here could drop only the temporary subset.
 			return false, nil
@@ -381,16 +450,101 @@ func (e *XMySQLExecutor) rewriteTemporaryTableReferences(session server.MySQLSer
 	if len(bindings) == 0 {
 		return query
 	}
-	rewritten := query
-	for _, binding := range bindings {
-		logical := regexp.QuoteMeta(binding.Logical)
-		database := regexp.QuoteMeta(binding.Database)
-		pattern := regexp.MustCompile(`(?is)(\b(?:from|join|update|into|table)\s+)(?:(?:` + "`?" + database + "`?" + `)\s*\.\s*)?(?:` + "`?" + logical + "`?" + `)(\s|,|\)|;|$)`)
-		rewritten = pattern.ReplaceAllString(rewritten, `${1}`+binding.Physical+`${2}`)
-		qualifierPattern := regexp.MustCompile(`(?is)(^|[^a-zA-Z0-9_$])(?:` + "`?" + logical + "`?" + `)\s*\.`)
-		rewritten = qualifierPattern.ReplaceAllString(rewritten, `${1}`+binding.Physical+`. `)
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil || parsed == nil {
+		return query
 	}
-	return rewritten
+	switch parsed.Family {
+	case sqlparser.StatementFamilySelect, sqlparser.StatementFamilyInsert,
+		sqlparser.StatementFamilyUpdate, sqlparser.StatementFamilyDelete,
+		sqlparser.StatementFamilyDDL, sqlparser.StatementFamilyAlter:
+	default:
+		return query
+	}
+	changed := false
+	for _, binding := range bindings {
+		changed = rewriteTemporaryTableAST(parsed.AST, binding) || changed
+	}
+	if !changed {
+		return query
+	}
+	return sqlparser.String(parsed.AST)
+}
+
+func rewriteTemporaryTableAST(statement sqlparser.Statement, binding temporaryTableBinding) bool {
+	if statement == nil || binding.Logical == "" || binding.Physical == "" {
+		return false
+	}
+	changed := false
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		aliased, ok := node.(*sqlparser.AliasedTableExpr)
+		if !ok {
+			return true, nil
+		}
+		table, ok := aliased.Expr.(sqlparser.TableName)
+		if !ok || !temporaryTableNameMatches(table, binding) {
+			return true, nil
+		}
+		table.Name = sqlparser.NewTableIdent(binding.Physical)
+		aliased.Expr = table
+		changed = true
+		return true, nil
+	}, statement)
+	if insert, ok := statement.(*sqlparser.Insert); ok && temporaryTableNameMatches(insert.Table, binding) {
+		insert.Table.Name = sqlparser.NewTableIdent(binding.Physical)
+		changed = true
+	}
+	if ddl, ok := statement.(*sqlparser.DDL); ok {
+		if temporaryTableNameMatches(ddl.Table, binding) {
+			ddl.Table.Name = sqlparser.NewTableIdent(binding.Physical)
+			changed = true
+		}
+		if temporaryTableNameMatches(ddl.NewName, binding) {
+			ddl.NewName.Name = sqlparser.NewTableIdent(binding.Physical)
+			changed = true
+		}
+	}
+	if alter, ok := statement.(*sqlparser.AlterTable); ok && temporaryTableNameMatches(alter.Table, binding) {
+		alter.Table.Name = sqlparser.NewTableIdent(binding.Physical)
+		changed = true
+	}
+	if indexDDL, ok := statement.(*sqlparser.IndexDDLStatement); ok && temporaryTableNameMatches(indexDDL.Table, binding) {
+		indexDDL.Table.Name = sqlparser.NewTableIdent(binding.Physical)
+		changed = true
+	}
+	if tableDDL, ok := statement.(*sqlparser.TableDDLStatement); ok {
+		for index := range tableDDL.Targets {
+			if temporaryTableNameMatches(tableDDL.Targets[index], binding) {
+				tableDDL.Targets[index].Name = sqlparser.NewTableIdent(binding.Physical)
+				changed = true
+			}
+		}
+		for index := range tableDDL.RenameTo {
+			if temporaryTableNameMatches(tableDDL.RenameTo[index], binding) {
+				tableDDL.RenameTo[index].Name = sqlparser.NewTableIdent(binding.Physical)
+				changed = true
+			}
+		}
+		if primary, ok := tableDDL.Primary.(*sqlparser.DDL); ok && temporaryTableNameMatches(primary.Table, binding) {
+			primary.Table.Name = sqlparser.NewTableIdent(binding.Physical)
+			changed = true
+		}
+		if primary, ok := tableDDL.Primary.(*sqlparser.AlterTable); ok && temporaryTableNameMatches(primary.Table, binding) {
+			primary.Table.Name = sqlparser.NewTableIdent(binding.Physical)
+			changed = true
+		}
+	}
+	return changed
+}
+
+func temporaryTableNameMatches(table sqlparser.TableName, binding temporaryTableBinding) bool {
+	if !strings.EqualFold(table.Name.String(), binding.Logical) {
+		return false
+	}
+	if table.Qualifier.IsEmpty() {
+		return true
+	}
+	return strings.EqualFold(table.Qualifier.String(), binding.Database)
 }
 
 // CleanupTemporaryTables removes the physical tables owned by a connection.

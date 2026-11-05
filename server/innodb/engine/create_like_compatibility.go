@@ -2,22 +2,32 @@ package engine
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
-var createTableLikePattern = regexp.MustCompile(`(?is)^\s*create\s+table\s+(if\s+not\s+exists\s+)?((?:` + "`?" + `[a-zA-Z0-9_$]+` + "`?" + `\s*\.\s*)?` + "`?" + `[a-zA-Z0-9_$]+` + "`?" + `)\s+like\s+((?:` + "`?" + `[a-zA-Z0-9_$]+` + "`?" + `\s*\.\s*)?` + "`?" + `[a-zA-Z0-9_$]+` + "`?" + `)\s*;?\s*$`)
-
 func (e *XMySQLExecutor) executeRawCreateTableLikeCompatibility(ctx *ExecutionContext, query, databaseName string) (bool, error) {
-	match := createTableLikePattern.FindStringSubmatch(strings.TrimSpace(query))
-	if len(match) == 0 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
 		return false, nil
 	}
-	targetDB, targetTable := compatibilityQualifiedTable(match[2], databaseName)
-	sourceDB, sourceTable := compatibilityQualifiedTable(match[3], databaseName)
+	stmt, ok := parsed.AST.(*sqlparser.TableDDLStatement)
+	if !ok || !strings.EqualFold(stmt.Action, "create") || stmt.Like.IsEmpty() || len(stmt.Targets) != 1 {
+		return false, nil
+	}
+	target := stmt.Targets[0]
+	targetRaw := target.Name.String()
+	if !target.Qualifier.IsEmpty() {
+		targetRaw = target.Qualifier.String() + "." + target.Name.String()
+	}
+	sourceRaw := stmt.Like.Name.String()
+	if !stmt.Like.Qualifier.IsEmpty() {
+		sourceRaw = stmt.Like.Qualifier.String() + "." + stmt.Like.Name.String()
+	}
+	targetDB, targetTable := compatibilityQualifiedTable(targetRaw, databaseName)
+	sourceDB, sourceTable := compatibilityQualifiedTable(sourceRaw, databaseName)
 	if targetDB == "" || targetTable == "" || sourceDB == "" || sourceTable == "" {
 		return true, fmt.Errorf("CREATE TABLE LIKE requires source and target tables")
 	}
@@ -30,7 +40,7 @@ func (e *XMySQLExecutor) executeRawCreateTableLikeCompatibility(ctx *ExecutionCo
 	if exists, err := e.checkTableExists(targetDB, targetTable); err != nil {
 		return true, err
 	} else if exists {
-		if strings.TrimSpace(match[1]) != "" {
+		if stmt.IfExists {
 			ctx.Results <- &Result{ResultType: common.RESULT_TYPE_DDL, Message: fmt.Sprintf("Table '%s' already exists", targetTable)}
 			return true, nil
 		}
@@ -45,11 +55,11 @@ func (e *XMySQLExecutor) executeRawCreateTableLikeCompatibility(ctx *ExecutionCo
 		return true, fmt.Errorf("source table '%s.%s' has no CREATE TABLE definition", sourceDB, sourceTable)
 	}
 	cloneSQL := "create table `" + strings.ReplaceAll(targetTable, "`", "``") + "` " + strings.TrimSpace(definition[open:])
-	stmt, err := sqlparser.Parse(cloneSQL)
+	parsedDDL, err := sqlparser.Parse(cloneSQL)
 	if err != nil {
 		return true, fmt.Errorf("parse CREATE TABLE LIKE definition: %w", err)
 	}
-	createStmt, ok := stmt.(*sqlparser.DDL)
+	createStmt, ok := parsedDDL.(*sqlparser.DDL)
 	if !ok {
 		return true, fmt.Errorf("CREATE TABLE LIKE definition did not produce CREATE TABLE AST")
 	}

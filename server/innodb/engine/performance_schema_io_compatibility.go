@@ -1,9 +1,10 @@
 package engine
 
 import (
-	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 type performanceSchemaTableIOCounters struct {
@@ -81,28 +82,26 @@ func (e *XMySQLExecutor) refreshPerformanceSchemaTableInstancesLost() {
 	e.performanceSchemaMu.Unlock()
 }
 
-var performanceSchemaTableReferencePattern = regexp.MustCompile("(?i)\\b(?:from|join|into|update)\\s+([[:alnum:]_$`.-]+)")
-
 func performanceSchemaTableReferences(query, defaultSchema string) [][2]string {
-	seen := make(map[string]struct{})
-	refs := make([][2]string, 0)
-	for _, match := range performanceSchemaTableReferencePattern.FindAllStringSubmatch(query, -1) {
-		if len(match) < 2 {
-			continue
+	if parsed, err := sqlparser.ParseForExecution(query); err == nil {
+		if refs, refErr := sqlparser.CollectObjectReferences(parsed.AST, defaultSchema); refErr == nil {
+			result := make([][2]string, 0, len(refs))
+			seen := make(map[string]struct{})
+			for _, ref := range refs {
+				if ref.Kind != sqlparser.ObjectKindTable || strings.EqualFold(ref.Name, "dual") || strings.TrimSpace(ref.Name) == "" {
+					continue
+				}
+				key := strings.ToLower(ref.Schema + "\x00" + ref.Name)
+				if _, exists := seen[key]; exists {
+					continue
+				}
+				seen[key] = struct{}{}
+				result = append(result, [2]string{ref.Schema, ref.Name})
+			}
+			return result
 		}
-		raw := strings.Trim(strings.TrimSpace(match[1]), "`")
-		if raw == "" || strings.HasPrefix(raw, "(") {
-			continue
-		}
-		schema, table := compatibilityQualifiedTable(raw, defaultSchema)
-		key := strings.ToLower(schema + "\x00" + table)
-		if _, exists := seen[key]; exists {
-			continue
-		}
-		seen[key] = struct{}{}
-		refs = append(refs, [2]string{schema, table})
 	}
-	return refs
+	return nil
 }
 
 func (c *performanceSchemaTableIOCounters) add(timer int64) {

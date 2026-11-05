@@ -26,6 +26,7 @@ type HandlerStatement struct {
 	Direction string
 	Condition Expr
 	Limit     *Limit
+	Suffix    string
 	Raw       string
 }
 
@@ -153,15 +154,34 @@ func parseHandlerForExecution(query string) (*HandlerStatement, error) {
 	if !strings.EqualFold(tokens[0].text, "handler") {
 		return nil, fmt.Errorf("%w: HANDLER expected", ErrInvalidStatement)
 	}
-	node := &HandlerStatement{Kind: strings.ToLower(tokens[1].text), Raw: query}
-	index := 2
+	node := &HandlerStatement{Raw: query}
+	index := 1
+	action := ""
+	if strings.EqualFold(tokens[index].text, "open") || strings.EqualFold(tokens[index].text, "close") || strings.EqualFold(tokens[index].text, "read") {
+		action = strings.ToLower(tokens[index].text)
+		index++
+	} else {
+		table, next, ok := parseShowQualifiedName(tokens, index)
+		if !ok {
+			return nil, fmt.Errorf("%w: HANDLER table missing", ErrInvalidStatement)
+		}
+		node.Table, index = table, next
+		if index >= len(tokens) {
+			return nil, fmt.Errorf("%w: HANDLER operation missing", ErrInvalidStatement)
+		}
+		action = strings.ToLower(tokens[index].text)
+		index++
+	}
+	node.Kind = action
 	switch node.Kind {
 	case "open":
-		name, next, ok := parseShowQualifiedName(tokens, index)
-		if !ok {
-			return nil, fmt.Errorf("%w: HANDLER OPEN table missing", ErrInvalidStatement)
+		if node.Table.Name.String() == "" {
+			name, next, ok := parseShowQualifiedName(tokens, index)
+			if !ok {
+				return nil, fmt.Errorf("%w: HANDLER OPEN table missing", ErrInvalidStatement)
+			}
+			node.Table, index = name, next
 		}
-		node.Table, index = name, next
 		if index+1 < len(tokens) && strings.EqualFold(tokens[index].text, "as") {
 			node.Alias = tokens[index+1].text
 			index += 2
@@ -171,30 +191,59 @@ func parseHandlerForExecution(query string) (*HandlerStatement, error) {
 			index++
 		}
 	case "close":
-		if index >= len(tokens) {
-			return nil, fmt.Errorf("%w: HANDLER CLOSE name missing", ErrInvalidStatement)
+		if node.Table.Name.String() == "" {
+			if index >= len(tokens) {
+				return nil, fmt.Errorf("%w: HANDLER CLOSE name missing", ErrInvalidStatement)
+			}
+			node.Name, index = tokens[index].text, index+1
 		}
-		node.Name, index = tokens[index].text, index+1
 	case "read":
 		if index >= len(tokens) {
 			return nil, fmt.Errorf("%w: HANDLER READ name missing", ErrInvalidStatement)
 		}
 		node.Name, index = tokens[index].text, index+1
 		if index < len(tokens) {
-			node.Direction, index = strings.ToLower(tokens[index].text), index+1
+			candidate := strings.ToLower(tokens[index].text)
+			if candidate == "first" || candidate == "next" || candidate == "last" {
+				node.Direction, index = candidate, index+1
+			}
 		}
 	default:
 		return nil, fmt.Errorf("%w: HANDLER %s", ErrUnsupportedStatement, node.Kind)
 	}
 	for index < len(tokens) {
+		if tokens[index].text != "limit" && tokens[index].text != "where" && tokens[index].start >= 0 && tokens[index].start < len(query) {
+			node.Suffix = strings.TrimSpace(query[tokens[index].start:])
+			return node, nil
+		}
 		if strings.EqualFold(tokens[index].text, "limit") && index+1 < len(tokens) {
 			node.Limit = &Limit{Rowcount: NewIntVal([]byte(tokens[index+1].text))}
 			index += 2
 			continue
 		}
+		if strings.EqualFold(tokens[index].text, "where") && tokens[index].end < len(query) {
+			whereSQL := strings.TrimSpace(query[tokens[index].end:])
+			whereParsed, whereErr := Parse("select 1 where " + whereSQL)
+			if whereErr != nil {
+				return nil, whereErr
+			}
+			whereSelect, whereOK := whereParsed.(*Select)
+			if !whereOK || whereSelect.Where == nil {
+				return nil, fmt.Errorf("%w: HANDLER WHERE expression invalid", ErrInvalidStatement)
+			}
+			node.Condition = whereSelect.Where.Expr
+			break
+		}
 		return nil, fmt.Errorf("%w: unexpected HANDLER token %q", ErrInvalidStatement, tokens[index].text)
 	}
 	return node, nil
+}
+
+// ParseHandlerForExecution exposes the complete HANDLER parser to the
+// compatibility executor without changing the generic execution-family
+// contract, where HANDLER remains an unsupported top-level family.
+func ParseHandlerForExecution(query string) (*HandlerStatement, error) {
+	return parseHandlerForExecution(query)
 }
 
 func parseComponentForExecution(query string) (*ComponentStatement, error) {

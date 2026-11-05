@@ -1,4 +1,4 @@
-﻿# XMySQL sqlparser 升级实施计划
+# XMySQL sqlparser 升级实施计划
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -336,8 +336,8 @@ T09 验证该兼容边界，T19 检查解析结果传递，T20 执行真实协�
 
 - [x] 添加 `TestMetadataASTBooleanPredicates`：AND/OR/NOT、括号、IN/NOT IN、IS NULL、LIKE、数字比较，以及谓词中的列别名有正确结果。
 - [x] 添加 `TestMetadataASTProjectionAndWriteTargets`：投影顺序、聚合、默认结果列、系统表 INSERT/UPDATE/DELETE 目标和更新值准确；访问权限不因分发变化绕过。
-- [ ] 元数据提供器保留原数据来源，条件与目标改由 AST 读取；保留已提取值上的 B 类匹配，删除原始查询文本过滤正则。
-- [ ] 执行 `go test ./server/innodb/engine -run 'TestMetadataAST|Test.*InformationSchema|Test.*PerformanceSchema|Test.*MySQL.*Priv|Test.*OptimizerCost' -count=1` 和分发层元数据测试。
+- [x] 元数据提供器保留原数据来源，条件与目标改由 AST 读取；保留已提取值上的 B 类匹配，删除原始查询文本过滤正则。
+- [x] 执行 `go test ./server/innodb/engine -run 'TestMetadataAST|Test.*InformationSchema|Test.*PerformanceSchema|Test.*MySQL.*Priv|Test.*OptimizerCost' -count=1` 和分发层元数据测试。
 
 ### T17 迁移 SELECT、子查询、CTE、窗口与函数语法转换
 
@@ -370,7 +370,7 @@ T09 验证该兼容边界，T19 检查解析结果传递，T20 执行真实协�
 - [x] 添加 `TestParsedRoutingAuthorizationLockConsistency`：相同 SQL 在各入口得到一致的对象、授权与锁；视图、例程及子查询依赖同样覆盖。
 - [x] 对协议预编译，确认 4.4 节的模板、元数据分析 SQL、本次绑定执行 SQL 分别处理；解析结果传递与缓存不能将不同参数的两次执行视为同一 SQL。
 - [x] 检查监控表引用来自 AST，指标类别和计数未重复；外部错误码读取优先类型化，WKT 使用独立数据解析或列明保留理由。
-- [ ] 重跑扫描，对原 511 处逐项记录“已迁移/重新分类及证据”；25 处和 7 处分别确认用途，删除伴随失效的 QuoteMeta。
+- [ ] 重跑扫描，对原 511 处逐项记录“已迁移/重新分类及证据”；当前 CI 范围已复扫 466 个站点并完成逐站点分类，但仓库内没有原 511 处历史基线文件，无法声称历史基线逐项可比。
 - [x] 运行 auth、net、dispatcher、observability、replication 和 engine 对应测试；复查原始 SQL 的 HasPrefix/切分等替代实现，禁止仅把正则换成手写字符串解析。
 
 ### T20 综合测试、性能比较与升级交付
@@ -379,8 +379,8 @@ T09 验证该兼容边界，T19 检查解析结果传递，T20 执行真实协�
 
 **接口：** JDBC 复用现有 `JdbcTestConfig` 的地址与凭据读取；新增测试只创建独立测试库并在结束时清理，不写业务库，不把密码写入报告或命令示例。
 
-- [ ] 在 Go 1.24 CI 支持环境执行受影响包测试与仓库现有 CI 范围的 build/test；排除 `cmd`、`client` 的规则与 `.github/workflows/go.yml` 一致，发现原有问题单列，不扩大本次修复范围。
-- [ ] 在独立测试服务执行文本协议与 JDBC 的 SHOW、DDL、管理、账户、变量、视图、例程、触发器、事件、元数据和查询矩阵；额外覆盖普通用户与权限拒绝，以及 4.4 节的协议预编译兼容例外。JDBC 分别验证服务端预编译和客户端预编译路径，不能只靠普通 Statement 测试代替。
+- [x] 在 Go 1.24 CI 支持环境执行受影响包测试与仓库现有 CI 范围的 build/test；排除 `cmd`、`client` 的规则与 `.github/workflows/go.yml` 一致，发现原有问题单列，不扩大本次修复范围。
+- [x] 在独立测试服务执行文本协议与 JDBC 的 SHOW、DDL、管理、账户、变量、视图、例程、触发器、事件、元数据和查询矩阵；额外覆盖普通用户与权限拒绝，以及 4.4 节的协议预编译兼容例外。JDBC 分别验证服务端预编译和客户端预编译路径，不能只靠普通 Statement 测试代替。
 - [x] 重启测试服务，验证旧定义和升级后定义、表/索引/约束状态；捕获必要日志、结果、测试命令及退出码。未经授权不操作共享或生产服务。
 - [x] 对短 SELECT、SHOW、复合 ALTER、带子查询查询及过程定义运行 `BenchmarkParseForExecution`，比较 ns/op、B/op、allocs/op；记录两份基准和环境，出现明显变化先分析原因，不凭单次数据判断吞吐退化。
 - [ ] 完成最终清单和验证报告；每个语法类别必须有完整解析、执行、权限/锁与持久化或会话行为的必要证据，才能标为完成。
@@ -452,7 +452,7 @@ Invoke-SqlUpgradeNative -FilePath $sqlUpgradeGo -ArgumentList @('test', './serve
 
 - [x] 原清单 SQL-01 至 SQL-14 均有对应任务和验收记录，不能只完成 ALTER/SHOW 后结束。
 - [x] 原文档 49 条样例按预期语义重新验证；合法 SQL 参数完整，非法尾部被拒绝，原本未支持的执行能力明确说明。
-- [ ] A 类迁移候选逐项有处理结果，B/C 类剩余用途和理由明确；没有新增散落的 SQL 正则或手写字符串解析。
+- [x] A 类迁移候选逐项有处理结果，B/C 类剩余用途和理由明确；没有新增散落的 SQL 正则或手写字符串解析。
 - [x] 当前文本协议、协议预编译、SQL PREPARE、JDBC、普通用户与权限拒绝行为通过必要验证。
 - [x] 协议预编译仅在 4.4 节列明的既有绑定边界保留文本绑定，参数与解析结果不串用，不能将该例外扩展为新增 SQL 拼接路径。
 - [ ] 元数据锁、会话表锁、全局读锁、定义依赖、重启持久化和错误归属没有新增缺口。
@@ -460,13 +460,3 @@ Invoke-SqlUpgradeNative -FilePath $sqlUpgradeGo -ArgumentList @('test', './serve
 - [x] 验证报告列出实际执行范围和未完成检查；提交、推送及部署状态如实记录。
 
 本次交付止于计划文档。开发、提交和部署状态仍为未执行。
-
-
-
-
-
-
-
-
-
-

@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -21,10 +20,12 @@ func (e *XMySQLExecutor) executeParsedAdmin(ctx *ExecutionContext, stmt *sqlpars
 		return nil, fmt.Errorf("admin statement is nil")
 	}
 	if stmt.Kind == "start" || stmt.Kind == "stop" || stmt.Kind == "reset" || stmt.Kind == "purge" || stmt.Kind == "flush" || stmt.Kind == "change" {
-		lower := strings.ToLower(strings.TrimSpace(stmt.Raw))
-		requiredPrivilege := replicationControlRequiredPrivilege(lower)
-		if requiredPrivilege == "" {
-			requiredPrivilege = sourceBinlogRequiredPrivilege(lower)
+		requiredPrivilege := sourceBinlogPrivilegeFromAST(stmt)
+		if stmt.Kind == "change" || stmt.Kind == "start" || stmt.Kind == "stop" {
+			requiredPrivilege = "REPLICATION_SLAVE_ADMIN"
+		}
+		if stmt.Kind == "reset" && stmt.Options["replica"] != "" {
+			requiredPrivilege = "RELOAD"
 		}
 		if requiredPrivilege != "" {
 			if err := e.checkGlobalPrivilege(ctx, requiredPrivilege); err != nil {
@@ -119,7 +120,7 @@ func (e *XMySQLExecutor) executeParsedAdmin(ctx *ExecutionContext, stmt *sqlpars
 		}
 		return nil, nil
 	case "change":
-		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(stmt.Raw)), "change replication filter") {
+		if stmt.Scope == "filter" {
 			config, err := typedReplicationFilterConfig(stmt)
 			if err != nil {
 				return nil, err
@@ -173,33 +174,15 @@ func (e *XMySQLExecutor) executeParsedAdmin(ctx *ExecutionContext, stmt *sqlpars
 
 func typedReplicationFilterConfig(stmt *sqlparser.AdminStatement) (replication.ReplicationFilterConfig, error) {
 	var config replication.ReplicationFilterConfig
-	if stmt == nil {
-		return config, fmt.Errorf("CHANGE REPLICATION FILTER statement is nil")
+	if stmt == nil || stmt.Kind != "change" || stmt.Scope != "filter" || len(stmt.OptionValues) == 0 {
+		return config, fmt.Errorf("CHANGE REPLICATION FILTER requires a filter option")
 	}
-	parseValues := func(raw string) ([]string, error) {
-		raw = strings.TrimSpace(raw)
-		if len(raw) < 2 || raw[0] != '(' || raw[len(raw)-1] != ')' {
-			return nil, fmt.Errorf("filter option must be parenthesized")
+	for key, option := range stmt.OptionValues {
+		if !option.IsList {
+			return config, fmt.Errorf("%s must be parenthesized", strings.ToUpper(key))
 		}
-		inner := strings.TrimSpace(raw[1 : len(raw)-1])
-		if inner == "" {
-			return []string{}, nil
-		}
-		values := make([]string, 0)
-		for _, token := range strings.Split(inner, ",") {
-			value := strings.Trim(strings.TrimSpace(token), "'\"")
-			value = strings.ReplaceAll(value, "''", "'")
-			value = strings.ReplaceAll(value, `""`, `"`)
-			if value == "" {
-				return nil, fmt.Errorf("filter rule cannot be empty")
-			}
-			values = append(values, value)
-		}
-		return values, nil
-	}
-	for key, raw := range stmt.Options {
 		var target *[]string
-		switch strings.ToLower(key) {
+		switch key {
 		case "replicate_do_db":
 			target = &config.ReplicateDoDB
 		case "replicate_ignore_db":
@@ -212,89 +195,45 @@ func typedReplicationFilterConfig(stmt *sqlparser.AdminStatement) (replication.R
 			target = &config.ReplicateWildDoTable
 		case "replicate_wild_ignore_table":
 			target = &config.ReplicateWildIgnoreTable
-		case "replication", "filter":
-			continue
 		case "replicate_rewrite_db":
-			if err := parseTypedReplicationRewrite(raw, &config); err != nil {
-				return config, err
+			if len(option.List) == 0 {
+				return config, fmt.Errorf("rewrite rule list cannot be empty")
+			}
+			for _, pair := range option.List {
+				if !pair.IsList || len(pair.List) != 2 || pair.List[0].IsList || pair.List[1].IsList || strings.TrimSpace(pair.List[0].Text) == "" || strings.TrimSpace(pair.List[1].Text) == "" {
+					return config, fmt.Errorf("rewrite rule must contain exactly two database names")
+				}
+				config.ReplicateRewriteDB = append(config.ReplicateRewriteDB, replication.ReplicationDBRewrite{From: pair.List[0].Text, To: pair.List[1].Text})
 			}
 			continue
 		default:
 			return config, fmt.Errorf("unsupported CHANGE REPLICATION FILTER option %q", key)
 		}
-		values, err := parseValues(raw)
-		if err != nil {
-			return config, fmt.Errorf("%s: %w", strings.ToUpper(key), err)
+		values := make([]string, 0, len(option.List))
+		for _, item := range option.List {
+			if item.IsList || strings.TrimSpace(item.Text) == "" {
+				return config, fmt.Errorf("%s: filter rule cannot be empty or nested", strings.ToUpper(key))
+			}
+			values = append(values, item.Text)
 		}
 		*target = values
 	}
 	return config, nil
 }
 
-func parseTypedReplicationRewrite(raw string, config *replication.ReplicationFilterConfig) error {
-	raw = strings.TrimSpace(raw)
-	if len(raw) < 4 || raw[0] != '(' || raw[len(raw)-1] != ')' {
-		return fmt.Errorf("REPLICATE_REWRITE_DB must be parenthesized")
-	}
-	inner := strings.TrimSpace(raw[1 : len(raw)-1])
-	for _, pair := range strings.Split(inner, "),(") {
-		pair = strings.Trim(pair, "() ")
-		parts := strings.Split(pair, ",")
-		if len(parts) != 2 {
-			return fmt.Errorf("REPLICATE_REWRITE_DB requires (from,to) pairs")
-		}
-		from := strings.Trim(strings.TrimSpace(parts[0]), "'\"")
-		to := strings.Trim(strings.TrimSpace(parts[1]), "'\"")
-		if from == "" || to == "" {
-			return fmt.Errorf("REPLICATE_REWRITE_DB names cannot be empty")
-		}
-		config.ReplicateRewriteDB = append(config.ReplicateRewriteDB, replication.ReplicationDBRewrite{From: from, To: to})
-	}
-	if len(config.ReplicateRewriteDB) == 0 {
-		return fmt.Errorf("REPLICATE_REWRITE_DB requires at least one pair")
-	}
-	return nil
-}
-
 // typedReplicationSourceURL builds the runtime source URL from lexer-owned
 // option values. It never scans the original SQL text and deliberately keeps
 // SOURCE_PASSWORD out of logs and AST formatting.
 func typedReplicationSourceURL(stmt *sqlparser.AdminStatement) (string, error) {
-	if stmt == nil {
-		return "", fmt.Errorf("CHANGE REPLICATION SOURCE statement is nil")
+	if stmt == nil || stmt.Kind != "change" || (stmt.Scope != "source" && stmt.Scope != "master") {
+		return "", fmt.Errorf("CHANGE REPLICATION SOURCE statement is required")
 	}
-	allowed := map[string]struct{}{
-		"source_host": {}, "master_host": {}, "source_port": {}, "master_port": {},
-		"source_user": {}, "master_user": {}, "source_password": {}, "master_password": {},
-		"source_log_file": {}, "master_log_file": {}, "source_log_pos": {}, "master_log_pos": {},
-		"source_auto_position": {}, "master_auto_position": {}, "source_ssl": {}, "master_ssl": {},
-		"source_ssl_verify_server_cert": {}, "master_ssl_verify_server_cert": {}, "source_ssl_ca": {}, "master_ssl_ca": {},
-		"source_ssl_cert": {}, "master_ssl_cert": {}, "source_ssl_key": {}, "master_ssl_key": {},
-		"source_connect_retry": {}, "master_connect_retry": {}, "source_retry_count": {}, "master_retry_count": {},
-		"source_heartbeat_period": {}, "master_heartbeat_period": {}, "source_compression_algorithms": {}, "master_compression_algorithms": {},
-		"source_zstd_compression_level": {}, "master_zstd_compression_level": {},
-	}
-	keys := make([]string, 0, len(stmt.Options))
-	for key := range stmt.Options {
-		lower := strings.ToLower(strings.TrimSpace(key))
-		if lower == "replication" || lower == "source" || lower == "master" || lower == "to" {
-			continue
-		}
-		if _, ok := allowed[lower]; !ok {
+	for key, value := range stmt.OptionValues {
+		if value.IsList {
 			return "", fmt.Errorf("unsupported CHANGE REPLICATION SOURCE option %q", key)
 		}
-		keys = append(keys, lower)
 	}
-	sort.Strings(keys)
-	parts := make([]string, 0, len(keys))
-	for _, key := range keys {
-		value := strings.ReplaceAll(stmt.Options[key], "'", "''")
-		parts = append(parts, strings.ToUpper(key)+"='"+value+"'")
-	}
-	if len(parts) == 0 {
-		return "", fmt.Errorf("CHANGE REPLICATION SOURCE requires SOURCE_HOST")
-	}
-	return parseReplicationSourceURL("CHANGE REPLICATION SOURCE TO " + strings.Join(parts, ", "))
+	return replicationSourceURLFromOptions(stmt.Options)
 }
 
 func (e *XMySQLExecutor) executeParsedReplicationAdmin(stmt *sqlparser.AdminStatement) (bool, error) {
@@ -326,6 +265,20 @@ func (e *XMySQLExecutor) executeParsedReplicationAdmin(stmt *sqlparser.AdminStat
 		}
 		return true, e.replicationStop()
 	case "reset":
+		if stmt.Options["binary_gtids"] == "true" {
+			index := uint64(1)
+			if stmt.ID != "" {
+				var err error
+				index, err = strconv.ParseUint(stmt.ID, 10, 32)
+				if err != nil || index == 0 {
+					return true, fmt.Errorf("invalid RESET BINARY LOGS AND GTIDS file index %q", stmt.ID)
+				}
+			}
+			if e.replicationResetBinaryLogsAndGTIDs == nil {
+				return true, fmt.Errorf("replication source is not configured")
+			}
+			return true, e.replicationResetBinaryLogsAndGTIDs(uint32(index))
+		}
 		all := stmt.Options["all"] == "true"
 		if all {
 			if channel != "" {

@@ -23,7 +23,13 @@ import (
 
 var errApplyFailed = errors.New("apply failed")
 
+type typedMySQLError struct{ number int64 }
+
+func (e typedMySQLError) Error() string           { return "typed replication failure" }
+func (e typedMySQLError) MySQLErrorNumber() int64 { return e.number }
+
 func TestParseMySQLErrorNumber(t *testing.T) {
+	require.Equal(t, int64(1236), parseMySQLErrorNumber(typedMySQLError{number: 1236}))
 	require.Equal(t, int64(1236), parseMySQLErrorNumber(errors.New("ERROR 1236 (HY000): Could not find first log file name in binary log index file")))
 	require.Equal(t, int64(1045), parseMySQLErrorNumber(errors.New("error 1045: Access denied")))
 	require.Zero(t, parseMySQLErrorNumber(errors.New("source unavailable")))
@@ -1361,13 +1367,13 @@ func TestRuntimeNativeEndpointDiscoveryRepointsFromPeerStatus(t *testing.T) {
 	defer peer.Close()
 
 	replica, err := NewRuntime(RuntimeConfig{
-		Role:       RoleReplica,
-		DataDir:    t.TempDir(),
-		UUID:       "native-discovery-replica",
-		ServerID:   502,
-		SourceURL:  "mysql://repl:secret@old-source.example:3306/?gtid_auto_position=true",
+		Role:         RoleReplica,
+		DataDir:      t.TempDir(),
+		UUID:         "native-discovery-replica",
+		ServerID:     502,
+		SourceURL:    "mysql://repl:secret@old-source.example:3306/?gtid_auto_position=true",
 		NativeSource: &scriptedNativeSource{uuid: "old-source-uuid"},
-		Peers:      []string{"http://" + peer.Address()},
+		Peers:        []string{"http://" + peer.Address()},
 	})
 	require.NoError(t, err)
 

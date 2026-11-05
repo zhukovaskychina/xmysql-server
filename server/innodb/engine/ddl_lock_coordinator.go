@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -939,7 +938,13 @@ func ddlMetadataLockOwner(session server.MySQLServerSession) string {
 	if id := sessionConnectionID(session); id != 0 {
 		return fmt.Sprintf("thread/%d", id)
 	}
-	return ""
+	if session == nil {
+		return ""
+	}
+	// Sessions that have not completed the protocol handshake still need a
+	// stable owner. An empty owner skips reentrancy and waits out the full
+	// innodb_lock_wait_timeout on a lock the same session already holds.
+	return fmt.Sprintf("session/%p", session)
 }
 
 func (e *XMySQLExecutor) acquireSessionTableLocks(ctx context.Context, session server.MySQLServerSession, requests []sessionTableLockRequest) error {
@@ -1014,6 +1019,13 @@ func tableLockWaitError(err error) error {
 
 func (e *XMySQLExecutor) acquireStatementTableLocks(ctx *ExecutionContext, session server.MySQLServerSession, query, databaseName string) (func(), error) {
 	tables := statementTableAccesses(query, databaseName)
+	parsedWrites := false
+	if ctx != nil && ctx.Parsed != nil && ctx.RawQuery == query {
+		if parsedTables, writes, ok := statementTableAccessesFromParsed(ctx.Parsed, databaseName); ok {
+			tables = parsedTables
+			parsedWrites = writes
+		}
+	}
 	if len(tables) == 0 {
 		return func() {}, nil
 	}
@@ -1024,7 +1036,7 @@ func (e *XMySQLExecutor) acquireStatementTableLocks(ctx *ExecutionContext, sessi
 	lockContext, cancel := tableLockContext(lockContext, session)
 	acquired := make([]sessionTableLockLeaseEntry, 0, len(tables))
 	lockMode := tableLockRead
-	if statementTableWrites(query) {
+	if parsedWrites || statementTableWrites(query) {
 		lockMode = tableLockDML
 	}
 	holdForTransaction := sessionTransactionActive(session)
@@ -1076,6 +1088,48 @@ func (e *XMySQLExecutor) acquireStatementTableLocks(ctx *ExecutionContext, sessi
 		}
 		cancel()
 	}, nil
+}
+
+func statementTableAccessesFromParsed(parsed *sqlparser.ParsedStatement, databaseName string) ([]string, bool, bool) {
+	if parsed == nil || parsed.AST == nil {
+		return nil, false, false
+	}
+	// DDL, stored objects and explicit locks acquire their own modes, durations
+	// and dependency sets in their command handlers. Taking a generic statement
+	// lease first would make an explicit WRITE lock wait on its own read lease.
+	switch parsed.AST.(type) {
+	case *sqlparser.Select, *sqlparser.Union, *sqlparser.ParenSelect, *sqlparser.With,
+		*sqlparser.Insert, *sqlparser.Update, *sqlparser.Delete:
+	default:
+		return nil, false, true
+	}
+	references, err := sqlparser.CollectObjectReferences(parsed.AST, databaseName)
+	if err != nil {
+		return nil, false, false
+	}
+	tables := make([]string, 0, len(references))
+	writes := false
+	for _, reference := range references {
+		if reference.Kind != sqlparser.ObjectKindTable || strings.TrimSpace(reference.Name) == "" {
+			continue
+		}
+		schema := strings.TrimSpace(reference.Schema)
+		if schema == "" {
+			schema = strings.TrimSpace(databaseName)
+		}
+		if schema == "" {
+			return nil, false, false
+		}
+		tables = append(tables, strings.ToLower(schema)+"."+strings.ToLower(strings.TrimSpace(reference.Name)))
+		if reference.Access == sqlparser.AccessKindWrite || reference.Access == sqlparser.AccessKindReadWrite {
+			writes = true
+		}
+	}
+	if len(tables) == 0 {
+		return nil, false, false
+	}
+	sort.Strings(tables)
+	return tables, writes, true
 }
 
 func sessionTableLockMode(session server.MySQLServerSession, table string) (string, bool) {
@@ -1200,12 +1254,6 @@ func (e *XMySQLExecutor) acquireDatabaseDDLTableLocks(ctx *ExecutionContext, ses
 	return e.acquireDDLTableLocks(ctx, session, tables)
 }
 
-var statementTablePattern = regexp.MustCompile(`(?is)^\s*(?:select\s+.+?\s+from|insert\s+(?:ignore\s+)?into|replace\s+into|update|delete\s+from)\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?")
-var alterTablePattern = regexp.MustCompile("(?is)^\\s*alter\\s+table\\s+((?:`?[a-zA-Z0-9_$]+`?\\s*\\.\\s*)?`?[a-zA-Z0-9_$]+`?)")
-var alterLockPattern = regexp.MustCompile(`(?is)\block\s*=\s*(default|none|shared|exclusive)\b`)
-var statementTablesPattern = regexp.MustCompile("(?is)\\b(?:from|join|update|into)\\s+((?:`?[a-zA-Z0-9_$]+`?\\s*\\.\\s*)?`?[a-zA-Z0-9_$]+`?)")
-var lockingReadPattern = regexp.MustCompile(`(?is)\bfor\s+(?:update|share)\b|\block\s+in\s+share\s+mode\b`)
-
 func statementTableAccess(query, databaseName string) (string, bool) {
 	tables := statementTableAccesses(query, databaseName)
 	if len(tables) == 0 {
@@ -1215,23 +1263,58 @@ func statementTableAccess(query, databaseName string) (string, bool) {
 }
 
 func statementTableAccesses(query, databaseName string) []string {
-	matches := statementTablesPattern.FindAllStringSubmatch(query, -1)
-	seen := make(map[string]struct{}, len(matches))
-	tables := make([]string, 0, len(matches))
-	for _, match := range matches {
-		if len(match) < 2 {
-			continue
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return nil
+	}
+	switch parsed.AST.(type) {
+	case *sqlparser.Select, *sqlparser.Union, *sqlparser.ParenSelect, *sqlparser.With, *sqlparser.Insert, *sqlparser.Update, *sqlparser.Delete:
+	default:
+		return nil
+	}
+	seen := make(map[string]struct{})
+	tables := make([]string, 0)
+	aliases := make(map[string]struct{})
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		if current, ok := node.(*sqlparser.AliasedTableExpr); ok && current != nil && !current.As.IsEmpty() {
+			aliases[strings.ToLower(current.As.String())] = struct{}{}
 		}
-		database, table := compatibilityQualifiedTable(match[1], databaseName)
-		if database == "" || table == "" {
-			continue
+		return true, nil
+	}, parsed.AST)
+	add := func(name sqlparser.TableName) {
+		schema, table := strings.TrimSpace(name.Qualifier.String()), strings.TrimSpace(name.Name.String())
+		if table == "" {
+			return
 		}
-		key := strings.ToLower(strings.TrimSpace(database)) + "." + strings.ToLower(strings.TrimSpace(table))
-		if _, exists := seen[key]; exists {
-			continue
+		if schema == "" {
+			schema = strings.TrimSpace(databaseName)
 		}
-		seen[key] = struct{}{}
-		tables = append(tables, key)
+		if schema == "" {
+			return
+		}
+		key := strings.ToLower(schema) + "." + strings.ToLower(table)
+		if _, exists := seen[key]; !exists {
+			seen[key] = struct{}{}
+			tables = append(tables, key)
+		}
+	}
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		switch current := node.(type) {
+		case *sqlparser.AliasedTableExpr:
+			if table, ok := current.Expr.(sqlparser.TableName); ok {
+				add(table)
+				return false, nil
+			}
+		case sqlparser.TableName:
+			if _, isAlias := aliases[strings.ToLower(current.Name.String())]; isAlias {
+				return true, nil
+			}
+			add(current)
+		}
+		return true, nil
+	}, parsed.AST)
+	if len(tables) == 0 {
+		return nil
 	}
 	sort.Strings(tables)
 	return tables
@@ -1242,6 +1325,20 @@ func statementTableAccesses(query, databaseName string) []string {
 // text for lock acquisition, but INFORMATION_SCHEMA.VIEW_TABLE_USAGE must not
 // expose a CTE name as though it were a persistent table.
 func viewSourceTableAccesses(query, databaseName string) []string {
+	if parsed, parseErr := sqlparser.ParseForExecution(query); parseErr == nil {
+		if refs, refErr := sqlparser.CollectObjectReferences(parsed.AST, databaseName); refErr == nil {
+			tables := make([]string, 0, len(refs))
+			for _, ref := range refs {
+				if ref.Kind == sqlparser.ObjectKindTable && ref.Name != "" {
+					tables = append(tables, strings.ToLower(ref.Schema)+"."+strings.ToLower(ref.Name))
+				}
+			}
+			if len(tables) > 0 {
+				sort.Strings(tables)
+				return tables
+			}
+		}
+	}
 	tables := statementTableAccesses(query, databaseName)
 	statement, err := sqlparser.Parse(query)
 	if err != nil || statement == nil {
@@ -1272,31 +1369,79 @@ func viewSourceTableAccesses(query, databaseName string) []string {
 }
 
 func statementTableWrites(query string) bool {
-	lower := strings.ToLower(strings.TrimSpace(query))
-	for _, prefix := range []string{"insert ", "replace ", "update ", "delete "} {
-		if strings.HasPrefix(lower, prefix) {
-			return true
+	normalized := strings.ToLower(strings.Join(strings.Fields(query), " "))
+	if strings.Contains(normalized, " for share") || strings.Contains(normalized, " for update") || strings.Contains(normalized, " lock in share mode") {
+		return true
+	}
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return false
+	}
+	references, err := sqlparser.CollectObjectReferences(parsed.AST, "")
+	if err == nil {
+		for _, reference := range references {
+			if reference.Access == sqlparser.AccessKindWrite || reference.Access == sqlparser.AccessKindReadWrite {
+				return true
+			}
 		}
 	}
-	return strings.HasPrefix(lower, "select ") && lockingReadPattern.MatchString(lower)
+	switch statement := parsed.AST.(type) {
+	case *sqlparser.Select:
+		return strings.TrimSpace(statement.Lock) != "" || strings.Contains(strings.ToLower(sqlparser.String(statement)), " for share") || strings.Contains(strings.ToLower(sqlparser.String(statement)), " lock in share mode")
+	case *sqlparser.Union:
+		return strings.TrimSpace(statement.Lock) != ""
+	}
+	return false
 }
 
 func alterTableAccess(query, databaseName string) (string, bool) {
-	match := alterTablePattern.FindStringSubmatch(strings.TrimSpace(query))
-	if len(match) == 0 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
 		return "", false
 	}
-	return strings.ToLower(strings.TrimSpace(databaseName)) + "." + strings.ToLower(match[1]), true
+	statement, ok := parsed.AST.(*sqlparser.AlterTable)
+	if !ok || statement.Table.Name.String() == "" {
+		return "", false
+	}
+	schema := strings.TrimSpace(databaseName)
+	if statement.Table.Qualifier.String() != "" {
+		schema = statement.Table.Qualifier.String()
+	}
+	return strings.ToLower(schema) + "." + strings.ToLower(statement.Table.Name.String()), true
 }
 
 func alterRequiresWriteLock(query string) bool {
-	match := alterLockPattern.FindStringSubmatch(query)
-	return len(match) == 0 || !strings.EqualFold(match[1], "none")
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return true
+	}
+	statement, ok := parsed.AST.(*sqlparser.AlterTable)
+	if !ok {
+		return true
+	}
+	for _, operation := range statement.Operations {
+		if strings.EqualFold(operation.Name, "lock") {
+			return !strings.EqualFold(operation.Value, "none")
+		}
+	}
+	return true
 }
 
 func alterUsesSharedLock(query string) bool {
-	match := alterLockPattern.FindStringSubmatch(query)
-	return len(match) > 0 && strings.EqualFold(match[1], "shared")
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return false
+	}
+	statement, ok := parsed.AST.(*sqlparser.AlterTable)
+	if !ok {
+		return false
+	}
+	for _, operation := range statement.Operations {
+		if strings.EqualFold(operation.Name, "lock") {
+			return strings.EqualFold(operation.Value, "shared")
+		}
+	}
+	return false
 }
 
 func (e *XMySQLExecutor) acquireDDLWriteLock(ctx *ExecutionContext, table string, shared bool) (func(), error) {

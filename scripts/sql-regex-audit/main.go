@@ -6,10 +6,12 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"go/ast"
+	"go/format"
 	"go/parser"
 	"go/token"
 	"io/fs"
@@ -25,6 +27,7 @@ type site struct {
 	API      string `json:"api"`
 	Function string `json:"function"`
 	Category string `json:"category"`
+	Argument string `json:"argument,omitempty"`
 }
 
 type inventory struct {
@@ -84,29 +87,38 @@ func main() {
 			return nil
 		}
 		result.ImportFiles = append(result.ImportFiles, relPath(rootPath, path))
-		function := "package"
-		ast.Inspect(file, func(node ast.Node) bool {
-			if declaration, ok := node.(*ast.FuncDecl); ok {
-				function = "func " + declaration.Name.Name
+		for _, declaration := range file.Decls {
+			function := "package"
+			if functionDecl, ok := declaration.(*ast.FuncDecl); ok {
+				function = "func " + functionDecl.Name.Name
 			}
-			call, ok := node.(*ast.CallExpr)
-			if !ok {
+			ast.Inspect(declaration, func(node ast.Node) bool {
+				call, ok := node.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				selector, ok := call.Fun.(*ast.SelectorExpr)
+				if !ok {
+					return true
+				}
+				identifier, ok := selector.X.(*ast.Ident)
+				if !ok || !aliases[identifier.Name] {
+					return true
+				}
+				argument := ""
+				if len(call.Args) > 0 {
+					var printed bytes.Buffer
+					if err := format.Node(&printed, fset, call.Args[0]); err == nil {
+						argument = printed.String()
+					}
+				}
+				result.Sites = append(result.Sites, site{
+					File: relPath(rootPath, path), Line: fset.Position(call.Pos()).Line,
+					API: selector.Sel.Name, Function: function, Category: classifyRegexpAPI(selector.Sel.Name), Argument: argument,
+				})
 				return true
-			}
-			selector, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok {
-				return true
-			}
-			identifier, ok := selector.X.(*ast.Ident)
-			if !ok || !aliases[identifier.Name] {
-				return true
-			}
-			result.Sites = append(result.Sites, site{
-				File: relPath(rootPath, path), Line: fset.Position(call.Pos()).Line,
-				API: selector.Sel.Name, Function: function, Category: classifyRegexpAPI(selector.Sel.Name),
 			})
-			return true
-		})
+		}
 		return nil
 	})
 	if err != nil {

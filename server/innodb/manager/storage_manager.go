@@ -281,6 +281,9 @@ func (sm *StorageManager) SetTransactionManager(tm *TransactionManager) {
 
 // SetBTreeManager 注入 B+ 树管理器。
 func (sm *StorageManager) SetBTreeManager(bm basic.BPlusTreeManager) {
+	if _, legacy := bm.(*DefaultBPlusTreeManager); legacy {
+		panic("query path cannot use the legacy B+Tree manager; use EnhancedBTreeAdapter")
+	}
 	sm.btreeManager = bm
 }
 

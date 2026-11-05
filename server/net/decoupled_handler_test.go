@@ -20,6 +20,17 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/protocol"
 )
 
+func TestSplitTopLevelStatementsPreservesStoredProgramBody(t *testing.T) {
+	query := "CREATE PROCEDURE p() BEGIN SET @v = 1; SELECT @v; END; SELECT 2"
+	statements := splitTopLevelStatements(query)
+	if len(statements) != 2 {
+		t.Fatalf("statements=%#v", statements)
+	}
+	if !strings.Contains(strings.ToLower(statements[0]), "begin set @v = 1; select @v; end") {
+		t.Fatalf("stored program was split: %#v", statements)
+	}
+}
+
 func TestPreparedProtocolCommandInstrumentNames(t *testing.T) {
 	cases := map[string]string{
 		"stmt_prepare":        "statement/com/Prepare",

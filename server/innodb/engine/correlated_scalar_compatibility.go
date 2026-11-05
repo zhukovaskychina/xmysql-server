@@ -3,7 +3,6 @@ package engine
 import (
 	"encoding/binary"
 	"fmt"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -310,8 +309,7 @@ func (e *XMySQLExecutor) executeCorrelatedScalarSubqueryCompatibility(ctx *Execu
 						continue
 					}
 					literal := correlatedInterfaceSQLLiteral(value)
-					pattern := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(outerAlias) + `\s*\.\s*` + regexp.QuoteMeta(strings.Trim(column, "`")))
-					innerSQL = pattern.ReplaceAllString(innerSQL, literal)
+					innerSQL = replaceQualifiedName(innerSQL, outerAlias, strings.Trim(column, "`"), literal)
 				}
 				innerSQL = normalizeCorrelatedInnerAlias(innerSQL)
 				innerStmt, err := parseSelectSQL(innerSQL)
@@ -504,8 +502,7 @@ func (e *XMySQLExecutor) evaluateCorrelatedScalarPredicate(ctx *ExecutionContext
 			if !exists {
 				value = correlatedBasicValueInterface(outerRecord.GetValues()[index], index, outerResult.ColumnTypes)
 			}
-			pattern := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(outerAlias) + `\s*\.\s*` + regexp.QuoteMeta(strings.Trim(column, "`")))
-			boundInnerSQL = pattern.ReplaceAllString(boundInnerSQL, correlatedInterfaceSQLLiteral(value))
+			boundInnerSQL = replaceQualifiedName(boundInnerSQL, outerAlias, strings.Trim(column, "`"), correlatedInterfaceSQLLiteral(value))
 		}
 		boundInnerSQL = normalizeCorrelatedInnerAlias(boundInnerSQL)
 		innerStmt, err := parseSelectSQL(boundInnerSQL)
@@ -586,9 +583,26 @@ func correlatedClauseContainsScalarAlias(clause string, aliases map[string]struc
 	if strings.TrimSpace(clause) == "" || len(aliases) == 0 {
 		return false
 	}
-	for alias := range aliases {
-		pattern := regexp.MustCompile(`(?i)(^|[^a-zA-Z0-9_$])` + regexp.QuoteMeta(alias) + `([^a-zA-Z0-9_$]|$)`)
-		if pattern.MatchString(clause) {
+	for _, prefix := range []string{"select * from __xmysql_scalar where ", "select 1 order by ", "select 1 group by "} {
+		parsed, err := sqlparser.Parse(prefix + clause)
+		if err != nil {
+			continue
+		}
+		found := false
+		_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+			column, ok := node.(*sqlparser.ColName)
+			if !ok {
+				return true, nil
+			}
+			for alias := range aliases {
+				if strings.EqualFold(strings.Trim(column.Name.String(), "`"), alias) {
+					found = true
+					return false, nil
+				}
+			}
+			return true, nil
+		}, parsed)
+		if found {
 			return true
 		}
 	}
@@ -605,26 +619,34 @@ func sortCorrelatedRecords(records []Record, orderClause string, meta *metadata.
 	orderTerms := make([]orderTerm, 0, len(terms))
 	for _, term := range terms {
 		term = strings.TrimSpace(term)
-		desc := regexp.MustCompile(`(?i)\s+desc\s*$`).MatchString(term)
-		term = regexp.MustCompile(`(?i)\s+(?:asc|desc)\s*$`).ReplaceAllString(term, "")
-		term = strings.TrimSpace(term)
-		columnName := strings.Trim(term, "`")
-		if dot := strings.LastIndex(columnName, "."); dot >= 0 {
-			columnName = strings.Trim(columnName[dot+1:], "`")
+		desc := false
+		columnName := ""
+		expression := term
+		if parsed, err := sqlparser.Parse("select 1 order by " + term); err == nil {
+			if selectStmt, ok := parsed.(*sqlparser.Select); ok && len(selectStmt.OrderBy) == 1 {
+				order := selectStmt.OrderBy[0]
+				desc = order.Direction == sqlparser.DescScr
+				expression = strings.TrimSpace(sqlparser.String(order.Expr))
+				if column, ok := order.Expr.(*sqlparser.ColName); ok {
+					columnName = strings.Trim(column.Name.String(), "`")
+				}
+			}
 		}
 		index := -1
-		for candidate, column := range meta.Columns {
-			if column != nil && strings.EqualFold(correlatedOrderColumnName(column.Name), columnName) {
-				index = candidate
-				break
+		if columnName != "" {
+			for candidate, column := range meta.Columns {
+				if column != nil && strings.EqualFold(correlatedOrderColumnName(column.Name), columnName) {
+					index = candidate
+					break
+				}
 			}
 		}
 		if index < 0 {
-			if !regexp.MustCompile(`(?i)^[a-zA-Z0-9_$]+(?:\.[a-zA-Z0-9_$]+)?$`).MatchString(columnName) {
-				orderTerms = append(orderTerms, orderTerm{index: -1, expression: term, desc: desc})
+			if columnName == "" {
+				orderTerms = append(orderTerms, orderTerm{index: -1, expression: expression, desc: desc})
 				continue
 			}
-			return fmt.Errorf("correlated scalar ORDER BY column %s not found", term)
+			return fmt.Errorf("correlated scalar ORDER BY column %s not found", expression)
 		}
 		orderTerms = append(orderTerms, orderTerm{index: index, desc: desc})
 	}
@@ -898,11 +920,31 @@ func normalizeCorrelatedGroupingExpression(expression string) string {
 }
 
 func correlatedAggregateExpression(expression string) (functionName, argument string, ok bool) {
-	match := regexp.MustCompile(`(?is)^\s*(count|sum|avg|min|max)\s*\((.*)\)\s*$`).FindStringSubmatch(strings.TrimSpace(expression))
-	if len(match) != 3 {
+	expression = strings.TrimSpace(expression)
+	lower := strings.ToLower(expression)
+	name := ""
+	for _, candidate := range []string{"count", "sum", "avg", "min", "max"} {
+		if strings.HasPrefix(lower, candidate) && len(lower) > len(candidate) && !isSQLIdentByte(lower[len(candidate)]) {
+			name = candidate
+			break
+		}
+	}
+	if name == "" {
 		return "", "", false
 	}
-	return strings.ToUpper(match[1]), strings.TrimSpace(match[2]), true
+	rest := strings.TrimSpace(expression[len(name):])
+	if !strings.HasPrefix(rest, "(") || !strings.HasSuffix(strings.TrimSpace(rest), ")") {
+		return "", "", false
+	}
+	open := strings.Index(rest, "(")
+	close := strings.LastIndex(rest, ")")
+	if open < 0 || close < open {
+		return "", "", false
+	}
+	if strings.TrimSpace(rest[close+1:]) != "" {
+		return "", "", false
+	}
+	return strings.ToUpper(name), strings.TrimSpace(rest[open+1 : close]), true
 }
 
 // parseCorrelatedOuterSource accepts the ordinary table source plus the
@@ -920,19 +962,23 @@ func parseCorrelatedOuterSource(source string) (table, alias string, ok bool) {
 			return "", "", false
 		}
 		tail := strings.TrimSpace(source[close+1:])
-		aliasMatch := regexp.MustCompile(`(?is)^(?:as\s+)?([a-zA-Z0-9_$]+)$`).FindStringSubmatch(tail)
-		if len(aliasMatch) != 2 {
+		fields := strings.Fields(tail)
+		if len(fields) == 0 || (len(fields) == 2 && !strings.EqualFold(fields[0], "as")) || len(fields) > 2 {
 			return "", "", false
 		}
-		alias = strings.Trim(aliasMatch[1], "`")
+		if len(fields) == 1 {
+			alias = strings.Trim(fields[0], "`")
+		} else {
+			alias = strings.Trim(fields[1], "`")
+		}
 		return alias, alias, alias != ""
 	}
-	match := regexp.MustCompile("(?is)^([a-zA-Z0-9_$]+(?:\\.[a-zA-Z0-9_$]+)?)(?:\\s+(?:as\\s+)?([a-zA-Z0-9_$]+))?").FindStringSubmatch(source)
-	if len(match) == 0 {
+	table, alias, ok = parseLeadingTableRef(source, true, true)
+	if !ok {
 		return "", "", false
 	}
-	table = strings.TrimSpace(match[1])
-	alias = strings.Trim(strings.TrimSpace(match[2]), "`")
+	table = strings.TrimSpace(table)
+	alias = strings.Trim(strings.TrimSpace(alias), "`")
 	if alias == "" {
 		alias = strings.Trim(table, "`")
 		if dot := strings.LastIndex(alias, "."); dot >= 0 {
@@ -943,11 +989,27 @@ func parseCorrelatedOuterSource(source string) (table, alias string, ok bool) {
 }
 
 func normalizeCorrelatedInnerAlias(query string) string {
-	match := regexp.MustCompile(`(?is)\bfrom\s+` + "`?[a-zA-Z0-9_$]+`?" + `\s+` + "`?([a-zA-Z0-9_$]+)`?" + `\s+where\b`).FindStringSubmatch(query)
-	if len(match) != 2 {
+	parsed, err := sqlparser.Parse(strings.TrimSpace(query))
+	if err != nil {
 		return query
 	}
-	return regexp.MustCompile(`(?i)`+regexp.QuoteMeta(strings.Trim(match[1], "`"))+`\s*\.\s*`).ReplaceAllString(query, "")
+	selectStmt, ok := parsed.(*sqlparser.Select)
+	if !ok || len(selectStmt.From) == 0 {
+		return query
+	}
+	from, ok := selectStmt.From[0].(*sqlparser.AliasedTableExpr)
+	if !ok || from.As.IsEmpty() {
+		return query
+	}
+	alias := strings.Trim(from.As.String(), "`")
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		column, ok := node.(*sqlparser.ColName)
+		if ok && strings.EqualFold(strings.Trim(column.Qualifier.Name.String(), "`"), alias) {
+			column.Qualifier = sqlparser.TableName{}
+		}
+		return true, nil
+	}, selectStmt)
+	return sqlparser.String(selectStmt)
 }
 
 type correlatedScalarProjection struct {

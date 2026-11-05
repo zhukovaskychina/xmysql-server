@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/common"
@@ -47,12 +46,12 @@ func (e *XMySQLExecutor) executeMultipleCorrelatedPredicateSubqueriesCompatibili
 	}
 	outerSource := strings.TrimSpace(whereParts[0])
 	whereText := strings.TrimSpace(whereParts[1])
-	outerSourceMatch := regexp.MustCompile("(?is)^([a-zA-Z0-9_$]+(?:\\.[a-zA-Z0-9_$]+)?)(?:\\s+(?:as\\s+)?([a-zA-Z0-9_$]+))?").FindStringSubmatch(outerSource)
-	if len(outerSourceMatch) == 0 {
+	outerTable, outerAlias, sourceOK := parseLeadingTableRef(outerSource, true, true)
+	if !sourceOK {
 		return false, nil
 	}
-	outerTable := strings.TrimSpace(outerSourceMatch[1])
-	outerAlias := strings.Trim(strings.TrimSpace(outerSourceMatch[2]), "`")
+	outerTable = strings.TrimSpace(outerTable)
+	outerAlias = strings.Trim(strings.TrimSpace(outerAlias), "`")
 	if outerAlias == "" || strings.EqualFold(outerAlias, "join") || strings.EqualFold(outerAlias, "left") || strings.EqualFold(outerAlias, "right") || strings.EqualFold(outerAlias, "inner") {
 		outerAlias = strings.Trim(strings.TrimSpace(outerTable), "`")
 		if dot := strings.LastIndex(outerAlias, "."); dot >= 0 {
@@ -69,24 +68,28 @@ func (e *XMySQLExecutor) executeMultipleCorrelatedPredicateSubqueriesCompatibili
 			return false, nil
 		}
 	}
-	pattern := regexp.MustCompile(`(?is)^\s*([a-zA-Z0-9_$\.]+)\s*(not\s+in|in|(?:<=>|<>|!=|<=|>=|=|<|>)\s*(?:any|some|all))\s*\(`)
-	existsPattern := regexp.MustCompile(`(?is)^\s*(not\s+)?exists\s*\(`)
 	clauses := make([]correlatedPredicateClause, 0, len(terms))
 	outerConditions := make([]string, 0, len(terms))
 	for _, rawTerm := range terms {
 		term := trimEnclosingPredicateParens(strings.TrimSpace(rawTerm))
-		match := pattern.FindStringSubmatchIndex(term)
+		call, predicateFound := findPredicateCall(term, true)
+		matchStart, matchEnd := 0, 0
 		clauseKind := "predicate"
 		operator := ""
 		leftText := ""
-		if len(match) > 0 {
-			leftText = strings.TrimSpace(term[match[2]:match[3]])
-			operator = strings.ToUpper(strings.TrimSpace(term[match[4]:match[5]]))
-		} else if existsMatch := existsPattern.FindStringSubmatchIndex(term); len(existsMatch) > 0 {
-			match = existsMatch
+		if predicateFound {
+			leftText = strings.TrimSpace(call.left)
+			operator = strings.ToUpper(strings.TrimSpace(call.operator))
+			matchStart, matchEnd = call.start, call.end
+		} else if existsAt, notExists, existsFound := findExistsCall(term); existsFound && existsAt == 0 {
+			paren := strings.Index(term, "(")
+			if paren < 0 {
+				return true, fmt.Errorf("correlated predicate subquery is missing parentheses")
+			}
+			matchStart, matchEnd = existsAt, paren+1
 			clauseKind = "exists"
 			operator = "EXISTS"
-			if existsMatch[2] >= 0 {
+			if notExists {
 				operator = "NOT EXISTS"
 			}
 		} else {
@@ -105,11 +108,11 @@ func (e *XMySQLExecutor) executeMultipleCorrelatedPredicateSubqueriesCompatibili
 			outerConditions = append(outerConditions, term)
 			continue
 		}
-		open := strings.Index(term[match[0]:match[1]], "(")
+		open := strings.Index(term[matchStart:matchEnd], "(")
 		if open < 0 {
 			return true, fmt.Errorf("correlated predicate subquery is missing parentheses")
 		}
-		open += match[0]
+		open += matchStart
 		close := matchingParenIndex(term, open)
 		if close < 0 || strings.TrimSpace(term[close+1:]) != "" {
 			return false, nil
@@ -206,8 +209,7 @@ func (e *XMySQLExecutor) executeMultipleCorrelatedPredicateSubqueriesCompatibili
 				if index >= len(outerRecord.GetValues()) {
 					continue
 				}
-				pattern := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(outerAlias) + `\s*\.\s*` + regexp.QuoteMeta(strings.Trim(column, "`")))
-				boundInnerSQL = pattern.ReplaceAllString(boundInnerSQL, basicValueSQLLiteral(outerRecord.GetValues()[index]))
+				boundInnerSQL = replaceQualifiedName(boundInnerSQL, outerAlias, strings.Trim(column, "`"), basicValueSQLLiteral(outerRecord.GetValues()[index]))
 			}
 			innerStmt, parseErr := parseSelectSQL(boundInnerSQL)
 			if parseErr != nil {

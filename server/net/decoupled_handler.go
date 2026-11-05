@@ -8,7 +8,6 @@ import (
 	"encoding/hex" // 临时注释 - 密码验证被跳过时不需要
 	"fmt"
 	"net"
-	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -21,6 +20,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/dispatcher"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 	"github.com/zhukovaskychina/xmysql-server/server/observability/compatibility"
 	"github.com/zhukovaskychina/xmysql-server/server/observability/metrics"
 	"github.com/zhukovaskychina/xmysql-server/server/protocol"
@@ -1549,14 +1549,24 @@ func multiStatementsEnabled(session Session) bool {
 
 const expiredPasswordRestrictedAttribute = "password_expired_restricted"
 
-var (
-	expiredPasswordSetPattern   = regexp.MustCompile(`(?is)^set\s+password(?:\s+for\s+(?:user|current_user)\s*\(\s*\))?\s*=\s*'[^']*'\s*;?$`)
-	expiredPasswordAlterPattern = regexp.MustCompile(`(?is)^alter\s+user\s+(?:user|current_user)\s*\(\s*\)\s+identified(?:\s+with\s+[a-z0-9_]+)?\s+by\s+'[^']*'\s*;?$`)
-)
-
 func expiredPasswordQueryAllowed(query string) bool {
 	normalized := strings.TrimSpace(query)
-	return expiredPasswordSetPattern.MatchString(normalized) || expiredPasswordAlterPattern.MatchString(normalized)
+	parsed, err := sqlparser.ParseForExecution(normalized)
+	if err != nil || parsed == nil {
+		return false
+	}
+	statement, ok := parsed.AST.(*sqlparser.AccountStatement)
+	if !ok {
+		return false
+	}
+	if strings.EqualFold(statement.Kind, "set password") {
+		return true
+	}
+	if !strings.EqualFold(statement.Kind, "alter user") || len(statement.Accounts) != 0 {
+		return false
+	}
+	lower := strings.ToLower(normalized)
+	return strings.Contains(lower, "user()") || strings.Contains(lower, "current_user()")
 }
 
 func expiredPasswordCapabilityEnabled(session Session) bool {
@@ -3045,7 +3055,7 @@ func (h *DecoupledMySQLMessageHandler) sendResultTerminator(session Session, seq
 // semicolons inside strings or nested expressions as statement boundaries.
 func splitTopLevelStatements(query string) []string {
 	statements := make([]string, 0, 2)
-	start, depth := 0, 0
+	start, depth, storedProgramDepth := 0, 0, 0
 	var quote byte
 	for index := 0; index < len(query); index++ {
 		ch := query[index]
@@ -3059,6 +3069,21 @@ func splitTopLevelStatements(query string) []string {
 			quote = ch
 			continue
 		}
+		if isSQLIdentifierByte(ch) {
+			wordStart := index
+			for index+1 < len(query) && isSQLIdentifierByte(query[index+1]) {
+				index++
+			}
+			switch strings.ToLower(query[wordStart : index+1]) {
+			case "begin":
+				storedProgramDepth++
+			case "end":
+				if storedProgramDepth > 0 {
+					storedProgramDepth--
+				}
+			}
+			continue
+		}
 		switch ch {
 		case '(':
 			depth++
@@ -3067,7 +3092,7 @@ func splitTopLevelStatements(query string) []string {
 				depth--
 			}
 		case ';':
-			if depth == 0 {
+			if depth == 0 && storedProgramDepth == 0 {
 				if statement := strings.TrimSpace(query[start:index]); statement != "" {
 					statements = append(statements, statement)
 				}
@@ -3079,6 +3104,10 @@ func splitTopLevelStatements(query string) []string {
 		statements = append(statements, statement)
 	}
 	return statements
+}
+
+func isSQLIdentifierByte(ch byte) bool {
+	return ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch >= '0' && ch <= '9' || ch == '_' || ch == '$'
 }
 
 func createColumnDefinitionForType(encoder *protocol.MySQLResultSetEncoder, name string, columnType string) *protocol.ColumnDefinition {

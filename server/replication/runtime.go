@@ -2821,9 +2821,19 @@ func (r *Runtime) setError(err error) {
 
 var mysqlErrorNumberPattern = regexp.MustCompile(`(?i)\berror\s+([0-9]{1,6})\b`)
 
+type mysqlErrorNumberProvider interface {
+	MySQLErrorNumber() int64
+}
+
 func parseMySQLErrorNumber(err error) int64 {
 	if err == nil {
 		return 0
+	}
+	var typed mysqlErrorNumberProvider
+	if errors.As(err, &typed) && typed != nil {
+		if number := typed.MySQLErrorNumber(); number > 0 {
+			return number
+		}
 	}
 	match := mysqlErrorNumberPattern.FindStringSubmatch(err.Error())
 	if len(match) != 2 {

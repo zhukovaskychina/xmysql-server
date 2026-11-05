@@ -26,6 +26,53 @@ func TestAlterUpgradePositionAndModifyFields(t *testing.T) {
 	}
 }
 
+func TestAlterUpgradeTableRenameFields(t *testing.T) {
+	parsed, err := ParseForExecution("ALTER TABLE app.before_rename RENAME TO app.after_rename")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stmt := parsed.AST.(*AlterTable)
+	if len(stmt.Operations) != 1 || stmt.Operations[0].Kind != AlterOperationRenameTable {
+		t.Fatalf("operations=%#v", stmt.Operations)
+	}
+	target := stmt.Operations[0].RenameTableTo
+	if target.Qualifier.String() != "app" || target.Name.String() != "after_rename" {
+		t.Fatalf("rename target=%#v", target)
+	}
+}
+
+func TestAlterUpgradeCommentOption(t *testing.T) {
+	parsed, err := ParseForExecution("ALTER TABLE app.t COMMENT='target comment'")
+	if err != nil {
+		t.Fatal(err)
+	}
+	operation := parsed.AST.(*AlterTable).Operations[0]
+	if operation.Kind != AlterOperationOption || operation.Name != "comment" || operation.Value != "target comment" {
+		t.Fatalf("operation=%#v", operation)
+	}
+}
+
+func TestAlterUpgradeCharacterOptions(t *testing.T) {
+	cases := []struct {
+		query, name, value, collation string
+	}{
+		{"ALTER TABLE app.t DEFAULT CHARACTER SET=utf8mb4 COLLATE=utf8mb4_bin", "charset", "utf8mb4", "utf8mb4_bin"},
+		{"ALTER TABLE app.t CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_bin", "convert", "utf8mb4", "utf8mb4_bin"},
+		{"ALTER TABLE app.t COLLATE=utf8mb4_bin", "collate", "utf8mb4_bin", ""},
+		{"ALTER TABLE app.t ROW_FORMAT=compact", "row_format", "compact", ""},
+	}
+	for _, tc := range cases {
+		parsed, err := ParseForExecution(tc.query)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.query, err)
+		}
+		op := parsed.AST.(*AlterTable).Operations[0]
+		if op.Kind != AlterOperationOption || op.Name != tc.name || op.Value != tc.value || op.Collation != tc.collation {
+			t.Fatalf("%s: op=%#v", tc.query, op)
+		}
+	}
+}
+
 func TestAlterUpgradeRejectsTrailingTokens(t *testing.T) {
 	_, err := ParseForExecution("ALTER TABLE t MODIFY COLUMN c INT totally_invalid_tail")
 	if !errors.Is(err, ErrInvalidStatement) {

@@ -48,3 +48,39 @@ func TestPerformanceSchemaTableReferencesTrustSuccessfulASTParse(t *testing.T) {
 		t.Fatalf("refs=%#v", refs)
 	}
 }
+
+func TestMySQLSystemTablePredicateASTScopeAndNulls(t *testing.T) {
+	row := map[string]interface{}{"COST_NAME": "row_evaluate_cost", "COST_VALUE": nil, "COMMENT": "none"}
+	for _, tc := range []struct {
+		query string
+		want  bool
+	}{
+		{"select cost_name from mysql.server_cost where cost_name = 'missing' OR comment = 'none'", true},
+		{"select cost_name from mysql.server_cost where cost_name = 'row_evaluate_cost' and cost_value not in (1, NULL)", false},
+		{"select cost_name from mysql.server_cost where cost_value is null", true},
+		{"select 'cost_name = ''missing''' from mysql.server_cost where cost_name = 'row_evaluate_cost'", true},
+		{"select cost_name from mysql.server_cost where not (cost_name = 'missing')", true},
+		{"select cost_name from mysql.server_cost where cost_name = 'ROW_EVALUATE_COST'", true},
+	} {
+		if got := mysqlSystemTableValuesMatch(tc.query, row); got != tc.want {
+			t.Errorf("%s: got %v want %v", tc.query, got, tc.want)
+		}
+	}
+}
+
+func TestProcesslistASTPredicatesPreserveQualifiedColumns(t *testing.T) {
+	query := "SELECT * FROM information_schema.processlist WHERE ID = 62 AND INFO LIKE '%orders%'"
+	expr, err := metadataPredicateFromQuery(query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	values := map[string]interface{}{"id": int64(62), "info": "SELECT orders FROM app"}
+	keep, err := evaluateMetadataPredicateCaseInsensitive(expr, values)
+	if err != nil || !keep {
+		t.Fatalf("expr=%s keep=%v err=%v", sqlparser.String(expr), keep, err)
+	}
+	row := []interface{}{int64(62), "bob", "localhost", "app", "Query", int64(0), "", "SELECT orders FROM app", int64(0), int64(0)}
+	if !processlistRowMatchesQuery(row, query, 61) {
+		t.Fatal("complete processlist query rejected")
+	}
+}

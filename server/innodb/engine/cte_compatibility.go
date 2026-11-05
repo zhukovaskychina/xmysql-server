@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -76,12 +75,30 @@ func isRawSetCTECompatibilityQuery(query string) bool {
 	for position < len(trimmed) && strings.ContainsRune(" \t\r\n", rune(trimmed[position])) {
 		position++
 	}
-	header := regexp.MustCompile(`(?is)^([a-zA-Z0-9_$]+)(?:\s*\([^)]*\))?\s+as\s*\(`)
-	match := header.FindStringSubmatchIndex(trimmed[position:])
-	if len(match) == 0 {
+	headerText := trimmed[position:]
+	headerLower := strings.ToLower(headerText)
+	asOffset := strings.Index(headerLower, " as")
+	if asOffset < 0 {
 		return false
 	}
-	open := position + match[1] - 1
+	headerPrefix := strings.TrimSpace(headerText[:asOffset])
+	if headerPrefix == "" {
+		return false
+	}
+	if openColumns := strings.Index(headerPrefix, "("); openColumns >= 0 {
+		if !strings.HasSuffix(strings.TrimSpace(headerPrefix), ")") {
+			return false
+		}
+		headerPrefix = strings.TrimSpace(headerPrefix[:openColumns])
+	}
+	if headerPrefix == "" {
+		return false
+	}
+	afterAs := strings.TrimSpace(headerText[asOffset+len(" as"):])
+	if !strings.HasPrefix(afterAs, "(") {
+		return false
+	}
+	open := position + asOffset + len(" as") + strings.Index(headerText[asOffset+len(" as"):], "(")
 	close := matchingParenIndex(trimmed, open)
 	if close < 0 {
 		return false
@@ -174,31 +191,48 @@ func (e *XMySQLExecutor) executeCTECompatibility(ctx *ExecutionContext, query, d
 		return true, e.finishRecursiveCTECompatibility(ctx, mainQuery, definition, values, databaseName)
 	}
 
-	anchorMatch := regexp.MustCompile(`(?is)^select\s+(-?\d+)\s*(?:as\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `)?\s*$`).FindStringSubmatch(strings.TrimSpace(parts[0]))
-	recursiveMatch := regexp.MustCompile(`(?is)^select\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s*\+\s*(-?\d+)\s*(?:as\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `)?\s+from\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s+where\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s*(<|<=|=|>|>=)\s*(-?\d+)\s*$`).FindStringSubmatch(strings.TrimSpace(parts[1]))
-	if len(anchorMatch) == 0 || len(recursiveMatch) == 0 {
+	anchorStmt, anchorErr := sqlparser.Parse(strings.TrimSpace(parts[0]))
+	recursiveStmt, recursiveErr := sqlparser.Parse(strings.TrimSpace(parts[1]))
+	anchorSelect, anchorOK := anchorStmt.(*sqlparser.Select)
+	recursiveSelect, recursiveOK := recursiveStmt.(*sqlparser.Select)
+	if anchorErr != nil || recursiveErr != nil || !anchorOK || !recursiveOK || len(anchorSelect.SelectExprs) != 1 || len(recursiveSelect.SelectExprs) != 1 || len(recursiveSelect.From) != 1 || recursiveSelect.Where == nil {
 		return true, fmt.Errorf("unsupported recursive CTE shape")
 	}
-	if !strings.EqualFold(recursiveMatch[4], definition.name) || !strings.EqualFold(recursiveMatch[1], definition.column) || !strings.EqualFold(recursiveMatch[5], definition.column) {
+	anchorExpr, anchorAliased := anchorSelect.SelectExprs[0].(*sqlparser.AliasedExpr)
+	recursiveExpr, recursiveAliased := recursiveSelect.SelectExprs[0].(*sqlparser.AliasedExpr)
+	recursiveBinary, binaryOK := recursiveExpr.Expr.(*sqlparser.BinaryExpr)
+	anchorValue, anchorValueOK := recursiveCTEIntegerExpression(anchorExpr.Expr)
+	recursiveColumn, recursiveColumnOK := recursiveCTEColumnExpression(recursiveBinary.Left)
+	step, stepOK := recursiveCTEIntegerExpression(recursiveBinary.Right)
+	if !anchorAliased || !recursiveAliased || !binaryOK || !stepOK || !anchorValueOK || !recursiveColumnOK || recursiveBinary.Operator != sqlparser.PlusStr {
+		return true, fmt.Errorf("unsupported recursive CTE shape")
+	}
+	fromTable, fromOK := recursiveSelect.From[0].(*sqlparser.AliasedTableExpr)
+	fromName, fromNameOK := sqlparser.TableName{}, false
+	if fromOK {
+		fromName, fromNameOK = fromTable.Expr.(sqlparser.TableName)
+	}
+	condition, conditionOK := recursiveSelect.Where.Expr.(*sqlparser.ComparisonExpr)
+	conditionColumn, conditionColumnOK := false, false
+	conditionName := ""
+	if conditionOK {
+		conditionName, conditionColumnOK = recursiveCTEColumnExpression(condition.Left)
+		conditionColumn = conditionColumnOK
+	}
+	conditionLimit, conditionLimitOK := recursiveCTEIntegerExpression(condition.Right)
+	if !fromNameOK || !conditionOK || !conditionColumn || !conditionLimitOK || !strings.EqualFold(fromName.Name.String(), definition.name) || !strings.EqualFold(recursiveColumn, definition.column) || !strings.EqualFold(conditionName, definition.column) {
 		return true, fmt.Errorf("recursive CTE column binding does not match definition")
 	}
-	start, err := strconv.ParseInt(anchorMatch[1], 10, 64)
-	if err != nil {
-		return true, err
-	}
-	step, err := strconv.ParseInt(recursiveMatch[2], 10, 64)
-	if err != nil || (step == 0 && !distinct) {
+	if step == 0 && !distinct {
 		return true, fmt.Errorf("recursive CTE step must be a non-zero integer")
 	}
-	limit, err := strconv.ParseInt(recursiveMatch[7], 10, 64)
-	if err != nil {
-		return true, err
-	}
+	start := anchorValue
+	limit := conditionLimit
 	values := []interface{}{start}
 	seen := map[int64]struct{}{start: {}}
 	for iteration := 0; iteration < 1000; iteration++ {
 		current := values[len(values)-1].(int64)
-		if !recursiveCondition(current, recursiveMatch[6], limit) {
+		if !recursiveCondition(current, condition.Operator, limit) {
 			break
 		}
 		next := current + step
@@ -216,6 +250,19 @@ func (e *XMySQLExecutor) executeCTECompatibility(ctx *ExecutionContext, query, d
 	}
 
 	return true, e.finishRecursiveCTECompatibility(ctx, mainQuery, definition, values, databaseName)
+}
+
+func recursiveCTEIntegerExpression(expression sqlparser.Expr) (int64, bool) {
+	value, err := strconv.ParseInt(strings.TrimSpace(sqlparser.String(expression)), 10, 64)
+	return value, err == nil
+}
+
+func recursiveCTEColumnExpression(expression sqlparser.Expr) (string, bool) {
+	column, ok := expression.(*sqlparser.ColName)
+	if !ok {
+		return "", false
+	}
+	return strings.Trim(column.Name.String(), "`"), true
 }
 
 func newCTESessionExpressionValues(ctx *ExecutionContext, databaseName string) map[string]interface{} {
@@ -436,47 +483,11 @@ func (e *XMySQLExecutor) executeMultipleRecursiveCTECompatibility(ctx *Execution
 }
 
 func materializeRecursiveCTESingleColumnLegacy(definition cteCompatibilityDefinition, parts []string, distinct bool) ([]interface{}, error) {
-	anchorMatch := regexp.MustCompile(`(?is)^select\s+(-?\d+)\s*(?:as\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `)?\s*$`).FindStringSubmatch(strings.TrimSpace(parts[0]))
-	recursiveMatch := regexp.MustCompile(`(?is)^select\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s*\+\s*(-?\d+)\s*(?:as\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `)?\s+from\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s+where\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s*(<|<=|=|>|>=)\s*(-?\d+)\s*$`).FindStringSubmatch(strings.TrimSpace(parts[1]))
-	if len(anchorMatch) == 0 || len(recursiveMatch) == 0 {
+	values, handled, err := materializeRecursiveCTESingleColumnGeneric(definition, parts, distinct)
+	if !handled {
 		return nil, fmt.Errorf("unsupported recursive CTE shape")
 	}
-	if !strings.EqualFold(recursiveMatch[4], definition.name) || !strings.EqualFold(recursiveMatch[1], definition.column) || !strings.EqualFold(recursiveMatch[5], definition.column) {
-		return nil, fmt.Errorf("recursive CTE column binding does not match definition")
-	}
-	start, err := strconv.ParseInt(anchorMatch[1], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	step, err := strconv.ParseInt(recursiveMatch[2], 10, 64)
-	if err != nil || (step == 0 && !distinct) {
-		return nil, fmt.Errorf("recursive CTE step must be a non-zero integer")
-	}
-	limit, err := strconv.ParseInt(recursiveMatch[7], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	values := []interface{}{start}
-	seen := map[int64]struct{}{start: {}}
-	for iteration := 0; iteration < 1000; iteration++ {
-		current := values[len(values)-1].(int64)
-		if !recursiveCondition(current, recursiveMatch[6], limit) {
-			break
-		}
-		next := current + step
-		if _, exists := seen[next]; exists {
-			if distinct {
-				break
-			}
-			return nil, fmt.Errorf("cycle detected in recursive CTE %s", definition.name)
-		}
-		seen[next] = struct{}{}
-		values = append(values, next)
-	}
-	if len(values) >= 1000 {
-		return nil, fmt.Errorf("recursive CTE %s exceeded maximum recursion depth 1000", definition.name)
-	}
-	return values, nil
+	return values, err
 }
 
 // executeRecursiveCTEBaseTableJoin materializes the common hierarchy shape:
@@ -1143,11 +1154,20 @@ func materializeRecursiveCTESingleColumnGeneric(definition cteCompatibilityDefin
 }
 
 func (e *XMySQLExecutor) executeRecursiveCTEInsert(ctx *ExecutionContext, mainQuery string, definition cteCompatibilityDefinition, values []interface{}, databaseName string) (bool, error) {
-	match := regexp.MustCompile(`(?is)^insert\s+(ignore\s+)?into\s+((?:[a-zA-Z0-9_$]+\s*\.\s*)?[a-zA-Z0-9_$]+)(?:\s*\(([^)]*)\))?\s+(.+)$`).FindStringSubmatch(strings.TrimSpace(mainQuery))
-	if len(match) == 0 || !strings.HasPrefix(strings.ToLower(strings.TrimSpace(match[4])), "select ") {
+	parsed, parseErr := sqlparser.ParseForExecution(mainQuery)
+	if parseErr != nil {
 		return false, nil
 	}
-	selectResult, err := executeRecursiveCTEMainQuery(strings.TrimSpace(match[4]), definition, values)
+	insert, ok := parsed.AST.(*sqlparser.Insert)
+	if !ok {
+		return false, nil
+	}
+	selectRows, ok := insert.Rows.(sqlparser.SelectStatement)
+	if !ok {
+		return false, nil
+	}
+	selectSQL := strings.TrimSpace(sqlparser.String(selectRows))
+	selectResult, err := executeRecursiveCTEMainQuery(selectSQL, definition, values)
 	if err != nil {
 		return true, err
 	}
@@ -1155,23 +1175,22 @@ func (e *XMySQLExecutor) executeRecursiveCTEInsert(ctx *ExecutionContext, mainQu
 		ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Message: "recursive CTE insert affected 0 rows"}
 		return true, nil
 	}
-	columns := strings.TrimSpace(match[3])
-	insertPrefix := "insert into " + strings.TrimSpace(match[2])
-	if strings.TrimSpace(match[1]) != "" {
-		insertPrefix = "insert ignore into " + strings.TrimSpace(match[2])
+	insertPrefix := "insert into " + sqlparser.String(insert.Table)
+	if strings.EqualFold(strings.TrimSpace(insert.Ignore), "ignore") {
+		insertPrefix = "insert ignore into " + sqlparser.String(insert.Table)
 	}
-	if columns != "" {
-		insertPrefix += " (" + columns + ")"
+	if len(insert.Columns) > 0 {
+		insertPrefix += " " + sqlparser.String(insert.Columns)
 	}
-	rows := make([]string, 0, selectResult.RowCount)
+	rowValues := make([]string, 0, selectResult.RowCount)
 	for _, record := range selectResult.Records {
 		literals := make([]string, 0, len(record.GetValues()))
 		for _, value := range record.GetValues() {
 			literals = append(literals, recursiveCTEValueSQLLiteral(value))
 		}
-		rows = append(rows, "("+strings.Join(literals, ", ")+")")
+		rowValues = append(rowValues, "("+strings.Join(literals, ", ")+")")
 	}
-	insertQuery := insertPrefix + " values " + strings.Join(rows, ", ")
+	insertQuery := insertPrefix + " values " + strings.Join(rowValues, ", ")
 	nestedResults := make(chan *Result, 8)
 	nestedCtx := &ExecutionContext{Context: ctx.Context, Results: nestedResults, Cfg: ctx.Cfg, DatabaseName: databaseName, RawQuery: insertQuery, Session: ctx.Session}
 	go e.executeQuery(nestedCtx, ctx.Session, insertQuery, databaseName, nestedResults)
@@ -1197,17 +1216,57 @@ func (e *XMySQLExecutor) executeRecursiveCTEDML(ctx *ExecutionContext, mainQuery
 	if len(definition.columns) != 1 {
 		return false, nil
 	}
-	column := regexp.QuoteMeta(definition.column)
-	table := regexp.QuoteMeta(definition.name)
-	pattern := regexp.MustCompile(`(?is)(` + "`?" + column + "`?" + `)\s+(not\s+in|in)\s*\(\s*select\s+` + "`?" + column + "`?" + `\s+from\s+` + "`?" + table + "`?" + `\s*\)`)
-	literals := make([]string, 0, len(values))
-	for _, value := range values {
-		literals = append(literals, recursiveCTEInterfaceSQLLiteral(value))
-	}
-	rewritten := pattern.ReplaceAllString(trimmed, `$1 $2 (`+strings.Join(literals, ", ")+`)`)
-	if rewritten == trimmed {
+	parsed, err := sqlparser.Parse(trimmed)
+	if err != nil {
 		return false, nil
 	}
+	var where *sqlparser.Where
+	switch statement := parsed.(type) {
+	case *sqlparser.Update:
+		where = statement.Where
+	case *sqlparser.Delete:
+		where = statement.Where
+	default:
+		return false, nil
+	}
+	if where == nil {
+		return false, nil
+	}
+	var candidate *sqlparser.Subquery
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		comparison, ok := node.(*sqlparser.ComparisonExpr)
+		if !ok || (!strings.EqualFold(comparison.Operator, sqlparser.InStr) && !strings.EqualFold(comparison.Operator, sqlparser.NotInStr)) {
+			return true, nil
+		}
+		subquery, ok := comparison.Right.(*sqlparser.Subquery)
+		if !ok || !recursiveCTESubqueryMatches(subquery.Select, definition) {
+			return true, nil
+		}
+		candidate = subquery
+		return false, nil
+	}, where.Expr)
+	if candidate == nil {
+		return false, nil
+	}
+	tuple := make(sqlparser.ValTuple, 0, len(values))
+	for _, value := range values {
+		literal := recursiveCTEInterfaceSQLLiteral(value)
+		literalStmt, literalErr := sqlparser.Parse("select " + literal)
+		if literalErr != nil {
+			return true, literalErr
+		}
+		selectLiteral, ok := literalStmt.(*sqlparser.Select)
+		if !ok || len(selectLiteral.SelectExprs) != 1 {
+			return true, fmt.Errorf("recursive CTE literal did not produce an expression")
+		}
+		aliased, ok := selectLiteral.SelectExprs[0].(*sqlparser.AliasedExpr)
+		if !ok {
+			return true, fmt.Errorf("recursive CTE literal did not produce an aliased expression")
+		}
+		tuple = append(tuple, aliased.Expr)
+	}
+	sqlparser.ReplaceExpr(where.Expr, candidate, tuple)
+	rewritten := sqlparser.String(parsed)
 	nestedResults := make(chan *Result, 8)
 	nestedCtx := &ExecutionContext{Context: ctx.Context, Results: nestedResults, Cfg: ctx.Cfg, DatabaseName: databaseName, RawQuery: rewritten, Session: ctx.Session}
 	go e.executeQuery(nestedCtx, ctx.Session, rewritten, databaseName, nestedResults)
@@ -1217,6 +1276,27 @@ func (e *XMySQLExecutor) executeRecursiveCTEDML(ctx *ExecutionContext, mainQuery
 		}
 	}
 	return true, nil
+}
+
+func recursiveCTESubqueryMatches(statement sqlparser.SelectStatement, definition cteCompatibilityDefinition) bool {
+	selectStmt, ok := statement.(*sqlparser.Select)
+	if !ok || len(selectStmt.SelectExprs) != 1 || len(selectStmt.From) != 1 {
+		return false
+	}
+	projection, ok := selectStmt.SelectExprs[0].(*sqlparser.AliasedExpr)
+	if !ok {
+		return false
+	}
+	column, ok := projection.Expr.(*sqlparser.ColName)
+	if !ok || !strings.EqualFold(strings.Trim(column.Name.String(), "`"), definition.column) {
+		return false
+	}
+	from, ok := selectStmt.From[0].(*sqlparser.AliasedTableExpr)
+	if !ok {
+		return false
+	}
+	table, ok := from.Expr.(sqlparser.TableName)
+	return ok && strings.EqualFold(strings.Trim(table.Name.String(), "`"), definition.name)
 }
 
 func recursiveCTEInterfaceSQLLiteral(value interface{}) string {
@@ -1869,53 +1949,34 @@ type cteCompatibilityDefinition struct {
 }
 
 func parseCTECompatibilityQuery(query string) ([]cteCompatibilityDefinition, string, error) {
-	pos := len("with recursive")
-	for pos < len(query) && (query[pos] == ' ' || query[pos] == '\t' || query[pos] == '\r' || query[pos] == '\n') {
-		pos++
+	parsed, err := sqlparser.Parse(strings.TrimSpace(strings.TrimSuffix(query, ";")))
+	if err != nil {
+		return nil, "", fmt.Errorf("invalid recursive CTE definition: %w", err)
 	}
-	header := regexp.MustCompile(`(?is)^` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s*\(\s*([^)]*?)\s*\)\s+as\s*\(`)
-	definitions := make([]cteCompatibilityDefinition, 0, 2)
-	for {
-		match := header.FindStringSubmatchIndex(query[pos:])
-		if len(match) == 0 {
+	with, ok := parsed.(*sqlparser.With)
+	if !ok || !with.Recursive || len(with.CTEs) == 0 {
+		return nil, "", fmt.Errorf("invalid recursive CTE definition")
+	}
+	definitions := make([]cteCompatibilityDefinition, 0, len(with.CTEs))
+	for _, cte := range with.CTEs {
+		if cte == nil || cte.Name.String() == "" || len(cte.Columns) == 0 || cte.Query == nil {
 			return nil, "", fmt.Errorf("invalid recursive CTE definition")
 		}
-		name := query[pos+match[2] : pos+match[3]]
-		rawColumns := query[pos+match[4] : pos+match[5]]
-		columns := make([]string, 0, 2)
-		for _, rawColumn := range strings.Split(rawColumns, ",") {
-			column := strings.Trim(strings.TrimSpace(rawColumn), "`")
-			if column == "" {
+		columns := make([]string, 0, len(cte.Columns))
+		for _, column := range cte.Columns {
+			name := strings.Trim(column.String(), "`")
+			if name == "" {
 				return nil, "", fmt.Errorf("recursive CTE column name is empty")
 			}
-			columns = append(columns, column)
+			columns = append(columns, name)
 		}
-		if len(columns) == 0 {
-			return nil, "", fmt.Errorf("recursive CTE requires at least one column")
-		}
-		open := pos + match[1] - 1
-		close := matchingParenIndex(query, open)
-		if close < 0 {
-			return nil, "", fmt.Errorf("unterminated recursive CTE definition")
-		}
-		definitions = append(definitions, cteCompatibilityDefinition{name: name, column: columns[0], columns: columns, query: query[open+1 : close]})
-
-		restStart := close + 1
-		for restStart < len(query) && (query[restStart] == ' ' || query[restStart] == '\t' || query[restStart] == '\r' || query[restStart] == '\n') {
-			restStart++
-		}
-		if restStart >= len(query) || query[restStart] != ',' {
-			return definitions, strings.TrimSpace(query[close+1:]), nil
-		}
-		next := restStart + 1
-		for next < len(query) && (query[next] == ' ' || query[next] == '\t' || query[next] == '\r' || query[next] == '\n') {
-			next++
-		}
-		if len(header.FindStringSubmatchIndex(query[next:])) == 0 {
-			return definitions, strings.TrimSpace(query[next:]), nil
-		}
-		pos = next
+		definitions = append(definitions, cteCompatibilityDefinition{name: cte.Name.String(), column: columns[0], columns: columns, query: sqlparser.String(cte.Query)})
 	}
+	body := ""
+	if with.Body != nil {
+		body = sqlparser.String(with.Body)
+	}
+	return definitions, strings.TrimSpace(body), nil
 }
 
 func recursiveCondition(value int64, operator string, limit int64) bool {

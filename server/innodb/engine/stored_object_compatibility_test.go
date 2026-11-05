@@ -2763,6 +2763,11 @@ func TestSQLEventExecutesDoStatementWhenSchedulerIsEnabled(t *testing.T) {
 
 	result := <-executor.ExecuteQuery(nil, "create event write_once on schedule at current_timestamp do insert into event_log values (1, 'fired')", "app")
 	require.NoError(t, result.Err)
+	defer func() {
+		if t.Failed() {
+			t.Logf("write_once scheduler error: %s", scheduler.LastError("app.write_once"))
+		}
+	}()
 	require.Eventually(t, func() bool {
 		rows := mustQuerySQL(t, executor, "app", "select note from event_log")
 		return len(rows) == 1 && rows[0][0] == "fired"

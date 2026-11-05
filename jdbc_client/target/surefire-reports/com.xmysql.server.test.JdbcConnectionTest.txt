@@ -1,4 +1,14 @@
 -------------------------------------------------------------------------------
 Test set: com.xmysql.server.test.JdbcConnectionTest
 -------------------------------------------------------------------------------
-Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.659 s -- in com.xmysql.server.test.JdbcConnectionTest
+Tests run: 11, Failures: 0, Errors: 1, Skipped: 0, Time elapsed: 0.460 s <<< FAILURE! -- in com.xmysql.server.test.JdbcConnectionTest
+com.xmysql.server.test.JdbcConnectionTest.testDataGripFullMetadataSqlProbesDoNotFail -- Time elapsed: 0.013 s <<< ERROR!
+java.sql.SQLSyntaxErrorException: failed to analyze query: SQL解析失败: invalid SQL statement: syntax error at position 34 near 'auto_increment'
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeQuery(StatementImpl.java:1200)
+	at com.xmysql.server.test.JdbcConnectionTest.testDataGripFullMetadataSqlProbesDoNotFail(JdbcConnectionTest.java:171)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+

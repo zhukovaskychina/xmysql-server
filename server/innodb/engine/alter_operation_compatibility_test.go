@@ -740,6 +740,27 @@ func TestQualifiedAlterTableOptionsUseTargetDatabase(t *testing.T) {
 	require.Equal(t, [][]interface{}{{"target comment"}}, mustQuerySQL(t, executor, "app", "select table_comment from information_schema.tables where table_schema = 'app' and table_name = 'qualified_options'"))
 }
 
+func TestAlterTableCharacterOptionsUseAST(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table ast_options (id int)")
+
+	mustExecSQL(t, executor, "app", "alter table ast_options default character set=utf8mb4 collate=utf8mb4_bin")
+	metadata, err := readTableMetadataMap(filepath.Join(executor.GetDataDir(), "app", "ast_options.frm"))
+	require.NoError(t, err)
+	options, ok := metadata["options"].(map[string]interface{})
+	require.True(t, ok)
+	require.Equal(t, "utf8mb4", options["charset"])
+	require.Equal(t, "utf8mb4_bin", options["collation"])
+
+	mustExecSQL(t, executor, "app", "alter table ast_options row_format=compact")
+	metadata, err = readTableMetadataMap(filepath.Join(executor.GetDataDir(), "app", "ast_options.frm"))
+	require.NoError(t, err)
+	options, ok = metadata["options"].(map[string]interface{})
+	require.True(t, ok)
+	require.Equal(t, "Compact", options["row_format"])
+}
+
 func TestQualifiedAlterConstraintUsesTargetDatabase(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	mustExecSQL(t, executor, "", "create database app")

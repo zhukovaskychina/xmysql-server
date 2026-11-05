@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,12 +24,10 @@ func (e *XMySQLExecutor) executeCorrelatedDerivedOuterCompatibility(ctx *Executi
 	if !strings.HasPrefix(lower, "select ") {
 		return false, nil
 	}
-	existsMatch := regexp.MustCompile(`(?is)\b(not\s+)?exists\s*\(`).FindStringSubmatchIndex(trimmed)
-	if len(existsMatch) == 0 {
+	existsAt, notExists, existsFound := findExistsCall(trimmed)
+	if !existsFound {
 		return false, nil
 	}
-	existsAt := existsMatch[0]
-	notExists := existsMatch[2] >= 0
 	outerPrefix := strings.TrimSpace(trimmed[:existsAt])
 	fromParts := splitTopLevelKeyword(outerPrefix, "from")
 	if len(fromParts) != 2 || !strings.HasPrefix(strings.ToLower(strings.TrimSpace(fromParts[0])), "select ") {
@@ -42,7 +39,7 @@ func (e *XMySQLExecutor) executeCorrelatedDerivedOuterCompatibility(ctx *Executi
 	outerWhere := ""
 	if len(sourceParts) == 2 {
 		outerWhere = strings.TrimSpace(sourceParts[1])
-		outerWhere = regexp.MustCompile(`(?is)\s+(and|or)\s*$`).ReplaceAllString(outerWhere, "")
+		outerWhere = trimCorrelatedConditionConnectorSuffix(outerWhere)
 	}
 	if !strings.HasPrefix(outerSource, "(") {
 		return false, nil
@@ -52,7 +49,9 @@ func (e *XMySQLExecutor) executeCorrelatedDerivedOuterCompatibility(ctx *Executi
 		return true, fmt.Errorf("unterminated derived outer source")
 	}
 	aliasText := strings.TrimSpace(outerSource[closeSource+1:])
-	aliasText = regexp.MustCompile(`(?is)^as\s+`).ReplaceAllString(aliasText, "")
+	if strings.HasPrefix(strings.ToLower(aliasText), "as ") {
+		aliasText = strings.TrimSpace(aliasText[len("as "):])
+	}
 	outerAlias := strings.Trim(strings.TrimSpace(aliasText), "`")
 	if outerAlias == "" || strings.ContainsAny(outerAlias, " ()") {
 		return false, nil
@@ -75,7 +74,7 @@ func (e *XMySQLExecutor) executeCorrelatedDerivedOuterCompatibility(ctx *Executi
 		return false, nil
 	}
 	innerSQL := strings.TrimSpace(trimmed[open+1 : close])
-	if !strings.HasPrefix(strings.ToLower(innerSQL), "select ") || !regexp.MustCompile(`(?i)`+regexp.QuoteMeta(outerAlias)+`\s*\.`).MatchString(innerSQL) {
+	if !strings.HasPrefix(strings.ToLower(innerSQL), "select ") || !correlatedDerivedSQLReferencesAlias(innerSQL, outerAlias) {
 		return false, nil
 	}
 
@@ -126,8 +125,7 @@ func (e *XMySQLExecutor) executeCorrelatedDerivedOuterCompatibility(ctx *Executi
 				continue
 			}
 			literal := correlatedValueSQLLiteral(record.GetValues()[index])
-			pattern := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(outerAlias) + `\s*\.\s*` + regexp.QuoteMeta(strings.Trim(column, "`")))
-			boundInnerSQL = pattern.ReplaceAllString(boundInnerSQL, literal)
+			boundInnerSQL = replaceQualifiedName(boundInnerSQL, outerAlias, strings.Trim(column, "`"), literal)
 		}
 		innerStmt, parseErr := sqlparser.Parse(boundInnerSQL)
 		if parseErr != nil {
@@ -218,6 +216,34 @@ func (e *XMySQLExecutor) executeCorrelatedDerivedOuterCompatibility(ctx *Executi
 	return true, nil
 }
 
+func correlatedDerivedSQLReferencesAlias(query, alias string) bool {
+	parsed, err := sqlparser.Parse(query)
+	if err != nil || parsed == nil {
+		return false
+	}
+	found := false
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		column, ok := node.(*sqlparser.ColName)
+		if ok && !column.Qualifier.IsEmpty() && strings.EqualFold(strings.Trim(column.Qualifier.Name.String(), "`"), strings.Trim(alias, "`")) {
+			found = true
+			return false, nil
+		}
+		return true, nil
+	}, parsed)
+	return found
+}
+
+func trimCorrelatedConditionConnectorSuffix(condition string) string {
+	trimmed := strings.TrimSpace(condition)
+	lower := strings.ToLower(trimmed)
+	for _, connector := range []string{"and", "or"} {
+		if strings.HasSuffix(lower, " "+connector) {
+			return strings.TrimSpace(trimmed[:len(trimmed)-len(connector)-1])
+		}
+	}
+	return trimmed
+}
+
 type correlatedDerivedOrderTerm struct {
 	expression string
 	descending bool
@@ -256,37 +282,35 @@ func correlatedDerivedOrderExpressions(tail string) ([]correlatedDerivedOrderTer
 }
 
 func correlatedDerivedLimit(tail string) (offset, count int, ok bool, err error) {
-	match := regexp.MustCompile(`(?is)\blimit\s+(.+?)\s*$`).FindStringSubmatch(strings.TrimSpace(tail))
-	if len(match) != 2 {
+	trimmed := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(tail), ";"))
+	if trimmed == "" {
 		return 0, 0, false, nil
 	}
-	clause := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(match[1]), ";"))
-	if clause == "" {
-		return 0, 0, true, fmt.Errorf("correlated derived LIMIT requires a row count")
+	stmt, parseErr := sqlparser.Parse("select 1 " + trimmed)
+	if parseErr != nil {
+		return 0, 0, false, nil
 	}
-	parts := []string{}
-	if strings.Contains(clause, ",") {
-		parts = strings.SplitN(clause, ",", 2)
-	} else {
-		fields := strings.Fields(clause)
-		if len(fields) == 3 && strings.EqualFold(fields[1], "offset") {
-			parts = []string{fields[2], fields[0]}
-		} else if len(fields) == 1 {
-			parts = []string{"0", fields[0]}
-		} else {
-			return 0, 0, true, fmt.Errorf("unsupported correlated derived LIMIT clause %q", clause)
+	selectStmt, ok := stmt.(*sqlparser.Select)
+	if !ok || selectStmt.Limit == nil {
+		return 0, 0, false, nil
+	}
+	parseLimitValue := func(expression sqlparser.Expr) (int, error) {
+		value := strings.TrimSpace(sqlparser.String(expression))
+		parsed, parseErr := strconv.Atoi(value)
+		if parseErr != nil || parsed < 0 {
+			return 0, fmt.Errorf("invalid correlated derived LIMIT value %q", value)
 		}
+		return parsed, nil
 	}
-	if len(parts) != 2 {
-		return 0, 0, true, fmt.Errorf("unsupported correlated derived LIMIT clause %q", clause)
+	count, err = parseLimitValue(selectStmt.Limit.Rowcount)
+	if err != nil {
+		return 0, 0, true, err
 	}
-	offset, err = strconv.Atoi(strings.TrimSpace(parts[0]))
-	if err != nil || offset < 0 {
-		return 0, 0, true, fmt.Errorf("invalid correlated derived LIMIT offset %q", parts[0])
-	}
-	count, err = strconv.Atoi(strings.TrimSpace(parts[1]))
-	if err != nil || count < 0 {
-		return 0, 0, true, fmt.Errorf("invalid correlated derived LIMIT count %q", parts[1])
+	if selectStmt.Limit.Offset != nil {
+		offset, err = parseLimitValue(selectStmt.Limit.Offset)
+		if err != nil {
+			return 0, 0, true, err
+		}
 	}
 	return offset, count, true, nil
 }

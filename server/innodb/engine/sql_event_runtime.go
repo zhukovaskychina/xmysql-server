@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strconv"
+
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 type parsedEventSchedule struct {
@@ -63,68 +64,54 @@ func (e *XMySQLExecutor) StopEventScheduler() bool {
 }
 
 func parseSQLEventSchedule(definition string) (parsedEventSchedule, error) {
-	trimmed := strings.TrimSpace(strings.TrimSuffix(definition, ";"))
-	doMatch := regexp.MustCompile(`(?is)\s+do\s+(.+)$`).FindStringSubmatch(trimmed)
-	if len(doMatch) != 2 || strings.TrimSpace(doMatch[1]) == "" {
+	parsed, err := sqlparser.ParseForExecution(definition)
+	if err != nil {
+		return parsedEventSchedule{}, fmt.Errorf("invalid CREATE EVENT definition: %w", err)
+	}
+	object, ok := parsed.AST.(*sqlparser.StoredObjectStatement)
+	if !ok || !strings.EqualFold(object.ObjectType, "event") {
+		return parsedEventSchedule{}, fmt.Errorf("CREATE EVENT definition did not produce EVENT AST")
+	}
+	return parseSQLEventScheduleAST(object)
+}
+func parseSQLEventScheduleAST(object *sqlparser.StoredObjectStatement) (parsedEventSchedule, error) {
+	if object == nil {
+		return parsedEventSchedule{}, fmt.Errorf("event definition is nil")
+	}
+	body := strings.TrimSpace(object.Body)
+	if strings.HasPrefix(strings.ToLower(body), "do ") {
+		body = strings.TrimSpace(body[3:])
+	}
+	if body == "" {
 		return parsedEventSchedule{}, fmt.Errorf("CREATE EVENT requires a non-empty DO statement")
 	}
-	statement := strings.TrimSpace(strings.TrimSuffix(doMatch[1], ";"))
-	schedulePart := trimmed[:len(trimmed)-len(doMatch[0])]
-
-	result := parsedEventSchedule{ExecuteAt: time.Now().UTC(), Statement: statement}
-	lowerSchedule := strings.ToLower(schedulePart)
-	result.OnCompletionPreserve = strings.Contains(lowerSchedule, "on completion preserve")
-	atMatch := regexp.MustCompile(`(?is)\bon\s+schedule\s+at\s+('([^']+)'|current_timestamp(?:\(\))?)`).FindStringSubmatch(schedulePart)
-	if len(atMatch) > 0 {
-		if strings.HasPrefix(strings.ToLower(atMatch[1]), "current_timestamp") {
-			result.ExecuteAt = time.Now().UTC()
-		} else {
-			parsed, err := parseEventTime(atMatch[2])
-			if err != nil {
-				return parsedEventSchedule{}, err
-			}
-			result.ExecuteAt = parsed
+	result := parsedEventSchedule{ExecuteAt: time.Now().UTC(), Statement: strings.TrimSuffix(body, ";"), OnCompletionPreserve: object.OnCompletionPreserve}
+	if strings.EqualFold(object.ScheduleKind, "AT") {
+		if strings.EqualFold(object.Starts, "current_timestamp") || strings.EqualFold(object.Starts, "current_timestamp()") || object.Starts == "" {
+			return result, nil
 		}
-		return result, nil
-	}
-
-	everyMatch := regexp.MustCompile(`(?is)\bon\s+schedule\s+every\s+(\d+)\s+(second|minute|hour|day|week|month|year)`).FindStringSubmatch(schedulePart)
-	if len(everyMatch) == 0 {
-		return parsedEventSchedule{}, fmt.Errorf("unsupported or missing EVENT schedule")
-	}
-	count, err := strconv.ParseInt(everyMatch[1], 10, 64)
-	if err != nil || count <= 0 {
-		return parsedEventSchedule{}, fmt.Errorf("EVENT interval must be positive")
-	}
-	unit := strings.ToLower(everyMatch[2])
-	var multiplier time.Duration
-	switch unit {
-	case "second":
-		multiplier = time.Second
-	case "minute":
-		multiplier = time.Minute
-	case "hour":
-		multiplier = time.Hour
-	case "day":
-		multiplier = 24 * time.Hour
-	case "week":
-		multiplier = 7 * 24 * time.Hour
-	case "month":
-		multiplier = 30 * 24 * time.Hour
-	case "year":
-		multiplier = 365 * 24 * time.Hour
-	default:
-		return parsedEventSchedule{}, fmt.Errorf("unsupported EVENT interval unit %q", unit)
-	}
-	result.Interval = time.Duration(count) * multiplier
-	result.Repeat = true
-	startsMatch := regexp.MustCompile(`(?is)\bstarts\s+'([^']+)'`).FindStringSubmatch(schedulePart)
-	if len(startsMatch) == 2 {
-		started, err := parseEventTime(startsMatch[1])
+		parsed, err := parseEventTime(strings.Trim(object.Starts, "'\""))
 		if err != nil {
 			return parsedEventSchedule{}, err
 		}
-		result.ExecuteAt = started
+		result.ExecuteAt = parsed
+		return result, nil
+	}
+	if !strings.EqualFold(object.ScheduleKind, "EVERY") || object.IntervalValue <= 0 {
+		return parsedEventSchedule{}, fmt.Errorf("unsupported or missing EVENT schedule")
+	}
+	multiplier := map[string]time.Duration{"SECOND": time.Second, "MINUTE": time.Minute, "HOUR": time.Hour, "DAY": 24 * time.Hour, "WEEK": 7 * 24 * time.Hour, "MONTH": 30 * 24 * time.Hour, "YEAR": 365 * 24 * time.Hour}[strings.ToUpper(object.IntervalUnit)]
+	if multiplier == 0 {
+		return parsedEventSchedule{}, fmt.Errorf("unsupported EVENT interval unit %q", object.IntervalUnit)
+	}
+	result.Interval = time.Duration(object.IntervalValue) * multiplier
+	result.Repeat = true
+	if object.Starts != "" && !strings.EqualFold(object.Starts, "current_timestamp") {
+		parsed, err := parseEventTime(strings.Trim(object.Starts, "'\""))
+		if err != nil {
+			return parsedEventSchedule{}, err
+		}
+		result.ExecuteAt = parsed
 	}
 	return result, nil
 }
@@ -146,7 +133,10 @@ func (e *XMySQLExecutor) registerSQLEvent(object persistedStoredObject) error {
 	if object.Disabled {
 		return nil
 	}
-	schedule, err := parseSQLEventSchedule(object.Definition)
+	if object.DefinitionAST == nil {
+		hydrateStoredObjectAST(&object)
+	}
+	schedule, err := parseSQLEventScheduleStoredObject(object)
 	if err != nil {
 		return err
 	}
@@ -178,6 +168,16 @@ func (e *XMySQLExecutor) registerSQLEvent(object persistedStoredObject) error {
 			return nil
 		},
 	})
+}
+
+// parseSQLEventScheduleStoredObject consumes the cached AST when metadata was
+// loaded from disk. Rebuilding from the durable definition remains the
+// compatibility path for old rows or invalidated in-memory entries.
+func parseSQLEventScheduleStoredObject(object persistedStoredObject) (parsedEventSchedule, error) {
+	if object.DefinitionAST != nil && strings.EqualFold(object.DefinitionAST.ObjectType, "event") {
+		return parseSQLEventScheduleAST(object.DefinitionAST)
+	}
+	return parseSQLEventSchedule(object.Definition)
 }
 
 func (e *XMySQLExecutor) markSQLEventExecuted(schema, name string) error {

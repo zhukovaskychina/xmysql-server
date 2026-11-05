@@ -113,7 +113,10 @@ func TestFullTextBooleanModeAndIndexValidation(t *testing.T) {
 	mustExecSQL(t, executor, "", "create database app")
 	mustExecSQL(t, executor, "app", "create table docs (id int primary key, content text, fulltext index idx_content (content))")
 	mustExecSQL(t, executor, "app", "insert into docs values (1, 'mysql legacy'), (2, 'mysql modern'), (3, 'legacy only')")
-	require.True(t, fullTextAgainstPattern.MatchString("select id from docs where match(content) against('+mysql -legacy' in boolean mode)"))
+	_, _, _, term, mode, matchedAgainst := findMatchAgainst("select id from docs where match(content) against('+mysql -legacy' in boolean mode)")
+	require.True(t, matchedAgainst)
+	require.Equal(t, "+mysql -legacy", term)
+	require.Equal(t, "BOOLEAN", strings.ToUpper(mode))
 	score, matched := fullTextMatches("mysql modern", "+mysql -legacy", true)
 	require.True(t, matched)
 	require.Positive(t, score)
@@ -124,8 +127,12 @@ func TestFullTextBooleanModeAndIndexValidation(t *testing.T) {
 	rows = mustQuerySQL(t, executor, "app", "select id from docs where match(content) against('mysql legacy' in natural language mode) order by id")
 	require.Equal(t, [][]interface{}{{"1"}, {"2"}, {"3"}}, rows)
 
+	err := execSQLExpectError(t, executor, "app", "select id from docs where match(content) against('mysql' with query expansion)")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "1235")
+
 	mustExecSQL(t, executor, "app", "create table no_search (id int primary key, content text)")
-	err := execSQLExpectError(t, executor, "app", "select id from no_search where match(content) against('mysql')")
+	err = execSQLExpectError(t, executor, "app", "select id from no_search where match(content) against('mysql')")
 	require.Error(t, err)
 	require.Contains(t, strings.ToLower(err.Error()), "fulltext")
 }

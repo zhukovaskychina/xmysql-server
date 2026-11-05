@@ -5,63 +5,56 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
-var createTableInvisibleIndexPattern = regexp.MustCompile(`(?is)^\s*(?:(?:unique)\s+)?(?:index|key)\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s*\(`)
-
 // executeRawCreateTableIndexVisibility handles the trailing INVISIBLE option
-// that the legacy CREATE TABLE parser does not accept. It strips only that
-// option, lets the normal table-creation path build all rows/metadata, then
+// represented by the native CREATE TABLE AST. It lets the normal
+// table-creation path build all rows/metadata, then
 // marks the affected ordinary indexes in the durable table definition.
 func (e *XMySQLExecutor) executeRawCreateTableIndexVisibility(ctx *ExecutionContext, query, databaseName string) (bool, error) {
-	trimmed := strings.TrimSpace(strings.TrimSuffix(query, ";"))
-	if !strings.HasPrefix(strings.ToLower(trimmed), "create table") {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
 		return false, nil
 	}
-	open := strings.Index(trimmed, "(")
-	if open < 0 {
+	statement, ok := parsed.AST.(*sqlparser.TableDDLStatement)
+	if !ok || statement.AsSelect != nil {
 		return false, nil
 	}
-	close := matchingParenIndex(trimmed, open)
-	if close < 0 {
-		return true, fmt.Errorf("CREATE TABLE column list is unbalanced")
+	ddl, ok := statement.Primary.(*sqlparser.DDL)
+	if !ok || ddl.Action != sqlparser.CreateStr || ddl.TableSpec == nil {
+		return false, nil
 	}
-	definitions := splitTopLevelComma(trimmed[open+1 : close])
 	invisible := make(map[string]struct{})
 	changed := false
-	for index, definition := range definitions {
-		match := regexp.MustCompile(`(?is)\s+(visible|invisible)\s*$`).FindStringSubmatch(definition)
-		if len(match) == 0 {
+	for _, index := range ddl.TableSpec.Indexes {
+		if index == nil || index.Info == nil {
 			continue
 		}
-		baseDefinition := strings.TrimSpace(regexp.MustCompile(`(?is)\s+(?:visible|invisible)\s*$`).ReplaceAllString(definition, ""))
-		indexMatch := createTableInvisibleIndexPattern.FindStringSubmatch(baseDefinition)
-		if len(indexMatch) == 0 {
-			return true, fmt.Errorf("INVISIBLE is only supported for ordinary CREATE TABLE indexes")
+		seen := false
+		for _, option := range index.Options {
+			if option.Name != "visible" && option.Name != "invisible" {
+				continue
+			}
+			if seen {
+				return true, fmt.Errorf("index %s visibility specified more than once", index.Info.Name.String())
+			}
+			seen = true
+			if index.Info.Primary || index.Info.Spatial || strings.Contains(strings.ToLower(index.Info.Type), "fulltext") {
+				return true, fmt.Errorf("INVISIBLE is only supported for ordinary CREATE TABLE indexes")
+			}
+			if option.Name == "invisible" {
+				invisible[strings.ToLower(index.Info.Name.String())] = struct{}{}
+			}
+			changed = true
 		}
-		if strings.EqualFold(match[1], "invisible") {
-			invisible[strings.ToLower(indexMatch[1])] = struct{}{}
-		}
-		definitions[index] = baseDefinition
-		changed = true
 	}
 	if !changed {
 		return false, nil
 	}
-
-	baseQuery := trimmed[:open+1] + strings.Join(definitions, ", ") + trimmed[close:]
-	stmt, err := sqlparser.Parse(baseQuery)
-	if err != nil {
-		return true, fmt.Errorf("parse CREATE TABLE with invisible index: %w", err)
-	}
-	ddl, ok := stmt.(*sqlparser.DDL)
-	if !ok || !strings.EqualFold(ddl.Action, sqlparser.CreateStr) {
-		return true, fmt.Errorf("INVISIBLE index option is only supported on CREATE TABLE")
-	}
+	baseQuery := query
 	targetDB := databaseName
 	if qualifier := ddl.NewName.Qualifier.String(); qualifier != "" {
 		targetDB = qualifier
@@ -100,5 +93,5 @@ func (e *XMySQLExecutor) executeRawCreateTableIndexVisibility(ctx *ExecutionCont
 	if err != nil {
 		return true, err
 	}
-	return true, os.WriteFile(frmPath, updated, 0644)
+	return true, writeMetadataFileAtomic(frmPath, updated)
 }

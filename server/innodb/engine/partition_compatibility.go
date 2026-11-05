@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -51,29 +50,48 @@ func (e *XMySQLExecutor) executeRawCreatePartitionCompatibility(ctx *ExecutionCo
 // executeRawPartitionMaintenance handles data-safe partition maintenance for
 // the logical compatibility descriptor.
 func (e *XMySQLExecutor) executeRawPartitionMaintenance(ctx *ExecutionContext, query, databaseName string) (bool, error) {
-	qualifiedTable := `((?:` + "`?" + `[^\s.` + "`?" + `]+` + "`?" + `)(?:\s*\.\s*` + "`?" + `[^\s.` + "`?" + `]+` + "`?" + `)?)`
-	removeMatch := regexp.MustCompile(`(?is)^alter\s+table\s+` + qualifiedTable + `\s+remove\s+partitioning\s*;?$`).FindStringSubmatch(strings.TrimSpace(query))
-	if len(removeMatch) == 2 {
-		return e.executeRawPartitionRemove(ctx, removeMatch, databaseName)
+	if parsed, parseErr := sqlparser.ParseForExecution(query); parseErr == nil {
+		if stmt, ok := parsed.AST.(*sqlparser.AlterTable); ok && len(stmt.Operations) == 1 && stmt.Operations[0].Kind == sqlparser.AlterOperationPartition {
+			operation := stmt.Operations[0]
+			table := stmt.Table.Name.String()
+			if stmt.Table.Qualifier.String() != "" {
+				table = stmt.Table.Qualifier.String() + "." + table
+			}
+			switch strings.ToLower(operation.PartitionAction) {
+			case "remove":
+				return e.executeRawPartitionRemove(ctx, []string{"", table}, databaseName)
+			case "exchange":
+				without := ""
+				if operation.PartitionWithoutValidation {
+					without = "without validation"
+				}
+				partition := ""
+				if len(operation.PartitionNames) > 0 {
+					partition = operation.PartitionNames[0]
+				}
+				return e.executeRawPartitionExchange(ctx, []string{"", table, partition, operation.PartitionExchangeTable, without}, databaseName)
+			case "reorganize":
+				return e.executeRawPartitionReorganize(ctx, []string{"", table, strings.Join(operation.PartitionNames, ","), operation.PartitionDefinition}, databaseName)
+			case "add":
+				return e.executeRawPartitionAdd(ctx, []string{"", table, operation.PartitionDefinition}, databaseName)
+			}
+		}
 	}
-	exchangeMatch := regexp.MustCompile(`(?is)^alter\s+table\s+` + qualifiedTable + `\s+exchange\s+partition\s+(` + "`?" + `[a-zA-Z0-9_$]+` + "`?" + `)\s+with\s+table\s+` + qualifiedTable + `(?:\s+(without\s+validation))?\s*;?$`).FindStringSubmatch(strings.TrimSpace(query))
-	if len(exchangeMatch) == 5 {
-		return e.executeRawPartitionExchange(ctx, exchangeMatch, databaseName)
+	maintenanceMatch := []string(nil)
+	if parsed, parseErr := sqlparser.ParseForExecution(query); parseErr == nil {
+		if stmt, ok := parsed.AST.(*sqlparser.AlterTable); ok && len(stmt.Operations) == 1 && stmt.Operations[0].Kind == sqlparser.AlterOperationPartition && (strings.EqualFold(stmt.Operations[0].PartitionAction, "drop") || strings.EqualFold(stmt.Operations[0].PartitionAction, "truncate")) {
+			table := stmt.Table.Name.String()
+			if stmt.Table.Qualifier.String() != "" {
+				table = stmt.Table.Qualifier.String() + "." + table
+			}
+			maintenanceMatch = []string{"", table, strings.ToLower(stmt.Operations[0].PartitionAction), strings.Join(stmt.Operations[0].PartitionNames, ",")}
+		}
 	}
-	reorganizeMatch := regexp.MustCompile(`(?is)^alter\s+table\s+((?:` + "`?" + `[^\s.` + "`?" + `]+` + "`?" + `)(?:\s*\.\s*` + "`?" + `[^\s.` + "`?" + `]+` + "`?" + `)?)\s+reorganize\s+partition\s+((?:` + "`?" + `[a-zA-Z0-9_$]+` + "`?" + `\s*,\s*)*` + "`?" + `[a-zA-Z0-9_$]+` + "`?" + `)\s+into\s+(.+?)\s*;?$`).FindStringSubmatch(strings.TrimSpace(query))
-	if len(reorganizeMatch) == 4 {
-		return e.executeRawPartitionReorganize(ctx, reorganizeMatch, databaseName)
-	}
-	addMatch := regexp.MustCompile(`(?is)^alter\s+table\s+((?:` + "`?" + `[^\s.` + "`?" + `]+` + "`?" + `)(?:\s*\.\s*` + "`?" + `[^\s.` + "`?" + `]+` + "`?" + `)?)\s+add\s+partition\s+(.+?)\s*;?$`).FindStringSubmatch(strings.TrimSpace(query))
-	if len(addMatch) == 3 {
-		return e.executeRawPartitionAdd(ctx, addMatch, databaseName)
-	}
-	match := regexp.MustCompile(`(?is)^alter\s+table\s+((?:` + "`?" + `[^\s.` + "`?" + `]+` + "`?" + `)(?:\s*\.\s*` + "`?" + `[^\s.` + "`?" + `]+` + "`?" + `)?)\s+(drop|truncate)\s+partition\s+(.+?)\s*;?$`).FindStringSubmatch(strings.TrimSpace(query))
-	if len(match) != 4 {
+	if len(maintenanceMatch) != 4 {
 		return false, nil
 	}
-	operation := strings.ToLower(match[2])
-	parts := strings.Split(match[1], ".")
+	operation := strings.ToLower(maintenanceMatch[2])
+	parts := strings.Split(maintenanceMatch[1], ".")
 	schema, table := databaseName, strings.Trim(parts[len(parts)-1], "` ")
 	if len(parts) == 2 {
 		schema = strings.Trim(parts[0], "` ")
@@ -92,7 +110,7 @@ func (e *XMySQLExecutor) executeRawPartitionMaintenance(ctx *ExecutionContext, q
 		return true, fmt.Errorf("partition metadata for %s is invalid", table)
 	}
 	dropNames := map[string]struct{}{}
-	for _, name := range strings.Split(match[3], ",") {
+	for _, name := range strings.Split(maintenanceMatch[3], ",") {
 		name = strings.ToLower(strings.Trim(strings.TrimSpace(name), "`"))
 		if name != "" {
 			dropNames[name] = struct{}{}
@@ -132,6 +150,82 @@ func (e *XMySQLExecutor) executeRawPartitionMaintenance(ctx *ExecutionContext, q
 		return true, fmt.Errorf("cannot drop all partitions")
 	}
 	if err := e.deleteRowsFromDroppedPartitions(ctx, schema, table, partitioning, droppedDefinitions); err != nil {
+		return true, err
+	}
+	partitioning["partitions"] = remaining
+	tableInfo["partitioning"] = partitioning
+	if err := writeTableMetadataMapAtomic(frmPath, tableInfo); err != nil {
+		return true, err
+	}
+	if e.tableStorageManager != nil {
+		if err := e.tableStorageManager.SetPartitioning(schema, table, partitioning); err != nil {
+			return true, err
+		}
+	}
+	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_DDL, Message: "partition metadata updated"}
+	return true, nil
+}
+
+// executeTypedPartitionDropTruncate applies the AST-owned partition names
+// without rediscovering the ALTER syntax from SQL text.
+func (e *XMySQLExecutor) executeTypedPartitionDropTruncate(ctx *ExecutionContext, schema, table, operation string, names []string) (bool, error) {
+	if schema == "" || table == "" || (operation != "drop" && operation != "truncate") {
+		return false, nil
+	}
+	frmPath := filepath.Join(e.getDataDir(), schema, table+".frm")
+	tableInfo, err := readTableMetadataMap(frmPath)
+	if err != nil {
+		return true, err
+	}
+	partitioning, ok := tableInfo["partitioning"].(map[string]interface{})
+	if !ok {
+		return true, fmt.Errorf("table %s is not partitioned", table)
+	}
+	definitions, ok := partitioning["partitions"].([]interface{})
+	if !ok {
+		return true, fmt.Errorf("partition metadata for %s is invalid", table)
+	}
+	dropNames := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		name = strings.ToLower(strings.Trim(strings.TrimSpace(name), "`"))
+		if name != "" {
+			dropNames[name] = struct{}{}
+		}
+	}
+	if len(dropNames) == 0 {
+		return true, fmt.Errorf("%s PARTITION requires a partition name", strings.ToUpper(operation))
+	}
+	remaining := make([]interface{}, 0, len(definitions))
+	dropped := make([]interface{}, 0, len(definitions))
+	removed := 0
+	for _, raw := range definitions {
+		definition, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		name, _ := definition["name"].(string)
+		if _, drop := dropNames[strings.ToLower(name)]; drop {
+			dropped = append(dropped, raw)
+			removed++
+			continue
+		}
+		definition["ordinal"] = len(remaining) + 1
+		remaining = append(remaining, definition)
+	}
+	if removed == 0 {
+		return true, fmt.Errorf("unknown partition in %s PARTITION", strings.ToUpper(operation))
+	}
+	if operation == "truncate" {
+		if err := e.deleteRowsFromDroppedPartitions(ctx, schema, table, partitioning, dropped); err != nil {
+			return true, err
+		}
+		ctx.Results <- &Result{ResultType: common.RESULT_TYPE_DDL, Message: "partition data truncated"}
+		return true, nil
+	}
+	if len(remaining) == 0 {
+		return true, fmt.Errorf("cannot drop all partitions")
+	}
+	if err := e.deleteRowsFromDroppedPartitions(ctx, schema, table, partitioning, dropped); err != nil {
 		return true, err
 	}
 	partitioning["partitions"] = remaining
@@ -1097,21 +1191,22 @@ func parsePartitionDefinitions(input, method string) ([]map[string]interface{}, 
 	if len(parts) == 0 {
 		return nil, fmt.Errorf("partition definitions are empty")
 	}
-	definitionPattern := regexp.MustCompile(`(?is)^partition\s+([a-zA-Z0-9_$]+)\s+values\s+(.*)$`)
 	result := make([]map[string]interface{}, 0, len(parts))
 	for ordinal, raw := range parts {
-		match := definitionPattern.FindStringSubmatch(strings.TrimSpace(raw))
-		if len(match) != 3 {
+		trimmed := strings.TrimSpace(raw)
+		fields := strings.Fields(trimmed)
+		if len(fields) < 4 || !strings.EqualFold(fields[0], "partition") || !strings.EqualFold(fields[2], "values") {
 			return nil, fmt.Errorf("invalid partition definition %q", strings.TrimSpace(raw))
 		}
-		values := strings.TrimSpace(match[2])
+		valuesIndex := strings.Index(strings.ToLower(trimmed), "values")
+		values := strings.TrimSpace(trimmed[valuesIndex+len("values"):])
 		entry := map[string]interface{}{
-			"name":    match[1],
+			"name":    strings.Trim(fields[1], "`"),
 			"ordinal": ordinal + 1,
 			"values":  values,
 		}
 		if method == "RANGE" && !strings.Contains(strings.ToLower(values), "less than") {
-			return nil, fmt.Errorf("RANGE partition %q must use VALUES LESS THAN", match[1])
+			return nil, fmt.Errorf("RANGE partition %q must use VALUES LESS THAN", fields[1])
 		}
 		result = append(result, entry)
 	}

@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/common"
@@ -19,14 +18,8 @@ func (e *XMySQLExecutor) executeCorrelatedSubqueryCompatibility(ctx *ExecutionCo
 	if strings.HasPrefix(strings.ToLower(trimmed), "with ") {
 		return false, nil
 	}
-	existsMatch := regexp.MustCompile(`(?is)\b(not\s+)?exists\s*\(`).FindStringSubmatchIndex(trimmed)
-	existsAt := -1
-	notExists := false
-	if len(existsMatch) > 0 {
-		existsAt = existsMatch[0]
-		notExists = existsMatch[2] >= 0
-	}
-	if existsAt < 0 {
+	existsAt, notExists, existsFound := findExistsCall(trimmed)
+	if !existsFound {
 		return false, nil
 	}
 	outerPrefix := strings.TrimSpace(trimmed[:existsAt])
@@ -34,10 +27,9 @@ func (e *XMySQLExecutor) executeCorrelatedSubqueryCompatibility(ctx *ExecutionCo
 	outerWhereConnector := ""
 	trailingWhere := ""
 	trailingWhereConnector := ""
-	whereMarker := regexp.MustCompile(`(?is)\s+where(?:\s|$)`).FindStringIndex(outerPrefix)
-	if len(whereMarker) == 2 {
-		outerWhere = strings.TrimSpace(outerPrefix[whereMarker[1]:])
-		outerPrefix = strings.TrimSpace(outerPrefix[:whereMarker[0]])
+	if whereStart, whereEnd, whereFound := findSpacedKeyword(outerPrefix, "where"); whereFound {
+		outerWhere = strings.TrimSpace(outerPrefix[whereEnd:])
+		outerPrefix = strings.TrimSpace(outerPrefix[:whereStart])
 		// The compatibility path removes EXISTS from the outer WHERE and
 		// evaluates it separately for each outer row. Keep the connector so
 		// an OR expression can be evaluated against the same outer row instead
@@ -50,8 +42,8 @@ func (e *XMySQLExecutor) executeCorrelatedSubqueryCompatibility(ctx *ExecutionCo
 	}
 	outerProjection := strings.TrimSpace(strings.TrimSpace(outerFromParts[0])[len("select "):])
 	outerSource := strings.TrimSpace(outerFromParts[1])
-	outerSourceMatch := regexp.MustCompile("(?is)^([a-zA-Z0-9_$]+)(?:\\s+([a-zA-Z0-9_$]+))?").FindStringSubmatch(outerSource)
-	if len(outerSourceMatch) == 0 {
+	outerTableName, outerAliasName, sourceOK := parseLeadingTableRef(outerSource, false, false)
+	if !sourceOK {
 		return false, nil
 	}
 	open := strings.Index(trimmed[existsAt:], "(")
@@ -91,18 +83,17 @@ func (e *XMySQLExecutor) executeCorrelatedSubqueryCompatibility(ctx *ExecutionCo
 	if !strings.HasPrefix(strings.ToLower(innerSQL), "select ") {
 		return true, fmt.Errorf("correlated EXISTS requires an inner SELECT")
 	}
-	outerAlias := outerSourceMatch[2]
+	outerAlias := outerAliasName
 	if strings.EqualFold(outerAlias, "join") || strings.EqualFold(outerAlias, "left") || strings.EqualFold(outerAlias, "right") || strings.EqualFold(outerAlias, "inner") {
 		outerAlias = ""
 	}
 	if outerAlias == "" {
-		outerAlias = outerSourceMatch[1]
+		outerAlias = outerTableName
 	}
 	if outerAlias == "" {
-		outerAlias = strings.Trim(strings.TrimSpace(outerSourceMatch[1]), "`")
+		outerAlias = strings.Trim(strings.TrimSpace(outerTableName), "`")
 	}
-	correlationPattern := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(outerAlias) + `\s*\.`)
-	if !correlationPattern.MatchString(innerSQL) {
+	if !sqlHasQualifierDot(innerSQL, outerAlias) {
 		return false, nil
 	}
 	outerDependencies := strings.TrimSpace(strings.Join([]string{outerWhere, trailingWhere}, " "))
@@ -206,8 +197,7 @@ func (e *XMySQLExecutor) executeCorrelatedSubqueryCompatibility(ctx *ExecutionCo
 				continue
 			}
 			literal := correlatedValueSQLLiteral(outerRecord.GetValues()[index])
-			pattern := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(outerAlias) + `\s*\.\s*` + regexp.QuoteMeta(strings.Trim(outerColumn, "`")))
-			boundInnerSQL = pattern.ReplaceAllString(boundInnerSQL, literal)
+			boundInnerSQL = replaceQualifiedName(boundInnerSQL, outerAlias, strings.Trim(outerColumn, "`"), literal)
 		}
 		innerStmt, parseErr := sqlparser.Parse(boundInnerSQL)
 		if parseErr != nil {
@@ -295,15 +285,12 @@ func correlatedOuterSourceSQL(projection, outerWhere, innerSQL, source string) s
 			items = append(items, item)
 		}
 	}
-	qualified := regexp.MustCompile("(?i)\\b([a-zA-Z0-9_$]+)\\s*\\.\\s*([a-zA-Z0-9_$]+)").FindAllStringSubmatch(projection+" "+outerWhere+" "+innerSQL, -1)
+	qualified := findQualifiedPairs(projection + " " + outerWhere + " " + innerSQL)
 	for _, match := range qualified {
-		if len(match) != 3 {
+		if _, exists := known[strings.ToLower(match[0])]; !exists {
 			continue
 		}
-		if _, exists := known[strings.ToLower(match[1])]; !exists {
-			continue
-		}
-		item := match[1] + "." + match[2]
+		item := match[0] + "." + match[1]
 		key := strings.ToLower(item)
 		if _, exists := seen[key]; !exists {
 			seen[key] = struct{}{}
@@ -331,28 +318,34 @@ func correlatedOuterSourceAliases(source string) []string {
 		}
 		aliases = append(aliases, alias)
 	}
-	trimmed := strings.TrimSpace(source)
-	if strings.HasPrefix(trimmed, "(") {
-		if close := matchingParenIndex(trimmed, 0); close >= 0 {
-			tail := strings.TrimSpace(trimmed[close+1:])
-			if match := regexp.MustCompile(`(?is)^(?:as\s+)?([a-zA-Z0-9_$]+)$`).FindStringSubmatch(tail); len(match) == 2 {
-				add(match[1])
+	stmt, err := sqlparser.Parse("select * from " + source)
+	if err != nil {
+		return aliases
+	}
+	selectStmt, ok := stmt.(*sqlparser.Select)
+	if !ok {
+		return aliases
+	}
+	var collect func(sqlparser.TableExpr)
+	collect = func(expr sqlparser.TableExpr) {
+		switch node := expr.(type) {
+		case *sqlparser.AliasedTableExpr:
+			if !node.As.IsEmpty() {
+				add(node.As.String())
+			} else if table, tableOK := node.Expr.(sqlparser.TableName); tableOK {
+				add(table.Name.String())
+			}
+		case *sqlparser.JoinTableExpr:
+			collect(node.LeftExpr)
+			collect(node.RightExpr)
+		case *sqlparser.ParenTableExpr:
+			for _, nested := range node.Exprs {
+				collect(nested)
 			}
 		}
 	}
-	joinPattern := regexp.MustCompile("(?is)(?:^|\\b(?:left|right|inner|outer|cross)?\\s*join\\s+)(?:[a-zA-Z0-9_$]+\\.)?[a-zA-Z0-9_$]+(?:\\s+(?:as\\s+)?([a-zA-Z0-9_$]+))?")
-	for _, match := range joinPattern.FindAllStringSubmatch(source, -1) {
-		if len(match) > 1 {
-			add(match[1])
-		}
-	}
-	if len(aliases) == 0 {
-		first := regexp.MustCompile("(?is)^([a-zA-Z0-9_$]+)(?:\\s+(?:as\\s+)?([a-zA-Z0-9_$]+))?").FindStringSubmatch(source)
-		if len(first) > 2 && first[2] != "" {
-			add(first[2])
-		} else if len(first) > 1 {
-			add(first[1])
-		}
+	for _, expr := range selectStmt.From {
+		collect(expr)
 	}
 	return aliases
 }

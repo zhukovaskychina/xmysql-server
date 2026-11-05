@@ -24,6 +24,12 @@ type AccountStatement struct {
 	Role          bool
 	Password      string
 	Raw           string
+	RenamePairs   []AccountRenamePair
+}
+
+type AccountRenamePair struct {
+	Source      AccountName
+	Destination AccountName
 }
 
 func (node *AccountStatement) iStatement() {}
@@ -48,7 +54,7 @@ func tryParseAccountForExecution(query string) (*AccountStatement, bool, error) 
 	first := strings.ToLower(tokens[0].text)
 	kind := first
 	index := 1
-	if first == "create" || first == "alter" || first == "drop" {
+	if first == "create" || first == "alter" || first == "drop" || first == "rename" {
 		if index >= len(tokens) || (!strings.EqualFold(tokens[index].text, "user") && !strings.EqualFold(tokens[index].text, "role")) {
 			return nil, false, nil
 		}
@@ -62,10 +68,71 @@ func tryParseAccountForExecution(query string) (*AccountStatement, bool, error) 
 	} else if first == "set" && index < len(tokens) && strings.EqualFold(tokens[index].text, "password") {
 		kind = "set password"
 		index++
+	} else if first == "set" && index+1 < len(tokens) && strings.EqualFold(tokens[index].text, "default") && strings.EqualFold(tokens[index+1].text, "role") {
+		kind = "set default role"
+		index += 2
 	} else {
 		return nil, false, nil
 	}
 	statement := &AccountStatement{Kind: kind, Raw: query, Options: make(map[string]string), Role: strings.HasSuffix(kind, " role")}
+	if kind == "rename user" {
+		for index < len(tokens) {
+			source, next, ok := parseAccountNameTokens(tokens, index)
+			if !ok {
+				return nil, true, fmt.Errorf("%w: RENAME USER source missing", ErrInvalidStatement)
+			}
+			index = next
+			if index >= len(tokens) || !strings.EqualFold(tokens[index].text, "to") {
+				return nil, true, fmt.Errorf("%w: RENAME USER TO expected", ErrInvalidStatement)
+			}
+			index++
+			destination, after, ok := parseAccountNameTokens(tokens, index)
+			if !ok {
+				return nil, true, fmt.Errorf("%w: RENAME USER destination missing", ErrInvalidStatement)
+			}
+			statement.RenamePairs = append(statement.RenamePairs, AccountRenamePair{Source: source, Destination: destination})
+			index = after
+			if index == len(tokens) {
+				break
+			}
+			if tokens[index].text != "," {
+				return nil, true, fmt.Errorf("%w: unexpected RENAME USER token", ErrInvalidStatement)
+			}
+			index++
+		}
+		if len(statement.RenamePairs) == 0 {
+			return nil, true, fmt.Errorf("%w: RENAME USER target missing", ErrInvalidStatement)
+		}
+		return statement, true, nil
+	}
+	if kind == "set default role" {
+		toIndex := -1
+		for cursor := index; cursor < len(tokens); cursor++ {
+			if strings.EqualFold(tokens[cursor].text, "to") {
+				toIndex = cursor
+				break
+			}
+		}
+		if toIndex < 0 {
+			return nil, true, fmt.Errorf("%w: SET DEFAULT ROLE target missing", ErrInvalidStatement)
+		}
+		for cursor := toIndex + 1; cursor < len(tokens); {
+			if tokens[cursor].text == "," {
+				cursor++
+				continue
+			}
+			account, next, ok := parseAccountNameTokens(tokens, cursor)
+			if !ok {
+				return nil, true, fmt.Errorf("%w: SET DEFAULT ROLE account target invalid", ErrInvalidStatement)
+			}
+			statement.Accounts = append(statement.Accounts, account)
+			cursor = next
+		}
+		if len(statement.Accounts) == 0 {
+			return nil, true, fmt.Errorf("%w: SET DEFAULT ROLE account target missing", ErrInvalidStatement)
+		}
+		return statement, true, nil
+	}
 	if first == "grant" || first == "revoke" {
 		return parseGrantAccountForExecution(tokens, statement)
 	}
@@ -97,6 +164,14 @@ func tryParseAccountForExecution(query string) (*AccountStatement, bool, error) 
 		}
 		if text == "identified" || text == "with" || text == "as" || text == "on" || text == "require" || text == "password" || text == "account" || text == "default" {
 			statement.Scope = text
+			if text == "identified" && index+2 < len(tokens) && strings.EqualFold(tokens[index+1].text, "with") {
+				statement.Options["identified_with"] = tokens[index+2].text
+				if index+4 < len(tokens) && strings.EqualFold(tokens[index+3].text, "by") {
+					statement.Options["identified_by"] = tokens[index+4].text
+				}
+			} else if text == "identified" && index+1 < len(tokens) && strings.EqualFold(tokens[index+1].text, "by") && index+2 < len(tokens) {
+				statement.Options["identified_by"] = tokens[index+2].text
+			}
 			if index+1 < len(tokens) && tokens[index+1].text != "," {
 				statement.Options[text] = tokens[index+1].text
 			}
@@ -226,11 +301,24 @@ func populateAccountSecurityOptions(tokens []showExecutionToken, statement *Acco
 				key = "password expire interval"
 				valueIndex = index + 3
 			}
-		case "failed_login_attempts", "password_lock_time", "max_queries_per_hour", "max_updates_per_hour", "max_connections_per_hour", "max_user_connections", "cipher", "issuer", "subject":
+		case "failed_login_attempts", "password_lock_time", "max_queries_per_hour", "max_updates_per_hour", "max_connections_per_hour", "max_user_connections", "cipher", "issuer", "subject", "replace":
 			key = word
+		case "attribute", "comment":
+			if index+1 < len(tokens) && tokens[index+1].text == "=" {
+				valueIndex = index + 2
+			}
+			if valueIndex < len(tokens) && strings.EqualFold(tokens[valueIndex].text, "default") {
+				key = word + " default"
+			} else {
+				key = word
+			}
 		}
-		if key != "" && valueIndex < len(tokens) {
-			statement.Options[key] = tokens[valueIndex].text
+		if key != "" {
+			if valueIndex < len(tokens) {
+				statement.Options[key] = tokens[valueIndex].text
+			} else {
+				statement.Options[key] = ""
+			}
 		}
 	}
 }

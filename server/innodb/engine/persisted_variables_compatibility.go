@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -18,8 +17,6 @@ import (
 )
 
 const persistedVariablesFileName = "mysqld-auto.cnf"
-
-var persistedVariableStatementPattern = regexp.MustCompile(`(?is)^\s*set\s+(persist_only|persist)\s+(.+?)\s*$`)
 
 // persistedSystemVariable is intentionally small and JSON-safe.  It captures
 // the fields surfaced by PERFORMANCE_SCHEMA.PERSISTED_VARIABLES while the
@@ -108,24 +105,23 @@ func (e *XMySQLExecutor) applyPersistedSystemVariables() {
 }
 
 func (e *XMySQLExecutor) executePersistedVariableStatement(ctx *ExecutionContext, session server.MySQLServerSession, query string) (bool, error) {
-	match := persistedVariableStatementPattern.FindStringSubmatch(strings.TrimSpace(strings.TrimSuffix(query, ";")))
-	if len(match) == 0 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return false, nil
+	}
+	stmt, ok := parsed.AST.(*sqlparser.Set)
+	if !ok || !stmt.Persist {
 		return false, nil
 	}
 	if session == nil {
 		return true, fmt.Errorf("SET PERSIST requires a session")
 	}
-	assignmentSQL := strings.TrimSpace(match[2])
-	if assignmentSQL == "" {
-		return true, fmt.Errorf("invalid SET PERSIST statement")
-	}
-	parsed, err := sqlparser.Parse("set global " + assignmentSQL)
-	if err != nil {
-		return true, fmt.Errorf("invalid SET PERSIST value: %w", err)
-	}
-	stmt, ok := parsed.(*sqlparser.Set)
-	if !ok || len(stmt.Exprs) == 0 {
+	if len(stmt.Exprs) == 0 {
 		return true, fmt.Errorf("SET PERSIST requires at least one variable assignment")
+	}
+	mode := "persist"
+	if stmt.PersistOnly {
+		mode = "persist_only"
 	}
 	type assignment struct {
 		name       string
@@ -160,7 +156,7 @@ func (e *XMySQLExecutor) executePersistedVariableStatement(ctx *ExecutionContext
 		value = normalizePersistedSystemVariableValue(definition, value)
 		assignments = append(assignments, assignment{name: cleanName, value: value, definition: definition})
 	}
-	persistOnly := strings.EqualFold(match[1], "persist_only")
+	persistOnly := stmt.PersistOnly
 	for _, item := range assignments {
 		if item.definition.ReadOnly {
 			if !persistOnly {
@@ -216,7 +212,7 @@ func (e *XMySQLExecutor) executePersistedVariableStatement(ctx *ExecutionContext
 	if ctx != nil {
 		ctx.AdminResult = &Result{
 			ResultType: common.RESULT_TYPE_SET,
-			Message:    fmt.Sprintf("SET %s completed for %d variable(s)", strings.ToUpper(match[1]), len(assignments)),
+			Message:    fmt.Sprintf("SET %s completed for %d variable(s)", strings.ToUpper(mode), len(assignments)),
 		}
 	}
 	return true, nil

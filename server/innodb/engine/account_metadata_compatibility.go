@@ -2,12 +2,12 @@ package engine
 
 import (
 	"fmt"
-	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 func (e *XMySQLExecutor) executeInformationSchemaColumnPrivilegesSelect(query string, session server.MySQLServerSession) *SelectResult {
@@ -319,57 +319,26 @@ func splitTopLevelKeywordAll(input, keyword string) []string {
 	return parts
 }
 
-var informationSchemaPrivilegeFilterPattern = regexp.MustCompile(`(?i)\b(grantee|table_catalog|table_schema|table_name|column_name|privilege_type|is_grantable)\b\s*(?:=|like)\s*(?:'((?:''|[^'])*)'|"((?:""|[^"])*)")`)
-var informationSchemaPrivilegeNullFilterPattern = regexp.MustCompile(`(?i)\b(grantee|table_catalog|table_schema|table_name|column_name|privilege_type|is_grantable)\b\s+is\s+(not\s+)?null`)
-var informationSchemaPrivilegeInFilterPattern = regexp.MustCompile(`(?is)\b(grantee|table_catalog|table_schema|table_name|column_name|privilege_type|is_grantable)\b\s+(not\s+)?in\s*\(([^)]*)\)`)
-
 // informationSchemaPrivilegeQueryMatches applies the column predicates that
 // are common to the privilege views.  Keeping this separate from the object
 // metadata filters matters because USER_PRIVILEGES has no table or schema
 // columns, while callers still expect predicates such as PRIVILEGE_TYPE and
 // GRANTEE to be evaluated before rows are projected.
 func informationSchemaPrivilegeQueryMatches(query string, values map[string]interface{}) bool {
-	for _, match := range informationSchemaPrivilegeNullFilterPattern.FindAllStringSubmatch(query, -1) {
-		field := strings.ToUpper(match[1])
-		wantNull := strings.TrimSpace(match[2]) == ""
-		value, exists := values[field]
-		isNull := !exists || value == nil
-		if isNull != wantNull {
-			return false
-		}
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return true
 	}
-	for _, match := range informationSchemaPrivilegeFilterPattern.FindAllStringSubmatch(query, -1) {
-		field := strings.ToUpper(match[1])
-		pattern := match[2]
-		if pattern == "" {
-			pattern = match[3]
-			pattern = strings.ReplaceAll(pattern, `""`, `"`)
-		} else {
-			pattern = strings.ReplaceAll(pattern, "''", "'")
-		}
-		if !metadataPatternMatchesAllowEmpty(fmt.Sprint(values[field]), pattern) {
-			return false
-		}
+	selectStmt, ok := parsed.AST.(*sqlparser.Select)
+	if !ok || selectStmt.Where == nil {
+		return true
 	}
-	for _, match := range informationSchemaPrivilegeInFilterPattern.FindAllStringSubmatch(query, -1) {
-		field := strings.ToUpper(match[1])
-		value := fmt.Sprint(values[field])
-		contains := false
-		for _, raw := range splitTopLevelComma(match[3]) {
-			candidate := strings.Trim(strings.TrimSpace(raw), "'\"")
-			candidate = strings.ReplaceAll(candidate, "''", "'")
-			candidate = strings.ReplaceAll(candidate, `""`, `"`)
-			if strings.EqualFold(candidate, value) {
-				contains = true
-				break
-			}
-		}
-		notIn := strings.TrimSpace(match[2]) != ""
-		if notIn == contains {
-			return false
-		}
+	normalized := make(map[string]interface{}, len(values))
+	for key, value := range values {
+		normalized[strings.ToLower(strings.TrimSpace(key))] = value
 	}
-	return true
+	keep, evalErr := evaluateMetadataPredicate(selectStmt.Where.Expr, normalized)
+	return evalErr == nil && keep
 }
 
 // informationSchemaPrivilegeAccountVisible applies the account-level visibility
@@ -408,33 +377,27 @@ func informationSchemaPrivilegeAccountVisible(file persistedAccountFile, session
 
 func (e *XMySQLExecutor) executeMySQLProcsPrivSelect(query string) *SelectResult {
 	columns := requestedInformationSchemaColumns(query, jdbcMySQLProcsPrivMetadataColumns())
-	filters := map[string]string{}
-	filterPattern := regexp.MustCompile(`(?i)\b(db|routine_name|host|user)\b\s*(?:=|like)\s*(?:'([^']*)'|"([^"]*)")`)
-	for _, match := range filterPattern.FindAllStringSubmatch(query, -1) {
-		value := match[2]
-		if value == "" {
-			value = match[3]
-		}
-		filters[strings.ToLower(match[1])] = value
-	}
 	file, err := e.loadPersistedAccounts()
 	if err != nil {
 		return newInformationSchemaSelectResult("mysql_procs_priv", columns, nil)
 	}
 	rows := make([][]interface{}, 0)
 	for _, account := range file.Accounts {
-		if !mysqlSystemTableFieldMatches(query, "host", account.Host, filters) || !mysqlSystemTableFieldMatches(query, "user", account.User, filters) {
+		if !mysqlSystemTableFieldMatches(query, "host", account.Host, nil) || !mysqlSystemTableFieldMatches(query, "user", account.User, nil) {
 			continue
 		}
 		for scope, privileges := range account.Grants {
 			parts := strings.Split(scope, ".")
 			if len(parts) != 2 || parts[0] == "*" || parts[1] == "*" ||
-				!mysqlSystemTableFieldMatches(query, "db", parts[0], filters) || !mysqlSystemTableFieldMatches(query, "routine_name", parts[1], filters) {
+				!mysqlSystemTableFieldMatches(query, "db", parts[0], nil) || !mysqlSystemTableFieldMatches(query, "routine_name", parts[1], nil) {
 				continue
 			}
 			values := map[string]interface{}{
 				"HOST": account.Host, "USER": account.User, "DB": parts[0], "ROUTINE_NAME": parts[1],
 				"PROC_PRIV": strings.Join(privileges, ","), "IS_PROC": "1",
+			}
+			if !informationSchemaPrivilegeQueryMatches(query, values) {
+				continue
 			}
 			rows = append(rows, projectInformationSchemaRow(columns, values))
 		}
@@ -451,7 +414,6 @@ func (e *XMySQLExecutor) executeMySQLProxiesPrivSelect(query string) *SelectResu
 	if err != nil {
 		return newInformationSchemaSelectResult("mysql_proxies_priv", columns, nil)
 	}
-	proxyTargetPattern := regexp.MustCompile(`(?is)^'([^']*)'\s*@\s*'([^']*)'$`)
 	for _, account := range file.Accounts {
 		if !mysqlSystemTableFieldMatches(query, "host", account.Host, filters) || !mysqlSystemTableFieldMatches(query, "user", account.User, filters) {
 			continue
@@ -460,18 +422,18 @@ func (e *XMySQLExecutor) executeMySQLProxiesPrivSelect(query string) *SelectResu
 			if !containsGrantPrivilege(privileges, "PROXY") {
 				continue
 			}
-			match := proxyTargetPattern.FindStringSubmatch(strings.TrimSpace(scope))
-			if len(match) != 3 {
+			proxiedUser, proxiedHost := splitPersistedAccountReference(scope)
+			if strings.TrimSpace(proxiedUser) == "" || strings.TrimSpace(proxiedHost) == "" {
 				continue
 			}
 			values := map[string]interface{}{
 				"HOST": account.Host, "USER": account.User,
-				"PROXIED_HOST": match[2], "PROXIED_USER": match[1],
+				"PROXIED_HOST": proxiedHost, "PROXIED_USER": proxiedUser,
 				"WITH_GRANT": mysqlBoolFlag(hasGrantOption(privileges)),
 				"GRANTOR":    "root@localhost", "TIMESTAMP": nil,
 			}
-			if !mysqlSystemTableFieldMatches(query, "proxied_host", match[2], filters) ||
-				!mysqlSystemTableFieldMatches(query, "proxied_user", match[1], filters) ||
+			if !mysqlSystemTableFieldMatches(query, "proxied_host", proxiedHost, filters) ||
+				!mysqlSystemTableFieldMatches(query, "proxied_user", proxiedUser, filters) ||
 				!mysqlSystemTableFieldMatches(query, "with_grant", mysqlBoolFlag(hasGrantOption(privileges)), filters) ||
 				!mysqlSystemTableFieldMatches(query, "grantor", "root@localhost", filters) {
 				continue
@@ -491,54 +453,35 @@ func containsGrantPrivilege(privileges []string, wanted string) bool {
 	return false
 }
 
-var mysqlPrivilegeFilterPattern = regexp.MustCompile(`(?i)\b(host|db|user|table_name|column_name|routine_name|proxied_host|proxied_user|with_grant|grantor|plugin|ssl_type|ssl_cipher|x509_issuer|x509_subject|max_questions|max_updates|max_connections|max_user_connections|password_expired|password_lifetime|account_locked|password_reuse_history|password_reuse_time|password_require_current|failed_login_attempts|password_lock_time)\b\s*(?:=|like)\s*(?:'([^']*)'|"([^"]*)")`)
-var mysqlPrivilegeInFilterPattern = regexp.MustCompile(`(?is)\b(host|db|user|table_name|column_name|routine_name|proxied_host|proxied_user|with_grant|grantor|plugin|ssl_type|ssl_cipher|x509_issuer|x509_subject|max_questions|max_updates|max_connections|max_user_connections|password_expired|password_lifetime|account_locked|password_reuse_history|password_reuse_time|password_require_current|failed_login_attempts|password_lock_time)\b\s+(not\s+)?in\s*\(([^)]*)\)`)
-var mysqlPrivilegeNullFilterPattern = regexp.MustCompile(`(?is)\b(host|db|user|table_name|column_name|routine_name|proxied_host|proxied_user|with_grant|grantor|plugin|ssl_type|ssl_cipher|x509_issuer|x509_subject|max_questions|max_updates|max_connections|max_user_connections|password_expired|password_lifetime|account_locked|password_reuse_history|password_reuse_time|password_require_current|failed_login_attempts|password_lock_time)\b\s+is\s+(not\s+)?null`)
-
 func mysqlSystemTableFilters(query string) map[string]string {
-	filters := make(map[string]string)
-	for _, match := range mysqlPrivilegeFilterPattern.FindAllStringSubmatch(query, -1) {
-		value := match[2]
-		if value == "" {
-			value = match[3]
-		}
-		filters[strings.ToLower(match[1])] = value
-	}
-	return filters
+	return make(map[string]string)
 }
 
 func mysqlSystemTableFieldMatches(query, field, value string, filters map[string]string) bool {
-	if pattern, exists := filters[field]; exists && !metadataPatternMatchesAllowEmpty(value, pattern) {
-		return false
-	}
-	for _, match := range mysqlPrivilegeNullFilterPattern.FindAllStringSubmatch(query, -1) {
-		if !strings.EqualFold(match[1], field) {
-			continue
+	if parsed, err := sqlparser.ParseForExecution(query); err == nil {
+		if selectStmt, ok := parsed.AST.(*sqlparser.Select); ok && selectStmt.Where != nil {
+			return metadataASTFieldMatches(selectStmt.Where.Expr, field, value)
 		}
-		if strings.TrimSpace(match[2]) == "" {
-			return false
-		}
-	}
-	for _, match := range mysqlPrivilegeInFilterPattern.FindAllStringSubmatch(query, -1) {
-		if !strings.EqualFold(match[1], field) {
-			continue
-		}
-		matched := false
-		for _, raw := range splitTopLevelComma(match[3]) {
-			candidate := strings.Trim(strings.TrimSpace(raw), "'\"")
-			candidate = strings.ReplaceAll(candidate, "''", "'")
-			candidate = strings.ReplaceAll(candidate, `""`, `"`)
-			if strings.EqualFold(candidate, value) {
-				matched = true
-				break
-			}
-		}
-		notIn := strings.TrimSpace(match[2]) != ""
-		if notIn == matched {
-			return false
-		}
+		return true
 	}
 	return true
+}
+
+func metadataASTFieldMatches(expr sqlparser.Expr, field, value string) bool {
+	if expr == nil {
+		return true
+	}
+	if and, ok := expr.(*sqlparser.AndExpr); ok {
+		return metadataASTFieldMatches(and.Left, field, value) && metadataASTFieldMatches(and.Right, field, value)
+	}
+	if or, ok := expr.(*sqlparser.OrExpr); ok {
+		return metadataASTFieldMatches(or.Left, field, value) || metadataASTFieldMatches(or.Right, field, value)
+	}
+	if !metadataPredicateUsesOnlyColumn(expr, field) {
+		return true
+	}
+	keep, err := evaluateMetadataPredicate(expr, map[string]interface{}{strings.ToLower(field): value})
+	return err == nil && keep
 }
 
 func mysqlPrivilegeFlag(privileges []string, wanted string) string {
@@ -839,56 +782,25 @@ func (e *XMySQLExecutor) executeMySQLDefaultRolesSelect(query string) *SelectRes
 	return newInformationSchemaSelectResult("mysql.default_roles", columns, rows)
 }
 
-var mysqlRoleTableFilterPattern = regexp.MustCompile(`(?i)\b(from_host|from_user|to_host|to_user|with_admin_option|host|user|default_role_host|default_role_user)\b\s*(?:=|like)\s*(?:'((?:''|[^'])*)'|"((?:""|[^"])*)")`)
-var mysqlRoleTableInFilterPattern = regexp.MustCompile(`(?is)\b(from_host|from_user|to_host|to_user|with_admin_option|host|user|default_role_host|default_role_user)\b\s+(not\s+)?in\s*\(([^)]*)\)`)
-var mysqlRoleTableNullFilterPattern = regexp.MustCompile(`(?is)\b(from_host|from_user|to_host|to_user|with_admin_option|host|user|default_role_host|default_role_user)\b\s+is\s+(not\s+)?null`)
-
 func mysqlRoleTableFilters(query string) map[string]string {
-	filters := make(map[string]string)
-	for _, match := range mysqlRoleTableFilterPattern.FindAllStringSubmatch(query, -1) {
-		value := match[2]
-		if value == "" {
-			value = match[3]
-		}
-		filters[strings.ToUpper(match[1])] = value
-	}
-	return filters
+	return make(map[string]string)
 }
 
 func mysqlRoleTableValuesMatch(query string, values map[string]interface{}, filters map[string]string) bool {
-	for key, pattern := range filters {
-		if !metadataPatternMatchesAllowEmpty(fmt.Sprint(values[key]), pattern) {
-			return false
-		}
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return true
 	}
-	for _, match := range mysqlRoleTableNullFilterPattern.FindAllStringSubmatch(query, -1) {
-		field := strings.ToUpper(match[1])
-		if _, exists := values[field]; !exists {
-			continue
-		}
-		if strings.TrimSpace(match[2]) == "" {
-			return false
-		}
+	selectStmt, ok := parsed.AST.(*sqlparser.Select)
+	if !ok || selectStmt.Where == nil {
+		return true
 	}
-	for _, match := range mysqlRoleTableInFilterPattern.FindAllStringSubmatch(query, -1) {
-		field := strings.ToUpper(match[1])
-		value := fmt.Sprint(values[field])
-		matched := false
-		for _, raw := range splitTopLevelComma(match[3]) {
-			candidate := strings.Trim(strings.TrimSpace(raw), "'\"")
-			candidate = strings.ReplaceAll(candidate, "''", "'")
-			candidate = strings.ReplaceAll(candidate, `""`, `"`)
-			if strings.EqualFold(candidate, value) {
-				matched = true
-				break
-			}
-		}
-		notIn := strings.TrimSpace(match[2]) != ""
-		if notIn == matched {
-			return false
-		}
+	normalized := make(map[string]interface{}, len(values))
+	for key, value := range values {
+		normalized[strings.ToLower(strings.TrimSpace(key))] = value
 	}
-	return true
+	keep, evalErr := evaluateMetadataPredicate(selectStmt.Where.Expr, normalized)
+	return evalErr == nil && keep
 }
 
 func splitPersistedAccountReference(reference string) (user, host string) {
@@ -896,7 +808,7 @@ func splitPersistedAccountReference(reference string) (user, host string) {
 	if len(parts) != 2 {
 		return strings.TrimSpace(reference), "%"
 	}
-	return parts[0], parts[1]
+	return strings.Trim(strings.TrimSpace(parts[0]), "'\"` "), strings.Trim(strings.TrimSpace(parts[1]), "'\"` ")
 }
 
 func isDynamicGlobalPrivilege(privilege string) bool {

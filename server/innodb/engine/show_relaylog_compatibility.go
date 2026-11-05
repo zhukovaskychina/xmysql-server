@@ -2,11 +2,11 @@ package engine
 
 import (
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 	"github.com/zhukovaskychina/xmysql-server/server/replication"
 )
 
@@ -15,41 +15,39 @@ func isShowRelaylogEventsQuery(query string) bool {
 	return strings.HasPrefix(q, "show relaylog events")
 }
 
-var showRelaylogEventsOptionsPattern = regexp.MustCompile(`(?is)^\s*show\s+relaylog\s+events(?:\s+in\s+['"]([^'"]+)['"])?(?:\s+from\s+([0-9]+))?(?:\s+limit\s+((?:[0-9]+\s*,\s*)?[0-9]+))?\s*;?\s*$`)
-
 func parseShowRelaylogEventsOptions(query string) (string, uint64, int, int, error) {
-	matches := showRelaylogEventsOptionsPattern.FindStringSubmatch(query)
-	if len(matches) == 0 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return "", 0, 0, 0, fmt.Errorf("invalid SHOW RELAYLOG EVENTS options")
+	}
+	show, ok := parsed.AST.(*sqlparser.Show)
+	if !ok || (!strings.EqualFold(show.Type, "relaylog events") && !strings.EqualFold(show.Type, "relaylog")) {
 		return "", 0, 0, 0, fmt.Errorf("invalid SHOW RELAYLOG EVENTS options")
 	}
 	logName := "relaylog.000001"
-	if strings.TrimSpace(matches[1]) != "" {
-		logName = matches[1]
+	if strings.TrimSpace(show.LogFile) != "" {
+		logName = show.LogFile
 	}
 	position := uint64(4)
-	if matches[2] != "" {
-		parsed, err := strconv.ParseUint(matches[2], 10, 64)
+	if show.LogPosition != nil {
+		parsedPosition, err := strconv.ParseUint(strings.TrimSpace(sqlparser.String(show.LogPosition)), 10, 64)
 		if err != nil {
 			return "", 0, 0, 0, fmt.Errorf("invalid SHOW RELAYLOG EVENTS position: %w", err)
 		}
-		position = parsed
+		position = parsedPosition
 	}
 	offset, rowCount := 0, -1
-	if matches[3] != "" {
-		parts := strings.Split(matches[3], ",")
-		if len(parts) == 1 {
-			parsed, err := strconv.Atoi(strings.TrimSpace(parts[0]))
-			if err != nil || parsed < 0 {
+	if show.Limit != nil {
+		var err error
+		rowCount, err = parseShowLimitInteger(show.Limit.Rowcount)
+		if err != nil || rowCount < 0 {
+			return "", 0, 0, 0, fmt.Errorf("invalid SHOW RELAYLOG EVENTS limit")
+		}
+		if show.Limit.Offset != nil {
+			offset, err = parseShowLimitInteger(show.Limit.Offset)
+			if err != nil || offset < 0 {
 				return "", 0, 0, 0, fmt.Errorf("invalid SHOW RELAYLOG EVENTS limit")
 			}
-			rowCount = parsed
-		} else {
-			parsedOffset, offsetErr := strconv.Atoi(strings.TrimSpace(parts[0]))
-			parsedCount, countErr := strconv.Atoi(strings.TrimSpace(parts[1]))
-			if offsetErr != nil || countErr != nil || parsedOffset < 0 || parsedCount < 0 {
-				return "", 0, 0, 0, fmt.Errorf("invalid SHOW RELAYLOG EVENTS limit")
-			}
-			offset, rowCount = parsedOffset, parsedCount
 		}
 	}
 	return logName, position, offset, rowCount, nil

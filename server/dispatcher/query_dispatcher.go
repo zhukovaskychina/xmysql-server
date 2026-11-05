@@ -12,6 +12,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 // SQLDispatcher SQL查询分发器，负责将SQL查询路由到合适的引擎
@@ -57,6 +58,12 @@ type SQLEngine interface {
 	ExecuteQuery(session server.MySQLServerSession, query string, databaseName string) <-chan *SQLResult
 	Name() string
 	CanHandle(query string) bool
+}
+
+// ParsedSQLEngine is an optional extension. Existing engines remain source
+// compatible; engines that implement it receive one complete AST per query.
+type ParsedSQLEngine interface {
+	ExecuteParsedQuery(session server.MySQLServerSession, parsed *sqlparser.ParsedStatement, databaseName string) <-chan *SQLResult
 }
 
 // SQLRouter SQL路由器接口
@@ -223,6 +230,15 @@ func (d *SQLDispatcher) Dispatch(session server.MySQLServerSession, query string
 
 	logger.Debugf("🚀 [SQLDispatcher.Dispatch] 使用引擎 %s 执行查询", engine.Name())
 
+	// Prefer the shared complete AST when this engine exposes the optional
+	// boundary. Unsupported families retain the existing text entry point.
+	if parsedEngine, ok := engine.(ParsedSQLEngine); ok {
+		if parsed, parseErr := sqlparser.ParseForExecution(query); parseErr == nil {
+			if stored, isCall := parsed.AST.(*sqlparser.StoredObjectStatement); !isCall || !strings.EqualFold(stored.ObjectType, "call") {
+				return parsedEngine.ExecuteParsedQuery(session, parsed, databaseName)
+			}
+		}
+	}
 	// 执行查询
 	return engine.ExecuteQuery(session, query, databaseName)
 }
@@ -272,6 +288,12 @@ func (e *InnoDBSQLEngine) CanHandle(query string) bool {
 	if engine.IsTransactionCommand(query) {
 		return true
 	}
+	if family, err := sqlparser.ClassifyStatement(query); err == nil {
+		switch family {
+		case sqlparser.StatementFamilySelect, sqlparser.StatementFamilyInsert, sqlparser.StatementFamilyUpdate, sqlparser.StatementFamilyDelete, sqlparser.StatementFamilyDDL, sqlparser.StatementFamilyAlter, sqlparser.StatementFamilyShow, sqlparser.StatementFamilyExplain, sqlparser.StatementFamilyUse, sqlparser.StatementFamilySet, sqlparser.StatementFamilyAdmin, sqlparser.StatementFamilyPrepared, sqlparser.StatementFamilyHandler, sqlparser.StatementFamilyComponent, sqlparser.StatementFamilyAccount, sqlparser.StatementFamilyView, sqlparser.StatementFamilyStoredObject:
+			return true
+		}
+	}
 
 	query = strings.TrimSpace(strings.ToUpper(query))
 
@@ -308,6 +330,22 @@ func (e *InnoDBSQLEngine) ExecuteQuery(session server.MySQLServerSession, query 
 		}
 	}()
 
+	return resultChan
+}
+
+func (e *InnoDBSQLEngine) ExecuteParsedQuery(session server.MySQLServerSession, parsed *sqlparser.ParsedStatement, databaseName string) <-chan *SQLResult {
+	resultChan := make(chan *SQLResult, 1)
+	go func() {
+		defer close(resultChan)
+		if e == nil || e.xmysqlEngine == nil {
+			resultChan <- &SQLResult{Err: fmt.Errorf("innodb engine is unavailable")}
+			return
+		}
+		for result := range e.xmysqlEngine.ExecuteParsedQuery(session, parsed, databaseName) {
+			resultChan <- e.convertResult(result)
+			persistSessionExecutionState(session, result)
+		}
+	}()
 	return resultChan
 }
 
@@ -522,7 +560,6 @@ func (r *DefaultSQLRouter) Route(session server.MySQLServerSession, query string
 		logger.Debugf(" [DefaultSQLRouter] information_schema metadata query routes to innodb")
 		return "innodb"
 	}
-
 	query = strings.TrimSpace(strings.ToUpper(query))
 
 	logger.Debugf(" [DefaultSQLRouter] 路由查询: %s", query)
@@ -575,6 +612,9 @@ func (r *DefaultSQLRouter) Route(session server.MySQLServerSession, query string
 		}
 		return "innodb"
 	default:
+		if _, err := sqlparser.ClassifyStatement(query); err == nil {
+			return "innodb"
+		}
 		logger.Debugf("🔄 [DefaultSQLRouter] 未识别的查询类型，使用默认innodb引擎")
 		return "innodb" // 默认使用InnoDB引擎
 	}

@@ -4,11 +4,11 @@ import "github.com/zhukovaskychina/xmysql-server/server/common"
 
 import (
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 // executeInformationSchemaInnoDBTrxSelect exposes the active transaction
@@ -90,13 +90,29 @@ func (e *XMySQLExecutor) executeInformationSchemaInnoDBTrxSelect(query string) *
 }
 
 func informationSchemaUint64Filter(query, column string) (uint64, bool) {
-	pattern := regexp.MustCompile(`(?is)\b` + regexp.QuoteMeta(column) + `\b\s*=\s*([0-9]+)`)
-	match := pattern.FindStringSubmatch(query)
-	if len(match) != 2 {
+	expr, err := metadataPredicateFromQuery(query)
+	if err != nil || expr == nil {
 		return 0, false
 	}
-	value, err := strconv.ParseUint(strings.TrimSpace(match[1]), 10, 64)
-	return value, err == nil
+	var value uint64
+	found := false
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		comparison, ok := node.(*sqlparser.ComparisonExpr)
+		if !ok || comparison.Operator != sqlparser.EqualStr {
+			return true, nil
+		}
+		columnNode, columnOK := comparison.Left.(*sqlparser.ColName)
+		literal, literalOK := comparison.Right.(*sqlparser.SQLVal)
+		if !columnOK || !literalOK || !strings.EqualFold(columnNode.Name.String(), column) {
+			return true, nil
+		}
+		parsed, parseErr := strconv.ParseUint(strings.TrimSpace(string(literal.Val)), 10, 64)
+		if parseErr == nil {
+			value, found = parsed, true
+		}
+		return false, nil
+	}, expr)
+	return value, found
 }
 
 func innodbTransactionState(state uint8) string {

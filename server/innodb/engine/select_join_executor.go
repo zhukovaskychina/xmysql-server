@@ -89,7 +89,7 @@ func (se *SelectExecutor) executeJoinSelect(ctx context.Context, stmt *sqlparser
 	if hasEffectiveWhereConditions(se.whereConditions) {
 		filtered := make([]joinedMapRow, 0, len(rows))
 		for _, row := range rows {
-			matched, err := rowMatchesWhereConditions(map[string]interface{}(row), se.whereConditions)
+			matched, err := rowMatchesWhereConditions(row, se.whereConditions)
 			if err != nil {
 				return nil, err
 			}

@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/common"
@@ -48,12 +47,12 @@ func (e *XMySQLExecutor) executeCorrelatedPredicateSubqueryCompatibility(ctx *Ex
 	}
 	outerSource := strings.TrimSpace(whereParts[0])
 	whereText := strings.TrimSpace(whereParts[1])
-	outerSourceMatch := regexp.MustCompile("(?is)^([a-zA-Z0-9_$]+(?:\\.[a-zA-Z0-9_$]+)?)(?:\\s+(?:as\\s+)?([a-zA-Z0-9_$]+))?").FindStringSubmatch(outerSource)
-	if len(outerSourceMatch) == 0 {
+	outerTable, outerAlias, sourceOK := parseLeadingTableRef(outerSource, true, true)
+	if !sourceOK {
 		return false, nil
 	}
-	outerTable := strings.TrimSpace(outerSourceMatch[1])
-	outerAlias := strings.Trim(strings.TrimSpace(outerSourceMatch[2]), "`")
+	outerTable = strings.TrimSpace(outerTable)
+	outerAlias = strings.Trim(strings.TrimSpace(outerAlias), "`")
 	if strings.EqualFold(outerAlias, "join") || strings.EqualFold(outerAlias, "left") || strings.EqualFold(outerAlias, "right") || strings.EqualFold(outerAlias, "inner") {
 		outerAlias = ""
 	}
@@ -64,16 +63,15 @@ func (e *XMySQLExecutor) executeCorrelatedPredicateSubqueryCompatibility(ctx *Ex
 		}
 	}
 
-	predicatePattern := regexp.MustCompile(`(?is)([a-zA-Z0-9_$\.]+)\s*(not\s+in|in|(?:<=>|<>|!=|<=|>=|=|<|>)\s*(?:any|some|all))\s*\(`)
-	predicateMatch := predicatePattern.FindStringSubmatchIndex(whereText)
-	if len(predicateMatch) == 0 {
+	predicateMatch, predicateFound := findPredicateCall(whereText, false)
+	if !predicateFound {
 		return false, nil
 	}
-	open := strings.Index(whereText[predicateMatch[0]:predicateMatch[1]], "(")
+	open := strings.Index(whereText[predicateMatch.start:predicateMatch.end], "(")
 	if open < 0 {
 		return true, fmt.Errorf("correlated predicate subquery is missing parentheses")
 	}
-	open += predicateMatch[0]
+	open += predicateMatch.start
 	close := matchingParenIndex(whereText, open)
 	if close < 0 {
 		return true, fmt.Errorf("unterminated correlated predicate subquery")
@@ -82,7 +80,7 @@ func (e *XMySQLExecutor) executeCorrelatedPredicateSubqueryCompatibility(ctx *Ex
 	prefixConnector, suffixConnector := "", ""
 	outerOrCondition := ""
 	outerTrailingOrCondition := ""
-	if prefix := strings.TrimSpace(whereText[:predicateMatch[0]]); prefix != "" {
+	if prefix := strings.TrimSpace(whereText[:predicateMatch.start]); prefix != "" {
 		prefix, prefixConnector = splitCorrelatedConditionConnector(prefix, false)
 		if prefix != "" {
 			outerConditions = append(outerConditions, prefix)
@@ -162,8 +160,8 @@ func (e *XMySQLExecutor) executeCorrelatedPredicateSubqueryCompatibility(ctx *Ex
 		return true, err
 	}
 
-	leftText := strings.TrimSpace(whereText[predicateMatch[2]:predicateMatch[3]])
-	operator := strings.ToUpper(strings.TrimSpace(whereText[predicateMatch[4]:predicateMatch[5]]))
+	leftText := strings.TrimSpace(predicateMatch.left)
+	operator := strings.ToUpper(strings.TrimSpace(predicateMatch.operator))
 	meta := &metadata.TableMeta{Name: "correlated_predicate", Columns: make([]*metadata.ColumnMeta, 0, len(selectedColumns))}
 	for index, column := range selectedColumns {
 		name := strings.TrimSpace(column)
@@ -218,8 +216,8 @@ func (e *XMySQLExecutor) executeCorrelatedPredicateSubqueryCompatibility(ctx *Ex
 			if index >= len(outerRecord.GetValues()) {
 				continue
 			}
-			pattern := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(outerAlias) + `\s*\.\s*` + regexp.QuoteMeta(strings.Trim(column, "`")))
-			boundInnerSQL = pattern.ReplaceAllString(boundInnerSQL, basicValueSQLLiteral(outerRecord.GetValues()[index]))
+			literal := basicValueSQLLiteral(outerRecord.GetValues()[index])
+			boundInnerSQL = replaceQualifiedName(boundInnerSQL, outerAlias, strings.Trim(column, "`"), literal)
 		}
 		innerStmt, err := parseSelectSQL(boundInnerSQL)
 		if err != nil {
@@ -271,17 +269,21 @@ func splitCorrelatedConditionConnector(text string, leading bool) (string, strin
 		return "", ""
 	}
 	if leading {
-		pattern := regexp.MustCompile(`(?is)^\s*(and|or)\s+`)
-		match := pattern.FindStringSubmatch(text)
-		if len(match) == 2 {
-			return strings.TrimSpace(pattern.ReplaceAllString(text, "")), strings.ToUpper(match[1])
+		lower := strings.ToLower(text)
+		for _, connector := range []string{"and", "or"} {
+			prefix := connector + " "
+			if strings.HasPrefix(lower, prefix) {
+				return strings.TrimSpace(text[len(prefix):]), strings.ToUpper(connector)
+			}
 		}
 		return text, ""
 	}
-	pattern := regexp.MustCompile(`(?is)\s+(and|or)\s*$`)
-	match := pattern.FindStringSubmatch(text)
-	if len(match) == 2 {
-		return strings.TrimSpace(pattern.ReplaceAllString(text, "")), strings.ToUpper(match[1])
+	lower := strings.ToLower(text)
+	for _, connector := range []string{"and", "or"} {
+		suffix := " " + connector
+		if strings.HasSuffix(lower, suffix) {
+			return strings.TrimSpace(text[:len(text)-len(suffix)]), strings.ToUpper(connector)
+		}
 	}
 	return text, ""
 }

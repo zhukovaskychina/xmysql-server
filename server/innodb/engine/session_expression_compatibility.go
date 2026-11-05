@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -16,15 +15,41 @@ const emptyRolesGraphML = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><graphml />
 
 const defaultServerVersion = "8.0.32"
 
-var qualifiedSystemVariablePattern = regexp.MustCompile(`(?i)@@(?:global|session|local)\s*\.\s*`)
-
 // rewriteQualifiedSystemVariables keeps MySQL's scoped @@GLOBAL.foo syntax
 // compatible with the embedded expression parser, which accepts @@foo as a
 // column-like expression but does not retain the scope token in its AST.
 // The evaluator still receives the unqualified name and resolves it against
 // the session/global value surface.
 func rewriteQualifiedSystemVariables(query string) string {
-	return qualifiedSystemVariablePattern.ReplaceAllString(query, "@@")
+	lower := strings.ToLower(query)
+	var builder strings.Builder
+	for index := 0; index < len(query); {
+		if index+2 < len(query) && query[index] == '@' && query[index+1] == '@' {
+			rest := lower[index+2:]
+			for _, scope := range []string{"global", "session", "local"} {
+				if !strings.HasPrefix(rest, scope) {
+					continue
+				}
+				cursor := index + 2 + len(scope)
+				for cursor < len(query) && isSQLSpaceByte(query[cursor]) {
+					cursor++
+				}
+				if cursor < len(query) && query[cursor] == '.' {
+					cursor++
+					for cursor < len(query) && isSQLSpaceByte(query[cursor]) {
+						cursor++
+					}
+					builder.WriteString("@@")
+					index = cursor
+					goto next
+				}
+			}
+		}
+		builder.WriteByte(query[index])
+		index++
+	next:
+	}
+	return builder.String()
 }
 
 func newSessionExpressionValues(session server.MySQLServerSession) map[string]interface{} {

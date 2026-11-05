@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -13,29 +12,64 @@ import (
 // executeAdvancedWindowQuery exposes the common single-table window shape
 // through the SQL entrypoint: ROW_NUMBER, RANK and DENSE_RANK with PARTITION.
 func (e *XMySQLExecutor) executeAdvancedWindowQuery(ctx *ExecutionContext, query, databaseName string) (bool, error) {
-	pattern := regexp.MustCompile(`(?is)^\s*select\s+([a-zA-Z0-9_$.` + "`" + `]+)\s*,\s*(row_number|rank|dense_rank)\s*\(\s*\)\s+over\s*\(\s*(?:partition\s+by\s+([a-zA-Z0-9_$.` + "`" + `]+)\s+)?order\s+by\s+([a-zA-Z0-9_$.` + "`" + `]+)\s*(asc|desc)?\s*\)\s+as\s+([a-zA-Z0-9_` + "`" + `]+)\s+from\s+([a-zA-Z0-9_$.` + "`" + `]+)\s*;?\s*$`)
-	match := pattern.FindStringSubmatch(query)
-	if len(match) == 0 {
+	parsed, err := sqlparser.Parse(strings.TrimSpace(strings.TrimSuffix(query, ";")))
+	if err != nil || parsed == nil {
 		return false, nil
 	}
-	valueColumn := strings.Trim(match[1], "`")
-	functionName := strings.ToLower(match[2])
-	partitionColumn := strings.Trim(match[3], "`")
-	orderColumn := strings.Trim(match[4], "`")
-	alias := strings.Trim(match[6], "`")
-	tableName := strings.Trim(match[7], "`")
-	if idx := strings.LastIndex(tableName, "."); idx >= 0 {
-		databaseName, tableName = tableName[:idx], tableName[idx+1:]
+	selectStmt, ok := parsed.(*sqlparser.Select)
+	if !ok || len(selectStmt.SelectExprs) != 2 || len(selectStmt.From) != 1 {
+		return false, nil
 	}
-	stmt, err := sqlparser.Parse(fmt.Sprintf("select * from %s", tableName))
+	valueExpr, valueOK := selectStmt.SelectExprs[0].(*sqlparser.AliasedExpr)
+	windowExpr, windowOK := selectStmt.SelectExprs[1].(*sqlparser.AliasedExpr)
+	windowFunction, functionOK := (*sqlparser.FuncExpr)(nil), false
+	if windowOK {
+		windowFunction, functionOK = windowExpr.Expr.(*sqlparser.FuncExpr)
+	}
+	if !valueOK || !windowOK || !functionOK || windowFunction.Over == nil || !windowExpr.As.IsEmpty() && windowExpr.As.String() == "" {
+		return false, nil
+	}
+	functionName := strings.ToLower(windowFunction.Name.String())
+	if functionName != "row_number" && functionName != "rank" && functionName != "dense_rank" {
+		return false, nil
+	}
+	valueColumn, valueColumnOK := windowColumnExpressionName(valueExpr.Expr)
+	if !valueColumnOK || windowExpr.As.IsEmpty() || len(windowFunction.Over.OrderBy) != 1 {
+		return false, nil
+	}
+	orderColumn, orderColumnOK := windowColumnExpressionName(windowFunction.Over.OrderBy[0].Expr)
+	if !orderColumnOK {
+		return false, nil
+	}
+	partitionColumn := ""
+	if len(windowFunction.Over.PartitionBy) > 0 {
+		partitionColumn, _ = windowColumnExpressionName(windowFunction.Over.PartitionBy[0])
+	}
+	orderDirection := ""
+	if windowFunction.Over.OrderBy[0].Direction == sqlparser.DescScr {
+		orderDirection = "desc"
+	}
+	from, fromOK := selectStmt.From[0].(*sqlparser.AliasedTableExpr)
+	fromName, tableOK := sqlparser.TableName{}, false
+	if fromOK {
+		fromName, tableOK = from.Expr.(sqlparser.TableName)
+	}
+	if !tableOK || fromName.Name.String() == "" {
+		return false, nil
+	}
+	tableName := fromName.Name.String()
+	if fromName.Qualifier.String() != "" {
+		databaseName = fromName.Qualifier.String()
+	}
+	sourceStmt, err := sqlparser.Parse(fmt.Sprintf("select * from %s", tableName))
 	if err != nil {
 		return true, err
 	}
-	selectStmt, ok := stmt.(*sqlparser.Select)
+	sourceSelect, ok := sourceStmt.(*sqlparser.Select)
 	if !ok {
 		return true, fmt.Errorf("window source is not a SELECT")
 	}
-	result, err := e.executeSelectStatement(ctx, selectStmt, databaseName)
+	result, err := e.executeSelectStatement(ctx, sourceSelect, databaseName)
 	if err != nil {
 		return true, err
 	}
@@ -78,7 +112,7 @@ func (e *XMySQLExecutor) executeAdvancedWindowQuery(ctx *ExecutionContext, query
 	output := make([][]interface{}, 0, len(result.Records))
 	for _, group := range groupOrder {
 		rows := groups[group]
-		sort.SliceStable(rows, func(i, j int) bool { return compareWindowValue(rows[i].order, rows[j].order, match[5]) < 0 })
+		sort.SliceStable(rows, func(i, j int) bool { return compareWindowValue(rows[i].order, rows[j].order, orderDirection) < 0 })
 		lastOrder, rank, denseRank := "", 0, 0
 		for index, row := range rows {
 			if index == 0 || row.order != lastOrder {
@@ -96,8 +130,17 @@ func (e *XMySQLExecutor) executeAdvancedWindowQuery(ctx *ExecutionContext, query
 			output = append(output, []interface{}{row.values[valueIndex], windowValue})
 		}
 	}
-	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: newInformationSchemaSelectResult("window", []string{valueColumn, alias}, output), Message: fmt.Sprintf("SELECT query executed successfully, %d rows returned", len(output))}
+	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: newInformationSchemaSelectResult("window", []string{valueColumn, windowExpr.As.String()}, output), Message: fmt.Sprintf("SELECT query executed successfully, %d rows returned", len(output))}
 	return true, nil
+}
+
+func windowColumnExpressionName(expression sqlparser.Expr) (string, bool) {
+	column, ok := expression.(*sqlparser.ColName)
+	if !ok {
+		return "", false
+	}
+	name := strings.Trim(column.Name.String(), "`")
+	return name, name != ""
 }
 
 func compareWindowValue(left, right, direction string) int {

@@ -2,10 +2,10 @@ package engine
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 // MySQL exposes general tablespace DDL separately from CREATE TABLE. The
@@ -14,31 +14,26 @@ import (
 // DATAFILE and ENGINE clauses are accepted for Connector/J and common schema
 // tooling; the embedded engine chooses its configured data directory and
 // native .ibd naming.
-var (
-	createTablespacePattern      = regexp.MustCompile(`(?is)^\s*create\s+tablespace\s+(?:(if\s+not\s+exists)\s+)?(` + compatibilityIdentifierPattern + `)(.*)$`)
-	alterTablespaceRenamePattern = regexp.MustCompile(`(?is)^\s*alter\s+tablespace\s+(` + compatibilityIdentifierPattern + `)\s+rename\s+to\s+(` + compatibilityIdentifierPattern + `)\s*$`)
-	dropTablespacePattern        = regexp.MustCompile(`(?is)^\s*drop\s+tablespace\s+(` + compatibilityIdentifierPattern + `)(?:\s+engine\s*(?:=\s*)?\w+)?\s*$`)
-	tableOptionTablespacePattern = regexp.MustCompile(`(?is)\btablespace\s*(?:=\s*)?(` + compatibilityIdentifierPattern + `)`)
-)
-
-const compatibilityIdentifierPattern = "(?:`[^`]+`|[A-Za-z_][A-Za-z0-9_$]*)"
-
 func (e *XMySQLExecutor) executeTablespaceCompatibility(ctx *ExecutionContext, query string) (bool, error) {
 	trimmed := strings.TrimSpace(strings.TrimSuffix(query, ";"))
 	if trimmed == "" {
 		return false, nil
 	}
+	var tablespace *sqlparser.TablespaceStatement
+	if parsed, parseErr := sqlparser.ParseForExecution(trimmed); parseErr == nil && parsed != nil {
+		tablespace, _ = parsed.AST.(*sqlparser.TablespaceStatement)
+	}
 	// Tablespace operations are DDL in MySQL and therefore end the current
 	// transaction before changing tablespace metadata or ownership. Temporary
 	// tables do not enter this raw path, so their special non-commit behavior is
 	// preserved by the temporary-table compatibility handler.
-	if createTablespacePattern.MatchString(trimmed) || alterTablespaceRenamePattern.MatchString(trimmed) || dropTablespacePattern.MatchString(trimmed) || alterTableTablespaceTransferPattern.MatchString(trimmed) || alterTableTablespacePattern.MatchString(trimmed) {
+	if tablespace != nil || tableTablespaceTransferStatement(trimmed) != nil || isAlterTableTablespaceQuery(trimmed) {
 		if err := e.prepareDDLImplicitCommit(ctx.Session); err != nil {
 			return true, err
 		}
 	}
 	var releaseTableLock func()
-	if alterTableTablespaceTransferPattern.MatchString(trimmed) || alterTableTablespacePattern.MatchString(trimmed) {
+	if tableTablespaceTransferStatement(trimmed) != nil || isAlterTableTablespaceQuery(trimmed) {
 		if table, ok := alterTableAccess(trimmed, ctxDatabaseName(ctx)); ok && !sessionHoldsTableLock(ctx.Session, table) {
 			var err error
 			releaseTableLock, err = e.acquireDDLWriteLock(ctx, table, false)
@@ -55,13 +50,13 @@ func (e *XMySQLExecutor) executeTablespaceCompatibility(ctx *ExecutionContext, q
 		return true, err
 	}
 
-	if match := createTablespacePattern.FindStringSubmatch(trimmed); len(match) > 0 {
-		ifNotExists := strings.TrimSpace(match[1]) != ""
-		name := unquoteTablespaceIdentifier(match[2])
+	if tablespace != nil && strings.EqualFold(tablespace.Action, "create") {
+		ifNotExists := tablespace.IfNotExists
+		name := unquoteTablespaceIdentifier(tablespace.Name)
 		if name == "" {
 			return true, fmt.Errorf("invalid tablespace name")
 		}
-		options := strings.TrimSpace(match[3])
+		options := strings.TrimSpace(tablespace.Options)
 		if options != "" && !validTablespaceCreateOptions(options) {
 			return true, fmt.Errorf("unsupported CREATE TABLESPACE options: %s", options)
 		}
@@ -77,9 +72,9 @@ func (e *XMySQLExecutor) executeTablespaceCompatibility(ctx *ExecutionContext, q
 		return true, writeTablespaceResult(ctx, fmt.Sprintf("Tablespace '%s' created successfully", name))
 	}
 
-	if match := alterTablespaceRenamePattern.FindStringSubmatch(trimmed); len(match) > 0 {
-		oldName := unquoteTablespaceIdentifier(match[1])
-		newName := unquoteTablespaceIdentifier(match[2])
+	if tablespace != nil && strings.EqualFold(tablespace.Action, "alter") {
+		oldName := unquoteTablespaceIdentifier(tablespace.Name)
+		newName := unquoteTablespaceIdentifier(tablespace.RenameTo)
 		if oldName == "" || newName == "" {
 			return true, fmt.Errorf("invalid tablespace name")
 		}
@@ -92,8 +87,8 @@ func (e *XMySQLExecutor) executeTablespaceCompatibility(ctx *ExecutionContext, q
 		return true, writeTablespaceResult(ctx, fmt.Sprintf("Tablespace '%s' renamed to '%s'", oldName, newName))
 	}
 
-	if match := dropTablespacePattern.FindStringSubmatch(trimmed); len(match) > 0 {
-		name := unquoteTablespaceIdentifier(match[1])
+	if tablespace != nil && strings.EqualFold(tablespace.Action, "drop") {
+		name := unquoteTablespaceIdentifier(tablespace.Name)
 		if name == "" {
 			return true, fmt.Errorf("invalid tablespace name")
 		}
@@ -110,19 +105,14 @@ func (e *XMySQLExecutor) executeTablespaceCompatibility(ctx *ExecutionContext, q
 }
 
 func tableOptionTablespace(query string) string {
-	match := tableOptionTablespacePattern.FindStringSubmatch(query)
-	if len(match) != 2 {
-		return ""
-	}
-	return unquoteTablespaceIdentifier(match[1])
+	return unquoteTablespaceIdentifier(scanTablespaceName(query))
 }
 
 func validTablespaceCreateOptions(options string) bool {
 	// A native datafile path cannot be honored safely on every host. Accept the
 	// clause as metadata-compatible syntax, while rejecting unrelated options
 	// instead of silently changing their meaning.
-	allowed := regexp.MustCompile(`(?is)^\s*(?:add\s+datafile\s+(?:'[^']*'|"[^"]*"))?\s*(?:file_block_size\s*=\s*\d+\s*)?(?:engine\s*(?:=\s*)?\w+\s*)?$`)
-	return allowed.MatchString(options)
+	return validTablespaceOptionText(options)
 }
 
 func unquoteTablespaceIdentifier(value string) string {

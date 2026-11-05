@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -600,14 +599,11 @@ func innodbMySQLCollationID(collation string) (int64, bool) {
 }
 
 func informationSchemaTablespaceNamePattern(query string) string {
-	match := regexp.MustCompile(`(?is)\bname\b\s*(?:=|like)\s*(?:'([^']*)'|"([^"]*)")`).FindStringSubmatch(query)
-	if len(match) == 0 {
-		return ""
+	filters := informationSchemaASTEqualityFilters(query, map[string]bool{"name": true, "tablespace_name": true})
+	if value, ok := filters["name"]; ok {
+		return value
 	}
-	if match[1] != "" {
-		return match[1]
-	}
-	return match[2]
+	return filters["tablespace_name"]
 }
 
 func innoDBSpaceType(space basic.SpaceInfo) string {

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -58,4 +59,42 @@ func TestTypedReplicationFilterUsesStructuredOptions(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{"app", "audit"}, config.ReplicateDoDB)
 	require.Equal(t, []string{"app.secret"}, config.ReplicateIgnoreTable)
+}
+
+func TestReplicationASTPreservesLiteralBoundaries(t *testing.T) {
+	config, err := parseReplicationFilter("CHANGE REPLICATION FILTER REPLICATE_DO_DB=('a,b', 'a''b', ')'), REPLICATE_REWRITE_DB=(( 'old,db', 'new)db'), (source_db,target_db)) FOR CHANNEL 'analytics'")
+	require.NoError(t, err)
+	require.Equal(t, []string{"a,b", "a'b", ")"}, config.ReplicateDoDB)
+	require.Len(t, config.ReplicateRewriteDB, 2)
+	require.Equal(t, "old,db", config.ReplicateRewriteDB[0].From)
+	require.Equal(t, "new)db", config.ReplicateRewriteDB[0].To)
+	filter, err := sqlparser.ParseForExecution("CHANGE REPLICATION FILTER REPLICATE_DO_DB=('a,b', 'a''b', ')')")
+	require.NoError(t, err)
+	config, err = typedReplicationFilterConfig(filter.AST.(*sqlparser.AdminStatement))
+	require.NoError(t, err)
+	require.Equal(t, []string{"a,b", "a'b", ")"}, config.ReplicateDoDB)
+	parsed, err := sqlparser.ParseForExecution("CHANGE REPLICATION SOURCE TO SOURCE_HOST='localhost', SOURCE_USER='repl', SOURCE_PASSWORD='a,b''c FOR CHANNEL ''fake''' FOR CHANNEL 'real'")
+	require.NoError(t, err)
+	stmt := parsed.AST.(*sqlparser.AdminStatement)
+	require.Equal(t, "real", stmt.Channel)
+	source, err := typedReplicationSourceURL(stmt)
+	require.NoError(t, err)
+	address, err := url.Parse(source)
+	require.NoError(t, err)
+	password, present := address.User.Password()
+	require.True(t, present)
+	require.Equal(t, "a,b'c FOR CHANNEL 'fake'", password)
+}
+
+func TestReplicationASTRejectsMalformedOptions(t *testing.T) {
+	for _, query := range []string{
+		"CHANGE REPLICATION SOURCE TO SOURCE_HOST='localhost' SOURCE_USER='repl'",
+		"CHANGE REPLICATION SOURCE TO SOURCE_HOST='localhost',",
+		"CHANGE REPLICATION SOURCE TO SOURCE_HOST='localhost' FOR CHANNEL 'a' FOR CHANNEL 'b'",
+		"CHANGE REPLICATION FILTER REPLICATE_DO_DB=('app') garbage",
+		"CHANGE REPLICATION FILTER",
+	} {
+		_, err := sqlparser.ParseForExecution(query)
+		require.Error(t, err, query)
+	}
 }

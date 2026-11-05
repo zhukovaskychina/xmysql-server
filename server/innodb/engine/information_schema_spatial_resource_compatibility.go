@@ -2,10 +2,11 @@ package engine
 
 import (
 	"fmt"
-	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 // MySQL ships a fixed set of linear units for ST_Distance.  Keep the catalog
@@ -93,28 +94,36 @@ var informationSchemaBuiltInSRS = []informationSchemaSRS{
 	},
 }
 
-var informationSchemaCatalogFilterPattern = regexp.MustCompile(`(?is)\b(unit_name|unit_type|conversion_factor|srs_id|srs_name|organization|organization_coordsys_id|definition|description|resource_group_name|resource_group_type|resource_group_enabled|vcpu_ids|thread_priority)\b\s*(=|like)\s*(?:'([^']*)'|"([^"]*)"|([-+]?[0-9]+(?:\.[0-9]+)?))`)
-
 func informationSchemaCatalogFilter(query, column string) string {
-	for _, match := range informationSchemaCatalogFilterPattern.FindAllStringSubmatch(query, -1) {
-		if !strings.EqualFold(match[1], column) {
-			continue
-		}
-		if match[3] != "" {
-			return match[3]
-		}
-		if match[4] != "" {
-			return match[4]
-		}
-		if match[5] == "" {
-			// Preserve an explicit empty string. An omitted filter is a
-			// wildcard, whereas `= ''`/`LIKE ''` must match only an empty
-			// catalog value.
-			return informationSchemaExplicitEmptyPattern
-		}
-		return match[5]
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return ""
 	}
-	return ""
+	selectStmt, ok := parsed.AST.(*sqlparser.Select)
+	if !ok || selectStmt.Where == nil {
+		return ""
+	}
+	filter := ""
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		if filter != "" {
+			return false, nil
+		}
+		comparison, ok := node.(*sqlparser.ComparisonExpr)
+		if !ok || (comparison.Operator != sqlparser.EqualStr && !strings.EqualFold(comparison.Operator, sqlparser.LikeStr)) {
+			return true, nil
+		}
+		left, leftOK := comparison.Left.(*sqlparser.ColName)
+		value, valueOK := comparison.Right.(*sqlparser.SQLVal)
+		if !leftOK || !valueOK || !strings.EqualFold(left.Name.String(), column) {
+			return true, nil
+		}
+		filter = string(value.Val)
+		if filter == "" {
+			filter = informationSchemaExplicitEmptyPattern
+		}
+		return true, nil
+	}, selectStmt.Where.Expr)
+	return filter
 }
 
 func (e *XMySQLExecutor) executeInformationSchemaSTUnitsOfMeasureSelect(query string) *SelectResult {

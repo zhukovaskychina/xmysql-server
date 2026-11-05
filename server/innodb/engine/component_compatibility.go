@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 type persistedComponent struct {
@@ -55,26 +55,17 @@ func (e *XMySQLExecutor) savePersistedComponents(file persistedComponentFile) er
 	return writeMetadataFileAtomic(e.componentFilePath(), raw)
 }
 
-var componentStatementPattern = regexp.MustCompile(`(?is)^\s*(install|uninstall)\s+component\s+(.+?)\s*;?\s*$`)
-var componentURNPattern = regexp.MustCompile(`(?is)'((?:''|[^'])*)'|"((?:""|[^"])*)"`)
-
 func parseComponentStatement(query string) (string, []string, error) {
-	match := componentStatementPattern.FindStringSubmatch(query)
-	if len(match) != 3 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
 		return "", nil, nil
 	}
-	rest := strings.TrimSpace(match[2])
-	if setIndex := regexp.MustCompile(`(?is)\s+set\s+`).FindStringIndex(rest); setIndex != nil {
-		rest = strings.TrimSpace(rest[:setIndex[0]])
+	statement, ok := parsed.AST.(*sqlparser.ComponentStatement)
+	if !ok {
+		return "", nil, nil
 	}
-	names := make([]string, 0)
-	for _, quoted := range componentURNPattern.FindAllStringSubmatch(rest, -1) {
-		name := quoted[1]
-		if name == "" {
-			name = strings.ReplaceAll(quoted[2], `""`, `"`)
-		} else {
-			name = strings.ReplaceAll(name, "''", "'")
-		}
+	names := make([]string, 0, len(statement.URNs))
+	for _, name := range statement.URNs {
 		name = strings.TrimSpace(name)
 		if !strings.HasPrefix(strings.ToLower(name), "file://") {
 			return "", nil, fmt.Errorf("invalid component name %q", name)
@@ -84,7 +75,7 @@ func parseComponentStatement(query string) (string, []string, error) {
 	if len(names) == 0 {
 		return "", nil, fmt.Errorf("component name is required")
 	}
-	return strings.ToLower(match[1]), names, nil
+	return strings.ToLower(statement.Kind), names, nil
 }
 
 // executeComponentLifecycle persists the component registry rows. xmysql does

@@ -8,7 +8,7 @@ func TestViewUpgradeStructuredDefinition(t *testing.T) {
 		t.Fatalf("ParseForExecution() error = %v", err)
 	}
 	view, ok := parsed.AST.(*ViewStatement)
-	if !ok || view.Kind != "create" || view.Name.Qualifier.String() != "app" || view.Name.Name.String() != "v" || len(view.Columns) != 1 || view.Definition == nil {
+	if !ok || view.Kind != "create" || !view.OrReplace || view.Name.Qualifier.String() != "app" || view.Name.Name.String() != "v" || len(view.Columns) != 1 || view.Definition == nil {
 		t.Fatalf("view = %#v", parsed.AST)
 	}
 }

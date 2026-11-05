@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
@@ -54,11 +53,11 @@ func (dml *StorageIntegratedDMLExecutor) validateCheckConstraints(rows []*Insert
 }
 
 func evaluateCheckConstraint(expression string, values map[string]interface{}) (int, error) {
-	stmt, err := sqlparser.Parse("SELECT 1 FROM dual WHERE " + expression)
+	parsed, err := sqlparser.ParseForExecution("SELECT 1 FROM dual WHERE " + expression)
 	if err != nil {
 		return sqlTruthFalse, err
 	}
-	selectStmt, ok := stmt.(*sqlparser.Select)
+	selectStmt, ok := parsed.AST.(*sqlparser.Select)
 	if !ok || selectStmt.Where == nil {
 		return sqlTruthFalse, fmt.Errorf("check constraint is not a predicate")
 	}
@@ -76,10 +75,28 @@ func checkConstraintIsEnforced(expression string, names map[string]string, enfor
 	return true
 }
 
-var checkIdentifierPattern = regexp.MustCompile(`(?i)\b[a-z_][a-z0-9_$]*\b`)
-
 func checkReferencesNull(expression string, values map[string]interface{}) bool {
-	for _, identifier := range checkIdentifierPattern.FindAllString(expression, -1) {
+	if parsed, err := sqlparser.ParseForExecution("SELECT 1 FROM dual WHERE " + expression); err == nil {
+		if selectStmt, ok := parsed.AST.(*sqlparser.Select); ok && selectStmt.Where != nil {
+			for _, identifier := range predicateASTColumns(selectStmt.Where.Expr) {
+				if value, exists := values[identifier]; exists && value == nil {
+					return true
+				}
+			}
+			return false
+		}
+	}
+	tokenizer := sqlparser.NewStringTokenizer(expression)
+	for {
+		kind, raw := tokenizer.Scan()
+		if kind == 0 {
+			break
+		}
+		identifier := string(raw)
+		if identifier == "" {
+			identifier = sqlparser.KeywordString(kind)
+		}
+		identifier = strings.Trim(identifier, "`")
 		if strings.EqualFold(identifier, "and") || strings.EqualFold(identifier, "or") || strings.EqualFold(identifier, "not") {
 			continue
 		}

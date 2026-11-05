@@ -36,3 +36,37 @@ func TestTableDDLASTPersistence(t *testing.T) {
 	firstState.mu.RUnlock()
 	require.True(t, firstBound)
 }
+
+func TestCreateSelectASTExecutesNewlinesAndLiteralKeywords(t *testing.T) {
+	engine := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, engine, "", "CREATE DATABASE app")
+	mustExecSQL(t, engine, "app", "CREATE TABLE ast_copy\nAS\nSELECT concat('AS SELECT ', ')') AS label")
+	require.Equal(t, [][]interface{}{{"AS SELECT )"}}, mustQuerySQL(t, engine, "app", "SELECT label FROM ast_copy"))
+	ctx := &ExecutionContext{DatabaseName: "app"}
+	handled, err := engine.QueryExecutor.executeRawCreateTableAsSelectCompatibility(ctx, "CREATE TABLE invalid_copy AS SELECT n FROM", "app")
+	require.True(t, handled)
+	require.Error(t, err)
+	_, err = os.Stat(filepath.Join(engine.QueryExecutor.getDataDir(), "app", "invalid_copy.frm"))
+	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestCreateIndexVisibilityASTPreservesNamesAndComments(t *testing.T) {
+	engine := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, engine, "", "CREATE DATABASE app")
+	mustExecSQL(t, engine, "app", "CREATE TABLE ast_visibility (visible int, KEY `i,n` (visible) COMMENT 'invisible' VISIBLE, KEY `h,idden` (visible) INVISIBLE)")
+	info, err := readTableMetadataMap(filepath.Join(engine.QueryExecutor.getDataDir(), "app", "ast_visibility.frm"))
+	require.NoError(t, err)
+	visibility := make(map[string]bool)
+	for _, raw := range info["indexes"].([]interface{}) {
+		index := raw.(map[string]interface{})
+		visible := true
+		if value, ok := index["visible"].(bool); ok {
+			visible = value
+		}
+		visibility[index["name"].(string)] = visible
+	}
+	require.Contains(t, visibility, "i,n")
+	require.Contains(t, visibility, "h,idden")
+	require.True(t, visibility["i,n"])
+	require.False(t, visibility["h,idden"])
+}

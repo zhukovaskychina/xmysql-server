@@ -13,12 +13,18 @@ const (
 	AlterOperationModifyColumn         AlterOperationKind = "MODIFY_COLUMN"
 	AlterOperationChangeColumn         AlterOperationKind = "CHANGE_COLUMN"
 	AlterOperationRenameColumn         AlterOperationKind = "RENAME_COLUMN"
+	AlterOperationRenameIndex          AlterOperationKind = "RENAME_INDEX"
+	AlterOperationRenameTable          AlterOperationKind = "RENAME_TABLE"
+	AlterOperationAlterCheck           AlterOperationKind = "ALTER_CHECK"
+	AlterOperationSetDefault           AlterOperationKind = "SET_DEFAULT"
+	AlterOperationDropDefault          AlterOperationKind = "DROP_DEFAULT"
 	AlterOperationAddIndex             AlterOperationKind = "ADD_INDEX"
 	AlterOperationDropIndex            AlterOperationKind = "DROP_INDEX"
 	AlterOperationAddConstraint        AlterOperationKind = "ADD_CONSTRAINT"
 	AlterOperationDropConstraint       AlterOperationKind = "DROP_CONSTRAINT"
 	AlterOperationPartition            AlterOperationKind = "PARTITION"
 	AlterOperationTablespace           AlterOperationKind = "TABLESPACE"
+	AlterOperationTablespaceTransfer   AlterOperationKind = "TABLESPACE_TRANSFER"
 	AlterOperationAlterIndexVisibility AlterOperationKind = "ALTER_INDEX_VISIBILITY"
 	AlterOperationOption               AlterOperationKind = "OPTION"
 )
@@ -27,6 +33,7 @@ type AlterTableOperation struct {
 	Kind                       AlterOperationKind
 	Name                       string
 	NewName                    string
+	RenameTableTo              TableName
 	Columns                    []string
 	Definition                 string
 	First                      bool
@@ -44,6 +51,9 @@ type AlterTableOperation struct {
 	PartitionWithoutValidation bool
 	Visible                    string
 	Value                      string
+	Collation                  string
+	IfExists                   bool
+	IfNotExists                bool
 }
 
 type AlterTable struct {
@@ -100,6 +110,11 @@ func parseAlterForExecution(query string) (*AlterTable, error) {
 	operationStart := tokenizer.Position
 	if nextKind != 0 && nextKind != '.' {
 		operationStart = tokenizer.Position - len(nextValue) - 1
+	}
+	if executionTokens, tokenErr := scanShowExecutionTokens(trimmed); tokenErr == nil {
+		if _, operationIndex, nameOK := parseShowQualifiedName(executionTokens, 2); nameOK && operationIndex < len(executionTokens) {
+			operationStart = executionTokens[operationIndex].start
+		}
 	}
 	if operationStart < 0 || operationStart > len(trimmed) {
 		return nil, fmt.Errorf("%w: invalid ALTER TABLE boundary", ErrInvalidStatement)
@@ -198,6 +213,12 @@ func splitAlterOperations(input string) ([]string, error) {
 func parseAlterOperation(raw string) (AlterTableOperation, error) {
 	operation := AlterTableOperation{Definition: strings.TrimSpace(raw)}
 	tokens := strings.Fields(strings.ReplaceAll(raw, "(", " ( "))
+	if parsedTokens, err := scanShowExecutionTokens(raw); err == nil && len(parsedTokens) > 0 {
+		tokens = make([]string, 0, len(parsedTokens))
+		for _, token := range parsedTokens {
+			tokens = append(tokens, token.text)
+		}
+	}
 	if len(tokens) == 0 {
 		return operation, fmt.Errorf("%w: empty ALTER operation", ErrInvalidStatement)
 	}
@@ -254,6 +275,39 @@ func parseAlterOperation(raw string) (AlterTableOperation, error) {
 		return operation, nil
 	}
 	switch first {
+	case "character", "charset", "convert":
+		operation.Kind = AlterOperationOption
+		operation.Name = first
+		for index := 1; index < len(tokens); index++ {
+			if strings.EqualFold(tokens[index], "collate") && index+1 < len(tokens) {
+				operation.Collation = strings.Trim(tokens[index+1], "`= ")
+				index++
+				continue
+			}
+			if strings.EqualFold(tokens[index], "set") && index+1 < len(tokens) && operation.Value == "" {
+				operation.Value = strings.Trim(tokens[index+1], "`= ")
+				index++
+				continue
+			}
+			if strings.EqualFold(tokens[index], "charset") && index+1 < len(tokens) {
+				if strings.EqualFold(tokens[index+1], "=") && index+2 < len(tokens) {
+					operation.Value = strings.Trim(tokens[index+2], "`= ")
+					index += 2
+				} else if operation.Value == "" {
+					operation.Value = strings.Trim(tokens[index+1], "`= ")
+					index++
+				}
+				continue
+			}
+			if strings.EqualFold(tokens[index], "=") && index+1 < len(tokens) && operation.Value == "" {
+				operation.Value = strings.Trim(tokens[index+1], "`= ")
+				index++
+			}
+		}
+		if operation.Value == "" && len(tokens) > 1 {
+			operation.Value = strings.Trim(tokens[len(tokens)-1], "`= ")
+		}
+		return operation, nil
 	case "add":
 		if len(tokens) > 1 && strings.EqualFold(tokens[1], "constraint") {
 			operation.Kind = AlterOperationAddConstraint
@@ -289,7 +343,8 @@ func parseAlterOperation(raw string) (AlterTableOperation, error) {
 			}
 			return operation, nil
 		}
-		if len(tokens) > 1 && (strings.EqualFold(tokens[1], "primary") || strings.EqualFold(tokens[1], "unique") || strings.EqualFold(tokens[1], "foreign")) {
+		uniqueIndexSyntax := len(tokens) > 2 && strings.EqualFold(tokens[1], "unique") && (strings.EqualFold(tokens[2], "index") || strings.EqualFold(tokens[2], "key"))
+		if len(tokens) > 1 && (strings.EqualFold(tokens[1], "primary") || strings.EqualFold(tokens[1], "foreign") || (strings.EqualFold(tokens[1], "unique") && !uniqueIndexSyntax)) {
 			operation.Kind = AlterOperationAddIndex
 			operation.ConstraintType = strings.ToLower(tokens[1])
 			operation.Name = strings.ToLower(tokens[1])
@@ -304,11 +359,16 @@ func parseAlterOperation(raw string) (AlterTableOperation, error) {
 		}
 		if len(tokens) > 1 && strings.EqualFold(tokens[1], "column") {
 			operation.Kind = AlterOperationAddColumn
-			if len(tokens) < 3 {
+			nameIndex := 2
+			if nameIndex+2 < len(tokens) && strings.EqualFold(tokens[nameIndex], "if") && strings.EqualFold(tokens[nameIndex+1], "not") && strings.EqualFold(tokens[nameIndex+2], "exists") {
+				operation.IfNotExists = true
+				nameIndex += 3
+			}
+			if len(tokens) <= nameIndex {
 				return operation, fmt.Errorf("%w: ADD COLUMN name missing", ErrInvalidStatement)
 			}
-			operation.Name = strings.Trim(tokens[2], "`")
-			for index := 3; index < len(tokens); index++ {
+			operation.Name = strings.Trim(tokens[nameIndex], "`")
+			for index := nameIndex + 1; index < len(tokens); index++ {
 				if strings.EqualFold(tokens[index], "first") {
 					operation.First = true
 				}
@@ -320,12 +380,23 @@ func parseAlterOperation(raw string) (AlterTableOperation, error) {
 			return operation, nil
 		}
 		operation.Kind = AlterOperationAddIndex
+		if uniqueIndexSyntax {
+			operation.ConstraintType = "unique"
+		}
+		if len(tokens) > 1 && (strings.EqualFold(tokens[1], "fulltext") || strings.EqualFold(tokens[1], "spatial")) {
+			operation.ConstraintType = strings.ToLower(tokens[1])
+		}
 		if len(tokens) < 2 {
 			return operation, fmt.Errorf("%w: ADD definition missing", ErrInvalidStatement)
 		}
 		for index := 1; index < len(tokens); index++ {
 			value := strings.Trim(tokens[index], "`")
-			if value == "(" || strings.EqualFold(value, "index") || strings.EqualFold(value, "key") || strings.EqualFold(value, "unique") || strings.EqualFold(value, "fulltext") {
+			if strings.EqualFold(value, "if") && index+2 < len(tokens) && strings.EqualFold(tokens[index+1], "not") && strings.EqualFold(tokens[index+2], "exists") {
+				operation.IfNotExists = true
+				index += 2
+				continue
+			}
+			if value == "(" || strings.EqualFold(value, "index") || strings.EqualFold(value, "key") || strings.EqualFold(value, "unique") || strings.EqualFold(value, "fulltext") || strings.EqualFold(value, "spatial") {
 				continue
 			}
 			operation.Name = value
@@ -342,6 +413,11 @@ func parseAlterOperation(raw string) (AlterTableOperation, error) {
 		if len(tokens) < 3 {
 			return operation, fmt.Errorf("%w: DROP target missing", ErrInvalidStatement)
 		}
+		nameIndex := 2
+		if nameIndex+1 < len(tokens) && strings.EqualFold(tokens[nameIndex], "if") && strings.EqualFold(tokens[nameIndex+1], "exists") {
+			operation.IfExists = true
+			nameIndex += 2
+		}
 		if strings.EqualFold(tokens[1], "column") {
 			operation.Kind = AlterOperationDropColumn
 		} else if strings.EqualFold(tokens[1], "constraint") {
@@ -357,7 +433,7 @@ func parseAlterOperation(raw string) (AlterTableOperation, error) {
 		} else {
 			operation.Kind = AlterOperationDropIndex
 		}
-		operation.Name = strings.Trim(tokens[2], "`")
+		operation.Name = strings.Trim(tokens[nameIndex], "`")
 		return operation, nil
 	case "modify":
 		operation.Kind = AlterOperationModifyColumn
@@ -371,8 +447,28 @@ func parseAlterOperation(raw string) (AlterTableOperation, error) {
 		operation.NewName = strings.Trim(tokens[3], "`")
 		return operation, nil
 	case "rename":
-		if len(tokens) >= 4 && strings.EqualFold(tokens[1], "column") {
+		if len(tokens) >= 3 && strings.EqualFold(tokens[1], "to") {
+			operation.Kind = AlterOperationRenameTable
+			parsedTokens, tokenErr := scanShowExecutionTokens(raw)
+			if tokenErr != nil {
+				return operation, tokenErr
+			}
+			target, end, ok := parseShowQualifiedName(parsedTokens, 2)
+			if !ok || end != len(parsedTokens) {
+				return operation, fmt.Errorf("%w: RENAME TABLE destination missing", ErrInvalidStatement)
+			}
+			operation.RenameTableTo = target
+			operation.NewName = target.Name.String()
+			return operation, nil
+		}
+		if len(tokens) >= 5 && strings.EqualFold(tokens[1], "column") {
 			operation.Kind = AlterOperationRenameColumn
+			operation.Name = strings.Trim(tokens[2], "`")
+			operation.NewName = strings.Trim(tokens[4], "`")
+			return operation, nil
+		}
+		if len(tokens) >= 5 && (strings.EqualFold(tokens[1], "index") || strings.EqualFold(tokens[1], "key")) && strings.EqualFold(tokens[3], "to") {
+			operation.Kind = AlterOperationRenameIndex
 			operation.Name = strings.Trim(tokens[2], "`")
 			operation.NewName = strings.Trim(tokens[4], "`")
 			return operation, nil
@@ -380,6 +476,29 @@ func parseAlterOperation(raw string) (AlterTableOperation, error) {
 		operation.Kind = AlterOperationOption
 		return operation, nil
 	case "alter":
+		if len(tokens) >= 5 && strings.EqualFold(tokens[1], "column") {
+			operation.Name = strings.Trim(tokens[2], "`")
+			if strings.EqualFold(tokens[3], "set") && strings.EqualFold(tokens[4], "default") {
+				operation.Kind = AlterOperationSetDefault
+				operation.Value = alterOperationTailAfterToken(raw, "default")
+				return operation, nil
+			}
+			if strings.EqualFold(tokens[3], "drop") && strings.EqualFold(tokens[4], "default") && len(tokens) == 5 {
+				operation.Kind = AlterOperationDropDefault
+				return operation, nil
+			}
+		}
+		if len(tokens) >= 4 && strings.EqualFold(tokens[1], "check") && (strings.EqualFold(tokens[3], "enforced") || strings.EqualFold(tokens[3], "not")) {
+			operation.Kind = AlterOperationAlterCheck
+			operation.ConstraintType = "check"
+			operation.Name = strings.Trim(tokens[2], "`")
+			if strings.EqualFold(tokens[3], "not") && len(tokens) > 4 && strings.EqualFold(tokens[4], "enforced") {
+				operation.Visible = "not enforced"
+			} else {
+				operation.Visible = "enforced"
+			}
+			return operation, nil
+		}
 		if len(tokens) >= 4 && (strings.EqualFold(tokens[1], "index") || strings.EqualFold(tokens[1], "key")) && (strings.EqualFold(tokens[3], "visible") || strings.EqualFold(tokens[3], "invisible")) {
 			operation.Kind = AlterOperationAlterIndexVisibility
 			operation.Name = strings.Trim(tokens[2], "`")
@@ -391,21 +510,51 @@ func parseAlterOperation(raw string) (AlterTableOperation, error) {
 		operation.Kind = AlterOperationPartition
 		return operation, nil
 	case "tablespace":
+		if len(tokens) >= 3 && (strings.EqualFold(tokens[1], "discard") || strings.EqualFold(tokens[1], "import")) && strings.EqualFold(tokens[2], "tablespace") {
+			operation.Kind = AlterOperationTablespaceTransfer
+			operation.Name = strings.ToLower(tokens[1])
+			return operation, nil
+		}
 		operation.Kind = AlterOperationTablespace
 		if len(tokens) > 1 {
 			operation.Name = strings.Trim(tokens[1], "`")
 		}
 		return operation, nil
-	case "comment", "charset", "collate", "row_format", "engine", "auto_increment", "default":
+	case "discard", "import":
+		if len(tokens) >= 2 && strings.EqualFold(tokens[1], "tablespace") {
+			operation.Kind = AlterOperationTablespaceTransfer
+			operation.Name = first
+			return operation, nil
+		}
+		return operation, fmt.Errorf("%w: unsupported ALTER operation %s", ErrUnsupportedStatement, first)
+	case "algorithm", "lock", "force", "comment", "collate", "row_format", "engine", "auto_increment", "default":
 		operation.Kind = AlterOperationOption
 		operation.Name = first
+		if first == "force" {
+			return operation, nil
+		}
 		if first == "default" && len(tokens) > 1 {
 			operation.Name = strings.ToLower(tokens[1])
+			if operation.Name == "character" && len(tokens) > 2 && strings.EqualFold(tokens[2], "set") {
+				operation.Name = "charset"
+			}
 		}
 		for index := 1; index < len(tokens); index++ {
+			if strings.EqualFold(tokens[index], "collate") {
+				if index+1 < len(tokens) && strings.EqualFold(tokens[index+1], "=") && index+2 < len(tokens) {
+					operation.Collation = strings.Trim(tokens[index+2], "`= ")
+					index += 2
+				} else if index+1 < len(tokens) {
+					operation.Collation = strings.Trim(tokens[index+1], "`= ")
+					index++
+				}
+				continue
+			}
 			if tokens[index] == "=" && index+1 < len(tokens) {
-				operation.Value = strings.Trim(tokens[index+1], "'\"")
-				break
+				if operation.Value == "" {
+					operation.Value = strings.Trim(tokens[index+1], "'\"")
+				}
+				index++
 			}
 		}
 		if operation.Value == "" && len(tokens) > 1 {
@@ -415,6 +564,19 @@ func parseAlterOperation(raw string) (AlterTableOperation, error) {
 	default:
 		return operation, fmt.Errorf("%w: unsupported ALTER operation %s", ErrUnsupportedStatement, first)
 	}
+}
+
+func alterOperationTailAfterToken(raw, keyword string) string {
+	tokens, err := scanShowExecutionTokens(raw)
+	if err != nil {
+		return ""
+	}
+	for index, token := range tokens {
+		if strings.EqualFold(token.text, keyword) && index+1 < len(tokens) {
+			return strings.TrimSpace(raw[tokens[index+1].start:])
+		}
+	}
+	return ""
 }
 
 func alterParenthesizedContents(raw string) string {
@@ -454,9 +616,15 @@ func parseAlterForeignKeyDetails(raw string) (schema, table string, columns []st
 		for index := 0; index+2 < len(tokens); index++ {
 			if tokens[index] == "on" && tokens[index+1] == "delete" {
 				onDelete = strings.ToUpper(tokens[index+2])
+				if strings.EqualFold(tokens[index+2], "set") && index+3 < len(tokens) {
+					onDelete += " " + strings.ToUpper(tokens[index+3])
+				}
 			}
 			if tokens[index] == "on" && tokens[index+1] == "update" {
 				onUpdate = strings.ToUpper(tokens[index+2])
+				if strings.EqualFold(tokens[index+2], "set") && index+3 < len(tokens) {
+					onUpdate += " " + strings.ToUpper(tokens[index+3])
+				}
 			}
 		}
 	}
@@ -519,8 +687,40 @@ func parseAlterColumnOperation(operation AlterTableOperation, tokens []string) (
 
 func alterColumns(raw string) []string {
 	start := strings.Index(raw, "(")
-	end := strings.LastIndex(raw, ")")
-	if start < 0 || end <= start {
+	if start < 0 {
+		return nil
+	}
+	depth := 0
+	var quote byte
+	end := -1
+	for index := start; index < len(raw); index++ {
+		ch := raw[index]
+		if quote != 0 {
+			if ch == quote {
+				if index+1 < len(raw) && raw[index+1] == quote {
+					index++
+				} else {
+					quote = 0
+				}
+			}
+			continue
+		}
+		switch ch {
+		case '\'', '"', '`':
+			quote = ch
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				end = index
+			}
+		}
+		if end >= 0 {
+			break
+		}
+	}
+	if end <= start {
 		return nil
 	}
 	items := strings.Split(raw[start+1:end], ",")

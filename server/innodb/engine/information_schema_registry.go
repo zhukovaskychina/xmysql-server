@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -287,7 +286,6 @@ func (e *XMySQLExecutor) executeInformationSchemaRegistrySelect(query string, se
 func (e *XMySQLExecutor) executeInformationSchemaKeywordsSelect(query string) *SelectResult {
 	columns := requestedInformationSchemaColumns(query, informationSchemaTableRegistry["keywords"])
 	infos := sqlparser.KeywordInfos()
-	filters := informationSchemaKeywordFilters(query)
 	// KeywordInfos is already sorted, but keep the row order explicit at this
 	// boundary because INFORMATION_SCHEMA clients commonly compare snapshots.
 	sort.Slice(infos, func(i, j int) bool { return infos[i].Word < infos[j].Word })
@@ -297,8 +295,7 @@ func (e *XMySQLExecutor) executeInformationSchemaKeywordsSelect(query string) *S
 		if info.Reserved {
 			reserved = 1
 		}
-		if !metadataPatternMatches(strings.ToUpper(info.Word), filters["WORD"]) ||
-			!informationSchemaKeywordReservedMatches(query, filters["RESERVED"], reserved) {
+		if !informationSchemaKeywordQueryMatches(query, info.Word, reserved) {
 			continue
 		}
 		rows = append(rows, projectInformationSchemaRow(columns, map[string]interface{}{
@@ -309,53 +306,23 @@ func (e *XMySQLExecutor) executeInformationSchemaKeywordsSelect(query string) *S
 	return newInformationSchemaSelectResult("information_schema.keywords", columns, rows)
 }
 
-var informationSchemaKeywordFilterPattern = regexp.MustCompile(`(?i)\b(word|reserved)\b\s*(?:=|like)\s*(?:'([^']*)'|"([^"]*)"|([0-9]+))`)
-
-func informationSchemaKeywordFilters(query string) map[string]string {
-	filters := make(map[string]string)
-	for _, match := range informationSchemaKeywordFilterPattern.FindAllStringSubmatch(query, -1) {
-		value := match[2]
-		if value == "" {
-			value = match[3]
-		}
-		if value == "" {
-			value = match[4]
-		}
-		if value == "" && strings.EqualFold(match[1], "word") {
-			// An omitted WORD predicate is a wildcard; WORD = ''/LIKE '' is
-			// an explicit empty-string predicate and must match no normal
-			// keyword row.
-			value = informationSchemaExplicitEmptyPattern
-		}
-		filters[strings.ToUpper(match[1])] = value
+func informationSchemaKeywordQueryMatches(query, word string, reserved int64) bool {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return true
 	}
-	return filters
+	selectStmt, ok := parsed.AST.(*sqlparser.Select)
+	if !ok || selectStmt.Where == nil {
+		return true
+	}
+	keep, evalErr := evaluateMetadataPredicate(selectStmt.Where.Expr, map[string]interface{}{"word": strings.ToUpper(word), "reserved": reserved})
+	return evalErr == nil && keep
 }
 
 // informationSchemaKeywordReservedMatches follows MySQL's KEYWORDS.RESERVED
 // contract: the value is an integer 1/0 and can be used as a boolean in a
 // WHERE clause.  YES/NO remain accepted as a compatibility extension for
 // older xmysql clients that consumed the pre-8.4 projection.
-func informationSchemaKeywordReservedMatches(query, filter string, reserved int64) bool {
-	if filter != "" {
-		normalized := strings.ToUpper(strings.TrimSpace(filter))
-		switch normalized {
-		case "1", "TRUE", "YES":
-			return reserved == 1
-		case "0", "FALSE", "NO":
-			return reserved == 0
-		default:
-			return false
-		}
-	}
-	if regexp.MustCompile(`(?i)\bnot\s+reserved\b`).MatchString(query) {
-		return reserved == 0
-	}
-	if regexp.MustCompile(`(?i)(?:\bwhere\b|\band\b)\s+reserved\b(?:\s|$)`).MatchString(query) {
-		return reserved == 1
-	}
-	return true
-}
 
 func (e *XMySQLExecutor) executeInformationSchemaProfilingSelect(query string, session server.MySQLServerSession) *SelectResult {
 	const table = "profiling"
@@ -473,23 +440,29 @@ func informationSchemaRawString(value interface{}) string {
 	}
 }
 
-var informationSchemaViewUsageFilterPattern = regexp.MustCompile(`(?i)\b(view_catalog|view_schema|view_name|table_catalog|table_schema|table_name|specific_catalog|specific_schema|specific_name)\b\s*(?:=|like)\s*(?:'([^']*)'|"([^"]*)")`)
-
 func informationSchemaViewUsageFilters(query string) map[string]string {
 	filters := make(map[string]string)
-	for _, match := range informationSchemaViewUsageFilterPattern.FindAllStringSubmatch(query, -1) {
-		value := match[2]
-		if value == "" {
-			value = match[3]
-		}
-		if value == "" {
-			// Preserve the distinction between an omitted predicate and an
-			// explicit empty string. A missing map entry is a wildcard, while
-			// `= ''`/`LIKE ''` must match only an actually empty metadata value.
-			value = informationSchemaExplicitEmptyPattern
-		}
-		filters[strings.ToUpper(match[1])] = value
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return filters
 	}
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		comparison, ok := node.(*sqlparser.ComparisonExpr)
+		if !ok || (comparison.Operator != sqlparser.EqualStr && !strings.EqualFold(comparison.Operator, sqlparser.LikeStr)) {
+			return true, nil
+		}
+		column, ok := comparison.Left.(*sqlparser.ColName)
+		value, valueOK := comparison.Right.(*sqlparser.SQLVal)
+		if !ok || !valueOK || value.Type != sqlparser.StrVal {
+			return true, nil
+		}
+		filterValue := string(value.Val)
+		if filterValue == "" {
+			filterValue = informationSchemaExplicitEmptyPattern
+		}
+		filters[strings.ToUpper(column.Name.String())] = filterValue
+		return true, nil
+	}, parsed.AST)
 	return filters
 }
 
@@ -540,22 +513,39 @@ func (e *XMySQLExecutor) executeInformationSchemaExtensionRows(query string, ses
 	return newInformationSchemaSelectResult("information_schema."+extension, columns, rows)
 }
 
-var informationSchemaExtensionNullFilterPattern = regexp.MustCompile(`(?is)\b(engine_attribute|secondary_engine_attribute|options|se_private_data)\b\s+is\s+(not\s+)?null`)
-
 func informationSchemaExtensionNullFiltersMatch(query string, values map[string]interface{}) bool {
-	for _, match := range informationSchemaExtensionNullFilterPattern.FindAllStringSubmatch(query, -1) {
-		column := strings.ToUpper(match[1])
-		value, exists := values[column]
-		if !exists {
-			continue
-		}
-		wantNotNull := strings.TrimSpace(match[2]) != ""
-		isNull := value == nil
-		if wantNotNull == isNull {
-			return false
-		}
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return true
 	}
-	return true
+	selectStmt, ok := parsed.AST.(*sqlparser.Select)
+	if !ok || selectStmt.Where == nil {
+		return true
+	}
+	usesExtensionColumn := false
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		column, ok := node.(*sqlparser.ColName)
+		if !ok {
+			return true, nil
+		}
+		switch strings.ToUpper(column.Name.String()) {
+		case "ENGINE_ATTRIBUTE", "SECONDARY_ENGINE_ATTRIBUTE", "OPTIONS", "SE_PRIVATE_DATA":
+			usesExtensionColumn = true
+		}
+		return true, nil
+	}, selectStmt.Where.Expr)
+	if !usesExtensionColumn {
+		return true
+	}
+	normalized := make(map[string]interface{}, len(values))
+	for key, value := range values {
+		if bytes, ok := value.([]byte); ok {
+			value = string(bytes)
+		}
+		normalized[strings.ToLower(key)] = value
+	}
+	keep, evalErr := evaluateMetadataPredicateCaseInsensitive(selectStmt.Where.Expr, normalized)
+	return evalErr == nil && keep
 }
 
 func informationSchemaExtensionBaseQuery(query, base string) string {

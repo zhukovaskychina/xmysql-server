@@ -10,7 +10,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,11 +24,6 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/page"
-)
-
-var (
-	userWhereConditionRe = regexp.MustCompile("(?i)\\b(?:`?user`?)\\s*=\\s*(?:'([^']*)'|\"([^\"]*)\"|([^\\s]+))")
-	hostWhereConditionRe = regexp.MustCompile("(?i)\\b(?:`?host`?)\\s*=\\s*(?:'([^']*)'|\"([^\"]*)\"|([^\\s]+))")
 )
 
 // SelectExecutor SELECT查询执行器
@@ -47,22 +41,23 @@ type SelectExecutor struct {
 	dataDir string
 
 	// 查询相关
-	logicalPlan     plan.LogicalPlan
-	physicalPlan    *manager.PlanNode
-	tableName       string
-	schemaName      string
-	whereConditions []string
-	whereExpression sqlparser.Expr
-	selectExprs     []string
-	selectExprASTs  []sqlparser.Expr
-	selectAliases   []string
-	distinct        bool
-	groupByColumns  []string
-	havingCondition string
-	orderByColumns  []string
-	joinOrderTypes  map[string]metadata.DataType
-	limit           int
-	offset          int
+	logicalPlan             plan.LogicalPlan
+	physicalPlan            *manager.PlanNode
+	tableName               string
+	schemaName              string
+	whereConditions         []string
+	whereExpression         sqlparser.Expr
+	predicatePruningAllowed bool
+	selectExprs             []string
+	selectExprASTs          []sqlparser.Expr
+	selectAliases           []string
+	distinct                bool
+	groupByColumns          []string
+	havingCondition         string
+	orderByColumns          []string
+	joinOrderTypes          map[string]metadata.DataType
+	limit                   int
+	offset                  int
 
 	// 执行状态
 	currentRowIndex           int
@@ -174,6 +169,7 @@ func (se *SelectExecutor) resetExecutionState() {
 
 	se.whereConditions = nil
 	se.whereExpression = nil
+	se.predicatePruningAllowed = false
 	se.selectExprs = nil
 	se.selectExprASTs = nil
 	se.selectAliases = nil
@@ -237,6 +233,9 @@ func (se *SelectExecutor) parseSelectStatement(stmt *sqlparser.Select, schemaNam
 	if stmt.Where != nil {
 		se.whereExpression = stmt.Where.Expr
 		se.whereConditions = se.parseWhereConditions(stmt.Where.Expr)
+		se.predicatePruningAllowed = predicateASTAllowsPruning(stmt.Where.Expr)
+	} else {
+		se.predicatePruningAllowed = false
 	}
 
 	for _, expr := range stmt.GroupBy {
@@ -363,7 +362,11 @@ func (se *SelectExecutor) buildLogicalPlan(ctx context.Context, stmt *sqlparser.
 // optimizeQuery 优化查询
 func (se *SelectExecutor) optimizeQuery(ctx context.Context) error {
 	// 使用优化器管理器优化查询
-	physicalPlan, err := se.optimizerManager.GeneratePhysicalPlan(ctx, se.tableName, se.whereConditions)
+	planConditions := se.whereConditions
+	if !se.predicatePruningAllowed {
+		planConditions = nil
+	}
+	physicalPlan, err := se.optimizerManager.GeneratePhysicalPlan(ctx, se.tableName, planConditions)
 	if err != nil {
 		return fmt.Errorf("generate physical plan failed: %v", err)
 	}
@@ -407,7 +410,7 @@ func (se *SelectExecutor) chooseAccessMethod(ctx context.Context) error {
 			break
 		}
 	}
-	if visibleIndex && len(se.whereConditions) > 0 {
+	if visibleIndex && se.predicatePruningAllowed && len(se.whereConditions) > 0 {
 		se.physicalPlan.PlanType = manager.PLAN_TYPE_INDEX_SCAN
 		se.physicalPlan.IndexName = visibleIndexName
 		se.lastAccessPath = "secondary_index:" + visibleIndexName
@@ -505,7 +508,7 @@ func (se *SelectExecutor) scanStorageRows(ctx context.Context, tableMeta *metada
 		if partitioned, isPartitioned, partitionErr := newPartitionedBTreeManager(ctx, storageTableManager, se.schemaName, se.tableName, tableMeta); partitionErr != nil {
 			return fmt.Errorf("create partitioned clustered index manager failed: %v", partitionErr)
 		} else if isPartitioned {
-			if router, ok := partitioned.(*partitionedBTreeManager); ok {
+			if router, ok := partitioned.(*partitionedBTreeManager); ok && se.predicatePruningAllowed {
 				router.RestrictToWherePartitions(se.whereConditions)
 			}
 			if err := persistPartitionStorageRoots(se.dataDir, se.schemaName, se.tableName, storageTableManager); err != nil {
@@ -626,9 +629,14 @@ func (se *SelectExecutor) determineStorageProjectionColumns(tableMeta *metadata.
 	if len(se.groupByColumns) > 0 || strings.TrimSpace(se.havingCondition) != "" || len(se.orderByColumns) > 0 {
 		return nil, false, nil
 	}
-	plainIdentifier := regexp.MustCompile(`(?i)^[a-z_][a-z0-9_$]*(?:\.[a-z_][a-z0-9_$]*)?$`)
-	for _, expression := range se.selectExprs {
-		if !plainIdentifier.MatchString(strings.Trim(strings.TrimSpace(expression), "`")) {
+	for index := range se.selectExprs {
+		// parseSelectExprs already retained the expression AST. A plain
+		// projection is exactly a ColName node; this also handles quoted and
+		// qualified identifiers without reinterpreting SQL text with a regex.
+		if index >= len(se.selectExprASTs) {
+			return nil, false, nil
+		}
+		if _, ok := se.selectExprASTs[index].(*sqlparser.ColName); !ok {
 			return nil, false, nil
 		}
 	}
@@ -777,17 +785,40 @@ func descriptorPartitions(descriptor map[string]interface{}) []interface{} {
 }
 
 func partitionConstantPredicate(condition, expression string) (string, interface{}, bool) {
-	identifier := strings.Trim(strings.TrimSpace(expression), "`")
-	pattern := regexp.MustCompile(`(?is)^\s*(?:[a-zA-Z0-9_$]+\s*\.\s*)?` + regexp.QuoteMeta(identifier) + `\s*(<=|>=|=|<|>)\s*(.+?)\s*$`)
-	match := pattern.FindStringSubmatch(strings.TrimSpace(condition))
-	if len(match) != 3 {
+	parsed, err := sqlparser.Parse("select 1 from dual where " + strings.TrimSpace(condition))
+	if err != nil || parsed == nil {
 		return "", 0, false
 	}
-	value, ok := partitionPredicateLiteral(match[2])
+	selectStmt, ok := parsed.(*sqlparser.Select)
+	if !ok || selectStmt.Where == nil {
+		return "", 0, false
+	}
+	comparison, ok := selectStmt.Where.Expr.(*sqlparser.ComparisonExpr)
 	if !ok {
 		return "", 0, false
 	}
-	return match[1], value, true
+	column, ok := comparison.Left.(*sqlparser.ColName)
+	if !ok || !strings.EqualFold(column.Name.String(), strings.Trim(strings.TrimSpace(expression), "`")) {
+		return "", 0, false
+	}
+	literal, ok := comparison.Right.(*sqlparser.SQLVal)
+	if !ok {
+		return "", 0, false
+	}
+	var value interface{}
+	switch literal.Type {
+	case sqlparser.IntVal:
+		parsedValue, parseErr := strconv.ParseInt(string(literal.Val), 10, 64)
+		if parseErr != nil {
+			return "", 0, false
+		}
+		value = parsedValue
+	case sqlparser.StrVal:
+		value = string(literal.Val)
+	default:
+		return "", 0, false
+	}
+	return comparison.Operator, value, true
 }
 
 func partitionRowValue(values map[string]interface{}, expression string) (interface{}, bool) {
@@ -808,6 +839,9 @@ func secondaryIndexVisible(index *manager.Index) bool {
 }
 
 func (se *SelectExecutor) scanSecondaryIndexRows(ctx context.Context, tableMeta *metadata.TableMeta) (bool, error) {
+	if se == nil || !se.predicatePruningAllowed {
+		return false, nil
+	}
 	if se != nil && se.storageManager != nil {
 		if tableStorageManager := se.storageManager.GetTableStorageManager(); tableStorageManager != nil {
 			if tableInfo, err := tableStorageManager.GetTableStorageInfo(se.schemaName, se.tableName); err == nil && len(tableInfo.Partitions) > 0 {
@@ -2730,9 +2764,16 @@ func (se *SelectExecutor) parseUserQueryConditions() (username, host string) {
 		return username, host
 	}
 
-	whereClause := strings.Join(se.whereConditions, " AND ")
-	userValue := se.extractWhereValue(userWhereConditionRe, whereClause)
-	hostValue := se.extractWhereValue(hostWhereConditionRe, whereClause)
+	whereExpression := se.whereExpression
+	if whereExpression == nil && len(se.whereConditions) > 0 {
+		if parsed, err := sqlparser.Parse("select 1 from dual where " + strings.Join(se.whereConditions, " and ")); err == nil {
+			if selectStmt, ok := parsed.(*sqlparser.Select); ok && selectStmt.Where != nil {
+				whereExpression = selectStmt.Where.Expr
+			}
+		}
+	}
+	userValue := selectEqualityLiteral(whereExpression, "user")
+	hostValue := selectEqualityLiteral(whereExpression, "host")
 
 	if userValue != "" {
 		username = userValue
@@ -2751,21 +2792,43 @@ func (se *SelectExecutor) parseUserQueryConditions() (username, host string) {
 	return username, host
 }
 
-func (se *SelectExecutor) extractWhereValue(re *regexp.Regexp, whereClause string) string {
-	matches := re.FindStringSubmatch(whereClause)
-	if len(matches) < 2 {
+func selectEqualityLiteral(expression sqlparser.Expr, columnName string) string {
+	if expression == nil {
 		return ""
 	}
-
 	value := ""
-	for _, candidate := range matches[1:] {
-		if candidate != "" {
-			value = candidate
-			break
+	found := false
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		if found {
+			return false, nil
 		}
-	}
-	value = strings.TrimSpace(strings.Trim(value, `"'`))
+		comparison, ok := node.(*sqlparser.ComparisonExpr)
+		if !ok || comparison.Operator != sqlparser.EqualStr {
+			return true, nil
+		}
+		if column, ok := comparison.Left.(*sqlparser.ColName); ok && strings.EqualFold(column.Name.String(), columnName) {
+			if literal, literalOK := sqlparserLiteralString(comparison.Right); literalOK {
+				value, found = literal, true
+			}
+			return false, nil
+		}
+		if column, ok := comparison.Right.(*sqlparser.ColName); ok && strings.EqualFold(column.Name.String(), columnName) {
+			if literal, literalOK := sqlparserLiteralString(comparison.Left); literalOK {
+				value, found = literal, true
+			}
+			return false, nil
+		}
+		return true, nil
+	}, expression)
 	return value
+}
+
+func sqlparserLiteralString(expression sqlparser.Expr) (string, bool) {
+	literal, ok := expression.(*sqlparser.SQLVal)
+	if !ok || literal == nil {
+		return "", false
+	}
+	return strings.TrimSpace(string(literal.Val)), true
 }
 
 // convertUserToRecord 将用户数据转换为记录
@@ -3238,21 +3301,9 @@ func (se *SelectExecutor) determineRequiredColumns(tableMeta *metadata.TableMeta
 	// Without this dependency, SELECT id FROM t WHERE active = 1 can project
 	// id correctly but lose active before filtering. Keep these columns out of
 	// the result mapping while retaining them in the source value set.
-	identifierPattern := regexp.MustCompile(`(?i)(?:[a-zA-Z0-9_$]+\s*\.\s*)?([a-zA-Z0-9_$]+)`)
-	ignoredIdentifiers := map[string]struct{}{
-		"and": {}, "or": {}, "not": {}, "is": {}, "null": {}, "true": {}, "false": {},
-		"in": {}, "like": {}, "between": {}, "regexp": {}, "escape": {},
-	}
 	whereTargetIndex := len(se.selectExprs)
 	for _, condition := range se.whereConditions {
-		for _, match := range identifierPattern.FindAllStringSubmatch(condition, -1) {
-			if len(match) != 2 {
-				continue
-			}
-			columnName := strings.ToLower(strings.TrimSpace(match[1]))
-			if _, ignored := ignoredIdentifiers[columnName]; ignored {
-				continue
-			}
+		for _, columnName := range whereConditionColumnNames(condition) {
 			if sourceIndex, exists := columnIndexMap[columnName]; exists {
 				found := false
 				for _, required := range requiredColumns {
@@ -3271,6 +3322,32 @@ func (se *SelectExecutor) determineRequiredColumns(tableMeta *metadata.TableMeta
 	}
 
 	return requiredColumns, columnMapping, nil
+}
+
+func whereConditionColumnNames(condition string) []string {
+	parsed, err := sqlparser.Parse("select 1 from dual where " + strings.TrimSpace(condition))
+	if err != nil || parsed == nil {
+		return nil
+	}
+	selectStmt, ok := parsed.(*sqlparser.Select)
+	if !ok || selectStmt.Where == nil {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	columns := make([]string, 0)
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		column, ok := node.(*sqlparser.ColName)
+		if !ok {
+			return true, nil
+		}
+		name := strings.ToLower(column.Name.String())
+		if _, exists := seen[name]; !exists {
+			seen[name] = struct{}{}
+			columns = append(columns, name)
+		}
+		return false, nil
+	}, selectStmt.Where.Expr)
+	return columns
 }
 
 // parsePageWithProjection 解析页面数据并应用投影

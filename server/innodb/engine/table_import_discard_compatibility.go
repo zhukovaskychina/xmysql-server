@@ -4,32 +4,41 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
-var alterTableTablespaceTransferPattern = regexp.MustCompile(`(?is)^\s*alter\s+table\s+(` + compatibilityIdentifierPattern + `(?:\s*\.\s*` + compatibilityIdentifierPattern + `)?)\s+(discard|import)\s+tablespace\s*$`)
+func tableTablespaceTransferStatement(query string) *sqlparser.AlterTable {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return nil
+	}
+	stmt, ok := parsed.AST.(*sqlparser.AlterTable)
+	if !ok || len(stmt.Operations) != 1 || stmt.Operations[0].Kind != sqlparser.AlterOperationTablespaceTransfer {
+		return nil
+	}
+	return stmt
+}
 
 func (e *XMySQLExecutor) executeRawTableTablespaceTransfer(ctx *ExecutionContext, query, databaseName string) (bool, error) {
-	match := alterTableTablespaceTransferPattern.FindStringSubmatch(strings.TrimSpace(strings.TrimSuffix(query, ";")))
-	if len(match) != 3 {
+	stmt := tableTablespaceTransferStatement(query)
+	if stmt == nil {
 		return false, nil
 	}
-	parts := strings.Split(match[1], ".")
-	schemaName := strings.Trim(parts[0], "` ")
-	tableName := strings.Trim(parts[len(parts)-1], "` ")
-	if len(parts) == 1 {
+	schemaName, tableName := stmt.Table.Qualifier.String(), stmt.Table.Name.String()
+	if schemaName == "" {
 		schemaName = databaseName
 	}
+	operation := stmt.Operations[0].Name
 	if schemaName == "" || tableName == "" {
-		return true, fmt.Errorf("ALTER TABLE %s TABLESPACE requires schema and table", strings.ToUpper(match[2]))
+		return true, fmt.Errorf("ALTER TABLE %s TABLESPACE requires schema and table", strings.ToUpper(operation))
 	}
 	if e.storageManager == nil || e.tableStorageManager == nil {
 		return true, fmt.Errorf("storage managers are not available")
 	}
-	if strings.EqualFold(match[2], "discard") {
+	if strings.EqualFold(operation, "discard") {
 		return true, e.discardFilePerTableTablespace(ctx, schemaName, tableName)
 	}
 	return true, e.importFilePerTableTablespace(ctx, schemaName, tableName)

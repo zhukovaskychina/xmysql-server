@@ -52,7 +52,7 @@ func structuredAlterOperations(stmt *sqlparser.AlterTable) ([]AlterOperation, er
 				return nil, fmt.Errorf("%w: ALTER constraint %q", sqlparser.ErrUnsupportedStatement, source.ConstraintType)
 			}
 		case sqlparser.AlterOperationOption:
-			op.Kind, op.OptionName, op.OptionValue = AlterTableOption, source.Name, source.Value
+			op.Kind, op.OptionName, op.OptionValue, op.Collation = AlterTableOption, source.Name, source.Value, source.Collation
 		case sqlparser.AlterOperationDropIndex:
 			op.Kind, op.IndexName = AlterDropIndex, source.Name
 		default:
@@ -83,9 +83,30 @@ func (e *XMySQLExecutor) executeStructuredAlterCompatibility(ctx *ExecutionConte
 		}
 		table := strings.TrimSpace(stmt.Table.Name.String())
 		foreignKeyChecks := sessionForeignKeyChecksEnabled(ctx.Session)
+		if source.Kind == sqlparser.AlterOperationDropConstraint && source.ConstraintType == "" {
+			checkErr := e.alterCheckMetadata(schema, table, source.Name, "", true, false)
+			if checkErr == nil {
+				return true, nil
+			}
+			foreignErr := e.alterForeignKeyMetadata(schema, table, source.Name, nil, "", "", nil, "", false, foreignKeyChecks)
+			if foreignErr == nil {
+				return true, nil
+			}
+			return true, checkErr
+		}
 		if strings.EqualFold(source.ConstraintType, "check") {
+			if source.Kind == sqlparser.AlterOperationAlterCheck {
+				return true, e.alterCheckEnforcement(schema, table, source.Name, strings.EqualFold(strings.TrimSpace(source.Visible), "enforced"))
+			}
 			enforced := !strings.EqualFold(strings.TrimSpace(source.Visible), "not enforced")
 			return true, e.alterCheckMetadata(schema, table, source.Name, source.Value, enforced, source.Kind == sqlparser.AlterOperationAddConstraint)
+		}
+		if source.Kind == sqlparser.AlterOperationSetDefault || source.Kind == sqlparser.AlterOperationDropDefault {
+			schema := strings.TrimSpace(stmt.Table.Qualifier.String())
+			if schema == "" {
+				schema = strings.TrimSpace(currentDB)
+			}
+			return true, e.alterColumnDefaultMetadata(schema, strings.TrimSpace(stmt.Table.Name.String()), source.Name, source.Value, source.Kind == sqlparser.AlterOperationSetDefault)
 		}
 		if strings.EqualFold(source.ConstraintType, "primary") {
 			add := source.Kind == sqlparser.AlterOperationAddIndex
@@ -179,8 +200,8 @@ func (e *XMySQLExecutor) executeStructuredAlterCompatibility(ctx *ExecutionConte
 				if writeErr := writeTableMetadataMapAtomic(path, info); writeErr != nil {
 					return true, writeErr
 				}
-			case "charset", "character":
-				if err := e.persistAlterTableCharacterOptions(databaseName, tableName, operation.OptionValue, "", operation.Definition); err != nil {
+			case "charset", "character", "convert":
+				if err := e.persistAlterTableCharacterOptions(databaseName, tableName, operation.OptionValue, operation.Collation, operation.Definition); err != nil {
 					return true, err
 				}
 			case "collate":
@@ -206,6 +227,9 @@ func (e *XMySQLExecutor) executeStructuredAlterCompatibility(ctx *ExecutionConte
 	if err := applyAlterOperationsWithForeignKeyChecks(working, operations, sessionForeignKeyChecksEnabled(ctx.Session)); err != nil {
 		return true, err
 	}
+	if _, temporary := temporaryPhysicalTableName(ctx.Session, databaseName, tableName); temporary {
+		normalizeTemporaryAlteredColumnTypes(working, operations)
+	}
 	if err := writeTableMetadataMapAtomic(frmPath, working); err != nil {
 		return true, err
 	}
@@ -214,6 +238,32 @@ func (e *XMySQLExecutor) executeStructuredAlterCompatibility(ctx *ExecutionConte
 		return true, err
 	}
 	return true, nil
+}
+
+func normalizeTemporaryAlteredColumnTypes(tableInfo map[string]interface{}, operations []AlterOperation) {
+	changed := make(map[string]struct{})
+	for _, operation := range operations {
+		switch operation.Kind {
+		case AlterAddColumn, AlterModifyColumn, AlterChangeColumn:
+			changed[strings.ToLower(operation.NewName)] = struct{}{}
+		}
+	}
+	columns, _ := tableInfo["columns"].([]interface{})
+	for _, raw := range columns {
+		column, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		name := strings.ToLower(fmt.Sprint(column["name"]))
+		if _, ok := changed[name]; !ok {
+			continue
+		}
+		if typeName, ok := column["type"].(string); ok {
+			if open := strings.Index(typeName, "("); open > 0 {
+				column["type"] = strings.TrimSpace(typeName[:open])
+			}
+		}
+	}
 }
 
 func cloneAlterMetadataMap(source map[string]interface{}) map[string]interface{} {

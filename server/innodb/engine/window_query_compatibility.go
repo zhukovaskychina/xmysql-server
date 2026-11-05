@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,6 +21,39 @@ type windowRowState struct {
 	orderValues []basic.Value
 }
 
+func originalWindowSpec(query string) (string, bool) {
+	lower := strings.ToLower(query)
+	for from := 0; from < len(lower); {
+		at := strings.Index(lower[from:], " over")
+		if at < 0 {
+			return "", false
+		}
+		at += from
+		if at > 0 && isSQLIdentByte(lower[at-1]) {
+			from = at + len(" over")
+			continue
+		}
+		cursor := at + len(" over")
+		if cursor < len(lower) && isSQLIdentByte(lower[cursor]) {
+			from = cursor
+			continue
+		}
+		for cursor < len(query) && isSQLSpaceByte(query[cursor]) {
+			cursor++
+		}
+		if cursor >= len(query) || query[cursor] != '(' {
+			from = cursor
+			continue
+		}
+		close := matchingParenIndex(query, cursor)
+		if close < 0 {
+			return "", false
+		}
+		return query[cursor+1 : close], true
+	}
+	return "", false
+}
+
 func (e *XMySQLExecutor) executeGeneralWindowQuery(ctx *ExecutionContext, query, databaseName string) (bool, error) {
 	trimmed := strings.TrimSpace(strings.TrimSuffix(query, ";"))
 	if handled, err := e.executeMultipleWindowExpressions(ctx, trimmed, databaseName); handled {
@@ -30,36 +62,55 @@ func (e *XMySQLExecutor) executeGeneralWindowQuery(ctx *ExecutionContext, query,
 	if handled, err := e.executeWindowOnlyProjection(ctx, trimmed, databaseName); handled {
 		return true, err
 	}
-	// Resolve the common named-window form before parsing the regular
-	// OVER(...) form.  Keeping the resolved specification in one execution
-	// path ensures named windows get the same frame and aggregate semantics as
-	// inline windows.
-	namedWindowPattern := regexp.MustCompile(`(?is)^select\s+(.+?),\s*(row_number|rank|dense_rank|ntile|lag|lead|first_value|last_value|nth_value|cume_dist|percent_rank|sum|avg|min|max|count|std|stddev|stddev_pop|stddev_samp|var_pop|var_samp|variance|bit_and|bit_or|bit_xor|json_arrayagg|json_objectagg)\s*\((.*?)\)\s+over\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s+as\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s+from\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s+window\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s+as\s*\((.*)\)$`)
-	if named := namedWindowPattern.FindStringSubmatch(trimmed); len(named) > 0 {
-		if !strings.EqualFold(named[4], named[7]) {
-			return true, fmt.Errorf("unknown window %s", named[4])
+	if rewritten, matched, err := rewriteNamedWindowAST(trimmed); matched {
+		if err != nil {
+			return true, err
 		}
-		rewritten := fmt.Sprintf("select %s, %s(%s) over (%s) as %s from %s", named[1], named[2], named[3], named[8], named[5], named[6])
 		return e.executeGeneralWindowQuery(ctx, rewritten, databaseName)
 	}
-	match := regexp.MustCompile(`(?is)^select\s+(.+?),\s*(row_number|rank|dense_rank|ntile|lag|lead|first_value|last_value|nth_value|cume_dist|percent_rank|sum|avg|min|max|count|std|stddev|stddev_pop|stddev_samp|var_pop|var_samp|variance|bit_and|bit_or|bit_xor|json_arrayagg|json_objectagg)\s*\((.*?)\)\s+over\s*\(`).FindStringSubmatchIndex(trimmed)
-	if len(match) == 0 {
+	parsedWindow, parseErr := sqlparser.Parse(trimmed)
+	if parseErr != nil {
 		return false, nil
 	}
-	baseProjection := strings.TrimSpace(trimmed[match[2]:match[3]])
-	functionName := strings.ToLower(trimmed[match[4]:match[5]])
-	functionArgs := strings.TrimSpace(trimmed[match[6]:match[7]])
-	overOpen := match[1] - 1
-	overClose := matchingParenIndex(trimmed, overOpen)
-	if overClose < 0 {
-		return true, fmt.Errorf("window specification has unbalanced parentheses")
+	windowSelect, windowOK := parsedWindow.(*sqlparser.Select)
+	if !windowOK {
+		return false, nil
 	}
-	afterOver := strings.TrimSpace(trimmed[overClose+1:])
-	afterMatch := regexp.MustCompile(`(?is)^as\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s+from\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `(?:\s+order\s+by\s+.+)?$`).FindStringSubmatch(afterOver)
-	if len(afterMatch) == 0 {
+	windowIndex := -1
+	var windowFn *sqlparser.FuncExpr
+	for index, expression := range windowSelect.SelectExprs {
+		aliased, ok := expression.(*sqlparser.AliasedExpr)
+		if !ok || aliased == nil {
+			continue
+		}
+		function, ok := aliased.Expr.(*sqlparser.FuncExpr)
+		if ok && function.Over != nil {
+			windowIndex = index
+			windowFn = function
+			break
+		}
+	}
+	if windowFn == nil || windowIndex <= 0 {
+		return false, nil
+	}
+	baseParts := make([]string, 0, windowIndex)
+	for _, expression := range windowSelect.SelectExprs[:windowIndex] {
+		baseParts = append(baseParts, sqlparser.String(expression))
+	}
+	baseProjection := strings.Join(baseParts, ", ")
+	functionName := strings.ToLower(windowFn.Name.String())
+	functionArgs := strings.TrimSpace(sqlparser.String(windowFn.Exprs))
+	windowSpec, specOK := originalWindowSpec(trimmed)
+	if !specOK {
+		return false, nil
+	}
+	if strings.Contains(strings.ToLower(windowSpec), "groups ") || strings.HasSuffix(strings.ToLower(strings.TrimSpace(windowSpec)), " groups") {
+		return true, common.NewErr(common.ErrNotSupportedYet, "window GROUPS frame")
+	}
+	windowAlias, sourceTable, sourceOK := windowQueryAliasAndSourceAST(trimmed)
+	if !sourceOK {
 		return true, fmt.Errorf("window query must provide an alias and source table")
 	}
-	sourceTable := afterMatch[2]
 	sourceStmt, err := sqlparser.Parse("select * from " + sourceTable)
 	if err != nil {
 		return true, err
@@ -72,7 +123,6 @@ func (e *XMySQLExecutor) executeGeneralWindowQuery(ctx *ExecutionContext, query,
 	if err != nil {
 		return true, err
 	}
-	windowSpec := trimmed[overOpen+1 : overClose]
 	partitionColumns, orderColumns, orderDirections, err := parseWindowSpecification(windowSpec)
 	if err != nil {
 		return true, err
@@ -270,7 +320,7 @@ func (e *XMySQLExecutor) executeGeneralWindowQuery(ctx *ExecutionContext, query,
 	for _, column := range baseColumns {
 		columns = append(columns, strings.Trim(strings.TrimSpace(column), "`"))
 	}
-	columns = append(columns, strings.Trim(afterMatch[1], "`"))
+	columns = append(columns, strings.Trim(windowAlias, "`"))
 	windowResult := newInformationSchemaSelectResult("window", columns, output)
 	windowResult.ColumnTypes = make([]string, 0, len(baseIndexes)+1)
 	for _, baseIndex := range baseIndexes {
@@ -285,22 +335,96 @@ func (e *XMySQLExecutor) executeGeneralWindowQuery(ctx *ExecutionContext, query,
 	return true, nil
 }
 
+func windowQueryAliasAndSourceAST(query string) (alias, source string, ok bool) {
+	parsed, err := sqlparser.Parse(query)
+	if err != nil || parsed == nil {
+		return "", "", false
+	}
+	selectStmt, ok := parsed.(*sqlparser.Select)
+	if !ok || len(selectStmt.SelectExprs) == 0 || len(selectStmt.From) != 1 {
+		return "", "", false
+	}
+	last, ok := selectStmt.SelectExprs[len(selectStmt.SelectExprs)-1].(*sqlparser.AliasedExpr)
+	if !ok || last.As.IsEmpty() {
+		return "", "", false
+	}
+	from, ok := selectStmt.From[0].(*sqlparser.AliasedTableExpr)
+	if !ok {
+		return "", "", false
+	}
+	table, ok := from.Expr.(sqlparser.TableName)
+	if !ok || table.Name.String() == "" {
+		return "", "", false
+	}
+	return last.As.String(), sqlparser.String(table), true
+}
+
+func rewriteNamedWindowAST(query string) (string, bool, error) {
+	parsed, err := sqlparser.Parse(query)
+	if err != nil {
+		return "", false, nil
+	}
+	selectStmt, ok := parsed.(*sqlparser.Select)
+	if !ok || len(selectStmt.Windows) == 0 {
+		return "", false, nil
+	}
+	for index, expression := range selectStmt.SelectExprs {
+		aliased, ok := expression.(*sqlparser.AliasedExpr)
+		if !ok {
+			continue
+		}
+		function, ok := aliased.Expr.(*sqlparser.FuncExpr)
+		if !ok || function.Over == nil || function.Over.Name.IsEmpty() {
+			continue
+		}
+		for _, named := range selectStmt.Windows {
+			if named == nil || !named.Name.Equal(function.Over.Name) || named.Spec == nil {
+				continue
+			}
+			selectCopy := *selectStmt
+			selectCopy.Windows = nil
+			selectCopy.SelectExprs = append(sqlparser.SelectExprs(nil), selectStmt.SelectExprs...)
+			aliasedCopy := *aliased
+			functionCopy := *function
+			functionCopy.Over = named.Spec
+			aliasedCopy.Expr = &functionCopy
+			selectCopy.SelectExprs[index] = &aliasedCopy
+			return sqlparser.String(&selectCopy), true, nil
+		}
+	}
+	return "", false, nil
+}
+
 func (e *XMySQLExecutor) executeWindowOnlyProjection(ctx *ExecutionContext, query, databaseName string) (bool, error) {
-	match := regexp.MustCompile(`(?is)^select\s+(row_number|rank|dense_rank|ntile|lag|lead|first_value|last_value|nth_value|cume_dist|percent_rank|sum|avg|min|max|count|std|stddev|stddev_pop|stddev_samp|var_pop|var_samp|variance|bit_and|bit_or|bit_xor|json_arrayagg|json_objectagg)\s*\((.*?)\)\s+over\s*\(`).FindStringSubmatchIndex(query)
-	if len(match) == 0 {
+	parsed, parseErr := sqlparser.Parse(query)
+	if parseErr != nil {
 		return false, nil
 	}
-	overOpen := match[1] - 1
-	overClose := matchingParenIndex(query, overOpen)
-	if overClose < 0 {
-		return true, fmt.Errorf("window specification has unbalanced parentheses")
+	selectStmt, ok := parsed.(*sqlparser.Select)
+	if !ok || len(selectStmt.SelectExprs) != 1 || len(selectStmt.From) != 1 {
+		return false, nil
 	}
-	afterOver := strings.TrimSpace(query[overClose+1:])
-	afterMatch := regexp.MustCompile("(?is)^as\\s+`?([a-zA-Z0-9_$]+)`?\\s+from\\s+`?([a-zA-Z0-9_$]+)`?(?:\\s+order\\s+by\\s+.+)?$").FindStringSubmatch(afterOver)
-	if len(afterMatch) == 0 {
+	aliased, ok := selectStmt.SelectExprs[0].(*sqlparser.AliasedExpr)
+	if !ok || aliased.As.IsEmpty() {
+		return false, nil
+	}
+	windowFunction, ok := aliased.Expr.(*sqlparser.FuncExpr)
+	if !ok || windowFunction.Over == nil {
+		return false, nil
+	}
+	from, ok := selectStmt.From[0].(*sqlparser.AliasedTableExpr)
+	if !ok {
+		return false, nil
+	}
+	sourceName, ok := from.Expr.(sqlparser.TableName)
+	if !ok || sourceName.Name.String() == "" {
+		return false, nil
+	}
+	windowColumn := aliased.As.String()
+	sourceTable := sqlparser.String(sourceName)
+	if sourceTable == "" {
 		return true, fmt.Errorf("window-only query must provide an alias and source table")
 	}
-	sourceTable := afterMatch[2]
 	sourceStmt, err := sqlparser.Parse("select * from " + sourceTable)
 	if err != nil {
 		return true, err
@@ -316,8 +440,11 @@ func (e *XMySQLExecutor) executeWindowOnlyProjection(ctx *ExecutionContext, quer
 	if sourceResult == nil || len(sourceResult.Columns) == 0 {
 		return true, fmt.Errorf("window source %s has no columns", sourceTable)
 	}
-	windowExpression := strings.TrimSpace(query[len("select ") : overClose+1])
-	singleQuery := "select " + sourceResult.Columns[0] + ", " + windowExpression + " " + afterOver
+	windowExpression := sqlparser.String(aliased)
+	singleQuery := "select " + sourceResult.Columns[0] + ", " + windowExpression + " from " + sourceTable
+	if selectStmt.OrderBy != nil {
+		singleQuery += " " + sqlparser.String(selectStmt.OrderBy)
+	}
 	results := make(chan *Result, 1)
 	temporary := *ctx
 	temporary.Results = results
@@ -335,7 +462,6 @@ func (e *XMySQLExecutor) executeWindowOnlyProjection(ctx *ExecutionContext, quer
 	if !ok || selectResult == nil {
 		return true, fmt.Errorf("window-only query returned unexpected result %T", result.Data)
 	}
-	windowColumn := afterMatch[1]
 	windowType := "varchar"
 	if len(selectResult.ColumnTypes) > 1 {
 		windowType = selectResult.ColumnTypes[len(selectResult.ColumnTypes)-1]
@@ -394,7 +520,7 @@ func (e *XMySQLExecutor) executeMultipleWindowExpressions(ctx *ExecutionContext,
 			baseItems = append(baseItems, trimmedItem)
 			continue
 		}
-		if !regexp.MustCompile("(?is)\\s+as\\s+`?[a-zA-Z0-9_$]+`?\\s*$").MatchString(trimmedItem) {
+		if !windowExpressionHasAlias(trimmedItem) {
 			return false, nil
 		}
 		windowItems = append(windowItems, trimmedItem)
@@ -405,6 +531,19 @@ func (e *XMySQLExecutor) executeMultipleWindowExpressions(ctx *ExecutionContext,
 
 	baseProjection := strings.Join(baseItems, ", ")
 	return e.executeMultipleWindowExpressionsViaTemporaryContext(ctx, databaseName, baseProjection, fromParts[1], windowItems)
+}
+
+func windowExpressionHasAlias(expression string) bool {
+	parsed, err := sqlparser.Parse("select " + strings.TrimSpace(expression))
+	if err != nil || parsed == nil {
+		return false
+	}
+	selectStmt, ok := parsed.(*sqlparser.Select)
+	if !ok || len(selectStmt.SelectExprs) != 1 {
+		return false
+	}
+	aliased, ok := selectStmt.SelectExprs[0].(*sqlparser.AliasedExpr)
+	return ok && !aliased.As.IsEmpty()
 }
 
 func (e *XMySQLExecutor) executeMultipleWindowExpressionsViaTemporaryContext(ctx *ExecutionContext, databaseName, baseProjection, fromTail string, windowItems []string) (bool, error) {
@@ -798,7 +937,17 @@ func parseWindowSpecification(spec string) ([]string, []string, []bool, error) {
 	orderDirections := []bool{}
 	if at := strings.Index(lower, "order by"); at >= 0 {
 		order := strings.TrimSpace(spec[at+len("order by"):])
-		order = regexp.MustCompile(`(?is)\s+(rows|range)\s+.+$`).ReplaceAllString(order, "")
+		orderLower := strings.ToLower(order)
+		frameAt := -1
+		if rowsAt := strings.Index(orderLower, " rows "); rowsAt >= 0 {
+			frameAt = rowsAt
+		}
+		if rangeAt := strings.Index(orderLower, " range "); rangeAt >= 0 && (frameAt < 0 || rangeAt < frameAt) {
+			frameAt = rangeAt
+		}
+		if frameAt >= 0 {
+			order = strings.TrimSpace(order[:frameAt])
+		}
 		for _, term := range splitTopLevelComma(order) {
 			fields := strings.Fields(strings.TrimSpace(term))
 			if len(fields) == 0 {

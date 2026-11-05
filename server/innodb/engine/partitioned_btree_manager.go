@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 // partitionedBTreeManager presents multiple physical clustered indexes as one
@@ -500,44 +500,42 @@ func unionPartitionOrdinalSlices(left, right []int) map[int]struct{} {
 }
 
 func partitionConstantBetweenPredicate(condition, expression string) (int64, int64, bool) {
-	identifier := strings.Trim(strings.TrimSpace(expression), "`")
-	pattern := regexp.MustCompile(`(?is)^\s*(?:[a-zA-Z0-9_$]+\s*\.\s*)?` + regexp.QuoteMeta(identifier) + `\s+between\s+(-?[0-9]+)\s+and\s+(-?[0-9]+)\s*$`)
-	match := pattern.FindStringSubmatch(strings.TrimSpace(condition))
-	if len(match) != 3 {
+	left, from, to, operator, ok := partitionRangeAST(condition, expression)
+	if !ok || operator != sqlparser.BetweenStr || !partitionIdentifierMatches(left, expression) {
 		return 0, 0, false
 	}
-	lower, lowerErr := strconv.ParseInt(match[1], 10, 64)
-	upper, upperErr := strconv.ParseInt(match[2], 10, 64)
-	if lowerErr != nil || upperErr != nil || lower > upper {
+	lowerValue, lowerOK := partitionASTLiteral(from)
+	upperValue, upperOK := partitionASTLiteral(to)
+	lower, lowerOK := partitionNumericLiteralValue(lowerValue)
+	upper, upperOK := partitionNumericLiteralValue(upperValue)
+	if !lowerOK || !upperOK || lower > upper {
 		return 0, 0, false
 	}
 	return lower, upper, true
 }
 
 func partitionConstantNotBetweenPredicate(condition, expression string) (int64, int64, bool) {
-	identifier := strings.Trim(strings.TrimSpace(expression), "`")
-	pattern := regexp.MustCompile(`(?is)^\s*(?:[a-zA-Z0-9_$]+\s*\.\s*)?` + regexp.QuoteMeta(identifier) + `\s+not\s+between\s+(-?[0-9]+)\s+and\s+(-?[0-9]+)\s*$`)
-	match := pattern.FindStringSubmatch(strings.TrimSpace(condition))
-	if len(match) != 3 {
+	left, from, to, operator, ok := partitionRangeAST(condition, expression)
+	if !ok || operator != sqlparser.NotBetweenStr || !partitionIdentifierMatches(left, expression) {
 		return 0, 0, false
 	}
-	lower, lowerErr := strconv.ParseInt(match[1], 10, 64)
-	upper, upperErr := strconv.ParseInt(match[2], 10, 64)
-	if lowerErr != nil || upperErr != nil || lower > upper {
+	lowerValue, lowerOK := partitionASTLiteral(from)
+	upperValue, upperOK := partitionASTLiteral(to)
+	lower, lowerOK := partitionNumericLiteralValue(lowerValue)
+	upper, upperOK := partitionNumericLiteralValue(upperValue)
+	if !lowerOK || !upperOK || lower > upper {
 		return 0, 0, false
 	}
 	return lower, upper, true
 }
 
 func partitionConstantTextBetweenPredicate(condition, expression string) (string, string, bool) {
-	identifier := strings.Trim(strings.TrimSpace(expression), "`")
-	pattern := regexp.MustCompile(`(?is)^\s*(?:[a-zA-Z0-9_$]+\s*\.\s*)?` + regexp.QuoteMeta(identifier) + `\s+between\s+('(?:''|[^'])*'|"(?:""|[^"])*")\s+and\s+('(?:''|[^'])*'|"(?:""|[^"])*")\s*$`)
-	match := pattern.FindStringSubmatch(strings.TrimSpace(condition))
-	if len(match) != 3 {
+	left, from, to, operator, ok := partitionRangeAST(condition, expression)
+	if !ok || operator != sqlparser.BetweenStr || !partitionIdentifierMatches(left, expression) {
 		return "", "", false
 	}
-	lowerValue, lowerOK := partitionPredicateLiteral(match[1])
-	upperValue, upperOK := partitionPredicateLiteral(match[2])
+	lowerValue, lowerOK := partitionASTLiteral(from)
+	upperValue, upperOK := partitionASTLiteral(to)
 	lower, lowerText := lowerValue.(string)
 	upper, upperText := upperValue.(string)
 	if !lowerOK || !upperOK || !lowerText || !upperText || lower > upper {
@@ -547,14 +545,12 @@ func partitionConstantTextBetweenPredicate(condition, expression string) (string
 }
 
 func partitionConstantTextNotBetweenPredicate(condition, expression string) (string, string, bool) {
-	identifier := strings.Trim(strings.TrimSpace(expression), "`")
-	pattern := regexp.MustCompile(`(?is)^\s*(?:[a-zA-Z0-9_$]+\s*\.\s*)?` + regexp.QuoteMeta(identifier) + `\s+not\s+between\s+('(?:''|[^'])*'|"(?:""|[^"])*")\s+and\s+('(?:''|[^'])*'|"(?:""|[^"])*")\s*$`)
-	match := pattern.FindStringSubmatch(strings.TrimSpace(condition))
-	if len(match) != 3 {
+	left, from, to, operator, ok := partitionRangeAST(condition, expression)
+	if !ok || operator != sqlparser.NotBetweenStr || !partitionIdentifierMatches(left, expression) {
 		return "", "", false
 	}
-	lowerValue, lowerOK := partitionPredicateLiteral(match[1])
-	upperValue, upperOK := partitionPredicateLiteral(match[2])
+	lowerValue, lowerOK := partitionASTLiteral(from)
+	upperValue, upperOK := partitionASTLiteral(to)
 	lower, lowerText := lowerValue.(string)
 	upper, upperText := upperValue.(string)
 	if !lowerOK || !upperOK || !lowerText || !upperText || lower > upper {
@@ -564,22 +560,19 @@ func partitionConstantTextNotBetweenPredicate(condition, expression string) (str
 }
 
 func partitionConstantNotInPredicate(condition, expression string) ([]interface{}, bool) {
-	identifier := strings.Trim(strings.TrimSpace(expression), "`")
-	pattern := regexp.MustCompile(`(?is)^\s*(?:[a-zA-Z0-9_$]+\s*\.\s*)?` + regexp.QuoteMeta(identifier) + `\s+not\s+in\s*\(([^)]*)\)\s*$`)
-	match := pattern.FindStringSubmatch(strings.TrimSpace(condition))
-	if len(match) != 2 || strings.TrimSpace(match[1]) == "" {
+	left, values, operator, ok := partitionInAST(condition)
+	if !ok || operator != sqlparser.NotInStr || !partitionIdentifierMatches(left, expression) {
 		return nil, false
 	}
-	parts := strings.Split(match[1], ",")
-	values := make([]interface{}, 0, len(parts))
-	for _, part := range parts {
-		value, ok := partitionPredicateLiteral(part)
-		if !ok {
+	result := make([]interface{}, 0, len(values))
+	for _, expr := range values {
+		value, valueOK := partitionASTLiteral(expr)
+		if !valueOK {
 			return nil, false
 		}
-		values = append(values, value)
+		result = append(result, value)
 	}
-	return values, len(values) > 0
+	return result, len(result) > 0
 }
 
 func partitionLiteralIdentity(value interface{}) (string, bool) {
@@ -632,22 +625,83 @@ func allPartitionOrdinalSet(count int) map[int]struct{} {
 }
 
 func partitionConstantInPredicate(condition, expression string) ([]interface{}, bool) {
-	identifier := strings.Trim(strings.TrimSpace(expression), "`")
-	pattern := regexp.MustCompile(`(?is)^\s*(?:[a-zA-Z0-9_$]+\s*\.\s*)?` + regexp.QuoteMeta(identifier) + `\s+in\s*\(([^)]*)\)\s*$`)
-	match := pattern.FindStringSubmatch(strings.TrimSpace(condition))
-	if len(match) != 2 || strings.TrimSpace(match[1]) == "" {
+	left, values, operator, ok := partitionInAST(condition)
+	if !ok || operator != sqlparser.InStr || !partitionIdentifierMatches(left, expression) {
 		return nil, false
 	}
-	parts := strings.Split(match[1], ",")
-	values := make([]interface{}, 0, len(parts))
-	for _, part := range parts {
-		value, ok := partitionPredicateLiteral(part)
-		if !ok {
+	result := make([]interface{}, 0, len(values))
+	for _, expr := range values {
+		value, valueOK := partitionASTLiteral(expr)
+		if !valueOK {
 			return nil, false
 		}
-		values = append(values, value)
+		result = append(result, value)
 	}
-	return values, len(values) > 0
+	return result, len(result) > 0
+}
+
+func partitionRangeAST(condition, expression string) (sqlparser.Expr, sqlparser.Expr, sqlparser.Expr, string, bool) {
+	stmt, err := sqlparser.Parse("select 1 where " + strings.TrimSpace(condition))
+	if err != nil {
+		return nil, nil, nil, "", false
+	}
+	selectStmt, ok := stmt.(*sqlparser.Select)
+	if !ok || selectStmt.Where == nil {
+		return nil, nil, nil, "", false
+	}
+	rangeCond, ok := selectStmt.Where.Expr.(*sqlparser.RangeCond)
+	if !ok {
+		return nil, nil, nil, "", false
+	}
+	return rangeCond.Left, rangeCond.From, rangeCond.To, rangeCond.Operator, true
+}
+
+func partitionInAST(condition string) (sqlparser.Expr, []sqlparser.Expr, string, bool) {
+	stmt, err := sqlparser.Parse("select 1 where " + strings.TrimSpace(condition))
+	if err != nil {
+		return nil, nil, "", false
+	}
+	selectStmt, ok := stmt.(*sqlparser.Select)
+	if !ok || selectStmt.Where == nil {
+		return nil, nil, "", false
+	}
+	comparison, ok := selectStmt.Where.Expr.(*sqlparser.ComparisonExpr)
+	if !ok {
+		return nil, nil, "", false
+	}
+	tuple, ok := comparison.Right.(sqlparser.ValTuple)
+	if !ok {
+		return nil, nil, "", false
+	}
+	return comparison.Left, []sqlparser.Expr(tuple), comparison.Operator, true
+}
+
+func partitionIdentifierMatches(left sqlparser.Expr, expected string) bool {
+	name, ok := left.(*sqlparser.ColName)
+	if !ok {
+		return false
+	}
+	actual := strings.Trim(strings.TrimSpace(name.Name.String()), "`")
+	wanted := strings.Trim(strings.TrimSpace(expected), "`")
+	if strings.Contains(wanted, ".") {
+		wanted = strings.Trim(strings.TrimSpace(strings.Split(wanted, ".")[len(strings.Split(wanted, "."))-1]), "`")
+	}
+	return strings.EqualFold(actual, wanted)
+}
+
+func partitionASTLiteral(expression sqlparser.Expr) (interface{}, bool) {
+	value, ok := expression.(*sqlparser.SQLVal)
+	if !ok {
+		return nil, false
+	}
+	if value.Type == sqlparser.IntVal {
+		parsed, err := strconv.ParseInt(string(value.Val), 10, 64)
+		return parsed, err == nil
+	}
+	if value.Type == sqlparser.StrVal {
+		return string(value.Val), true
+	}
+	return nil, false
 }
 
 func partitionPredicateLiteral(raw string) (interface{}, bool) {

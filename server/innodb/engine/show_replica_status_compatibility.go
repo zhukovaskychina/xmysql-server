@@ -3,40 +3,33 @@ package engine
 import (
 	"fmt"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 	"github.com/zhukovaskychina/xmysql-server/server/replication"
 )
 
 func isShowReplicaStatusQuery(query string) bool {
-	q := strings.ToLower(strings.TrimSpace(strings.TrimSuffix(query, ";")))
-	if q == "show replica status" || q == "show slave status" {
-		return true
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return false
 	}
-	_, matched := parseShowReplicaStatusChannel(query)
-	return matched
+	show, ok := parsed.AST.(*sqlparser.Show)
+	return ok && (strings.EqualFold(show.Type, "replica status") || strings.EqualFold(show.Type, "slave status") || strings.EqualFold(show.Type, "replica") || strings.EqualFold(show.Type, "slave"))
 }
 
-var showReplicaStatusChannelPattern = regexp.MustCompile(`(?is)^\s*show\s+(?:replica|slave)\s+status\s+for\s+channel\s+(?:"((?:""|[^"])*)"|'((?:''|[^'])*)'|([^\s]+))\s*;?\s*$`)
-
 func parseShowReplicaStatusChannel(query string) (channel string, matched bool) {
-	match := showReplicaStatusChannelPattern.FindStringSubmatch(query)
-	if len(match) != 4 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
 		return "", false
 	}
-	channel = match[1]
-	if channel == "" {
-		channel = match[2]
+	show, ok := parsed.AST.(*sqlparser.Show)
+	if !ok || (!strings.EqualFold(show.Type, "replica status") && !strings.EqualFold(show.Type, "slave status") && !strings.EqualFold(show.Type, "replica") && !strings.EqualFold(show.Type, "slave")) {
+		return "", false
 	}
-	if channel == "" {
-		channel = match[3]
-	}
-	channel = strings.ReplaceAll(channel, `""`, `"`)
-	channel = strings.ReplaceAll(channel, "''", "'")
-	return strings.TrimSpace(channel), true
+	return strings.TrimSpace(show.Channel), show.Channel != ""
 }
 
 func (e *XMySQLExecutor) checkReplicationPrivilege(ctx *ExecutionContext, required string) error {

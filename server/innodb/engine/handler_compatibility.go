@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 // handlerCursorState is the connection-local state for the small but useful
@@ -31,28 +31,29 @@ type handlerCursorState struct {
 	LookupNext string
 }
 
-var handlerTablePattern = regexp.MustCompile(`(?is)^handler\s+(` + "`?" + `[a-zA-Z0-9_$]+` + "`?" + `(?:\s*\.\s*` + "`?" + `[a-zA-Z0-9_$]+` + "`?" + `)?)\s+(open|close|read)\b(.*)$`)
-
 // executeHandlerCompatibility implements the session-cursor forms most
 // clients use for indexed/table scans: OPEN, READ FIRST/NEXT and CLOSE.  It
 // deliberately reuses the ordinary SELECT/storage path so visibility,
 // transactions and result conversion stay identical to SELECT *.
 func (e *XMySQLExecutor) executeHandlerCompatibility(ctx *ExecutionContext, session server.MySQLServerSession, query, databaseName string, results chan *Result) (bool, error) {
-	match := handlerTablePattern.FindStringSubmatch(strings.TrimSpace(strings.TrimSuffix(query, ";")))
-	if len(match) != 4 {
+	handler, err := sqlparser.ParseHandlerForExecution(strings.TrimSpace(strings.TrimSuffix(query, ";")))
+	if err != nil || handler == nil {
+		return false, nil
+	}
+	if handler.Table.Name.String() == "" {
 		return false, nil
 	}
 	if session == nil {
 		return true, fmt.Errorf("HANDLER requires a session")
 	}
-	db, table := handlerQualifiedName(match[1], databaseName)
+	db, table := handlerQualifiedName(sqlparser.String(handler.Table), databaseName)
 	if db == "" || table == "" {
 		return true, fmt.Errorf("HANDLER table name is incomplete")
 	}
 	key := strings.ToLower(db + "." + table)
 	cursors := handlerCursors(session)
-	action := strings.ToLower(strings.TrimSpace(match[2]))
-	suffix := strings.TrimSpace(match[3])
+	action := strings.ToLower(strings.TrimSpace(handler.Kind))
+	suffix := handlerSuffixFromAST(handler)
 	switch action {
 	case "open":
 		alias, aliasErr := handlerOpenAlias(suffix)
@@ -104,8 +105,42 @@ func (e *XMySQLExecutor) executeHandlerCompatibility(ctx *ExecutionContext, sess
 		results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: result, Message: fmt.Sprintf("HANDLER returned %d row(s)", result.RowCount)}
 		return true, nil
 	default:
-		return true, fmt.Errorf("unsupported HANDLER operation %q", match[2])
+		return true, fmt.Errorf("unsupported HANDLER operation %q", action)
 	}
+}
+
+func handlerSuffixFromAST(handler *sqlparser.HandlerStatement) string {
+	if handler == nil {
+		return ""
+	}
+	if handler.Suffix != "" {
+		if handler.Name != "" {
+			return handler.Name + " " + handler.Suffix
+		}
+		return handler.Suffix
+	}
+	switch strings.ToLower(handler.Kind) {
+	case "open":
+		if handler.Alias != "" {
+			return "as " + handler.Alias
+		}
+	case "read":
+		parts := make([]string, 0, 4)
+		if handler.Name != "" {
+			parts = append(parts, handler.Name)
+		}
+		if handler.Direction != "" {
+			parts = append(parts, handler.Direction)
+		}
+		if handler.Condition != nil {
+			parts = append(parts, "where "+sqlparser.String(handler.Condition))
+		}
+		if handler.Limit != nil {
+			parts = append(parts, sqlparser.String(handler.Limit))
+		}
+		return strings.Join(parts, " ")
+	}
+	return ""
 }
 
 func handlerOpenAlias(suffix string) (string, error) {
@@ -122,10 +157,28 @@ func handlerOpenAlias(suffix string) (string, error) {
 		return "", fmt.Errorf("invalid HANDLER OPEN alias %q", suffix)
 	}
 	suffix = strings.Trim(strings.TrimSpace(suffix), "`")
-	if !regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_$]*$`).MatchString(suffix) {
+	if !handlerIdentifierValid(suffix) {
 		return "", fmt.Errorf("invalid HANDLER OPEN alias %q", suffix)
 	}
 	return suffix, nil
+}
+
+func handlerIdentifierValid(value string) bool {
+	if value == "" {
+		return false
+	}
+	for index, character := range value {
+		if index == 0 {
+			if !(character == '_' || character >= 'A' && character <= 'Z' || character >= 'a' && character <= 'z') {
+				return false
+			}
+			continue
+		}
+		if !(character == '_' || character == '$' || character >= 'A' && character <= 'Z' || character >= 'a' && character <= 'z' || character >= '0' && character <= '9') {
+			return false
+		}
+	}
+	return true
 }
 
 func handlerCursors(session server.MySQLServerSession) map[string]*handlerCursorState {
@@ -245,27 +298,21 @@ func (e *XMySQLExecutor) readHandlerCursor(ctx *ExecutionContext, session server
 
 func handlerReadLimit(spec string) (string, string) {
 	spec = strings.TrimSpace(spec)
-	patterns := []struct {
-		pattern *regexp.Regexp
-		format  func([]string) string
-	}{
-		{regexp.MustCompile(`(?is)\s+limit\s+([0-9]+)\s*,\s*([0-9]+)\s*$`), func(match []string) string {
-			return "limit " + match[1] + "," + match[2]
-		}},
-		{regexp.MustCompile(`(?is)\s+limit\s+([0-9]+)\s+offset\s+([0-9]+)\s*$`), func(match []string) string {
-			return "limit " + match[1] + " offset " + match[2]
-		}},
-		{regexp.MustCompile(`(?is)\s+limit\s+([0-9]+)\s*$`), func(match []string) string {
-			return "limit " + match[1]
-		}},
+	lower := strings.ToLower(spec)
+	limitIndex := strings.LastIndex(lower, " limit ")
+	if limitIndex < 0 {
+		return spec, ""
 	}
-	for _, candidate := range patterns {
-		match := candidate.pattern.FindStringSubmatchIndex(spec)
-		if len(match) == 0 {
-			continue
-		}
-		values := candidate.pattern.FindStringSubmatch(spec)
-		return strings.TrimSpace(spec[:match[0]]), candidate.format(values)
+	prefix := strings.TrimSpace(spec[:limitIndex])
+	tail := strings.Fields(strings.ReplaceAll(spec[limitIndex+1:], ",", " , "))
+	if len(tail) == 2 && tail[0] == "limit" {
+		return prefix, "limit " + tail[1]
+	}
+	if len(tail) == 4 && tail[0] == "limit" && tail[2] == "offset" {
+		return prefix, "limit " + tail[1] + " offset " + tail[3]
+	}
+	if len(tail) == 4 && tail[0] == "limit" && tail[2] == "," {
+		return prefix, "limit " + tail[1] + "," + tail[3]
 	}
 	return spec, ""
 }
@@ -359,11 +406,38 @@ func (e *XMySQLExecutor) handlerIndexColumns(ctx *ExecutionContext, databaseName
 }
 
 func handlerLookupPredicate(indexColumns []string, spec string) (string, string, error) {
-	match := regexp.MustCompile(`(?is)^\s*(=|<=|>=|<|>)\s*\((.*)\)\s*(?:where\s+.*)?$`).FindStringSubmatch(strings.TrimSpace(spec))
-	if len(match) != 3 {
+	trimmedSpec := strings.TrimSpace(spec)
+	if whereIndex := strings.Index(strings.ToLower(trimmedSpec), " where "); whereIndex >= 0 {
+		trimmedSpec = strings.TrimSpace(trimmedSpec[:whereIndex])
+	}
+	quotedColumns := make([]string, 0, len(indexColumns))
+	for _, column := range indexColumns {
+		quotedColumns = append(quotedColumns, "`"+strings.ReplaceAll(column, "`", "``")+"`")
+	}
+	parsed, err := sqlparser.Parse("select * from __handler_lookup where (" + strings.Join(quotedColumns, ", ") + ") " + trimmedSpec)
+	if err != nil {
 		return "", "", fmt.Errorf("invalid HANDLER index lookup %q", strings.TrimSpace(spec))
 	}
-	values := splitTopLevelComma(match[2])
+	selectStmt, ok := parsed.(*sqlparser.Select)
+	if !ok || selectStmt.Where == nil {
+		return "", "", fmt.Errorf("invalid HANDLER index lookup %q", strings.TrimSpace(spec))
+	}
+	var comparisonExpr *sqlparser.ComparisonExpr
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		if candidate, ok := node.(*sqlparser.ComparisonExpr); ok && comparisonExpr == nil {
+			comparisonExpr = candidate
+			return false, nil
+		}
+		return true, nil
+	}, selectStmt.Where.Expr)
+	if comparisonExpr == nil {
+		return "", "", fmt.Errorf("invalid HANDLER index lookup %q", strings.TrimSpace(spec))
+	}
+	right := strings.TrimSpace(sqlparser.String(comparisonExpr.Right))
+	if len(right) < 2 || right[0] != '(' || right[len(right)-1] != ')' {
+		return "", "", fmt.Errorf("invalid HANDLER index lookup %q", strings.TrimSpace(spec))
+	}
+	values := splitTopLevelComma(right[1 : len(right)-1])
 	if len(values) == 0 || len(values) > len(indexColumns) {
 		return "", "", fmt.Errorf("HANDLER index lookup expects between 1 and %d value(s), got %d", len(indexColumns), len(values))
 	}
@@ -373,7 +447,7 @@ func handlerLookupPredicate(indexColumns []string, spec string) (string, string,
 			return "", "", fmt.Errorf("HANDLER index lookup value %d is empty", index+1)
 		}
 	}
-	operator := match[1]
+	operator := comparisonExpr.Operator
 	keyColumns := indexColumns[:len(values)]
 	quoteColumn := func(column string) string {
 		return "`" + strings.ReplaceAll(column, "`", "``") + "`"

@@ -2,13 +2,15 @@ package engine
 
 import (
 	"context"
+	"strings"
+	"sync"
+	"sync/atomic"
+
 	"github.com/pelletier/go-toml/query"
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
-	"strings"
-	"sync"
-	"sync/atomic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 // 定义查询上下文环境，
@@ -30,6 +32,10 @@ type ExecutionContext struct {
 	DatabaseName string
 
 	RawQuery string
+	// Parsed is the immutable parse result for RawQuery when the statement
+	// has entered the staged execution-parser path. Child statements use their
+	// own context and never overwrite the parent result.
+	Parsed *sqlparser.ParsedStatement
 
 	Session              server.MySQLServerSession
 	Warnings             []Warning

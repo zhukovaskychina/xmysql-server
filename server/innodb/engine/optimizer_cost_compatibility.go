@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 const pendingOptimizerCostFileParam = "pending_optimizer_cost_file"
@@ -244,10 +244,6 @@ func (e *XMySQLExecutor) ensureOptimizerCostModelLoaded() error {
 	return e.reloadOptimizerCostModel()
 }
 
-var optimizerCostInsertPattern = regexp.MustCompile(`(?is)^\s*insert\s+(?:ignore\s+)?into\s+mysql\s*\.\s*(server_cost|engine_cost)\s*\((.*?)\)\s*values\s*(.+?)\s*$`)
-var optimizerCostUpdatePattern = regexp.MustCompile(`(?is)^\s*update\s+mysql\s*\.\s*(server_cost|engine_cost)\s+set\s+(.+?)(?:\s+where\s+(.+?))?\s*$`)
-var optimizerCostDeletePattern = regexp.MustCompile(`(?is)^\s*delete\s+from\s+mysql\s*\.\s*(server_cost|engine_cost)(?:\s+where\s+(.+?))?\s*$`)
-
 func parseOptimizerCostLiteral(raw string) (string, bool, error) {
 	raw = strings.TrimSpace(raw)
 	if strings.EqualFold(raw, "null") {
@@ -408,23 +404,84 @@ func parseOptimizerCostAssignments(raw string) (map[string]string, error) {
 }
 
 func (e *XMySQLExecutor) executeMySQLOptimizerCostMutation(ctx *ExecutionContext, session server.MySQLServerSession, query string) (bool, error) {
-	trimmed := strings.ReplaceAll(strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(query), ";")), "`", "")
-	insert := optimizerCostInsertPattern.FindStringSubmatch(trimmed)
-	update := optimizerCostUpdatePattern.FindStringSubmatch(trimmed)
-	delete := optimizerCostDeletePattern.FindStringSubmatch(trimmed)
-	if len(insert) == 0 && len(update) == 0 && len(delete) == 0 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return false, nil
+	}
+	var match []string
+	switch stmt := parsed.AST.(type) {
+	case *sqlparser.Insert:
+		if !strings.EqualFold(stmt.Table.Qualifier.String(), "mysql") || (stmt.Action != sqlparser.InsertStr && stmt.Action != sqlparser.ReplaceStr) {
+			return false, nil
+		}
+		values, ok := stmt.Rows.(sqlparser.Values)
+		if !ok || len(values) == 0 {
+			return false, nil
+		}
+		tupleText := make([]string, 0, len(values))
+		for _, tuple := range values {
+			items := make([]string, 0, len(tuple))
+			for _, value := range tuple {
+				items = append(items, sqlparser.String(value))
+			}
+			tupleText = append(tupleText, "("+strings.Join(items, ", ")+")")
+		}
+		columns := make([]string, 0, len(stmt.Columns))
+		for _, column := range stmt.Columns {
+			columns = append(columns, sqlparser.String(column))
+		}
+		match = []string{"", stmt.Table.Name.String(), strings.Join(columns, ", "), strings.Join(tupleText, ", ")}
+	case *sqlparser.Update:
+		table, ok := optimizerCostTableFromExprs(stmt.TableExprs)
+		if !ok || !strings.EqualFold(table.Qualifier.String(), "mysql") {
+			return false, nil
+		}
+		assignments := make([]string, 0, len(stmt.Exprs))
+		for _, assignment := range stmt.Exprs {
+			assignments = append(assignments, sqlparser.String(assignment.Name)+" = "+sqlparser.String(assignment.Expr))
+		}
+		where := ""
+		if stmt.Where != nil {
+			where = sqlparser.String(stmt.Where.Expr)
+		}
+		match = []string{"", table.Name.String(), strings.Join(assignments, ", "), where}
+	case *sqlparser.Delete:
+		table, ok := optimizerCostTableFromExprs(stmt.TableExprs)
+		if !ok || !strings.EqualFold(table.Qualifier.String(), "mysql") {
+			return false, nil
+		}
+		where := ""
+		if stmt.Where != nil {
+			where = sqlparser.String(stmt.Where.Expr)
+		}
+		match = []string{"", table.Name.String(), where}
+	default:
 		return false, nil
 	}
 	if ctx == nil {
 		ctx = &ExecutionContext{Session: session}
 	}
-	if len(insert) > 0 {
-		return true, e.executeOptimizerCostInsert(ctx, session, insert)
+	switch parsed.AST.(type) {
+	case *sqlparser.Insert:
+		return true, e.executeOptimizerCostInsert(ctx, session, match)
+	case *sqlparser.Update:
+		return true, e.executeOptimizerCostUpdate(ctx, session, match)
+	case *sqlparser.Delete:
+		return true, e.executeOptimizerCostDelete(ctx, session, match)
 	}
-	if len(update) > 0 {
-		return true, e.executeOptimizerCostUpdate(ctx, session, update)
+	return false, nil
+}
+
+func optimizerCostTableFromExprs(exprs sqlparser.TableExprs) (sqlparser.TableName, bool) {
+	if len(exprs) != 1 {
+		return sqlparser.TableName{}, false
 	}
-	return true, e.executeOptimizerCostDelete(ctx, session, delete)
+	aliased, ok := exprs[0].(*sqlparser.AliasedTableExpr)
+	if !ok {
+		return sqlparser.TableName{}, false
+	}
+	table, ok := aliased.Expr.(sqlparser.TableName)
+	return table, ok
 }
 
 func (e *XMySQLExecutor) executeOptimizerCostInsert(ctx *ExecutionContext, session server.MySQLServerSession, match []string) error {

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -12,21 +11,35 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
-var informationSchemaBufferSpaceFilterPattern = regexp.MustCompile(`(?is)\bspace\s*(?:=|like)\s*(?:'([^']*)'|"([^"]*)"|([0-9]+))`)
-
 func informationSchemaBufferSpacePattern(query string) string {
-	match := informationSchemaBufferSpaceFilterPattern.FindStringSubmatch(query)
-	if len(match) == 0 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
 		return ""
 	}
-	for _, value := range match[1:] {
-		if value != "" {
-			return value
-		}
+	selectStmt, ok := parsed.AST.(*sqlparser.Select)
+	if !ok || selectStmt.Where == nil {
+		return ""
 	}
-	return ""
+	var pattern string
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		if pattern != "" {
+			return false, nil
+		}
+		comparison, ok := node.(*sqlparser.ComparisonExpr)
+		if !ok || (comparison.Operator != sqlparser.EqualStr && !strings.EqualFold(comparison.Operator, sqlparser.LikeStr)) {
+			return true, nil
+		}
+		column, ok := comparison.Left.(*sqlparser.ColName)
+		value, valueOK := comparison.Right.(*sqlparser.SQLVal)
+		if ok && valueOK && strings.EqualFold(column.Name.String(), "space") {
+			pattern = string(value.Val)
+		}
+		return true, nil
+	}, selectStmt.Where.Expr)
+	return pattern
 }
 
 func informationSchemaBufferSpaceMatches(spaceID uint32, pattern string) bool {

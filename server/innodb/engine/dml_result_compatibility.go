@@ -173,6 +173,7 @@ func (dml *StorageIntegratedDMLExecutor) zeroTemporalColumnValue(value interface
 	if text == "" {
 		return "", false
 	}
+	// regexp-value: retained. Zero and partial dates are value shapes, not statement structure.
 	zeroDate := regexp.MustCompile(`^0{4}-0{2}-0{2}(?:[ T]0{2}:0{2}:0{2})?$`).MatchString(text)
 	partialDate := regexp.MustCompile(`^(?:\d{4}-00-\d{2}|\d{4}-\d{2}-00)(?:[ T].*)?$`).MatchString(text)
 	if zeroDate && !dml.noZeroDate {

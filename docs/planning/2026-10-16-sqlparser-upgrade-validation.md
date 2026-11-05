@@ -225,3 +225,38 @@
 - 过程/事件的同一 JDBC 驱动多语句服务脚本遇到 driver commands-out-of-sync，未把该子项误报为服务矩阵通过；过程/事件单元和 engine 回归仍通过。
 
 - 重启后复核命令：SHOW CREATE TABLE t、SHOW CREATE VIEW v、SHOW COLUMNS FROM t、SHOW INDEX FROM t、INFORMATION_SCHEMA.TABLE_CONSTRAINTS 均成功并返回 1 行；服务已停止。
+
+- 完整 engine 元数据门禁重跑后，视图/例程/Firewall/精度差异已消失；剩余失败集中在复制运行时权限、分区/生成列旧 parser 警告、共享元数据锁等待和 Performance Schema table handle 状态，仍未计为通过。
+- 直接锁门禁组合也复现共享锁超时与 replica runtime 前置条件失败；锁单测证据保留，但最终 T20 锁门禁不勾选。
+
+- Go 1.24.0 toolchain was fetched and verified. CI-scope build of 57 packages passed. CI-scope test executed under Go 1.24: all packages passed except server/innodb/engine; engine failed on shared-lock/replica-runtime prerequisites, parser warnings for partition/generated DDL, and two view/CTE compatibility cases. Full output was captured by the command session and the failures remain explicitly listed rather than hidden.
+
+- 修复网络层 COM_QUERY 多语句切分：BEGIN/END 过程体内部分号不再被拆开；TestSplitTopLevelStatementsPreservesStoredProgramBody 和完整 server/net 包测试通过。独立服务日志确认 JDBC CREATE PROCEDURE/CALL 已进入服务端；事件 JDBC 子项仍需独立服务稳定运行后再复核。
+
+- 最新 CI-scope scan 未新增站点：1072 Go 文件、73 regexp-import 文件、603 sites、0 parse errors，分类 518/12/73。账户/角色元数据仍保留部分 parse-error 兼容过滤模式，因此 T16 provider 全量删除项未勾选。
+- 最后锁门禁的失败已稳定归为共享元数据锁/replica runtime 前置条件和 engine 后台资源级联等待；没有把这些结果改写为通过。
+
+- 账户/角色元数据过滤全部移除 regexp 依赖，改为 ParseForExecution + AST 谓词求值；account_metadata_compatibility.go 已无 regexp 调用。扫描降至 72 regexp-import 文件、592 sites、0 parse errors (pattern 507, syntax/value 12, value/escaping 73)。
+
+- 非账户元数据 AST 过滤继续收口：information_schema role/keyword/view usage/extension filters 已去除 regexp，扫描降至 71 regexp-import 文件、584 sites、0 parse errors (pattern 499, syntax/value 12, value/escaping 73).
+
+## 2026-10-17 metadata regex removal continuation
+
+- 已将非账户元数据提供器的剩余 SQL 结构识别改为 AST：optimizer cost 的 INSERT/UPDATE/DELETE、INFORMATION_SCHEMA 参数/字符集/排序规则/引擎过滤、Performance Schema setup 表的 DML 与谓词、SHOW 的 LIKE/WHERE/目标提取、例程/触发器/事件元数据兼容路径均不再使用原始 SQL 正则。
+- 元数据 LIKE 和大小写不敏感目录匹配改为手写 SQL LIKE 状态机；SQL `REGEXP` 运算符、JSON 校验、账户主机模式等值语义保留，不把值匹配误标为 SQL 结构解析。
+- 当前 CI 范围扫描命令：`go run ./scripts/sql-regex-audit -root . -exclude cmd,client -output docs/planning/2026-10-16-sql-regex-audit-ci-scope.json`；结果为 1072 个 Go 文件、51 个 regexp 导入文件、450 个站点、0 个解析异常，分类为 pattern_definition 386、syntax_candidate_or_value_match 9、value_match_or_escaping 55。9 个 syntax/value 候选均为值语义或兼容边界。
+- 定向回归通过：元数据 Firewall/扩展 NULL 谓词、optimizer cost DML、Performance Schema setup IN/NOT IN/NULL/UPDATE/INSERT/DELETE、SHOW 路由与 LIKE、SHOW CREATE TABLE/VIEW、SHOW FULL TABLES/COLUMNS。
+- 仍未把完整 engine 元数据门禁、锁/复制运行时前置条件、JDBC 过程/事件和历史 511 站点可比性写成通过；这些边界保留在计划的未完成项中。
+
+- 本轮继续迁移 AST：SHOW BINLOG/RELAYLOG/REPLICA STATUS、SHOW CREATE DATABASE、SQL PREPARE/EXECUTE/DEALLOCATE、INSTALL/UNINSTALL COMPONENT、CREATE TABLE LIKE、ALTER TABLESPACE、INFORMATION_SCHEMA foreign filter 等结构解析已改用 `sqlparser` AST；相关值语义正则保留。
+- 本轮定向回归通过：dispatcher 全包、ALTER/结构化 ALTER、SHOW 复制/日志/数据库、SQL Prepared Statement、Component、CREATE TABLE LIKE、TABLESPACE 及外键过滤测试。
+- 当前 CI 范围扫描为 1072 个 Go 文件、51 个正则导入文件、450 个站点、0 个解析异常；分类为 pattern_definition 386、syntax/value 9、value/escaping 55。（扫描 JSON 为当前权威数据。）
+
+
+## 2026-10-18 AST 迁移继续验证
+
+当前扫描为 1076 Go 文件、28 个 regexp 导入文件、150 个直接调用位置、0 Go 解析异常，分类 99/9/42。前文 450 等为历史快照，不是当前数量；Compile/MustCompile 和 QuoteMeta 不能用来证明剩余正则全部是值匹配。
+
+新增复制管理、表维护/直方图、FLUSH、PERSIST、改密权限判断、表空间传输、CTAS 与建表索引可见性等 AST 迁移。修复通用 AST 锁入口与显式锁处理器的自身等待，相关失败锁用例复测通过。dispatcher/sqlparser 全包、engine 38.089s 组合定向回归及 57 包 CI 范围构建通过。
+
+异步事件单独重复测试仍有 Windows 元数据文件替换 Access is denied，未计通过。完整实施边界、通过与失败证据见 [2026-10-18 进展记录](2026-10-18-sql-regex-ast-migration-progress.md)。尚未声明全部迁移完成。

@@ -2393,6 +2393,7 @@ func sqlTruthValue(value interface{}) int {
 	return 0
 }
 
+// regexp-value: retained. LIKE and ESCAPE are value patterns.
 func sqlLikePatternMatch(value, pattern string) bool {
 	matched, _ := sqlLikePatternMatchWithEscape(value, pattern, nil, nil)
 	return matched

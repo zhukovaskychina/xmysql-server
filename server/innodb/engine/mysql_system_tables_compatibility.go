@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
@@ -104,54 +102,17 @@ func (e *XMySQLExecutor) executeMySQLSystemTableSelect(query string, session ser
 	return newInformationSchemaSelectResult("mysql."+table, columns, projected)
 }
 
-var mysqlSystemTableValueFilterPattern = regexp.MustCompile(`(?is)\b(component_id|component_group_id|component_urn|host|user|password_timestamp|password|cost_name|cost_value|last_update|comment|default_value|engine_name|device_type)\b\s*(?:=|like)\s*(?:'((?:''|[^'])*)'|"((?:""|[^"])*)")`)
-var mysqlSystemTableValueInFilterPattern = regexp.MustCompile(`(?is)\b(component_id|component_group_id|component_urn|host|user|password_timestamp|password|cost_name|cost_value|last_update|comment|default_value|engine_name|device_type)\b\s+(not\s+)?in\s*\(([^)]*)\)`)
-var mysqlSystemTableValueNullFilterPattern = regexp.MustCompile(`(?is)\b(component_id|component_group_id|component_urn|host|user|password_timestamp|password|cost_name|cost_value|last_update|comment|default_value|engine_name|device_type)\b\s+is\s+(not\s+)?null`)
-
+// mysqlSystemTableValuesMatch evaluates the complete WHERE AST against one
+// native catalog row. Projection literals never become row predicates, and
+// OR/NOT/NULL retain SQL truth semantics.
 func mysqlSystemTableValuesMatch(query string, values map[string]interface{}) bool {
-	for _, match := range mysqlSystemTableValueFilterPattern.FindAllStringSubmatch(query, -1) {
-		field := strings.ToUpper(match[1])
-		pattern := match[2]
-		if pattern == "" {
-			pattern = strings.ReplaceAll(match[3], `""`, `"`)
-		} else {
-			pattern = strings.ReplaceAll(pattern, "''", "'")
-		}
-		if !metadataPatternMatchesAllowEmpty(fmt.Sprint(values[field]), pattern) {
-			return false
-		}
+	expr, err := metadataPredicateFromQuery(query)
+	if err != nil {
+		return false
 	}
-	for _, match := range mysqlSystemTableValueNullFilterPattern.FindAllStringSubmatch(query, -1) {
-		field := strings.ToUpper(match[1])
-		isNull := values[field] == nil
-		wantNull := strings.TrimSpace(match[2]) == ""
-		if isNull != wantNull {
-			return false
-		}
+	if expr == nil {
+		return true
 	}
-	for _, match := range mysqlSystemTableValueInFilterPattern.FindAllStringSubmatch(query, -1) {
-		field := strings.ToUpper(match[1])
-		// MySQL's three-valued logic makes both IN and NOT IN evaluate to
-		// UNKNOWN when the row value is NULL. WHERE keeps only TRUE rows, so a
-		// NULL value must not survive either form of membership predicate.
-		if values[field] == nil {
-			return false
-		}
-		value := fmt.Sprint(values[field])
-		contains := false
-		for _, raw := range splitTopLevelComma(match[3]) {
-			candidate := strings.Trim(strings.TrimSpace(raw), "'\"")
-			candidate = strings.ReplaceAll(candidate, "''", "'")
-			candidate = strings.ReplaceAll(candidate, `""`, `"`)
-			if strings.EqualFold(candidate, value) {
-				contains = true
-				break
-			}
-		}
-		notIn := strings.TrimSpace(match[2]) != ""
-		if notIn == contains {
-			return false
-		}
-	}
-	return true
+	keep, err := evaluateMetadataPredicateCaseInsensitive(expr, values)
+	return err == nil && keep
 }

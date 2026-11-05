@@ -2,18 +2,19 @@ package engine
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
-const commonCTASTableOptions = `(?:(?:engine\s*=\s*innodb|default\s+(?:character\s+set|charset)\s*=\s*[a-zA-Z0-9_]+|(?:character\s+set|charset)\s*=\s*[a-zA-Z0-9_]+|collate\s*=\s*[a-zA-Z0-9_]+|row_format\s*=\s*(?:dynamic|compact|compressed|redundant|default))\s+)*`
-
-var createTableAsSelectPattern = regexp.MustCompile(`(?is)^\s*create\s+table\s+(if\s+not\s+exists\s+)?((?:` + "`?" + `[a-zA-Z0-9_$]+` + "`?" + `\s*\.\s*)?` + "`?" + `[a-zA-Z0-9_$]+` + "`?" + `)\s+(` + commonCTASTableOptions + `)(?:(ignore|replace)\s+)?(?:as\s+)?((?:select|with)\b.*)$`)
-var createTableAsSelectExplicitPattern = regexp.MustCompile(`(?is)^\s*create\s+table\s+(if\s+not\s+exists\s+)?((?:` + "`?" + `[a-zA-Z0-9_$]+` + "`?" + `\s*\.\s*)?` + "`?" + `[a-zA-Z0-9_$]+` + "`?" + `)\s+(\(.*\))\s+(` + commonCTASTableOptions + `)(?:(ignore|replace)\s+)?(?:as\s+)?((?:select|with)\b.*)$`)
-var createTableAsSelectDefinitionPattern = regexp.MustCompile(`(?is)^\s*` + commonCTASTableOptions + `(?:(?:ignore|replace)\s+)?(?:as\s+)?(?:select|with)\b`)
+func createTableAsSelectAST(query string) *sqlparser.TableDDLStatement {
+	stmt, matched, err := sqlparser.ParseCreateTableAsSelect(query)
+	if err != nil || !matched {
+		return nil
+	}
+	return stmt
+}
 
 // executeRawCreateTableAsSelectCompatibility implements the common CTAS path
 // that the legacy parser does not represent in its DDL AST. The source SELECT
@@ -21,28 +22,22 @@ var createTableAsSelectDefinitionPattern = regexp.MustCompile(`(?is)^\s*` + comm
 // table definition, and the materialized rows are inserted through the normal
 // storage-integrated DML path.
 func (e *XMySQLExecutor) executeRawCreateTableAsSelectCompatibility(ctx *ExecutionContext, query, databaseName string) (bool, error) {
-	trimmed := strings.TrimSpace(strings.TrimSuffix(query, ";"))
-	match := createTableAsSelectPattern.FindStringSubmatch(trimmed)
-	explicitMatch := createTableAsSelectExplicitPattern.FindStringSubmatch(trimmed)
-	if len(match) != 6 && len(explicitMatch) != 7 {
+	stmt, matched, parseErr := sqlparser.ParseCreateTableAsSelect(query)
+	if !matched {
 		return false, nil
 	}
-	tableOptions := ""
-	mode := ""
-	if len(explicitMatch) == 7 {
-		match = []string{explicitMatch[0], explicitMatch[1], explicitMatch[2], explicitMatch[6]}
-		tableOptions = strings.TrimSpace(explicitMatch[4])
-		mode = strings.ToLower(strings.TrimSpace(explicitMatch[5]))
-	} else {
-		tableOptions = strings.TrimSpace(match[3])
-		mode = strings.ToLower(strings.TrimSpace(match[4]))
-		match = []string{match[0], match[1], match[2], match[5]}
+	if parseErr != nil {
+		return true, parseErr
 	}
+	tableOptions, mode := stmt.TableOptions, stmt.SelectMode
 	explicitDefinitions := ""
-	if len(explicitMatch) == 7 {
-		explicitDefinitions = explicitMatch[3]
+	if stmt.Definition != "" {
+		explicitDefinitions = "(" + stmt.Definition + ")"
 	}
-	targetDB, targetTable := compatibilityQualifiedTable(match[2], databaseName)
+	targetDB, targetTable := stmt.Targets[0].Qualifier.String(), stmt.Targets[0].Name.String()
+	if targetDB == "" {
+		targetDB = databaseName
+	}
 	if targetDB == "" || targetTable == "" {
 		return true, fmt.Errorf("CREATE TABLE AS SELECT requires a target table and database")
 	}
@@ -52,14 +47,14 @@ func (e *XMySQLExecutor) executeRawCreateTableAsSelectCompatibility(ctx *Executi
 	if exists, err := e.checkTableExists(targetDB, targetTable); err != nil {
 		return true, err
 	} else if exists {
-		if strings.TrimSpace(match[1]) != "" {
+		if stmt.IfNotExists {
 			ctx.Results <- &Result{ResultType: common.RESULT_TYPE_DDL, Message: fmt.Sprintf("Table '%s' already exists", targetTable)}
 			return true, nil
 		}
 		return true, fmt.Errorf("table '%s.%s' already exists", targetDB, targetTable)
 	}
 
-	sourceQuery := strings.TrimSpace(match[3])
+	sourceQuery := stmt.AsSelectSQL
 	sourceCtx := *ctx
 	var sourceResult *SelectResult
 	var err error

@@ -3,7 +3,6 @@ package dispatcher
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 	"github.com/zhukovaskychina/xmysql-server/server/protocol"
 )
 
@@ -1287,15 +1287,10 @@ func (h *EnhancedBusinessMessageHandler) getRequiredPrivilegesForSQL(sql, sqlTyp
 }
 
 func isSelfServiceSetPassword(user, host, sql string) bool {
-	normalized := strings.Join(strings.Fields(strings.ToUpper(strings.TrimSpace(sql))), " ")
-	if !strings.HasPrefix(normalized, "SET PASSWORD") {
-		return false
+	if parsed, err := sqlparser.ParseForExecution(sql); err == nil {
+		return sqlparser.IsSelfServicePasswordChange(parsed.AST, sqlparser.AccountName{User: user, Host: host})
 	}
-	if !strings.Contains(normalized, " FOR ") || strings.Contains(normalized, " FOR CURRENT_USER") {
-		return true
-	}
-	match := regexp.MustCompile(`(?is)^\s*set\s+password\s+for\s+'([^']*)'\s*@\s*'([^']*)'`).FindStringSubmatch(sql)
-	return len(match) == 3 && strings.EqualFold(match[1], user) && strings.EqualFold(match[2], host)
+	return false
 }
 
 // getRequiredPrivileges 获取所需权限

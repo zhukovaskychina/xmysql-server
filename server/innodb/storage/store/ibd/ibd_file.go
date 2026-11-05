@@ -228,6 +228,12 @@ func (f *IBD_File) WritePage(pageNo uint32, page []byte) error {
 	// Calculate page offset
 	offset := int64(pageNo) * int64(common.PageSize)
 
+	if dw := LookupDoublewrite(f.filePath); dw != nil {
+		if err := dw.Protect(f.spaceID, pageNo, f.filePath, page); err != nil {
+			return fmt.Errorf("doublewrite page %d: %w", pageNo, err)
+		}
+	}
+
 	// Write page data
 	startedAt := time.Now()
 	n, err := f.file.WriteAt(page, offset)
@@ -237,6 +243,11 @@ func (f *IBD_File) WritePage(pageNo uint32, page []byte) error {
 	}
 	if n != common.PageSize {
 		return fmt.Errorf("incomplete page write: %d bytes", n)
+	}
+	if LookupDoublewrite(f.filePath) != nil {
+		if err := f.file.Sync(); err != nil {
+			return fmt.Errorf("fsync page %d after doublewrite: %w", pageNo, err)
+		}
 	}
 
 	return nil

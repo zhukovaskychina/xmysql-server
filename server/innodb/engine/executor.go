@@ -12,7 +12,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -36,7 +35,23 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/replication"
 )
 
-var jdbcTableCatIdentifierPattern = regexp.MustCompile(`(?i)(^|[^a-z0-9_])table_cat([^a-z0-9_]|$)`)
+func jdbcTableCatIdentifierPresent(query string) bool {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return false
+	}
+	found := false
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		switch value := node.(type) {
+		case *sqlparser.ColName:
+			found = found || strings.EqualFold(value.Name.String(), "table_cat")
+		case *sqlparser.AliasedExpr:
+			found = found || strings.EqualFold(value.As.String(), "table_cat")
+		}
+		return !found, nil
+	}, parsed.AST)
+	return found
+}
 
 // XMySQLExecutor 是 SQL 执行器的核心结构，负责整个 SQL 的解析与执行
 // 支持解析 SELECT、DDL、SHOW 等语句，并调用相应执行逻辑
@@ -2687,6 +2702,37 @@ func (e *XMySQLExecutor) ExecuteWithQuery(mysqlSession server.MySQLServerSession
 	return results
 }
 
+// ExecuteParsedQuery is the optional dispatcher entry point.  The caller has
+// already validated the complete statement; the execution context receives
+// that immutable result so authorization, locks and execution share it.
+func (e *XMySQLExecutor) ExecuteParsedQuery(mysqlSession server.MySQLServerSession, parsed *sqlparser.ParsedStatement, databaseName string) <-chan *Result {
+	if parsed == nil || !parsed.Complete {
+		results := make(chan *Result, 1)
+		results <- &Result{Err: fmt.Errorf("parsed SQL is incomplete"), ResultType: common.RESULT_TYPE_QUERY}
+		close(results)
+		return results
+	}
+	results := make(chan *Result)
+	workerResults := make(chan *Result)
+	queryContext, cleanup := e.beginActiveQuery(mysqlSession)
+	executionContext := &ExecutionContext{Context: queryContext, Results: workerResults, Session: mysqlSession, RawQuery: parsed.RawSQL, Parsed: parsed, statementMetricsDeferred: true}
+	e.ctx = executionContext
+	go func() {
+		defer cleanup()
+		e.executeQuery(executionContext, mysqlSession, parsed.RawSQL, databaseName, workerResults)
+	}()
+	go func() {
+		defer close(results)
+		for result := range workerResults {
+			if result != nil {
+				executionContext.recordStatementResult(result)
+			}
+			results <- result
+		}
+	}()
+	return results
+}
+
 func (e *XMySQLExecutor) recordStatementMetrics(ctx *ExecutionContext, mysqlSession server.MySQLServerSession, query, databaseName, status string, latency time.Duration) {
 	if e == nil || e.metricsRecorder == nil || ctx == nil {
 		return
@@ -2801,6 +2847,22 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		ctx.DatabaseName = databaseName
 		ctx.RawQuery = query
 		ctx.Session = mysqlSession
+		// Parse staged families once at the execution boundary so early
+		// compatibility handlers (views, accounts, SET and SHOW) can consume
+		// the same AST as authorization and lock preparation. Unsupported
+		// families deliberately fall through to their existing handlers.
+		if ctx.Parsed == nil {
+			if parsed, parseErr := e.ensureParsedStatement(ctx, query); parseErr == nil {
+				ctx.Parsed = parsed
+			}
+		}
+		if ctx.Parsed != nil && (ctx.Parsed.Family == sqlparser.StatementFamilySelect || ctx.Parsed.Family == sqlparser.StatementFamilyInsert || ctx.Parsed.Family == sqlparser.StatementFamilyUpdate || ctx.Parsed.Family == sqlparser.StatementFamilyDelete) {
+			if detached, rewriteErr := rewriteStatementAST(ctx.Parsed.AST); rewriteErr == nil {
+				copy := *ctx.Parsed
+				copy.AST = detached
+				ctx.Parsed = &copy
+			}
+		}
 	}
 	e.prepareRolesGraphMLSession(mysqlSession)
 	if result, handled, err := e.executeDirectSystemVariableSelect(query, mysqlSession); handled {
@@ -2905,6 +2967,37 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 	if e.executeUserVariableAssignment(ctx, query, mysqlSession) {
 		return
 	}
+	if ctx != nil && ctx.Parsed != nil {
+		if prepared, ok := ctx.Parsed.AST.(*sqlparser.PreparedStatement); ok {
+			if handled, err := e.executeParsedPreparedStatement(ctx, mysqlSession, prepared, databaseName, results); handled {
+				if err != nil {
+					metricStatus = "error"
+					results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY, Message: err.Error()}
+				}
+				return
+			}
+		}
+		if component, ok := ctx.Parsed.AST.(*sqlparser.ComponentStatement); ok {
+			if handled, err := e.executeParsedComponentLifecycle(ctx, mysqlSession, component); handled {
+				if err != nil {
+					metricStatus = "error"
+					results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY, Message: err.Error()}
+				}
+				return
+			}
+		}
+		if admin, ok := ctx.Parsed.AST.(*sqlparser.AdminStatement); ok {
+			if handled, err := e.executeParsedReplicationAdmin(admin); handled {
+				if err != nil {
+					metricStatus = "error"
+					results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY, Message: err.Error()}
+				} else {
+					results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Message: "statement executed successfully"}
+				}
+				return
+			}
+		}
+	}
 	if handled, err := e.executeSQLPreparedStatementCompatibility(ctx, mysqlSession, query, databaseName, results); handled {
 		if err != nil {
 			metricStatus = "error"
@@ -2925,6 +3018,19 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 			results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Message: "XA statement executed successfully"}
 		}
 		return
+	}
+	if ctx != nil && ctx.Parsed != nil {
+		if admin, ok := ctx.Parsed.AST.(*sqlparser.AdminStatement); ok {
+			if parsedResult, parsedErr := e.executeParsedAdmin(ctx, admin, mysqlSession); parsedResult != nil || parsedErr != nil {
+				if parsedErr != nil {
+					metricStatus = "error"
+					results <- &Result{Err: parsedErr, ResultType: common.RESULT_TYPE_QUERY, Message: parsedErr.Error()}
+				} else {
+					results <- parsedResult
+				}
+				return
+			}
+		}
 	}
 	if handled, err := e.executeAdminCompatibility(ctx, mysqlSession, query); handled {
 		if err != nil {
@@ -2966,7 +3072,7 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		return
 	}
 
-	if isShowFullTablesQuery(query) {
+	if isShowFullTablesQuery(query) && ctx.Parsed == nil {
 		e.executeShowFullTablesRaw(ctx, mysqlSession, query, databaseName)
 		return
 	}
@@ -3017,6 +3123,30 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		}
 		return
 	}
+	if ctx != nil && ctx.Parsed == nil {
+		if family, classifyErr := sqlparser.ClassifyStatement(query); classifyErr == nil && family == sqlparser.StatementFamilyAlter {
+			if parsed, parseErr := e.ensureParsedStatement(ctx, query); parseErr == nil {
+				ctx.Parsed = parsed
+			}
+		}
+	}
+	if ctx != nil && ctx.Parsed != nil && ctx.Parsed.Family == sqlparser.StatementFamilyAlter {
+		if alterStmt, ok := ctx.Parsed.AST.(*sqlparser.AlterTable); ok && len(alterStmt.Operations) == 1 && (alterStmt.Operations[0].Kind == sqlparser.AlterOperationTablespace || alterStmt.Operations[0].Kind == sqlparser.AlterOperationPartition) {
+			if handled, err := e.executeStructuredAlterCompatibility(ctx, alterStmt, databaseName); handled {
+				if err != nil {
+					metricStatus = "error"
+					results <- &Result{Err: err, ResultType: common.RESULT_TYPE_DDL, Message: err.Error()}
+				} else {
+					message := "ALTER TABLE TABLESPACE executed successfully"
+					if alterStmt.Operations[0].Kind == sqlparser.AlterOperationPartition {
+						message = "ALTER TABLE PARTITION executed successfully"
+					}
+					results <- &Result{ResultType: common.RESULT_TYPE_DDL, Message: message}
+				}
+				return
+			}
+		}
+	}
 	if handled, err := e.executeRawCreatePartitionCompatibility(ctx, query, databaseName); handled {
 		if err != nil {
 			metricStatus = "error"
@@ -3051,6 +3181,25 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 			results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY, Message: err.Error()}
 		}
 		return
+	}
+	if ctx != nil && ctx.Parsed == nil {
+		if parsed, stagedErr := e.ensureParsedStatement(ctx, query); stagedErr != nil || parsed.Family != sqlparser.StatementFamilyAlter {
+			// Keep the legacy compatibility path for unsupported or non-ALTER
+			// families; the staged parser must not widen this branch.
+		}
+	}
+	if ctx != nil && ctx.Parsed != nil && ctx.Parsed.Family == sqlparser.StatementFamilyAlter {
+		if alterStmt, ok := ctx.Parsed.AST.(*sqlparser.AlterTable); ok {
+			if handled, err := e.executeStructuredAlterCompatibility(ctx, alterStmt, databaseName); handled {
+				if err != nil {
+					metricStatus = "error"
+					results <- &Result{Err: err, ResultType: common.RESULT_TYPE_DDL, Message: err.Error()}
+					return
+				}
+				results <- &Result{ResultType: common.RESULT_TYPE_DDL, Message: "ALTER TABLE executed successfully"}
+				return
+			}
+		}
 	}
 	if handled, err := e.executeRawAlterCompatibility(ctx, query, databaseName); handled {
 		if err != nil {
@@ -3146,8 +3295,13 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 	} else if rewritten != "" {
 		query = rewritten
 		ctx.RawQuery = rewritten
+	} else if withStatementPrefix(query) && !strings.HasPrefix(strings.ToLower(strings.TrimSpace(query)), "with recursive ") {
+		err := common.NewErr(common.ErrNotSupportedYet, "CTE")
+		metricStatus = "error"
+		results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY, Message: err.Error()}
+		return
 	}
-	if rewritten, err := e.rewriteViewQuery(query, databaseName); err != nil {
+	if rewritten, err := e.rewriteViewQueryForExecution(query, databaseName); err != nil {
 		results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
 		return
 	} else if rewritten != "" {
@@ -3285,8 +3439,21 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		}
 		return
 	}
-	// SQL语法解析
-	stmt, err := sqlparser.Parse(query)
+	// SQL语法解析。SHOW/DESCRIBE/EXPLAIN use the staged parser when their
+	// structured AST is available; other families retain the existing parser
+	// until their migration task is complete.
+	var stmt sqlparser.Statement
+	var err error
+	if parsed, stagedErr := e.ensureParsedStatement(ctx, query); stagedErr == nil &&
+		(parsed.Family == sqlparser.StatementFamilyShow || parsed.Family == sqlparser.StatementFamilyExplain || parsed.Family == sqlparser.StatementFamilySet || parsed.Family == sqlparser.StatementFamilyDDL) {
+		if tableDDL, ok := parsed.AST.(*sqlparser.TableDDLStatement); ok && tableDDL.Primary != nil {
+			stmt = tableDDL.Primary
+		} else {
+			stmt = parsed.AST
+		}
+	} else {
+		stmt, err = sqlparser.Parse(query)
+	}
 	if err != nil {
 		ctx.statementParseError = true
 		results <- &Result{
@@ -3453,6 +3620,8 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		e.executeDBDDL(stmt, mysqlSession, results)
 	case *sqlparser.Show:
 		e.executeShowStatementWithQuery(ctx, stmt, mysqlSession, query)
+	case *sqlparser.ExplainStatement:
+		e.executeExplainQuery(ctx, query, databaseName)
 	case *sqlparser.Set:
 		e.executeSetStatement(ctx, stmt, mysqlSession)
 	case *sqlparser.Use:
@@ -3484,10 +3653,22 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 // grammar does not expose as a structured AST yet. It still updates the
 // persisted dictionary atomically, so the statement cannot report success
 // while leaving a half-written .frm file behind.
+func parseAlterOptionAST(query string) (sqlparser.TableName, sqlparser.AlterTableOperation, bool) {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return sqlparser.TableName{}, sqlparser.AlterTableOperation{}, false
+	}
+	stmt, ok := parsed.AST.(*sqlparser.AlterTable)
+	if !ok || len(stmt.Operations) != 1 {
+		return sqlparser.TableName{}, sqlparser.AlterTableOperation{}, false
+	}
+	return stmt.Table, stmt.Operations[0], true
+}
+
 func (e *XMySQLExecutor) executeRawAlterCompatibility(ctx *ExecutionContext, query, currentDB string) (bool, error) {
 	q := strings.TrimSpace(strings.TrimSuffix(query, ";"))
 	lowerQuery := strings.ToLower(q)
-	if !alterTablePattern.MatchString(q) && !strings.HasPrefix(lowerQuery, "rename table ") {
+	if !strings.HasPrefix(lowerQuery, "alter table ") && !strings.HasPrefix(lowerQuery, "rename table ") {
 		return false, nil
 	}
 	if ctx != nil && (sessionBoolParam(ctx.Session, "in_transaction") || sessionHasTransactionTableLocks(ctx.Session)) {
@@ -3523,15 +3704,11 @@ func (e *XMySQLExecutor) executeRawAlterCompatibility(ctx *ExecutionContext, que
 		}
 		defer release()
 	}
-	tableCommentPattern := regexp.MustCompile("(?is)^alter\\s+table\\s+((?:`?[a-zA-Z0-9_$]+`?\\s*\\.\\s*)?`?[a-zA-Z0-9_$]+`?)\\s+comment\\s*(?:=\\s*)?(?:'((?:''|[^'])*)'|\"((?:\"\"|[^\"])*)\")$")
-	if match := tableCommentPattern.FindStringSubmatch(q); len(match) == 4 {
-		tableComment := match[2]
-		if tableComment != "" {
-			tableComment = strings.ReplaceAll(tableComment, "''", "'")
-		} else {
-			tableComment = strings.ReplaceAll(match[3], `""`, `"`)
+	if table, option, ok := parseAlterOptionAST(q); ok && strings.EqualFold(option.Name, "comment") {
+		targetDB, targetTable := table.Qualifier.String(), table.Name.String()
+		if targetDB == "" {
+			targetDB = currentDB
 		}
-		targetDB, targetTable := compatibilityQualifiedTable(match[1], currentDB)
 		if targetDB == "" || targetTable == "" {
 			return true, fmt.Errorf("ALTER TABLE requires a database and table name")
 		}
@@ -3540,36 +3717,39 @@ func (e *XMySQLExecutor) executeRawAlterCompatibility(ctx *ExecutionContext, que
 		if err != nil {
 			return true, err
 		}
-		tableInfo["table_comment"] = tableComment
+		tableInfo["table_comment"] = option.Value
 		return true, writeTableMetadataMapAtomic(frmPath, tableInfo)
 	}
-	tableCharsetPattern := regexp.MustCompile("(?is)^alter\\s+table\\s+((?:`?[a-zA-Z0-9_$]+`?\\s*\\.\\s*)?`?[a-zA-Z0-9_$]+`?)\\s+(?:default\\s+)?(?:character\\s+set|charset)\\s*(?:=\\s*)?([a-zA-Z0-9_]+)(?:\\s+collate\\s*(?:=\\s*)?([a-zA-Z0-9_]+))?$")
-	if match := tableCharsetPattern.FindStringSubmatch(q); len(match) == 4 {
-		targetDB, targetTable := compatibilityQualifiedTable(match[1], currentDB)
-		return true, e.persistAlterTableCharacterOptions(targetDB, targetTable, match[2], match[3], "default charset="+match[2])
-	}
-	tableConvertCharsetPattern := regexp.MustCompile("(?is)^alter\\s+table\\s+((?:`?[a-zA-Z0-9_$]+`?\\s*\\.\\s*)?`?[a-zA-Z0-9_$]+`?)\\s+convert\\s+to\\s+(?:character\\s+set|charset)\\s*(?:=\\s*)?([a-zA-Z0-9_]+)(?:\\s+collate\\s*(?:=\\s*)?([a-zA-Z0-9_]+))?$")
-	if match := tableConvertCharsetPattern.FindStringSubmatch(q); len(match) == 4 {
-		targetDB, targetTable := compatibilityQualifiedTable(match[1], currentDB)
-		return true, e.persistAlterTableCharacterOptions(targetDB, targetTable, match[2], match[3], "convert to charset="+match[2])
-	}
-	tableCollationPattern := regexp.MustCompile("(?is)^alter\\s+table\\s+((?:`?[a-zA-Z0-9_$]+`?\\s*\\.\\s*)?`?[a-zA-Z0-9_$]+`?)\\s+(?:default\\s+)?collate\\s*(?:=\\s*)?([a-zA-Z0-9_]+)$")
-	if match := tableCollationPattern.FindStringSubmatch(q); len(match) == 3 {
-		targetDB, targetTable := compatibilityQualifiedTable(match[1], currentDB)
-		return true, e.persistAlterTableCharacterOptions(targetDB, targetTable, "", match[2], "default collate="+match[2])
-	}
-	tableRowFormatPattern := regexp.MustCompile("(?is)^alter\\s+table\\s+((?:`?[a-zA-Z0-9_$]+`?\\s*\\.\\s*)?`?[a-zA-Z0-9_$]+`?)\\s+row_format\\s*=\\s*(dynamic|compact|compressed|redundant|default)$")
-	if match := tableRowFormatPattern.FindStringSubmatch(q); len(match) == 3 {
-		targetDB, targetTable := compatibilityQualifiedTable(match[1], currentDB)
-		return true, e.persistAlterTableRowFormat(targetDB, targetTable, match[2])
-	}
-	autoIncrementPattern := regexp.MustCompile("(?is)^alter\\s+table\\s+((?:`?[a-zA-Z0-9_$]+`?\\s*\\.\\s*)?`?[a-zA-Z0-9_$]+`?)\\s+auto_increment\\s*=\\s*([0-9]+)$")
-	if match := autoIncrementPattern.FindStringSubmatch(q); len(match) == 3 {
-		requested, err := strconv.ParseUint(match[2], 10, 64)
-		if err != nil || requested == 0 {
-			return true, fmt.Errorf("invalid AUTO_INCREMENT value %q", match[2])
+	if table, option, ok := parseAlterOptionAST(q); ok && (strings.EqualFold(option.Name, "charset") || strings.EqualFold(option.Name, "character") || strings.EqualFold(option.Name, "convert")) {
+		targetDB, targetTable := table.Qualifier.String(), table.Name.String()
+		if targetDB == "" {
+			targetDB = currentDB
 		}
-		targetDB, targetTable := compatibilityQualifiedTable(match[1], currentDB)
+		return true, e.persistAlterTableCharacterOptions(targetDB, targetTable, option.Value, option.Collation, option.Definition)
+	}
+	if table, option, ok := parseAlterOptionAST(q); ok && strings.EqualFold(option.Name, "collate") {
+		targetDB, targetTable := table.Qualifier.String(), table.Name.String()
+		if targetDB == "" {
+			targetDB = currentDB
+		}
+		return true, e.persistAlterTableCharacterOptions(targetDB, targetTable, "", option.Value, "default collate="+option.Value)
+	}
+	if table, option, ok := parseAlterOptionAST(q); ok && strings.EqualFold(option.Name, "row_format") {
+		targetDB, targetTable := table.Qualifier.String(), table.Name.String()
+		if targetDB == "" {
+			targetDB = currentDB
+		}
+		return true, e.persistAlterTableRowFormat(targetDB, targetTable, option.Value)
+	}
+	if table, option, ok := parseAlterOptionAST(q); ok && strings.EqualFold(option.Name, "auto_increment") {
+		requested, err := strconv.ParseUint(option.Value, 10, 64)
+		if err != nil || requested == 0 {
+			return true, fmt.Errorf("invalid AUTO_INCREMENT value %q", option.Value)
+		}
+		targetDB, targetTable := table.Qualifier.String(), table.Name.String()
+		if targetDB == "" {
+			targetDB = currentDB
+		}
 		frmPath := filepath.Join(e.getDataDir(), targetDB, targetTable+".frm")
 		tableInfo, err := readTableMetadataMap(frmPath)
 		if err != nil {
@@ -3599,67 +3779,16 @@ func (e *XMySQLExecutor) executeRawAlterCompatibility(ctx *ExecutionContext, que
 	if handled, err := e.executeAlterOperationsCompatibility(q, currentDB, foreignKeyChecksEnabled); handled {
 		return true, err
 	}
-	addUniqueConstraintPattern := regexp.MustCompile("(?is)^alter\\s+table\\s+([a-zA-Z0-9_$]+)\\s+add\\s+constraint\\s+`?([a-zA-Z0-9_$]+)`?\\s+unique(?:\\s+(?:index|key))?\\s*\\(([^)]+)\\)$")
-	if match := addUniqueConstraintPattern.FindStringSubmatch(q); len(match) == 4 {
-		translated := fmt.Sprintf("alter table %s add unique index %s (%s)", match[1], match[2], match[3])
-		return e.alterTableIndexDDL(currentDB, match[1], translated, foreignKeyChecksEnabled)
-	}
-	addForeignKeyPattern := regexp.MustCompile("(?is)^alter\\s+table\\s+([a-zA-Z0-9_$]+)\\s+add\\s+(?:constraint\\s+`?([a-zA-Z0-9_$]+)`?\\s+)?foreign\\s+key\\s*\\(([^)]+)\\)\\s+references\\s+(?:(?:`?([a-zA-Z0-9_$]+)`?)\\.)?`?([a-zA-Z0-9_$]+)`?\\s*\\(([^)]+)\\)(.*)$")
-	dropForeignKeyPattern := regexp.MustCompile("(?is)^alter\\s+table\\s+([a-zA-Z0-9_$]+)\\s+drop\\s+foreign\\s+key\\s+`?([a-zA-Z0-9_$]+)`?$")
-	if match := addForeignKeyPattern.FindStringSubmatch(q); len(match) == 8 {
-		return true, e.alterForeignKeyMetadata(currentDB, match[1], match[2], parseIdentifierList(match[3]), match[4], match[5], parseIdentifierList(match[6]), match[7], true, foreignKeyChecksEnabled)
-	}
-	if match := dropForeignKeyPattern.FindStringSubmatch(q); len(match) == 3 {
-		return true, e.alterForeignKeyMetadata(currentDB, match[1], match[2], nil, "", "", nil, "", false, foreignKeyChecksEnabled)
-	}
-	addCheckPattern := regexp.MustCompile("(?is)^alter\\s+table\\s+([a-zA-Z0-9_$]+)\\s+add\\s+(?:constraint\\s+`?([a-zA-Z0-9_$]+)`?\\s+)?check\\s*\\(([^)]*)\\)(?:\\s+(enforced|not\\s+enforced))?$")
-	dropCheckPattern := regexp.MustCompile("(?is)^alter\\s+table\\s+([a-zA-Z0-9_$]+)\\s+drop\\s+check\\s+`?([a-zA-Z0-9_$]+)`?$")
-	if match := addCheckPattern.FindStringSubmatch(q); len(match) == 5 {
-		enforced := !strings.EqualFold(strings.TrimSpace(match[4]), "not enforced")
-		return true, e.alterCheckMetadata(currentDB, match[1], match[2], strings.TrimSpace(match[3]), enforced, true)
-	}
-	if match := dropCheckPattern.FindStringSubmatch(q); len(match) == 3 {
-		return true, e.alterCheckMetadata(currentDB, match[1], match[2], "", true, false)
-	}
-	alterCheckPattern := regexp.MustCompile("(?is)^alter\\s+table\\s+([a-zA-Z0-9_$]+)\\s+alter\\s+check\\s+`?([a-zA-Z0-9_$]+)`?\\s+(enforced|not\\s+enforced)$")
-	if match := alterCheckPattern.FindStringSubmatch(q); len(match) == 4 {
-		enforced := strings.EqualFold(strings.TrimSpace(match[3]), "enforced")
-		return true, e.alterCheckEnforcement(currentDB, match[1], match[2], enforced)
-	}
-	// MySQL accepts DROP CONSTRAINT for named CHECK constraints and, for
-	// compatibility with schemas that use the same spelling for a foreign-key
-	// symbol, we also try the foreign-key metadata path after CHECK lookup.
-	dropConstraintPattern := regexp.MustCompile("(?is)^alter\\s+table\\s+([a-zA-Z0-9_$]+)\\s+drop\\s+constraint\\s+`?([a-zA-Z0-9_$]+)`?$")
-	if match := dropConstraintPattern.FindStringSubmatch(q); len(match) == 3 {
-		checkErr := e.alterCheckMetadata(currentDB, match[1], match[2], "", true, false)
-		if checkErr == nil {
-			return true, nil
+	if parsed, parseErr := sqlparser.ParseForExecution(q); parseErr == nil {
+		if alterStmt, ok := parsed.AST.(*sqlparser.AlterTable); ok {
+			source := alterStmt.Operations
+			if len(source) == 1 && (source[0].ConstraintType != "" || source[0].Kind == sqlparser.AlterOperationDropConstraint || source[0].Kind == sqlparser.AlterOperationAlterCheck || source[0].Kind == sqlparser.AlterOperationSetDefault || source[0].Kind == sqlparser.AlterOperationDropDefault) {
+				if handled, structuredErr := e.executeStructuredAlterCompatibility(ctx, alterStmt, currentDB); handled {
+					return true, structuredErr
+				}
+			}
 		}
-		foreignKeyErr := e.alterForeignKeyMetadata(currentDB, match[1], match[2], nil, "", "", nil, "", false, foreignKeyChecksEnabled)
-		if foreignKeyErr == nil {
-			return true, nil
-		}
-		return true, checkErr
 	}
-	addPrimaryPattern := regexp.MustCompile("(?is)^alter\\s+table\\s+([a-zA-Z0-9_$]+)\\s+add\\s+(?:constraint\\s+`?[a-zA-Z0-9_$]+`?\\s+)?primary\\s+key\\s*\\(([^)]+)\\)$")
-	dropPrimaryPattern := regexp.MustCompile(`(?is)^alter\s+table\s+([a-zA-Z0-9_$]+)\s+drop\s+primary\s+key$`)
-	if match := addPrimaryPattern.FindStringSubmatch(q); len(match) == 3 {
-		return true, e.alterPrimaryKeyMetadata(currentDB, match[1], parseIdentifierList(match[2]), true, foreignKeyChecksEnabled)
-	}
-	if match := dropPrimaryPattern.FindStringSubmatch(q); len(match) == 2 {
-		return true, e.alterPrimaryKeyMetadata(currentDB, match[1], nil, false, foreignKeyChecksEnabled)
-	}
-	setDefaultPattern := regexp.MustCompile("(?is)^alter\\s+table\\s+([a-zA-Z0-9_$]+)\\s+alter\\s+column\\s+`?([a-zA-Z0-9_$]+)`?\\s+set\\s+default\\s+(.+)$")
-	dropDefaultPattern := regexp.MustCompile("(?is)^alter\\s+table\\s+([a-zA-Z0-9_$]+)\\s+alter\\s+column\\s+`?([a-zA-Z0-9_$]+)`?\\s+drop\\s+default$")
-	if match := setDefaultPattern.FindStringSubmatch(q); len(match) == 4 {
-		return true, e.alterColumnDefaultMetadata(currentDB, match[1], match[2], strings.TrimSpace(match[3]), true)
-	}
-	if match := dropDefaultPattern.FindStringSubmatch(q); len(match) == 3 {
-		return true, e.alterColumnDefaultMetadata(currentDB, match[1], match[2], "", false)
-	}
-	modifyPattern := regexp.MustCompile(`(?is)^alter\s+table\s+([a-zA-Z0-9_$]+)\s+modify\s+(?:column\s+)?([a-zA-Z0-9_$]+)\s+(.+)$`)
-	changePattern := regexp.MustCompile(`(?is)^alter\s+table\s+([a-zA-Z0-9_$]+)\s+change\s+(?:column\s+)?([a-zA-Z0-9_$]+)\s+([a-zA-Z0-9_$]+)\s+(.+)$`)
-	renameColumnPattern := regexp.MustCompile(`(?is)^alter\s+table\s+([a-zA-Z0-9_$]+)\s+rename\s+column\s+([a-zA-Z0-9_$]+)\s+to\s+([a-zA-Z0-9_$]+)$`)
 	if renamePairs, matched, err := parseRenameTablePairs(q, currentDB); matched {
 		if err != nil {
 			return true, err
@@ -3680,27 +3809,32 @@ func (e *XMySQLExecutor) executeRawAlterCompatibility(ctx *ExecutionContext, que
 		defer release()
 		return true, e.renameTablesAtomically(renamePairs)
 	}
-	alterRenamePattern := regexp.MustCompile(`(?is)^alter\s+table\s+(?:\x60?([a-zA-Z0-9_$]+)\x60?\.)?\x60?([a-zA-Z0-9_$]+)\x60?\s+rename\s+to\s+(?:\x60?([a-zA-Z0-9_$]+)\x60?\.)?\x60?([a-zA-Z0-9_$]+)\x60?$`)
-
-	if match := modifyPattern.FindStringSubmatch(q); len(match) > 0 {
-		return true, e.replaceAlterColumnMetadata(currentDB, match[1], match[2], match[2], match[3])
-	}
-	if match := changePattern.FindStringSubmatch(q); len(match) > 0 {
-		return true, e.replaceAlterColumnMetadata(currentDB, match[1], match[2], match[3], match[4])
-	}
-	if match := renameColumnPattern.FindStringSubmatch(q); len(match) > 0 {
-		return true, e.renameAlterColumnMetadata(currentDB, match[1], match[2], match[3])
-	}
-	if match := alterRenamePattern.FindStringSubmatch(q); len(match) == 5 {
-		sourceDB, destinationDB := match[1], match[3]
+	if table, operation, ok := parseAlterOptionAST(q); ok && operation.Kind == sqlparser.AlterOperationRenameTable {
+		sourceDB, destinationDB := table.Qualifier.String(), operation.RenameTableTo.Qualifier.String()
 		if sourceDB == "" {
 			sourceDB = currentDB
 		}
 		if destinationDB == "" {
 			destinationDB = currentDB
 		}
-		return true, e.renameTableMetadataAcrossSchemas(sourceDB, match[2], destinationDB, match[4])
+		return true, e.renameTableMetadataAcrossSchemas(sourceDB, table.Name.String(), destinationDB, operation.RenameTableTo.Name.String())
 	}
+	if table, operation, ok := parseAlterOptionAST(q); ok {
+		databaseName := currentDB
+		if table.Qualifier.String() != "" {
+			databaseName = table.Qualifier.String()
+		}
+		tableName := table.Name.String()
+		switch operation.Kind {
+		case sqlparser.AlterOperationModifyColumn:
+			return true, e.replaceAlterColumnMetadata(databaseName, tableName, operation.Name, operation.Name, alterDefinitionTail(operation.Definition, operation.Name))
+		case sqlparser.AlterOperationChangeColumn:
+			return true, e.replaceAlterColumnMetadata(databaseName, tableName, operation.Name, operation.NewName, alterDefinitionTail(operation.Definition, operation.NewName))
+		case sqlparser.AlterOperationRenameColumn:
+			return true, e.renameAlterColumnMetadata(databaseName, tableName, operation.Name, operation.NewName)
+		}
+	}
+
 	return false, nil
 }
 
@@ -3742,9 +3876,8 @@ func (e *XMySQLExecutor) persistAlterTableRowFormat(databaseName, tableName, row
 	options["row_format"] = normalized
 	rawOptions, _ := options["raw_options"].(string)
 	rowFormatOption := "row_format=" + strings.ToLower(normalized)
-	rowFormatPattern := regexp.MustCompile(`(?is)\brow_format\s*=\s*(?:dynamic|compact|compressed|redundant|default)`)
-	if rowFormatPattern.MatchString(rawOptions) {
-		rawOptions = rowFormatPattern.ReplaceAllString(rawOptions, rowFormatOption)
+	if replaced, ok := replaceRowFormatOption(rawOptions, rowFormatOption); ok {
+		rawOptions = replaced
 	} else if strings.TrimSpace(rawOptions) == "" {
 		rawOptions = rowFormatOption
 	} else {
@@ -3764,15 +3897,23 @@ func (e *XMySQLExecutor) persistAlterTableRowFormat(databaseName, tableName, row
 // MySQL-compatible statements. The original .frm is restored if a later
 // clause fails, preventing a reported DDL error from leaving partial metadata.
 func (e *XMySQLExecutor) executeCompoundAlterCompatibility(ctx *ExecutionContext, query, currentDB string) (bool, error) {
-	match := regexp.MustCompile("(?is)^alter\\s+table\\s+((?:`?[a-zA-Z0-9_$]+`?\\s*\\.\\s*)?`?[a-zA-Z0-9_$]+`?)\\s+(.+)$").FindStringSubmatch(query)
-	if len(match) != 3 {
+	parsed, parseErr := sqlparser.ParseForExecution(query)
+	if parseErr != nil {
 		return false, nil
 	}
-	parts := splitTopLevelComma(match[2])
+	statement, ok := parsed.AST.(*sqlparser.AlterTable)
+	if !ok {
+		return false, nil
+	}
+	parts := alterCompatibilityParts(query)
 	if len(parts) < 2 || !alterPartsContainConstraint(parts) {
 		return false, nil
 	}
-	targetDB, targetTable := compatibilityQualifiedTable(match[1], currentDB)
+	rawTarget := statement.Table.Name.String()
+	if statement.Table.Qualifier.String() != "" {
+		rawTarget = statement.Table.Qualifier.String() + "." + rawTarget
+	}
+	targetDB, targetTable := compatibilityQualifiedTable(rawTarget, currentDB)
 	if targetDB == "" || targetTable == "" {
 		return true, fmt.Errorf("no database selected")
 	}
@@ -3783,7 +3924,7 @@ func (e *XMySQLExecutor) executeCompoundAlterCompatibility(ctx *ExecutionContext
 	}
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
-		if part == "" || regexp.MustCompile(`(?is)^(?:algorithm|lock)\s*=`).MatchString(part) {
+		if part == "" || strings.EqualFold(part, "force") || isAlterExecutionOption(part) {
 			continue
 		}
 		singleQuery := "alter table " + targetTable + " " + part
@@ -3813,11 +3954,41 @@ func (e *XMySQLExecutor) executeCompoundAlterCompatibility(ctx *ExecutionContext
 func alterPartsContainConstraint(parts []string) bool {
 	for _, part := range parts {
 		trimmed := strings.TrimSpace(part)
-		if regexp.MustCompile(`(?is)^add\s+(?:constraint\b.*\b(?:unique|foreign\s+key|primary\s+key|check)\b|(?:unique|foreign\s+key|primary\s+key|check)\b)|^drop\s+(?:foreign\s+key|check|primary\s+key)\b`).MatchString(trimmed) {
+		parsed, err := sqlparser.ParseForExecution("alter table __xmysql_compound_target " + trimmed)
+		if err != nil {
+			continue
+		}
+		statement, ok := parsed.AST.(*sqlparser.AlterTable)
+		if !ok || len(statement.Operations) != 1 {
+			continue
+		}
+		switch statement.Operations[0].Kind {
+		case sqlparser.AlterOperationAddConstraint, sqlparser.AlterOperationDropConstraint, sqlparser.AlterOperationAlterCheck:
 			return true
 		}
 	}
 	return false
+}
+
+func alterCompatibilityParts(query string) []string {
+	trimmed := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(query), ";"))
+	lower := strings.ToLower(trimmed)
+	if !strings.HasPrefix(lower, "alter table") || len(trimmed) <= len("alter table") || !isSQLSpace(trimmed[len("alter table")]) {
+		return nil
+	}
+	rest := strings.TrimSpace(trimmed[len("alter table"):])
+	_, rest, ok := consumeAlterIdentifier(rest)
+	if !ok {
+		return nil
+	}
+	rest = strings.TrimSpace(rest)
+	if strings.HasPrefix(rest, ".") {
+		_, rest, ok = consumeAlterIdentifier(strings.TrimSpace(rest[1:]))
+		if !ok {
+			return nil
+		}
+	}
+	return splitTopLevelComma(strings.TrimSpace(rest))
 }
 
 func (e *XMySQLExecutor) alterPrimaryKeyMetadata(dbName, tableName string, columns []string, add, foreignKeyChecksEnabled bool) error {
@@ -4713,14 +4884,7 @@ func renameSQLIdentifier(expression, oldName, newName string) string {
 	if oldName == "" || strings.EqualFold(oldName, newName) {
 		return expression
 	}
-	pattern := regexp.MustCompile(`(?i)(^|[^a-zA-Z0-9_$])` + regexp.QuoteMeta(oldName) + `([^a-zA-Z0-9_$]|$)`)
-	return pattern.ReplaceAllStringFunc(expression, func(match string) string {
-		index := strings.Index(strings.ToLower(match), strings.ToLower(oldName))
-		if index < 0 {
-			return match
-		}
-		return match[:index] + newName + match[index+len(oldName):]
-	})
+	return replaceSQLIdent(expression, oldName, newName)
 }
 
 func foreignKeyReferencesParent(foreignKey map[string]interface{}, childDB, parentDB, parentTable string) bool {
@@ -4834,8 +4998,87 @@ func renameReferencedForeignKeyTable(dataDir, oldDB, oldTable, newDB, newTable s
 
 func rewriteForeignKeyReferenceTable(definition, oldDB, oldTable, newDB, newTable string) string {
 	qualifiedTarget := newDB + "." + newTable
-	pattern := regexp.MustCompile(`(?i)(references\s+)(?:\x60?` + regexp.QuoteMeta(oldDB) + `\x60?\s*\.\s*)?\x60?` + regexp.QuoteMeta(oldTable) + `\x60?`)
-	return pattern.ReplaceAllString(definition, "${1}"+qualifiedTarget)
+	lower := strings.ToLower(definition)
+	marker := "references"
+	var builder strings.Builder
+	start := 0
+	for start < len(lower) {
+		at := strings.Index(lower[start:], marker)
+		if at < 0 {
+			builder.WriteString(definition[start:])
+			break
+		}
+		at += start
+		if at > 0 && isSQLIdentByte(lower[at-1]) {
+			builder.WriteString(definition[start : at+1])
+			start = at + 1
+			continue
+		}
+		cursor := at + len(marker)
+		if cursor < len(lower) && isSQLIdentByte(lower[cursor]) {
+			builder.WriteString(definition[start : at+1])
+			start = at + 1
+			continue
+		}
+		spaceEnd := cursor
+		for spaceEnd < len(lower) && isSQLSpaceByte(lower[spaceEnd]) {
+			spaceEnd++
+		}
+		if spaceEnd == cursor {
+			builder.WriteString(definition[start : at+1])
+			start = at + 1
+			continue
+		}
+		refEnd, matched := consumeOptionalQualifiedTable(lower[spaceEnd:], strings.ToLower(oldDB), strings.ToLower(oldTable))
+		if !matched {
+			builder.WriteString(definition[start : at+1])
+			start = at + 1
+			continue
+		}
+		builder.WriteString(definition[start:spaceEnd])
+		builder.WriteString(qualifiedTarget)
+		start = spaceEnd + refEnd
+	}
+	return builder.String()
+}
+
+func consumeOptionalQualifiedTable(lower, oldDB, oldTable string) (int, bool) {
+	cursor := 0
+	if oldDB != "" && strings.HasPrefix(lower, oldDB) && (len(lower) == len(oldDB) || !isSQLIdentByte(lower[len(oldDB)])) {
+		cursor = len(oldDB)
+	} else if strings.HasPrefix(lower, "`") {
+		end := strings.IndexByte(lower[1:], '`')
+		if end >= 0 && strings.EqualFold(lower[1:1+end], oldDB) {
+			cursor = 2 + end
+		}
+	}
+	if cursor > 0 {
+		for cursor < len(lower) && isSQLSpaceByte(lower[cursor]) {
+			cursor++
+		}
+		if cursor >= len(lower) || lower[cursor] != '.' {
+			return 0, false
+		}
+		cursor++
+		for cursor < len(lower) && isSQLSpaceByte(lower[cursor]) {
+			cursor++
+		}
+	}
+	if strings.HasPrefix(lower[cursor:], "`") {
+		end := strings.IndexByte(lower[cursor+1:], '`')
+		if end < 0 || !strings.EqualFold(lower[cursor+1:cursor+1+end], oldTable) {
+			return 0, false
+		}
+		return cursor + 2 + end, true
+	}
+	if len(lower[cursor:]) < len(oldTable) || !strings.HasPrefix(lower[cursor:], oldTable) {
+		return 0, false
+	}
+	after := cursor + len(oldTable)
+	if after < len(lower) && isSQLIdentByte(lower[after]) {
+		return 0, false
+	}
+	return after, true
 }
 
 func (e *XMySQLExecutor) validateReferencedForeignKeysAfterColumnDrop(dbName, tableName, droppedColumn string) error {
@@ -5048,66 +5291,56 @@ type dropTableTarget struct {
 func parseDropTableTargets(query, currentDB string) ([]dropTableTarget, bool, bool, error) {
 	trimmed := strings.TrimSpace(query)
 	trimmed = strings.TrimSuffix(trimmed, ";")
-	prefixPattern := regexp.MustCompile(`(?is)^drop\s+table\s+(?:(if\s+exists)\s+)?(.+)$`)
-	match := prefixPattern.FindStringSubmatch(trimmed)
-	if len(match) != 3 {
-		return nil, false, false, nil
+	if parsed, err := sqlparser.ParseForExecution(trimmed); err == nil {
+		if statement, ok := parsed.AST.(*sqlparser.TableDDLStatement); ok && strings.EqualFold(statement.Action, "drop") && len(statement.Targets) > 1 {
+			targets := make([]dropTableTarget, 0, len(statement.Targets))
+			seen := make(map[string]struct{})
+			for _, target := range statement.Targets {
+				databaseName, tableName := target.Qualifier.String(), target.Name.String()
+				if databaseName == "" {
+					databaseName = currentDB
+				}
+				if databaseName == "" || tableName == "" {
+					return nil, true, true, fmt.Errorf("no database selected")
+				}
+				key := strings.ToLower(databaseName + "." + tableName)
+				if _, exists := seen[key]; exists {
+					return nil, true, true, fmt.Errorf("DROP TABLE target appears more than once: %s", key)
+				}
+				seen[key] = struct{}{}
+				targets = append(targets, dropTableTarget{databaseName: databaseName, tableName: tableName})
+			}
+			return targets, statement.IfExists, true, nil
+		}
 	}
-	parts := splitTopLevelComma(match[2])
-	if len(parts) <= 1 {
-		return nil, false, false, nil
-	}
-	namePattern := regexp.MustCompile(`(?is)^(?:\x60?([a-zA-Z0-9_$]+)\x60?\.)?\x60?([a-zA-Z0-9_$]+)\x60?$`)
-	targets := make([]dropTableTarget, 0, len(parts))
-	seen := make(map[string]struct{}, len(parts))
-	for _, part := range parts {
-		nameMatch := namePattern.FindStringSubmatch(strings.TrimSpace(part))
-		if len(nameMatch) != 3 {
-			return nil, true, true, fmt.Errorf("invalid DROP TABLE target %q", strings.TrimSpace(part))
-		}
-		databaseName, tableName := nameMatch[1], nameMatch[2]
-		if databaseName == "" {
-			databaseName = currentDB
-		}
-		if databaseName == "" {
-			return nil, true, true, fmt.Errorf("no database selected")
-		}
-		key := strings.ToLower(databaseName + "." + tableName)
-		if _, exists := seen[key]; exists {
-			return nil, true, true, fmt.Errorf("DROP TABLE target appears more than once: %s", key)
-		}
-		seen[key] = struct{}{}
-		targets = append(targets, dropTableTarget{databaseName: databaseName, tableName: tableName})
-	}
-	return targets, strings.TrimSpace(match[1]) != "", true, nil
+	return nil, false, false, nil
 }
 
 func parseDropViewTargets(query, currentDB string) ([]dropTableTarget, bool, bool, error) {
 	trimmed := strings.TrimSpace(strings.TrimSuffix(query, ";"))
-	prefixPattern := regexp.MustCompile(`(?is)^drop\s+view\s+(?:(if\s+exists)\s+)?(.+)$`)
-	match := prefixPattern.FindStringSubmatch(trimmed)
-	if len(match) != 3 {
-		return nil, false, false, nil
-	}
-	parts := splitTopLevelComma(match[2])
-	if len(parts) == 0 {
-		return nil, false, true, fmt.Errorf("DROP VIEW requires a view name")
-	}
-	targets := make([]dropTableTarget, 0, len(parts))
-	seen := make(map[string]struct{}, len(parts))
-	for _, part := range parts {
-		databaseName, tableName := compatibilityQualifiedTable(part, currentDB)
-		if databaseName == "" || tableName == "" {
-			return nil, false, true, fmt.Errorf("DROP VIEW requires valid view names")
+	if parsed, err := sqlparser.ParseForExecution(trimmed); err == nil {
+		if statement, ok := parsed.AST.(*sqlparser.ViewStatement); ok && strings.EqualFold(statement.Kind, "drop") && len(statement.Targets) > 0 {
+			targets := make([]dropTableTarget, 0, len(statement.Targets))
+			seen := make(map[string]struct{})
+			for _, target := range statement.Targets {
+				databaseName, tableName := target.Qualifier.String(), target.Name.String()
+				if databaseName == "" {
+					databaseName = currentDB
+				}
+				if databaseName == "" || tableName == "" {
+					return nil, false, true, fmt.Errorf("DROP VIEW requires valid view names")
+				}
+				key := strings.ToLower(databaseName + "." + tableName)
+				if _, exists := seen[key]; exists {
+					return nil, false, true, fmt.Errorf("DROP VIEW target appears more than once: %s", key)
+				}
+				seen[key] = struct{}{}
+				targets = append(targets, dropTableTarget{databaseName: databaseName, tableName: tableName})
+			}
+			return targets, statement.IfExists, true, nil
 		}
-		key := strings.ToLower(databaseName + "." + tableName)
-		if _, exists := seen[key]; exists {
-			return nil, false, true, fmt.Errorf("DROP VIEW target appears more than once: %s", key)
-		}
-		seen[key] = struct{}{}
-		targets = append(targets, dropTableTarget{databaseName: databaseName, tableName: tableName})
 	}
-	return targets, strings.TrimSpace(match[1]) != "", true, nil
+	return nil, false, false, nil
 }
 
 // executeRawDropTableCompatibility performs statement-wide validation before
@@ -5197,34 +5430,36 @@ func (e *XMySQLExecutor) executeRawDropTableCompatibility(ctx *ExecutionContext,
 
 func parseRenameTablePairs(query, currentDB string) ([]renameTablePair, bool, error) {
 	trimmed := strings.TrimSpace(query)
-	prefixPattern := regexp.MustCompile(`(?is)^rename\s+table(?:\s|$)`)
-	if !prefixPattern.MatchString(trimmed) {
+	family, classifyErr := sqlparser.ClassifyStatement(trimmed)
+	if classifyErr != nil || family != sqlparser.StatementFamilyDDL {
 		return nil, false, nil
 	}
-	rest := strings.TrimSpace(prefixPattern.ReplaceAllString(trimmed, ""))
-	if rest == "" {
-		return nil, true, fmt.Errorf("RENAME TABLE requires at least one table pair")
+	parsed, err := sqlparser.ParseForExecution(trimmed)
+	if err != nil {
+		return nil, true, err
 	}
-	pairPattern := regexp.MustCompile(`(?is)^(?:\x60?([a-zA-Z0-9_$]+)\x60?\.)?\x60?([a-zA-Z0-9_$]+)\x60?\s+to\s+(?:\x60?([a-zA-Z0-9_$]+)\x60?\.)?\x60?([a-zA-Z0-9_$]+)\x60?$`)
-	parts := splitTopLevelComma(rest)
-	pairs := make([]renameTablePair, 0, len(parts))
-	seenSources := make(map[string]struct{}, len(parts))
-	seenTargets := make(map[string]struct{}, len(parts))
-	for _, part := range parts {
-		match := pairPattern.FindStringSubmatch(strings.TrimSpace(part))
-		if len(match) != 5 {
-			return nil, true, fmt.Errorf("invalid RENAME TABLE pair %q", strings.TrimSpace(part))
-		}
-		sourceDB, destinationDB := match[1], match[3]
+	statement, ok := parsed.AST.(*sqlparser.TableDDLStatement)
+	if !ok || !strings.EqualFold(statement.Action, "rename") {
+		return nil, false, nil
+	}
+	if len(statement.Targets) == 0 || len(statement.Targets) != len(statement.RenameTo) {
+		return nil, true, fmt.Errorf("RENAME TABLE requires matching source and destination targets")
+	}
+	pairs := make([]renameTablePair, 0, len(statement.Targets))
+	seenSources := make(map[string]struct{}, len(statement.Targets))
+	seenTargets := make(map[string]struct{}, len(statement.Targets))
+	for index, source := range statement.Targets {
+		destination := statement.RenameTo[index]
+		sourceDB, destinationDB := source.Qualifier.String(), destination.Qualifier.String()
 		if sourceDB == "" {
 			sourceDB = currentDB
 		}
 		if destinationDB == "" {
 			destinationDB = currentDB
 		}
-		pair := renameTablePair{sourceDB: sourceDB, sourceTable: match[2], destinationDB: destinationDB, destinationTbl: match[4]}
-		sourceKey := strings.ToLower(sourceDB + "." + match[2])
-		targetKey := strings.ToLower(destinationDB + "." + match[4])
+		pair := renameTablePair{sourceDB: sourceDB, sourceTable: source.Name.String(), destinationDB: destinationDB, destinationTbl: destination.Name.String()}
+		sourceKey := strings.ToLower(sourceDB + "." + source.Name.String())
+		targetKey := strings.ToLower(destinationDB + "." + destination.Name.String())
 		if _, exists := seenSources[sourceKey]; exists {
 			return nil, true, fmt.Errorf("RENAME TABLE source appears more than once: %s", sourceKey)
 		}
@@ -5656,6 +5891,18 @@ func (e *XMySQLExecutor) executeAlterTableStatement(ctx *ExecutionContext, curre
 			ctx.Results <- &Result{ResultType: common.RESULT_TYPE_DDL, Message: fmt.Sprintf("Table '%s' altered successfully", tableName)}
 			return
 		}
+		if parsed, parseErr := sqlparser.ParseForExecution(rawQuery[0]); parseErr == nil {
+			if alterStmt, ok := parsed.AST.(*sqlparser.AlterTable); ok {
+				if handled, alterErr := e.executeStructuredAlterCompatibility(ctx, alterStmt, currentDB); handled {
+					if alterErr != nil {
+						ctx.Results <- &Result{Err: alterErr, ResultType: common.RESULT_TYPE_DDL, Message: fmt.Sprintf("ALTER TABLE failed: %v", alterErr)}
+					} else {
+						ctx.Results <- &Result{ResultType: common.RESULT_TYPE_DDL, Message: fmt.Sprintf("Table '%s' altered successfully", tableName)}
+					}
+					return
+				}
+			}
+		}
 	}
 	if stmt.TableSpec == nil || len(stmt.TableSpec.Columns) == 0 {
 		ctx.Results <- &Result{Err: fmt.Errorf("unsupported ALTER TABLE action"), ResultType: common.RESULT_TYPE_DDL}
@@ -5669,16 +5916,43 @@ func (e *XMySQLExecutor) executeAlterTableStatement(ctx *ExecutionContext, curre
 }
 
 func (e *XMySQLExecutor) alterTableIndexDDL(dbName, tableName, query string, foreignKeyChecksEnabled bool) (bool, error) {
-	addPattern := regexp.MustCompile(`(?is)^\s*alter\s+table\s+.*?\s+add\s+(unique\s+)?(?:index|key)\s+` + "`?([a-zA-Z0-9_$]+)`?" + `\s*\(([^)]+)\)(?:\s+(visible|invisible))?\s*$`)
-	fullTextAddPattern := regexp.MustCompile(`(?is)^\s*alter\s+table\s+.*?\s+add\s+fulltext\s+(?:index|key)\s+` + "`?([a-zA-Z0-9_$]+)`?" + `\s*\(([^)]+)\)\s*$`)
-	spatialAddPattern := regexp.MustCompile(`(?is)^\s*alter\s+table\s+.*?\s+add\s+spatial\s+(?:index|key)\s+` + "`?([a-zA-Z0-9_$]+)`?" + `\s*\(([^)]+)\)\s*$`)
-	dropPattern := regexp.MustCompile(`(?is)^\s*alter\s+table\s+.*?\s+drop\s+(?:index|key)\s+` + "`?([a-zA-Z0-9_$]+)`?")
-	renamePattern := regexp.MustCompile(`(?is)^\s*alter\s+table\s+.*?\s+rename\s+(?:index|key)\s+` + "`?([a-zA-Z0-9_$]+)`?" + `\s+to\s+` + "`?([a-zA-Z0-9_$]+)`?")
-	add := addPattern.FindStringSubmatch(query)
-	fullTextAdd := fullTextAddPattern.FindStringSubmatch(query)
-	spatialAdd := spatialAddPattern.FindStringSubmatch(query)
-	drop := dropPattern.FindStringSubmatch(query)
-	rename := renamePattern.FindStringSubmatch(query)
+	add, fullTextAdd, spatialAdd, drop, rename := []string(nil), []string(nil), []string(nil), []string(nil), []string(nil)
+	parsed, parseErr := sqlparser.ParseForExecution(query)
+	if parseErr != nil {
+		return false, nil
+	}
+	alter, ok := parsed.AST.(*sqlparser.AlterTable)
+	if !ok || len(alter.Operations) != 1 {
+		return false, nil
+	}
+	operation := alter.Operations[0]
+	definition := strings.ToLower(operation.Definition)
+	switch operation.Kind {
+	case sqlparser.AlterOperationAddIndex:
+		columns := strings.Join(operation.Columns, ",")
+		switch {
+		case strings.Contains(definition, "fulltext"):
+			fullTextAdd = []string{"", operation.Name, columns}
+		case strings.Contains(definition, "spatial"):
+			spatialAdd = []string{"", operation.Name, columns}
+		default:
+			unique := ""
+			if strings.EqualFold(operation.ConstraintType, "unique") || strings.Contains(definition, " unique ") {
+				unique = "unique"
+			}
+			visibility := ""
+			if operation.Visible != "" {
+				visibility = operation.Visible
+			}
+			add = []string{"", unique, operation.Name, columns, visibility}
+		}
+	case sqlparser.AlterOperationDropIndex:
+		drop = []string{"", operation.Name}
+	case sqlparser.AlterOperationRenameIndex:
+		rename = []string{"", operation.Name, operation.NewName}
+	default:
+		return false, nil
+	}
 	if len(add) == 0 && len(fullTextAdd) == 0 && len(spatialAdd) == 0 && len(drop) == 0 && len(rename) == 0 {
 		return false, nil
 	}
@@ -5852,8 +6126,31 @@ func (e *XMySQLExecutor) refreshAlteredSecondaryIndexes(dbName, tableName string
 }
 
 func (e *XMySQLExecutor) alterTableColumnDDL(dbName, tableName, query string, foreignKeyChecksEnabled bool) (bool, error) {
-	renamePattern := regexp.MustCompile(`(?is)^\s*alter\s+table\s+.*?\s+rename\s+column\s+` + "`?([a-zA-Z0-9_$]+)`?" + `\s+to\s+` + "`?([a-zA-Z0-9_$]+)`?")
-	if rename := renamePattern.FindStringSubmatch(query); len(rename) == 3 {
+	rename := []string(nil)
+	defaultColumn, defaultValue, setDefault := "", "", false
+	drop := []string(nil)
+	parsed, parseErr := sqlparser.ParseForExecution(query)
+	if parseErr != nil {
+		return false, nil
+	}
+	alter, ok := parsed.AST.(*sqlparser.AlterTable)
+	if !ok || len(alter.Operations) != 1 {
+		return false, nil
+	}
+	operation := alter.Operations[0]
+	switch operation.Kind {
+	case sqlparser.AlterOperationRenameColumn:
+		rename = []string{"", operation.Name, operation.NewName}
+	case sqlparser.AlterOperationSetDefault:
+		defaultColumn, defaultValue, setDefault = operation.Name, operation.Value, true
+	case sqlparser.AlterOperationDropDefault:
+		defaultColumn = operation.Name
+	case sqlparser.AlterOperationDropColumn:
+		drop = []string{"", operation.Name}
+	default:
+		return false, nil
+	}
+	if len(rename) == 3 {
 		frmPath := filepath.Join(e.getDataDir(), dbName, tableName+".frm")
 		raw, err := os.ReadFile(frmPath)
 		if err != nil {
@@ -5907,14 +6204,6 @@ func (e *XMySQLExecutor) alterTableColumnDDL(dbName, tableName, query string, fo
 		}
 		return true, nil
 	}
-	setDefaultPattern := regexp.MustCompile(`(?is)^\s*alter\s+table\s+.*?\s+alter\s+column\s+` + "`?([a-zA-Z0-9_$]+)`?" + `\s+set\s+default\s+(.+?)\s*;?\s*$`)
-	dropDefaultPattern := regexp.MustCompile(`(?is)^\s*alter\s+table\s+.*?\s+alter\s+column\s+` + "`?([a-zA-Z0-9_$]+)`?" + `\s+drop\s+default\s*;?\s*$`)
-	defaultColumn, defaultValue, setDefault := "", "", false
-	if match := setDefaultPattern.FindStringSubmatch(query); len(match) == 3 {
-		defaultColumn, defaultValue, setDefault = match[1], strings.TrimSpace(match[2]), true
-	} else if match := dropDefaultPattern.FindStringSubmatch(query); len(match) == 2 {
-		defaultColumn = match[1]
-	}
 	if defaultColumn != "" {
 		frmPath := filepath.Join(e.getDataDir(), dbName, tableName+".frm")
 		raw, err := os.ReadFile(frmPath)
@@ -5952,8 +6241,6 @@ func (e *XMySQLExecutor) alterTableColumnDDL(dbName, tableName, query string, fo
 		}
 		return true, nil
 	}
-	dropPattern := regexp.MustCompile(`(?is)^\s*alter\s+table\s+.*?\s+drop\s+column\s+` + "`?([a-zA-Z0-9_$]+)`?")
-	drop := dropPattern.FindStringSubmatch(query)
 	if len(drop) == 0 {
 		return false, nil
 	}
@@ -6128,7 +6415,7 @@ func writeMetadataFileAtomic(path string, data []byte) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmpPath, path)
+	return replaceDurableFile(tmpPath, path)
 }
 
 // executeTruncateTableStatement 执行 TRUNCATE TABLE，保留表元数据并重建表空间。
@@ -6890,8 +7177,7 @@ func bindJoinOuterReferences(query string, row joinedMapRow) string {
 	}
 	sort.SliceStable(references, func(left, right int) bool { return len(references[left].key) > len(references[right].key) })
 	for _, reference := range references {
-		pattern := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(reference.qualifier) + `\s*\.\s*` + regexp.QuoteMeta(reference.column) + `\b`)
-		query = pattern.ReplaceAllString(query, correlatedInterfaceSQLLiteral(reference.value))
+		query = replaceQualifiedName(query, reference.qualifier, reference.column, correlatedInterfaceSQLLiteral(reference.value))
 	}
 	return query
 }
@@ -6953,9 +7239,6 @@ func executeConstantSelectStatement(stmt *sqlparser.Select, sessionValues ...map
 	}, nil
 }
 
-var directSystemVariableSelectPattern = regexp.MustCompile(`(?is)^\s*select\s+(.+?)\s*;?\s*$`)
-var directSystemVariableTokenPattern = regexp.MustCompile(`(?is)^@@(?:(global|session|local)\s*\.\s*)?` + "`?([a-zA-Z0-9_]+)`?" + `\s*$`)
-
 // executeDirectSystemVariableSelect handles the no-FROM form used by native
 // replication clients (for example SELECT @@GLOBAL.SERVER_ID). The general
 // parser treats scoped @@ names as a column-like token and rejects some
@@ -6963,12 +7246,35 @@ var directSystemVariableTokenPattern = regexp.MustCompile(`(?is)^@@(?:(global|se
 // so resolving the narrow token form directly is both more precise and closer
 // to MySQL's protocol-visible behavior.
 func (e *XMySQLExecutor) executeDirectSystemVariableSelect(query string, session server.MySQLServerSession) (*SelectResult, bool, error) {
-	match := directSystemVariableSelectPattern.FindStringSubmatch(strings.TrimSpace(query))
-	if len(match) != 2 || strings.Contains(strings.ToLower(match[1]), " from ") {
-		return nil, false, nil
+	parsed, err := sqlparser.ParseForExecution(query)
+	tokens := make([]struct{ raw, scope, name string }, 0)
+	if err == nil {
+		if selectStmt, ok := parsed.AST.(*sqlparser.Select); ok && len(selectStmt.From) == 0 {
+			for _, expression := range selectStmt.SelectExprs {
+				aliased, ok := expression.(*sqlparser.AliasedExpr)
+				if !ok {
+					tokens = nil
+					break
+				}
+				column, ok := aliased.Expr.(*sqlparser.ColName)
+				if !ok {
+					tokens = nil
+					break
+				}
+				raw := strings.TrimSpace(sqlparser.String(column))
+				token, ok := directSystemVariableToken(raw)
+				if !ok {
+					tokens = nil
+					break
+				}
+				tokens = append(tokens, token)
+			}
+		}
 	}
-	parts := splitTopLevelComma(match[1])
-	if len(parts) == 0 {
+	if len(tokens) == 0 {
+		tokens = directSystemVariableTokensFromLexer(query)
+	}
+	if len(tokens) == 0 {
 		return nil, false, nil
 	}
 	values := newSessionExpressionValues(session)
@@ -6979,18 +7285,12 @@ func (e *XMySQLExecutor) executeDirectSystemVariableSelect(query string, session
 		// crash/reconnect progress.
 		values["gtid_executed"] = e.replicationStatus().ExecutedGTIDs
 	}
-	recordValues := make([]basic.Value, 0, len(parts))
-	columns := make([]string, 0, len(parts))
-	columnTypes := make([]string, 0, len(parts))
-	meta := &metadata.TableMeta{Name: "system_variables", Columns: make([]*metadata.ColumnMeta, 0, len(parts))}
-	for _, raw := range parts {
-		token := strings.TrimSpace(raw)
-		tokenMatch := directSystemVariableTokenPattern.FindStringSubmatch(token)
-		if len(tokenMatch) != 3 {
-			return nil, false, nil
-		}
-		scope := strings.ToLower(tokenMatch[1])
-		name := strings.ToLower(tokenMatch[2])
+	recordValues := make([]basic.Value, 0, len(tokens))
+	columns := make([]string, 0, len(tokens))
+	columnTypes := make([]string, 0, len(tokens))
+	meta := &metadata.TableMeta{Name: "system_variables", Columns: make([]*metadata.ColumnMeta, 0, len(tokens))}
+	for _, token := range tokens {
+		scope, name := token.scope, token.name
 		value, exists := values[name]
 		if scope == "global" && !exists && e != nil && e.storageManager != nil && e.storageManager.GetSystemVariablesManager() != nil {
 			if globalValue, err := e.storageManager.GetSystemVariablesManager().GetVariable("", name, manager.GlobalScope); err == nil {
@@ -7000,45 +7300,124 @@ func (e *XMySQLExecutor) executeDirectSystemVariableSelect(query string, session
 		if !exists {
 			return nil, false, nil
 		}
-		columns = append(columns, token)
+		columns = append(columns, token.raw)
 		if value == nil {
 			recordValues = append(recordValues, basic.NewNull())
 			columnTypes = append(columnTypes, "VARCHAR")
-			meta.Columns = append(meta.Columns, &metadata.ColumnMeta{Name: token, Type: metadata.TypeVarchar})
+			meta.Columns = append(meta.Columns, &metadata.ColumnMeta{Name: token.raw, Type: metadata.TypeVarchar})
 			continue
 		}
 		switch typed := value.(type) {
 		case int:
 			recordValues = append(recordValues, basic.NewInt64Value(int64(typed)))
 			columnTypes = append(columnTypes, "BIGINT")
-			meta.Columns = append(meta.Columns, &metadata.ColumnMeta{Name: token, Type: metadata.TypeBigInt})
+			meta.Columns = append(meta.Columns, &metadata.ColumnMeta{Name: token.raw, Type: metadata.TypeBigInt})
 		case int8:
 			recordValues = append(recordValues, basic.NewInt64Value(int64(typed)))
 			columnTypes = append(columnTypes, "BIGINT")
-			meta.Columns = append(meta.Columns, &metadata.ColumnMeta{Name: token, Type: metadata.TypeBigInt})
+			meta.Columns = append(meta.Columns, &metadata.ColumnMeta{Name: token.raw, Type: metadata.TypeBigInt})
 		case int16:
 			recordValues = append(recordValues, basic.NewInt64Value(int64(typed)))
 			columnTypes = append(columnTypes, "BIGINT")
-			meta.Columns = append(meta.Columns, &metadata.ColumnMeta{Name: token, Type: metadata.TypeBigInt})
+			meta.Columns = append(meta.Columns, &metadata.ColumnMeta{Name: token.raw, Type: metadata.TypeBigInt})
 		case int32:
 			recordValues = append(recordValues, basic.NewInt64Value(int64(typed)))
 			columnTypes = append(columnTypes, "BIGINT")
-			meta.Columns = append(meta.Columns, &metadata.ColumnMeta{Name: token, Type: metadata.TypeBigInt})
+			meta.Columns = append(meta.Columns, &metadata.ColumnMeta{Name: token.raw, Type: metadata.TypeBigInt})
 		case int64:
 			recordValues = append(recordValues, basic.NewInt64Value(typed))
 			columnTypes = append(columnTypes, "BIGINT")
-			meta.Columns = append(meta.Columns, &metadata.ColumnMeta{Name: token, Type: metadata.TypeBigInt})
+			meta.Columns = append(meta.Columns, &metadata.ColumnMeta{Name: token.raw, Type: metadata.TypeBigInt})
 		case uint, uint8, uint16, uint32, uint64:
 			recordValues = append(recordValues, basic.NewStringValue(fmt.Sprintf("%v", typed)))
 			columnTypes = append(columnTypes, "BIGINT UNSIGNED")
-			meta.Columns = append(meta.Columns, &metadata.ColumnMeta{Name: token, Type: metadata.TypeBigInt})
+			meta.Columns = append(meta.Columns, &metadata.ColumnMeta{Name: token.raw, Type: metadata.TypeBigInt})
 		default:
 			recordValues = append(recordValues, basic.NewStringValue(fmt.Sprintf("%v", value)))
 			columnTypes = append(columnTypes, "VARCHAR")
-			meta.Columns = append(meta.Columns, &metadata.ColumnMeta{Name: token, Type: metadata.TypeVarchar})
+			meta.Columns = append(meta.Columns, &metadata.ColumnMeta{Name: token.raw, Type: metadata.TypeVarchar})
 		}
 	}
 	return &SelectResult{Records: []Record{NewExecutorRecord(recordValues, meta)}, RowCount: 1, Columns: columns, ColumnTypes: columnTypes, ResultType: common.RESULT_TYPE_QUERY}, true, nil
+}
+
+func directSystemVariableToken(raw string) (struct{ raw, scope, name string }, bool) {
+	result := struct{ raw, scope, name string }{raw: strings.TrimSpace(raw)}
+	lower := strings.ToLower(result.raw)
+	if !strings.HasPrefix(lower, "@@") {
+		return result, false
+	}
+	rest, scope := strings.TrimSpace(result.raw[2:]), ""
+	for _, candidate := range []string{"global", "session", "local"} {
+		prefix := candidate + "."
+		if strings.HasPrefix(strings.ToLower(rest), prefix) {
+			scope, rest = candidate, strings.TrimSpace(rest[len(prefix):])
+			break
+		}
+	}
+	name := strings.Trim(strings.TrimSpace(rest), "`")
+	if name == "" || strings.ContainsAny(name, " .@()") {
+		return result, false
+	}
+	result.scope, result.name = scope, strings.ToLower(name)
+	return result, true
+}
+
+func directSystemVariableTokensFromLexer(query string) []struct{ raw, scope, name string } {
+	tokenizer := sqlparser.NewStringTokenizer(query)
+	kind, value := tokenizer.Scan()
+	if kind != sqlparser.SELECT && !strings.EqualFold(string(value), "select") {
+		return nil
+	}
+	result := make([]struct{ raw, scope, name string }, 0, 2)
+	current := strings.Builder{}
+	flush := func() bool {
+		if current.Len() == 0 {
+			return false
+		}
+		token, ok := directSystemVariableToken(current.String())
+		if ok {
+			result = append(result, token)
+		}
+		current.Reset()
+		return ok
+	}
+	for {
+		kind, value = tokenizer.Scan()
+		if kind == 0 {
+			break
+		}
+		if kind == sqlparser.COMMENT || kind == sqlparser.COMMENT_KEYWORD {
+			continue
+		}
+		if kind == ';' {
+			if !flush() {
+				return nil
+			}
+			continue
+		}
+		if kind == ',' {
+			if !flush() {
+				return nil
+			}
+			continue
+		}
+		text := string(value)
+		if text == "" {
+			text = sqlparser.KeywordString(kind)
+		}
+		if text == "" && kind < 256 {
+			text = string(rune(kind))
+		}
+		current.WriteString(text)
+	}
+	if current.Len() > 0 && !flush() {
+		return nil
+	}
+	if tokenizer.LastError != nil {
+		return nil
+	}
+	return result
 }
 
 func (e *XMySQLExecutor) executeUnionQuery(ctx *ExecutionContext, branches []string, unionAll []bool, databaseName string) (*SelectResult, error) {
@@ -7617,19 +7996,34 @@ func combineSetOperationResults(left, right *SelectResult, operator intersectExc
 }
 
 func (e *XMySQLExecutor) rewriteSimpleInSubquery(ctx *ExecutionContext, query, databaseName string) (string, error) {
-	re := regexp.MustCompile(`(?is)([a-zA-Z0-9_$\.]+)\s+(not\s+)?in\s*\(\s*(select\s+[^()]+)\s*\)`)
-	matches := re.FindStringSubmatch(query)
-	if len(matches) == 0 {
+	call, found := findPredicateCall(query, false)
+	normalizedOperator := strings.ToLower(strings.Join(strings.Fields(call.operator), " "))
+	if !found || (normalizedOperator != "in" && normalizedOperator != "not in") {
 		return "", nil
 	}
-	matchStart := strings.Index(strings.ToLower(query), strings.ToLower(matches[0]))
+	open := strings.Index(query[call.start:call.end], "(")
+	if open < 0 {
+		return "", nil
+	}
+	open += call.start
+	close := matchingParenIndex(query, open)
+	if close < 0 {
+		return "", nil
+	}
+	innerText := strings.TrimSpace(query[open+1 : close])
+	if !strings.HasPrefix(strings.ToLower(innerText), "select") || strings.ContainsAny(innerText, "()") {
+		return "", nil
+	}
+	matchedText := query[call.start : close+1]
+	notIn := normalizedOperator == "not in"
+	matchStart := call.start
 	if matchStart >= 0 && scalarSubqueryAppearsInJoinOn(query, matchStart) {
 		// JOIN ... ON subqueries need the current candidate row. Leave both
 		// correlated and uncorrelated IN subqueries for the JOIN evaluator,
 		// which can preserve NULL-aware set semantics per candidate row.
 		return "", nil
 	}
-	innerStmt, err := sqlparser.Parse(strings.TrimSpace(matches[3]))
+	innerStmt, err := sqlparser.Parse(innerText)
 	if err != nil {
 		return "", err
 	}
@@ -7654,18 +8048,18 @@ func (e *XMySQLExecutor) rewriteSimpleInSubquery(ctx *ExecutionContext, query, d
 		}
 		literals = append(literals, basicValueSQLLiteral(values[0]))
 	}
-	if strings.TrimSpace(matches[2]) != "" && hasNull {
-		return strings.Replace(query, matches[0], "1 = 0", 1), nil
+	if notIn && hasNull {
+		return strings.Replace(query, matchedText, "1 = 0", 1), nil
 	}
 	if len(literals) == 0 {
 		literals = append(literals, "NULL")
 	}
 	operator := "IN"
-	if strings.TrimSpace(matches[2]) != "" {
+	if notIn {
 		operator = "NOT IN"
 	}
-	replacement := fmt.Sprintf("%s %s (%s)", matches[1], operator, strings.Join(literals, ", "))
-	return strings.Replace(query, matches[0], replacement, 1), nil
+	replacement := fmt.Sprintf("%s %s (%s)", call.left, operator, strings.Join(literals, ", "))
+	return strings.Replace(query, matchedText, replacement, 1), nil
 }
 
 // rewriteSimpleQuantifiedSubqueries evaluates uncorrelated ANY/SOME/ALL
@@ -7675,13 +8069,21 @@ func (e *XMySQLExecutor) rewriteSimpleInSubquery(ctx *ExecutionContext, query, d
 // leaving the normal row executor unchanged.
 func (e *XMySQLExecutor) rewriteSimpleQuantifiedSubqueries(ctx *ExecutionContext, query, databaseName string) (string, error) {
 	result := query
-	matcher := regexp.MustCompile(`(?is)([a-zA-Z0-9_$\.]+)\s*(<=>|<>|!=|<=|>=|=|<|>)\s*(any|some|all)\s*\(`)
+	searchFrom := 0
 	for {
-		indexes := matcher.FindStringSubmatchIndex(result)
-		if len(indexes) == 0 {
+		call, found := findPredicateCall(result[searchFrom:], false)
+		if !found {
 			return resultIfChanged(query, result), nil
 		}
-		start, end := indexes[0], indexes[1]
+		call.start += searchFrom
+		call.end += searchFrom
+		op, quantifier, quantified := splitQuantifiedOperator(call.operator)
+		if !quantified {
+			searchFrom = call.end
+			continue
+		}
+		leftText := call.left
+		start, end := call.start, call.end
 		openRelative := strings.LastIndex(result[start:end], "(")
 		if openRelative < 0 {
 			return "", fmt.Errorf("quantified subquery has no opening parenthesis")
@@ -7710,9 +8112,6 @@ func (e *XMySQLExecutor) rewriteSimpleQuantifiedSubqueries(ctx *ExecutionContext
 		if len(innerResult.Columns) != 1 {
 			return "", fmt.Errorf("subquery returns more than one column")
 		}
-		leftText := result[indexes[2]:indexes[3]]
-		op := result[indexes[4]:indexes[5]]
-		quantifier := strings.ToUpper(result[indexes[6]:indexes[7]])
 		operands := make([]string, 0, len(innerResult.Records))
 		for _, record := range innerResult.Records {
 			if len(record.GetValues()) == 0 || record.GetValues()[0].IsNull() {
@@ -7727,6 +8126,7 @@ func (e *XMySQLExecutor) rewriteSimpleQuantifiedSubqueries(ctx *ExecutionContext
 			} else {
 				result = result[:start] + "1 = 0" + result[close+1:]
 			}
+			searchFrom = 0
 			continue
 		}
 		joiner := " OR "
@@ -7739,6 +8139,21 @@ func (e *XMySQLExecutor) rewriteSimpleQuantifiedSubqueries(ctx *ExecutionContext
 		}
 		replacement := strings.Join(predicates, joiner)
 		result = result[:start] + replacement + result[close+1:]
+		searchFrom = 0
+	}
+}
+
+func splitQuantifiedOperator(operator string) (op, quantifier string, ok bool) {
+	fields := strings.Fields(operator)
+	if len(fields) < 2 {
+		return "", "", false
+	}
+	quantifier = strings.ToUpper(fields[len(fields)-1])
+	switch quantifier {
+	case "ANY", "SOME", "ALL":
+		return strings.Join(fields[:len(fields)-1], " "), quantifier, true
+	default:
+		return "", "", false
 	}
 }
 
@@ -7983,36 +8398,35 @@ func (e *XMySQLExecutor) rewriteSessionUserVariables(query string, session serve
 }
 
 func (e *XMySQLExecutor) executeUserVariableAssignment(ctx *ExecutionContext, query string, session server.MySQLServerSession) bool {
-	trimmed := strings.TrimSpace(query)
-	if !regexp.MustCompile(`(?is)^set\s+@`).MatchString(trimmed) {
+	parsed, parseErr := sqlparser.Parse(query)
+	setStmt, ok := parsed.(*sqlparser.Set)
+	if parseErr != nil || !ok || len(setStmt.Exprs) == 0 {
 		return false
+	}
+	for _, expression := range setStmt.Exprs {
+		if expression == nil || !strings.HasPrefix(strings.ToLower(expression.Name.Lowered()), "@") || strings.HasPrefix(strings.ToLower(expression.Name.Lowered()), "@@") {
+			return false
+		}
 	}
 	if session == nil {
 		ctx.Results <- &Result{Err: fmt.Errorf("SET user variable requires a session"), ResultType: innodbcommon.RESULT_TYPE_ERROR}
 		return true
 	}
-	assignments := splitTopLevelComma(strings.TrimSuffix(trimmed[3:], ";"))
-	if len(assignments) == 0 {
-		return false
-	}
-	for _, assignment := range assignments {
-		match := regexp.MustCompile(`(?is)^\s*(@[a-zA-Z0-9_$]+)\s*=\s*(.+?)\s*$`).FindStringSubmatch(assignment)
-		if len(match) == 0 {
-			return false
-		}
+	for _, assignment := range setStmt.Exprs {
 		value := interface{}(nil)
-		expression := rewriteQualifiedSystemVariables(e.rewriteSessionUserVariables(strings.TrimSpace(match[2]), session))
 		sessionValues := newSessionExpressionValues(session)
+		expression := rewriteQualifiedSystemVariables(e.rewriteSessionUserVariables(sqlparser.String(assignment.Expr), session))
 		var err error
-		if systemVariable := regexp.MustCompile(`(?is)^@@([a-zA-Z0-9_]+)$`).FindStringSubmatch(expression); len(systemVariable) == 2 {
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(expression)), "@@") && !strings.ContainsAny(strings.TrimSpace(expression), " +-*()/") {
+			name := strings.ToLower(strings.Trim(strings.TrimSpace(expression[2:]), "`"))
 			var found bool
-			value, found = sessionValues[strings.ToLower(systemVariable[1])]
+			value, found = sessionValues[name]
 			if !found {
-				err = fmt.Errorf("unknown system variable %s", systemVariable[1])
+				err = fmt.Errorf("unknown system variable %s", name)
 			}
 		} else {
-			statement, parseErr := sqlparser.Parse("select " + expression)
-			err = parseErr
+			statement, parseExpressionErr := sqlparser.Parse("select " + expression)
+			err = parseExpressionErr
 			if err == nil {
 				if selectStmt, ok := statement.(*sqlparser.Select); ok && len(selectStmt.SelectExprs) == 1 {
 					if aliased, ok := selectStmt.SelectExprs[0].(*sqlparser.AliasedExpr); ok {
@@ -8025,7 +8439,7 @@ func (e *XMySQLExecutor) executeUserVariableAssignment(ctx *ExecutionContext, qu
 			ctx.Results <- &Result{Err: err, ResultType: innodbcommon.RESULT_TYPE_ERROR}
 			return true
 		}
-		variableName := strings.ToLower(strings.TrimPrefix(match[1], "@"))
+		variableName := strings.ToLower(strings.TrimPrefix(assignment.Name.Lowered(), "@"))
 		variables, _ := session.GetParamByName("user_variables").(map[string]interface{})
 		if variables == nil {
 			variables = make(map[string]interface{})
@@ -8331,13 +8745,6 @@ func matchingParenIndex(input string, open int) int {
 	}
 	return -1
 }
-
-var informationSchemaMetadataFilterPattern = regexp.MustCompile("(?i)`?\\b(table_schema|table_name|schema_name|column_name|constraint_name|constraint_type)\\b`?\\s*(?:=|like)\\s*(?:'([^']*)'|\"([^\"]*)\")")
-
-var processlistFilterPattern = regexp.MustCompile(`(?is)^\s*(id|user|host|db|command|state|info)\s*(=|!=|<>|like|not\s+like)\s*(?:'((?:''|[^'])*)'|"((?:""|[^"])*)"|([0-9]+))\s*$`)
-var processlistNullFilterPattern = regexp.MustCompile(`(?is)^\s*(id|user|host|db|command|state|info)\s+is\s+(not\s+)?null\s*$`)
-var processlistInFilterPattern = regexp.MustCompile(`(?is)^\s*(id|user|host|db|command|state|info)\s+(not\s+)?in\s*\((.*)\)\s*$`)
-var processlistFunctionFilterPattern = regexp.MustCompile(`(?is)^\s*(id|user|host|db|command|state|info)\s*(=|!=|<>)\s*(connection_id\(\))\s*$`)
 
 func performanceSchemaTimerWait(latency time.Duration) int64 {
 	timer := latency.Nanoseconds() * 1000
@@ -8876,13 +9283,20 @@ func (e *XMySQLExecutor) checkPerformanceSchemaTableSelectPrivileges(session ser
 		return nil
 	}
 
-	normalized := strings.ReplaceAll(query, "`", "")
 	seen := make(map[string]struct{})
-	for _, table := range performanceSchemaTableNames() {
-		pattern := `(?i)\bperformance_schema\s*\.\s*` + regexp.QuoteMeta(table) + `\b`
-		if !regexp.MustCompile(pattern).MatchString(normalized) {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return nil
+	}
+	refs, err := sqlparser.CollectObjectReferences(parsed.AST, "")
+	if err != nil {
+		return nil
+	}
+	for _, ref := range refs {
+		if !strings.EqualFold(ref.Schema, "performance_schema") || ref.Kind != sqlparser.ObjectKindTable {
 			continue
 		}
+		table := strings.ToLower(ref.Name)
 		if _, duplicate := seen[table]; duplicate {
 			continue
 		}
@@ -8892,7 +9306,7 @@ func (e *XMySQLExecutor) checkPerformanceSchemaTableSelectPrivileges(session ser
 		}
 	}
 	if len(seen) == 0 {
-		return e.checkPerformanceSchemaTableSelectPrivilege(session, performanceSchemaTableName(normalized))
+		return nil
 	}
 	return nil
 }
@@ -8915,13 +9329,20 @@ func (e *XMySQLExecutor) checkMySQLMetadataTableSelectPrivileges(session server.
 	if e == nil || session == nil {
 		return nil
 	}
-	normalized := strings.ReplaceAll(query, "`", "")
 	seen := make(map[string]struct{})
-	for _, table := range mysqlMetadataTableNames() {
-		pattern := `(?i)\bmysql\s*\.\s*` + regexp.QuoteMeta(table) + `\b`
-		if !regexp.MustCompile(pattern).MatchString(normalized) {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return nil
+	}
+	refs, err := sqlparser.CollectObjectReferences(parsed.AST, "")
+	if err != nil {
+		return nil
+	}
+	for _, ref := range refs {
+		if !strings.EqualFold(ref.Schema, "mysql") || ref.Kind != sqlparser.ObjectKindTable {
 			continue
 		}
+		table := strings.ToLower(ref.Name)
 		if _, duplicate := seen[table]; duplicate {
 			continue
 		}
@@ -8964,11 +9385,23 @@ func (e *XMySQLExecutor) checkInformationSchemaProcessPrivileges(session server.
 	if e == nil || session == nil || sessionHasProcessPrivilege(session) {
 		return nil
 	}
-	normalized := strings.ReplaceAll(query, "`", "")
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return nil
+	}
+	refs, err := sqlparser.CollectObjectReferences(parsed.AST, "")
+	if err != nil {
+		return nil
+	}
+	protected := make(map[string]struct{}, len(informationSchemaInnoDBProcessTableNames()))
 	for _, table := range informationSchemaInnoDBProcessTableNames() {
-		pattern := `(?i)\binformation_schema\s*\.\s*` + regexp.QuoteMeta(table) + `\b`
-		if regexp.MustCompile(pattern).MatchString(normalized) {
-			return fmt.Errorf("Access denied; you need (at least one of) the PROCESS privilege(s) for this operation")
+		protected[strings.ToLower(table)] = struct{}{}
+	}
+	for _, ref := range refs {
+		if strings.EqualFold(ref.Schema, "information_schema") && ref.Kind == sqlparser.ObjectKindTable {
+			if _, ok := protected[strings.ToLower(ref.Name)]; ok {
+				return fmt.Errorf("Access denied; you need (at least one of) the PROCESS privilege(s) for this operation")
+			}
 		}
 	}
 	return nil
@@ -9146,11 +9579,41 @@ func performanceSchemaDigestText(sql string) string {
 	bindVars := make(map[string]*querypb.BindVariable)
 	sqlparser.Normalize(stmt, bindVars, "digest")
 	text := sqlparser.String(stmt)
-	text = regexp.MustCompile(`::digest\d+|:digest\d+`).ReplaceAllString(text, "?")
+	text = replaceDigestPlaceholders(text)
 	if strings.Contains(text, ":digest") || strings.Contains(text, "::digest") || text == strings.Join(strings.Fields(raw), " ") {
 		return performanceSchemaLexicalDigestText(raw)
 	}
 	return strings.Join(strings.Fields(text), " ")
+}
+
+func replaceDigestPlaceholders(text string) string {
+	var builder strings.Builder
+	for index := 0; index < len(text); {
+		if text[index] == ':' {
+			start := index
+			if index+1 < len(text) && text[index+1] == ':' {
+				index += 2
+			} else {
+				index++
+			}
+			if strings.HasPrefix(strings.ToLower(text[index:]), "digest") {
+				index += len("digest")
+				digitStart := index
+				for index < len(text) && text[index] >= '0' && text[index] <= '9' {
+					index++
+				}
+				if index > digitStart {
+					builder.WriteByte('?')
+					continue
+				}
+			}
+			builder.WriteString(text[start:index])
+			continue
+		}
+		builder.WriteByte(text[index])
+		index++
+	}
+	return builder.String()
 }
 
 func performanceSchemaLexicalDigestText(raw string) string {
@@ -10527,38 +10990,34 @@ func isTemporaryTableDDL(session server.MySQLServerSession, query, databaseName 
 	// DROP TABLE accepts multiple targets. Allow the statement only when every
 	// target belongs to this session's temporary-table namespace; a mixed
 	// temporary/persistent statement must remain protected by read_only.
-	if strings.HasPrefix(lower, "drop table ") && strings.Contains(trimmed[len("drop table"):], ",") {
-		tail := strings.TrimSpace(trimmed[len("drop table"):])
-		if strings.HasPrefix(strings.ToLower(tail), "if exists") {
-			tail = strings.TrimSpace(tail[len("if exists"):])
+	parsed, parseErr := sqlparser.ParseForExecution(trimmed)
+	if parseErr != nil {
+		return false
+	}
+	targets := make([]sqlparser.TableName, 0, 2)
+	switch statement := parsed.AST.(type) {
+	case *sqlparser.TableDDLStatement:
+		targets = append(targets, statement.Targets...)
+	case *sqlparser.AlterTable:
+		// ALTER on a temporary table is rewritten to its physical binding
+		// before dispatch; it does not need the read-only DDL exemption here.
+		return false
+	default:
+		return false
+	}
+	if len(targets) == 0 {
+		return false
+	}
+	for _, target := range targets {
+		targetDB, targetTable := target.Qualifier.String(), target.Name.String()
+		if targetDB == "" {
+			targetDB = databaseName
 		}
-		identifier := regexp.MustCompile("(?is)^\\s*((?:" + compatibilityIdentifierPattern + ")(?:\\s*\\.\\s*(?:" + compatibilityIdentifierPattern + "))?)\\s*$")
-		parts := strings.Split(tail, ",")
-		if len(parts) < 2 {
+		if targetDB == "" || targetTable == "" || !isSessionTemporaryTable(session, targetDB, targetTable) {
 			return false
 		}
-		for _, part := range parts {
-			match := identifier.FindStringSubmatch(part)
-			if len(match) != 2 {
-				return false
-			}
-			targetDB, targetTable := compatibilityQualifiedTable(match[1], databaseName)
-			if targetDB == "" || targetTable == "" || !isSessionTemporaryTable(session, targetDB, targetTable) {
-				return false
-			}
-		}
-		return true
 	}
-	pattern := "(?is)^\\s*(?:alter\\s+table|drop\\s+table|truncate\\s+table)\\s+(?:if\\s+exists\\s+)?((?:`?[a-zA-Z0-9_$]+`?\\s*\\.\\s*)?`?[a-zA-Z0-9_$]+`?)"
-	match := regexp.MustCompile(pattern).FindStringSubmatch(trimmed)
-	if len(match) != 2 || strings.Contains(match[1], ",") {
-		return false
-	}
-	targetDB, targetTable := compatibilityQualifiedTable(match[1], databaseName)
-	if targetDB == "" || targetTable == "" {
-		return false
-	}
-	return isSessionTemporaryTable(session, targetDB, targetTable)
+	return true
 }
 
 func isSessionTemporaryTable(session server.MySQLServerSession, databaseName, tableName string) bool {
@@ -10579,11 +11038,51 @@ func isTemporaryTableDML(session server.MySQLServerSession, query, databaseName 
 	if session == nil {
 		return false
 	}
-	match := regexp.MustCompile(`(?is)^\s*(?:insert\s+(?:ignore\s+)?into|replace\s+into|update|delete\s+from)\s+((?:` + "`?" + `[a-zA-Z0-9_$]+` + "`?" + `\s*\.\s*)?` + "`?" + `[a-zA-Z0-9_$]+` + "`?" + `)`).FindStringSubmatch(strings.TrimSpace(query))
-	if len(match) != 2 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	var ast sqlparser.SQLNode
+	if err == nil && parsed != nil {
+		ast = parsed.AST
+	} else if legacy, parseErr := sqlparser.Parse(strings.TrimSpace(strings.TrimSuffix(query, ";"))); parseErr == nil {
+		ast = legacy
+	} else {
 		return false
 	}
-	targetDB, targetTable := compatibilityQualifiedTable(match[1], databaseName)
+	var target sqlparser.TableName
+	switch statement := ast.(type) {
+	case *sqlparser.Insert:
+		target = statement.Table
+	case *sqlparser.Update:
+		if len(statement.TableExprs) == 0 {
+			return false
+		}
+		aliased, ok := statement.TableExprs[0].(*sqlparser.AliasedTableExpr)
+		if !ok {
+			return false
+		}
+		target, ok = aliased.Expr.(sqlparser.TableName)
+		if !ok {
+			return false
+		}
+	case *sqlparser.Delete:
+		if len(statement.TableExprs) == 0 {
+			return false
+		}
+		aliased, ok := statement.TableExprs[0].(*sqlparser.AliasedTableExpr)
+		if !ok {
+			return false
+		}
+		target, ok = aliased.Expr.(sqlparser.TableName)
+		if !ok {
+			return false
+		}
+	default:
+		return false
+	}
+	rawTarget := target.Name.String()
+	if target.Qualifier.String() != "" {
+		rawTarget = target.Qualifier.String() + "." + rawTarget
+	}
+	targetDB, targetTable := compatibilityQualifiedTable(rawTarget, databaseName)
 	if targetDB == "" || targetTable == "" {
 		return false
 	}
@@ -11412,24 +11911,88 @@ func performanceSchemaYesNo(value bool) string {
 	return "NO"
 }
 
-var performanceSchemaSetupUpdatePattern = regexp.MustCompile(`(?is)^\s*update\s+(?:` + "`?" + `performance_schema` + "`?" + `\.)?` + "`?" + `(setup_consumers|setup_instruments|setup_actors|setup_objects|setup_threads|setup_loggers|setup_meters)` + "`?" + `\s+set\s+(.+?)\s+where\s+(.+?)\s*;?\s*$`)
+type performanceSchemaMutation struct {
+	kind, table, columns, values, assignments, where string
+}
 
-var performanceSchemaThreadsUpdatePattern = regexp.MustCompile(`(?is)^\s*update\s+(?:` + "`?" + `performance_schema` + "`?" + `\.)?` + "`?" + `threads` + "`?" + `\s+set\s+(.+?)\s+where\s+(.+?)\s*;?\s*$`)
+func parsePerformanceSchemaMutation(query string) (performanceSchemaMutation, bool) {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return performanceSchemaMutation{}, false
+	}
+	switch stmt := parsed.AST.(type) {
+	case *sqlparser.Insert:
+		if !strings.EqualFold(stmt.Table.Qualifier.String(), "performance_schema") && !stmt.Table.Qualifier.IsEmpty() {
+			return performanceSchemaMutation{}, false
+		}
+		if stmt.Table.Qualifier.IsEmpty() && !isPerformanceSchemaMutationTable(stmt.Table.Name.String()) {
+			return performanceSchemaMutation{}, false
+		}
+		values, ok := stmt.Rows.(sqlparser.Values)
+		if !ok || len(values) != 1 {
+			return performanceSchemaMutation{}, false
+		}
+		items := make([]string, 0, len(values[0]))
+		for _, value := range values[0] {
+			items = append(items, sqlparser.String(value))
+		}
+		columns := make([]string, 0, len(stmt.Columns))
+		for _, column := range stmt.Columns {
+			columns = append(columns, sqlparser.String(column))
+		}
+		return performanceSchemaMutation{kind: "insert", table: strings.ToLower(stmt.Table.Name.String()), columns: strings.Join(columns, ","), values: strings.Join(items, ",")}, true
+	case *sqlparser.Update:
+		table, ok := optimizerCostTableFromExprs(stmt.TableExprs)
+		if !ok || (!strings.EqualFold(table.Qualifier.String(), "performance_schema") && !table.Qualifier.IsEmpty()) {
+			return performanceSchemaMutation{}, false
+		}
+		if table.Qualifier.IsEmpty() && !isPerformanceSchemaMutationTable(table.Name.String()) {
+			return performanceSchemaMutation{}, false
+		}
+		assignments := make([]string, 0, len(stmt.Exprs))
+		for _, assignment := range stmt.Exprs {
+			assignments = append(assignments, sqlparser.String(assignment.Name)+" = "+sqlparser.String(assignment.Expr))
+		}
+		where := ""
+		if stmt.Where != nil {
+			where = sqlparser.String(stmt.Where.Expr)
+		}
+		return performanceSchemaMutation{kind: "update", table: strings.ToLower(table.Name.String()), assignments: strings.Join(assignments, ","), where: where}, true
+	case *sqlparser.Delete:
+		table, ok := optimizerCostTableFromExprs(stmt.TableExprs)
+		if !ok || (!strings.EqualFold(table.Qualifier.String(), "performance_schema") && !table.Qualifier.IsEmpty()) {
+			return performanceSchemaMutation{}, false
+		}
+		if table.Qualifier.IsEmpty() && !isPerformanceSchemaMutationTable(table.Name.String()) {
+			return performanceSchemaMutation{}, false
+		}
+		where := ""
+		if stmt.Where != nil {
+			where = sqlparser.String(stmt.Where.Expr)
+		}
+		return performanceSchemaMutation{kind: "delete", table: strings.ToLower(table.Name.String()), where: where}, true
+	default:
+		return performanceSchemaMutation{}, false
+	}
+}
 
-var performanceSchemaSetupActorsInsertPattern = regexp.MustCompile("(?is)^\\s*insert\\s+into\\s+(?:`?performance_schema`?\\s*\\.\\s*)?`?setup_actors`?\\s*(?:\\(([^)]*)\\))?\\s*values\\s*\\((.*)\\)\\s*;?\\s*$")
-var performanceSchemaSetupActorsDeletePattern = regexp.MustCompile("(?is)^\\s*delete\\s+from\\s+(?:`?performance_schema`?\\s*\\.\\s*)?`?setup_actors`?(?:\\s+where\\s+(.+?))?\\s*;?\\s*$")
-
-var performanceSchemaSetupObjectsInsertPattern = regexp.MustCompile("(?is)^\\s*insert\\s+into\\s+(?:`?performance_schema`?\\s*\\.\\s*)?`?setup_objects`?\\s*(?:\\(([^)]*)\\))?\\s*values\\s*\\((.*)\\)\\s*;?\\s*$")
-var performanceSchemaSetupObjectsDeletePattern = regexp.MustCompile("(?is)^\\s*delete\\s+from\\s+(?:`?performance_schema`?\\s*\\.\\s*)?`?setup_objects`?(?:\\s+where\\s+(.+?))?\\s*;?\\s*$")
+func isPerformanceSchemaMutationTable(name string) bool {
+	switch strings.ToLower(strings.Trim(name, "` ")) {
+	case "setup_consumers", "setup_instruments", "setup_actors", "setup_objects", "setup_threads", "setup_loggers", "setup_meters", "threads":
+		return true
+	default:
+		return false
+	}
+}
 
 func (e *XMySQLExecutor) executePerformanceSchemaSetupActorsMutation(query string, sessions ...server.MySQLServerSession) (*Result, bool, error) {
-	if insert := performanceSchemaSetupActorsInsertPattern.FindStringSubmatch(query); len(insert) == 3 {
+	if mutation, ok := parsePerformanceSchemaMutation(query); ok && mutation.table == "setup_actors" && mutation.kind == "insert" {
 		if len(sessions) > 0 && sessions[0] != nil {
 			if err := e.checkTablePrivilege(&ExecutionContext{Session: sessions[0]}, "performance_schema", "setup_actors", "INSERT"); err != nil {
 				return nil, true, err
 			}
 		}
-		key, setting, err := parsePerformanceSchemaSetupActorInsert(insert[1], insert[2])
+		key, setting, err := parsePerformanceSchemaSetupActorInsert(mutation.columns, mutation.values)
 		if err != nil {
 			return nil, true, err
 		}
@@ -11447,17 +12010,17 @@ func (e *XMySQLExecutor) executePerformanceSchemaSetupActorsMutation(query strin
 		e.performanceSchemaActorRules[key] = setting
 		return &Result{AffectedRows: 1, ResultType: common.RESULT_TYPE_QUERY, Message: "Performance Schema setup_actors row inserted"}, true, nil
 	}
-	if deleteMatch := performanceSchemaSetupActorsDeletePattern.FindStringSubmatch(query); len(deleteMatch) == 2 {
+	if mutation, ok := parsePerformanceSchemaMutation(query); ok && mutation.table == "setup_actors" && mutation.kind == "delete" {
 		if len(sessions) > 0 && sessions[0] != nil {
 			if err := e.checkTablePrivilege(&ExecutionContext{Session: sessions[0]}, "performance_schema", "setup_actors", "DELETE"); err != nil {
 				return nil, true, err
 			}
 		}
 		matcher := func(performanceSchemaActorKey) bool { return true }
-		if strings.TrimSpace(deleteMatch[1]) != "" {
-			parsed, ok := performanceSchemaSetupActorMatcher(deleteMatch[1])
+		if strings.TrimSpace(mutation.where) != "" {
+			parsed, ok := performanceSchemaSetupActorMatcher(mutation.where)
 			if !ok {
-				return nil, true, fmt.Errorf("unsupported Performance Schema setup_actors WHERE clause %q", strings.TrimSpace(deleteMatch[1]))
+				return nil, true, fmt.Errorf("unsupported Performance Schema setup_actors WHERE clause %q", strings.TrimSpace(mutation.where))
 			}
 			matcher = parsed
 		}
@@ -11513,13 +12076,13 @@ func parsePerformanceSchemaSetupActorInsert(columnList, valueList string) (perfo
 }
 
 func (e *XMySQLExecutor) executePerformanceSchemaSetupObjectsMutation(query string, sessions ...server.MySQLServerSession) (*Result, bool, error) {
-	if insert := performanceSchemaSetupObjectsInsertPattern.FindStringSubmatch(query); len(insert) == 3 {
+	if mutation, ok := parsePerformanceSchemaMutation(query); ok && mutation.table == "setup_objects" && mutation.kind == "insert" {
 		if len(sessions) > 0 && sessions[0] != nil {
 			if err := e.checkTablePrivilege(&ExecutionContext{Session: sessions[0]}, "performance_schema", "setup_objects", "INSERT"); err != nil {
 				return nil, true, err
 			}
 		}
-		key, setting, err := parsePerformanceSchemaSetupObjectInsert(insert[1], insert[2])
+		key, setting, err := parsePerformanceSchemaSetupObjectInsert(mutation.columns, mutation.values)
 		if err != nil {
 			return nil, true, err
 		}
@@ -11534,17 +12097,17 @@ func (e *XMySQLExecutor) executePerformanceSchemaSetupObjectsMutation(query stri
 		e.performanceSchemaObjects[key] = setting
 		return &Result{AffectedRows: 1, ResultType: common.RESULT_TYPE_QUERY, Message: "Performance Schema setup_objects row inserted"}, true, nil
 	}
-	if deleteMatch := performanceSchemaSetupObjectsDeletePattern.FindStringSubmatch(query); len(deleteMatch) == 2 {
+	if mutation, ok := parsePerformanceSchemaMutation(query); ok && mutation.table == "setup_objects" && mutation.kind == "delete" {
 		if len(sessions) > 0 && sessions[0] != nil {
 			if err := e.checkTablePrivilege(&ExecutionContext{Session: sessions[0]}, "performance_schema", "setup_objects", "DELETE"); err != nil {
 				return nil, true, err
 			}
 		}
 		matcher := func(string, string, string) bool { return true }
-		if strings.TrimSpace(deleteMatch[1]) != "" {
-			parsed, ok := performanceSchemaSetupObjectMatcher(deleteMatch[1])
+		if strings.TrimSpace(mutation.where) != "" {
+			parsed, ok := performanceSchemaSetupObjectMatcher(mutation.where)
 			if !ok {
-				return nil, true, fmt.Errorf("unsupported Performance Schema setup_objects WHERE clause %q", strings.TrimSpace(deleteMatch[1]))
+				return nil, true, fmt.Errorf("unsupported Performance Schema setup_objects WHERE clause %q", strings.TrimSpace(mutation.where))
 			}
 			matcher = parsed
 		}
@@ -11615,8 +12178,8 @@ func unquotePerformanceSchemaSetupValue(raw string) string {
 }
 
 func (e *XMySQLExecutor) executePerformanceSchemaThreadsUpdate(query string, sessions ...server.MySQLServerSession) (*Result, bool, error) {
-	match := performanceSchemaThreadsUpdatePattern.FindStringSubmatch(query)
-	if len(match) != 3 {
+	mutation, matched := parsePerformanceSchemaMutation(query)
+	if !matched || mutation.kind != "update" || mutation.table != "threads" {
 		return nil, false, nil
 	}
 	if len(sessions) > 0 && sessions[0] != nil {
@@ -11624,16 +12187,12 @@ func (e *XMySQLExecutor) executePerformanceSchemaThreadsUpdate(query string, ses
 			return nil, true, err
 		}
 	}
-	threadMatch := regexp.MustCompile(`(?i)\bthread_id\s*=\s*([0-9]+)`).FindStringSubmatch(match[2])
-	if len(threadMatch) != 2 {
-		return nil, true, fmt.Errorf("unsupported Performance Schema threads WHERE clause %q", strings.TrimSpace(match[2]))
-	}
-	threadID, err := strconv.ParseInt(threadMatch[1], 10, 64)
-	if err != nil {
-		return nil, true, fmt.Errorf("invalid Performance Schema thread id %q", threadMatch[1])
+	threadID, found := informationSchemaUint64Filter("select 1 from dual where "+mutation.where, "thread_id")
+	if !found {
+		return nil, true, fmt.Errorf("unsupported Performance Schema threads WHERE clause %q", strings.TrimSpace(mutation.where))
 	}
 	updates := make(map[string]bool)
-	for _, assignment := range splitTopLevelComma(match[1]) {
+	for _, assignment := range splitTopLevelComma(mutation.assignments) {
 		parts := strings.SplitN(assignment, "=", 2)
 		if len(parts) != 2 {
 			return nil, true, fmt.Errorf("unsupported Performance Schema threads assignment %q", strings.TrimSpace(assignment))
@@ -11671,7 +12230,7 @@ func (e *XMySQLExecutor) executePerformanceSchemaThreadsUpdate(query string, ses
 	}
 	affected := 0
 	for _, session := range e.performanceSchemaSessions(nil) {
-		if session == nil || int64(sessionConnectionID(session)) != threadID {
+		if session == nil || uint64(sessionConnectionID(session)) != threadID {
 			continue
 		}
 		setting, exists := e.performanceSchemaActorSessions[session]
@@ -11691,22 +12250,22 @@ func (e *XMySQLExecutor) executePerformanceSchemaThreadsUpdate(query string, ses
 }
 
 func (e *XMySQLExecutor) executePerformanceSchemaSetupUpdate(query string, sessions ...server.MySQLServerSession) (*Result, bool, error) {
-	match := performanceSchemaSetupUpdatePattern.FindStringSubmatch(query)
-	if len(match) != 4 {
+	mutation, matched := parsePerformanceSchemaMutation(query)
+	if !matched || mutation.kind != "update" {
 		return nil, false, nil
 	}
 	if len(sessions) > 0 && sessions[0] != nil {
-		if err := e.checkTablePrivilege(&ExecutionContext{Session: sessions[0]}, "performance_schema", match[1], "UPDATE"); err != nil {
+		if err := e.checkTablePrivilege(&ExecutionContext{Session: sessions[0]}, "performance_schema", mutation.table, "UPDATE"); err != nil {
 			return nil, true, err
 		}
 	}
-	if strings.EqualFold(match[1], "setup_loggers") || strings.EqualFold(match[1], "setup_meters") {
-		return e.executePerformanceSchemaTelemetrySetupUpdate(match[1], match[2], match[3])
+	if strings.EqualFold(mutation.table, "setup_loggers") || strings.EqualFold(mutation.table, "setup_meters") {
+		return e.executePerformanceSchemaTelemetrySetupUpdate(mutation.table, mutation.assignments, mutation.where)
 	}
 
-	setupTable := strings.ToLower(match[1])
+	setupTable := strings.ToLower(mutation.table)
 	updates := make(map[string]bool)
-	for _, assignment := range splitTopLevelComma(match[2]) {
+	for _, assignment := range splitTopLevelComma(mutation.assignments) {
 		parts := strings.SplitN(assignment, "=", 2)
 		if len(parts) != 2 {
 			return nil, true, fmt.Errorf("unsupported Performance Schema setup assignment %q", strings.TrimSpace(assignment))
@@ -11732,20 +12291,20 @@ func (e *XMySQLExecutor) executePerformanceSchemaSetupUpdate(query string, sessi
 	var actorMatches func(performanceSchemaActorKey) bool
 	var objectMatches func(string, string, string) bool
 	var ok bool
-	if strings.EqualFold(match[1], "setup_actors") {
-		actorMatches, ok = performanceSchemaSetupActorMatcher(match[3])
-	} else if strings.EqualFold(match[1], "setup_objects") {
-		objectMatches, ok = performanceSchemaSetupObjectMatcher(match[3])
+	if strings.EqualFold(mutation.table, "setup_actors") {
+		actorMatches, ok = performanceSchemaSetupActorMatcher(mutation.where)
+	} else if strings.EqualFold(mutation.table, "setup_objects") {
+		objectMatches, ok = performanceSchemaSetupObjectMatcher(mutation.where)
 	} else {
-		nameMatches, ok = performanceSchemaSetupNameMatcher(match[3])
+		nameMatches, ok = performanceSchemaSetupNameMatcher(mutation.where)
 	}
 	if !ok {
-		return nil, true, fmt.Errorf("unsupported Performance Schema setup WHERE clause %q", strings.TrimSpace(match[3]))
+		return nil, true, fmt.Errorf("unsupported Performance Schema setup WHERE clause %q", strings.TrimSpace(mutation.where))
 	}
 
 	e.performanceSchemaMu.Lock()
 	affected := 0
-	switch strings.ToLower(match[1]) {
+	switch strings.ToLower(mutation.table) {
 	case "setup_consumers":
 		for name, setting := range e.performanceSchemaConsumers {
 			if !nameMatches(name) {
@@ -11903,39 +12462,52 @@ type performanceSchemaSetupPredicate struct {
 }
 
 func parsePerformanceSchemaSetupPredicates(where, column string) ([]performanceSchemaSetupPredicate, bool) {
-	column = regexp.QuoteMeta(strings.TrimSpace(column))
+	var expr sqlparser.Expr
+	if parsedExpr, err := metadataPredicateFromQuery(where); err == nil && parsedExpr != nil {
+		expr = parsedExpr
+	} else {
+		parsed, err := sqlparser.Parse("select 1 from dual where " + strings.TrimSpace(where))
+		if err != nil {
+			return nil, false
+		}
+		selectStmt, ok := parsed.(*sqlparser.Select)
+		if !ok || selectStmt.Where == nil {
+			return nil, false
+		}
+		expr = selectStmt.Where.Expr
+	}
 	predicates := make([]performanceSchemaSetupPredicate, 0)
-	nullPattern := regexp.MustCompile(`(?i)\b` + column + `\s+is\s+(not\s+)?null`)
-	for _, match := range nullPattern.FindAllStringSubmatch(where, -1) {
-		isNull := len(match) > 1 && strings.TrimSpace(match[1]) == ""
-		predicates = append(predicates, performanceSchemaSetupPredicate{nullTest: &isNull})
-	}
-	valuePattern := regexp.MustCompile(`(?i)\b` + column + `\s*(not\s+in|in|like|=)\s*(\([^)]*\)|'((?:''|[^'])*)'|"([^"]*)")`)
-	for _, match := range valuePattern.FindAllStringSubmatch(where, -1) {
-		if len(match) < 5 {
-			continue
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		if isExpr, ok := node.(*sqlparser.IsExpr); ok {
+			if col, colOK := isExpr.Expr.(*sqlparser.ColName); colOK && strings.EqualFold(col.Name.String(), column) {
+				isNull := strings.EqualFold(strings.TrimSpace(isExpr.Operator), sqlparser.IsNullStr)
+				predicates = append(predicates, performanceSchemaSetupPredicate{nullTest: &isNull})
+			}
+			return true, nil
 		}
-		raw := strings.TrimSpace(match[2])
+		comparison, ok := node.(*sqlparser.ComparisonExpr)
+		if !ok || (comparison.Operator != sqlparser.EqualStr && !strings.EqualFold(comparison.Operator, sqlparser.LikeStr) && comparison.Operator != sqlparser.InStr && comparison.Operator != sqlparser.NotInStr) {
+			return true, nil
+		}
+		col, colOK := comparison.Left.(*sqlparser.ColName)
+		if !colOK || !strings.EqualFold(col.Name.String(), column) {
+			return true, nil
+		}
 		values := make([]string, 0, 1)
-		if strings.HasPrefix(raw, "(") && strings.HasSuffix(raw, ")") {
-			for _, item := range splitTopLevelComma(raw[1 : len(raw)-1]) {
-				values = append(values, unquotePerformanceSchemaSetupValue(item))
+		if tuple, tupleOK := comparison.Right.(sqlparser.ValTuple); tupleOK {
+			for _, item := range tuple {
+				if literal, literalOK := item.(*sqlparser.SQLVal); literalOK {
+					values = append(values, unquotePerformanceSchemaSetupValue(string(literal.Val)))
+				}
 			}
-		} else {
-			value := match[3]
-			if value == "" {
-				value = match[4]
-			}
-			values = append(values, strings.ReplaceAll(value, "''", "'"))
+		} else if literal, literalOK := comparison.Right.(*sqlparser.SQLVal); literalOK {
+			values = append(values, unquotePerformanceSchemaSetupValue(string(literal.Val)))
 		}
-		if len(values) == 0 {
-			continue
+		if len(values) > 0 {
+			predicates = append(predicates, performanceSchemaSetupPredicate{operator: strings.ToLower(comparison.Operator), values: values})
 		}
-		predicates = append(predicates, performanceSchemaSetupPredicate{
-			operator: strings.ToLower(strings.Join(strings.Fields(match[1]), " ")),
-			values:   values,
-		})
-	}
+		return true, nil
+	}, expr)
 	return predicates, len(predicates) > 0
 }
 
@@ -12081,8 +12653,17 @@ func filterPerformanceSchemaVariableRows(query string, rows [][]interface{}) [][
 			filtered = append(filtered, row)
 		}
 	}
-	variableNamePredicate := regexp.MustCompile(`(?is)\bvariable_name\b\s*(?:=|like)|\bvariable_name\b\s+(?:not\s+)?in\s*\([^)]*\)|\bvariable_name\b\s+is\s+(?:not\s+)?null`)
-	if len(filtered) == 0 && !variableNamePredicate.MatchString(query) {
+	expr, err := metadataPredicateFromQuery(query)
+	variableNamePredicate := false
+	if err == nil && expr != nil {
+		for _, column := range predicateASTColumns(expr) {
+			if strings.EqualFold(column, "variable_name") {
+				variableNamePredicate = true
+				break
+			}
+		}
+	}
+	if len(filtered) == 0 && !variableNamePredicate {
 		return rows
 	}
 	return filtered
@@ -13935,55 +14516,25 @@ func (e *XMySQLExecutor) recordPerformanceSchemaConnectionSummaryLoss(table stri
 }
 
 func performanceSchemaSummaryFilterMatches(query, column, value string) bool {
-	if !performanceSchemaSummaryNullFilterMatches(query, column, strings.EqualFold(strings.TrimSpace(value), "<nil>")) {
-		return false
+	expr, err := metadataPredicateFromQuery(query)
+	if err != nil || expr == nil {
+		return true
 	}
-	inPattern := regexp.MustCompile(`(?is)\b` + regexp.QuoteMeta(column) + `\s+(not\s+)?in\s*\(([^)]*)\)`)
-	for _, match := range inPattern.FindAllStringSubmatch(query, -1) {
-		contains := false
-		for _, raw := range splitTopLevelComma(match[2]) {
-			candidate := strings.Trim(strings.TrimSpace(raw), "'\"")
-			if strings.EqualFold(value, candidate) {
-				contains = true
-				break
-			}
-		}
-		notIn := strings.TrimSpace(match[1]) != ""
-		if (notIn && contains) || (!notIn && !contains) {
-			return false
-		}
-	}
-	equalityPattern := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(column) + `\s*(=|like)\s*(?:'([^']*)'|"([^"]*)"|([0-9]+))`)
-	for _, pattern := range equalityPattern.FindAllStringSubmatch(query, -1) {
-		filter := pattern[2]
-		if filter == "" {
-			filter = pattern[3]
-		}
-		if filter == "" {
-			filter = pattern[4]
-		}
-		if strings.EqualFold(pattern[1], "=") {
-			if !strings.EqualFold(value, filter) {
-				return false
-			}
-			continue
-		}
-		if !performanceSchemaSQLLike(filter, value) {
-			return false
-		}
-	}
-	return true
+	keep, handled, evalErr := evaluateMetadataPredicateForColumnValue(expr, column, value)
+	return !handled || evalErr != nil || keep
 }
 
 func performanceSchemaSummaryNullFilterMatches(query, column string, valueIsNull bool) bool {
-	nullPattern := regexp.MustCompile(`(?is)\b` + regexp.QuoteMeta(column) + `\s+is\s+(not\s+)?null\b`)
-	for _, match := range nullPattern.FindAllStringSubmatch(query, -1) {
-		wantsNull := strings.TrimSpace(match[1]) == ""
-		if wantsNull != valueIsNull {
-			return false
-		}
+	expr, err := metadataPredicateFromQuery(query)
+	if err != nil || expr == nil {
+		return true
 	}
-	return true
+	value := interface{}(fmt.Sprint("<nil>"))
+	if valueIsNull {
+		value = nil
+	}
+	keep, handled, evalErr := evaluateMetadataPredicateForColumnValue(expr, column, value)
+	return !handled || evalErr != nil || keep
 }
 
 func (e *XMySQLExecutor) performanceSchemaWaitEdges() []manager.WaitEdge {
@@ -14254,44 +14805,63 @@ func (e *XMySQLExecutor) recordPerformanceSchemaMetadataLockLoss(keys []string) 
 }
 
 func performanceSchemaLockValuesMatch(query string, values map[string]interface{}) bool {
-	filterQuery := performanceSchemaFilterQuery(query)
-	for column, value := range values {
-		if value == nil {
-			if !performanceSchemaSummaryNullFilterMatches(filterQuery, strings.ToLower(column), true) {
-				return false
-			}
-			// SQL comparisons against NULL do not match.  Keep IS NULL/IS NOT
-			// NULL predicates for the regular expression/expression path, but do
-			// not let an explicit equality or LIKE predicate accidentally keep a
-			// row whose projected value is NULL.
-			if performanceSchemaSummaryFilterSpecified(filterQuery, strings.ToLower(column)) {
-				return false
-			}
-			continue
+	if expr, err := metadataPredicateFromQuery(query); err == nil && expr != nil {
+		normalized := make(map[string]interface{}, len(values))
+		for key, value := range values {
+			normalized[strings.ToLower(strings.TrimSpace(key))] = value
 		}
-		if !performanceSchemaSummaryFilterMatches(filterQuery, strings.ToLower(column), fmt.Sprint(value)) {
-			return false
+		if keep, handled, evalErr := evaluateMetadataPredicateForKnownValues(expr, normalized); evalErr == nil && handled {
+			return keep
 		}
 	}
 	return true
 }
 
-// performanceSchemaFilterQuery removes the SELECT projection before applying
-// lightweight row filters. Metadata queries from Connector/J commonly contain
-// CASE expressions such as CASE WHEN TABLE_TYPE='BASE TABLE' ... in the
-// projection. Those comparisons describe the returned value, not a predicate
-// on the source row, and must not be interpreted as equality filters.
-func performanceSchemaFilterQuery(query string) string {
-	match := regexp.MustCompile(`(?is)\bfrom\b`).FindStringIndex(query)
-	if len(match) != 2 {
-		return query
+func evaluateMetadataPredicateForKnownValues(expr sqlparser.Expr, values map[string]interface{}) (bool, bool, error) {
+	switch node := expr.(type) {
+	case *sqlparser.ParenExpr:
+		return evaluateMetadataPredicateForKnownValues(node.Expr, values)
+	case *sqlparser.AndExpr:
+		left, leftHandled, err := evaluateMetadataPredicateForKnownValues(node.Left, values)
+		if err != nil {
+			return false, leftHandled, err
+		}
+		right, rightHandled, err := evaluateMetadataPredicateForKnownValues(node.Right, values)
+		if err != nil {
+			return false, rightHandled, err
+		}
+		if !leftHandled && !rightHandled {
+			return true, false, nil
+		}
+		if leftHandled && rightHandled {
+			return left && right, true, nil
+		}
+		if leftHandled {
+			return left, true, nil
+		}
+		return right, true, nil
+	case *sqlparser.OrExpr:
+		left, leftHandled, err := evaluateMetadataPredicateForKnownValues(node.Left, values)
+		if err != nil {
+			return false, leftHandled, err
+		}
+		right, rightHandled, err := evaluateMetadataPredicateForKnownValues(node.Right, values)
+		if err != nil {
+			return false, rightHandled, err
+		}
+		if !leftHandled || !rightHandled {
+			return true, false, nil
+		}
+		return left || right, true, nil
+	default:
+		for _, column := range predicateASTColumns(expr) {
+			if _, exists := values[strings.ToLower(column)]; !exists {
+				return true, false, nil
+			}
+		}
+		keep, err := evaluateMetadataPredicateCaseInsensitive(expr, values)
+		return keep, true, err
 	}
-	return query[match[0]:]
-}
-
-func performanceSchemaSummaryFilterSpecified(query, column string) bool {
-	pattern := regexp.MustCompile(`(?is)\b` + regexp.QuoteMeta(column) + `\s*(=|like)\s*(?:'[^']*'|"[^"]*"|[0-9]+)|\b` + regexp.QuoteMeta(column) + `\s+(?:not\s+)?in\s*\([^)]*\)`)
-	return pattern.MatchString(query)
 }
 
 func metadataLockThreadID(owner string) interface{} {
@@ -15112,135 +15682,49 @@ func (e *XMySQLExecutor) executeProcesslistSelect(session server.MySQLServerSess
 }
 
 func processlistRowMatchesQuery(row []interface{}, query string, currentID ...int64) bool {
-	lower := strings.ToLower(query)
-	whereAt := strings.Index(lower, " where ")
-	if whereAt < 0 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return false
+	}
+	var expr sqlparser.Expr
+	switch stmt := parsed.AST.(type) {
+	case *sqlparser.Select:
+		if stmt.Where != nil {
+			expr = stmt.Where.Expr
+		}
+	case *sqlparser.Show:
+		expr = extractShowWhereExprFromStmt(stmt)
+	default:
+		return false
+	}
+	if expr == nil {
 		return true
 	}
-	where := strings.TrimSpace(query[whereAt+len(" where "):])
-	whereLower := strings.ToLower(where)
-	for _, suffix := range []string{" order by ", " limit "} {
-		if at := strings.Index(whereLower, suffix); at >= 0 {
-			where = strings.TrimSpace(where[:at])
-			whereLower = strings.ToLower(where)
-		}
-	}
-	groups := splitTopLevelBoolean(where, " or ")
-	if len(groups) == 0 {
-		return true
-	}
-	indexes := map[string]int{"id": 0, "user": 1, "host": 2, "db": 3, "command": 4, "state": 6, "info": 7}
-	for _, group := range groups {
-		conditions := splitTopLevelBoolean(group, " and ")
-		if len(conditions) == 0 {
-			continue
-		}
-		groupMatches := true
-		for _, condition := range conditions {
-			if !processlistConditionMatches(row, indexes, condition, currentID...) {
-				groupMatches = false
-				break
-			}
-		}
-		if groupMatches {
-			return true
-		}
-	}
-	return false
+	indexes := map[string]int{"id": 0, "user": 1, "host": 2, "db": 3, "command": 4, "time": 5, "state": 6, "info": 7, "rows_sent": 8, "rows_examined": 9}
+	return processlistPredicateMatches(row, indexes, expr, currentID...)
 }
 
 func processlistConditionMatches(row []interface{}, indexes map[string]int, condition string, currentID ...int64) bool {
-	condition = strings.TrimSpace(condition)
-	if functionMatch := processlistFunctionFilterPattern.FindStringSubmatch(condition); len(functionMatch) > 0 {
-		if len(currentID) == 0 {
-			return true
-		}
-		actual := fmt.Sprint(row[indexes[strings.ToLower(functionMatch[1])]])
-		want := strconv.FormatInt(currentID[0], 10)
-		if strings.EqualFold(functionMatch[2], "=") {
-			return actual == want
-		}
-		return actual != want
+	expr, err := metadataPredicateFromQuery("select 1 from dual where " + condition)
+	if err != nil {
+		return false
 	}
-	nullMatch := processlistNullFilterPattern.FindStringSubmatch(condition)
-	if len(nullMatch) > 0 {
-		actual := row[indexes[strings.ToLower(nullMatch[1])]]
-		isNull := actual == nil
-		if strings.TrimSpace(nullMatch[2]) != "" {
-			return !isNull
-		}
-		return isNull
-	}
-	if inMatch := processlistInFilterPattern.FindStringSubmatch(condition); len(inMatch) > 0 {
-		actual := fmt.Sprint(row[indexes[strings.ToLower(inMatch[1])]])
-		if actual == "<nil>" {
-			actual = ""
-		}
-		items := splitTopLevelComma(inMatch[3])
-		contains := false
-		for _, item := range items {
-			value, ok := processlistFilterLiteral(item)
-			if ok && strings.EqualFold(actual, value) {
-				contains = true
-				break
-			}
-		}
-		if strings.TrimSpace(inMatch[2]) != "" {
-			return !contains
-		}
-		return contains
-	}
-	match := processlistFilterPattern.FindStringSubmatch(condition)
-	if len(match) == 0 {
-		// Unknown predicates are deliberately retained rather than guessed; a
-		// false negative here would make administrative inspection misleading.
-		return true
-	}
-	value := match[3]
-	if value == "" {
-		value = match[4]
-	}
-	if value == "" {
-		value = match[5]
-	}
-	value = strings.ReplaceAll(value, "''", "'")
-	value = strings.ReplaceAll(value, `""`, `"`)
-	if value == "<nil>" {
-		value = ""
-	}
-	actual := fmt.Sprint(row[indexes[strings.ToLower(match[1])]])
-	if actual == "<nil>" {
-		actual = ""
-	}
-	operator := strings.ToLower(strings.TrimSpace(match[2]))
-	switch operator {
-	case "like", "not like":
-		matched := metadataFilterMatches(actual, value)
-		if operator == "not like" {
-			return !matched
-		}
-		return matched
-	case "!=", "<>":
-		return !strings.EqualFold(actual, value)
-	default:
-		return strings.EqualFold(actual, value)
-	}
+	return processlistPredicateMatches(row, indexes, expr, currentID...)
 }
 
-func processlistFilterLiteral(raw string) (string, bool) {
-	raw = strings.TrimSpace(raw)
-	if len(raw) >= 2 && raw[0] == '\'' && raw[len(raw)-1] == '\'' {
-		return strings.ReplaceAll(raw[1:len(raw)-1], "''", "'"), true
+func processlistPredicateMatches(row []interface{}, indexes map[string]int, expr sqlparser.Expr, currentID ...int64) bool {
+	values := make(map[string]interface{}, len(indexes)+1)
+	for name, index := range indexes {
+		if index >= 0 && index < len(row) {
+			values[name] = row[index]
+		}
 	}
-	if len(raw) >= 2 && raw[0] == '"' && raw[len(raw)-1] == '"' {
-		return strings.ReplaceAll(raw[1:len(raw)-1], `""`, `"`), true
+	if len(currentID) > 0 {
+		values["connection_id()"] = currentID[0]
 	}
-	if _, err := strconv.ParseInt(raw, 10, 64); err == nil {
-		return raw, true
-	}
-	return "", false
+	keep, err := evaluateMetadataPredicateCaseInsensitive(expr, values)
+	return err == nil && keep
 }
-
 func sessionHasProcessPrivilege(session server.MySQLServerSession) bool {
 	if session == nil {
 		return false
@@ -15425,12 +15909,23 @@ func (e *XMySQLExecutor) physicalPartitionRowCount(schemaName, tableName, partit
 }
 
 func isInformationSchemaMetadataQuery(query string) bool {
-	lower := strings.ToLower(strings.TrimSpace(query))
-	lower = strings.ReplaceAll(lower, "`", "")
-	lower = regexp.MustCompile(`\s*\.\s*`).ReplaceAllString(lower, ".")
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return false
+	}
+	refs, err := sqlparser.CollectObjectReferences(parsed.AST, "")
+	if err != nil {
+		return false
+	}
+	known := make(map[string]struct{}, len(informationSchemaMetadataTableNames()))
 	for _, tableName := range informationSchemaMetadataTableNames() {
-		if strings.Contains(lower, "information_schema."+tableName) {
-			return true
+		known[strings.ToLower(tableName)] = struct{}{}
+	}
+	for _, ref := range refs {
+		if strings.EqualFold(ref.Schema, "information_schema") && ref.Kind == sqlparser.ObjectKindTable {
+			if _, ok := known[strings.ToLower(ref.Name)]; ok {
+				return true
+			}
 		}
 	}
 	return false
@@ -15452,12 +15947,23 @@ func isPerformanceSchemaRegistryQuery(query string) bool {
 }
 
 func isMySQLMetadataQuery(query string) bool {
-	lower := strings.ToLower(strings.TrimSpace(query))
-	lower = strings.ReplaceAll(lower, "`", "")
-	lower = regexp.MustCompile(`\s*\.\s*`).ReplaceAllString(lower, ".")
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return false
+	}
+	refs, err := sqlparser.CollectObjectReferences(parsed.AST, "")
+	if err != nil {
+		return false
+	}
+	known := make(map[string]struct{}, len(mysqlMetadataTableNames()))
 	for _, tableName := range mysqlMetadataTableNames() {
-		if strings.Contains(lower, "mysql."+tableName) {
-			return true
+		known[strings.ToLower(tableName)] = struct{}{}
+	}
+	for _, ref := range refs {
+		if strings.EqualFold(ref.Schema, "mysql") && ref.Kind == sqlparser.ObjectKindTable {
+			if _, ok := known[strings.ToLower(ref.Name)]; ok {
+				return true
+			}
 		}
 	}
 	return false
@@ -15570,51 +16076,21 @@ func (e *XMySQLExecutor) executeInformationSchemaEnabledRolesSelect(query string
 	return newInformationSchemaSelectResult("information_schema.enabled_roles", columns, rows)
 }
 
-var informationSchemaRoleFilterPattern = regexp.MustCompile(`(?i)\b(user|host|grantor|grantor_host|grantee|grantee_host|role_name|role_host|default_role|is_default|is_mandatory|is_grantable|table_catalog|table_schema|table_name|column_name|privilege_type|specific_catalog|specific_schema|specific_name|routine_catalog|routine_schema|routine_name)\b\s*(?:=|like)\s*(?:'([^']*)'|"([^"]*)")`)
-
-var informationSchemaRoleInFilterPattern = regexp.MustCompile(`(?is)\b(user|host|grantor|grantor_host|grantee|grantee_host|role_name|role_host|default_role|is_default|is_mandatory|is_grantable|table_catalog|table_schema|table_name|column_name|privilege_type|specific_catalog|specific_schema|specific_name|routine_catalog|routine_schema|routine_name)\b\s+(not\s+)?in\s*\(([^)]*)\)`)
-
-var informationSchemaRoleNullFilterPattern = regexp.MustCompile(`(?is)\b(user|host|grantor|grantor_host|grantee|grantee_host|role_name|role_host|default_role|is_default|is_mandatory|is_grantable|table_catalog|table_schema|table_name|column_name|privilege_type|specific_catalog|specific_schema|specific_name|routine_catalog|routine_schema|routine_name)\b\s+is\s+(not\s+)?null`)
-
 func informationSchemaRoleQueryMatches(query string, values map[string]interface{}) bool {
-	filterQuery := performanceSchemaFilterQuery(query)
-	for _, match := range informationSchemaRoleFilterPattern.FindAllStringSubmatch(filterQuery, -1) {
-		field := strings.ToUpper(match[1])
-		pattern := match[2]
-		if pattern == "" {
-			pattern = match[3]
-		}
-		value := fmt.Sprint(values[field])
-		if !metadataPatternMatchesAllowEmpty(value, pattern) {
-			return false
-		}
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return true
 	}
-	for _, match := range informationSchemaRoleInFilterPattern.FindAllStringSubmatch(filterQuery, -1) {
-		field := strings.ToUpper(match[1])
-		value := fmt.Sprint(values[field])
-		contains := false
-		for _, raw := range splitTopLevelComma(match[3]) {
-			candidate := strings.Trim(strings.TrimSpace(raw), "'\"")
-			if strings.EqualFold(candidate, value) {
-				contains = true
-				break
-			}
-		}
-		notIn := strings.TrimSpace(match[2]) != ""
-		if notIn == contains {
-			return false
-		}
+	selectStmt, ok := parsed.AST.(*sqlparser.Select)
+	if !ok || selectStmt.Where == nil {
+		return true
 	}
-	for _, match := range informationSchemaRoleNullFilterPattern.FindAllStringSubmatch(filterQuery, -1) {
-		field := strings.ToUpper(match[1])
-		_, exists := values[field]
-		isNull := !exists || values[field] == nil
-		isNotNull := strings.TrimSpace(match[2]) != ""
-		if isNotNull == isNull {
-			return false
-		}
+	normalized := make(map[string]interface{}, len(values))
+	for key, value := range values {
+		normalized[strings.ToLower(strings.TrimSpace(key))] = value
 	}
-	return true
+	keep, evalErr := evaluateMetadataPredicate(selectStmt.Where.Expr, normalized)
+	return evalErr == nil && keep
 }
 
 // informationSchemaRoleAdminAvailable mirrors the privilege source used by
@@ -16294,12 +16770,15 @@ func (e *XMySQLExecutor) executeInformationSchemaColumnsSelect(query string, ses
 				nullable = 0
 			}
 			columnType := formatInformationSchemaColumnTypeWithPrecision(column)
+			if strings.HasPrefix(strings.ToLower(strings.TrimSpace(table.tableName)), "__xmysql_tmp_") {
+				columnType = strings.ToUpper(strings.TrimSpace(strings.SplitN(column.typeName, "(", 2)[0]))
+			}
 			dataType := int64(12)
 			if strings.EqualFold(strings.TrimSpace(column.typeName), string(metadata.TypeBit)) {
 				dataType = -7 // java.sql.Types.BIT
 			}
 			dataTypeValue := interface{}(strings.ToUpper(strings.TrimSpace(strings.SplitN(column.typeName, "(", 2)[0])))
-			if jdbcTableCatIdentifierPattern.MatchString(query) || strings.Contains(strings.ToLower(query), "type_name") || strings.Contains(strings.ToLower(query), "column_size") {
+			if jdbcTableCatIdentifierPresent(query) || strings.Contains(strings.ToLower(query), "type_name") || strings.Contains(strings.ToLower(query), "column_size") {
 				dataTypeValue = dataType
 			}
 			columnKey := ""
@@ -16818,8 +17297,10 @@ func (e *XMySQLExecutor) executeInformationSchemaViewsSelect(query string, sessi
 			definer := strings.TrimSpace(info.Definer)
 			if definer == "" {
 				definer = "root@localhost"
-			} else if definerMatch := regexp.MustCompile(`^'([^']*)'@'([^']*)'$`).FindStringSubmatch(definer); len(definerMatch) == 3 {
-				definer = definerMatch[1] + "@" + definerMatch[2]
+			} else if at := strings.Index(definer, "'@'"); strings.HasPrefix(definer, "'") && strings.HasSuffix(definer, "'") && at > 0 {
+				user := strings.Trim(definer[:at], "'")
+				host := strings.Trim(definer[at+2:], "'")
+				definer = user + "@" + host
 			}
 			securityType := strings.ToUpper(strings.TrimSpace(info.SQLSecurity))
 			if securityType == "" {
@@ -16853,28 +17334,44 @@ func (e *XMySQLExecutor) executeInformationSchemaViewsSelect(query string, sessi
 // complex definitions remain NO rather than being advertised as writable
 // without an authoritative mapping to one base table.
 func informationSchemaViewUpdatability(definition string) string {
-	lower := strings.ToLower(strings.TrimSpace(strings.TrimSuffix(definition, ";")))
-	if lower == "" || !strings.HasPrefix(lower, "select ") {
-		return "NO"
-	}
-	for _, marker := range []string{" union ", " distinct ", " group by ", " having ", " limit ", " join ", " over(", " over (", "select ("} {
-		if strings.Contains(lower, marker) {
+	if parsed, err := sqlparser.ParseForExecution(definition); err == nil {
+		var selectStmt *sqlparser.Select
+		switch stmt := parsed.AST.(type) {
+		case *sqlparser.Select:
+			selectStmt = stmt
+		case *sqlparser.With:
+			if body, ok := stmt.Body.(*sqlparser.Select); ok {
+				selectStmt = body
+			}
+		}
+		if selectStmt != nil {
+			if selectStmt.Distinct != "" || selectStmt.GroupBy != nil || selectStmt.Having != nil || selectStmt.Limit != nil || len(selectStmt.Windows) > 0 || len(selectStmt.From) != 1 {
+				return "NO"
+			}
+			if _, ok := selectStmt.From[0].(*sqlparser.AliasedTableExpr); !ok {
+				return "NO"
+			}
+			aggregate := false
+			subquery := false
+			_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+				switch value := node.(type) {
+				case *sqlparser.Subquery:
+					subquery = true
+				case *sqlparser.FuncExpr:
+					name := strings.ToLower(value.Name.String())
+					if name == "count" || name == "sum" || name == "avg" || name == "min" || name == "max" || name == "json_arrayagg" || name == "json_objectagg" || name == "group_concat" {
+						aggregate = true
+					}
+				}
+				return true, nil
+			}, selectStmt)
+			if !aggregate && !subquery {
+				return "YES"
+			}
 			return "NO"
 		}
 	}
-	if regexp.MustCompile(`(?i)\b(count|sum|avg|min|max|json_arrayagg|json_objectagg|group_concat)\s*\(`).MatchString(lower) {
-		return "NO"
-	}
-	from := regexp.MustCompile(`(?is)^select\s+(.+?)\s+from\s+(.+)$`).FindStringSubmatch(lower)
-	if len(from) != 3 {
-		return "NO"
-	}
-	selectList := strings.TrimSpace(from[1])
-	fromClause := strings.TrimSpace(from[2])
-	if selectList == "" || strings.Contains(selectList, "(") || strings.Contains(fromClause, ",") {
-		return "NO"
-	}
-	return "YES"
+	return "NO"
 }
 
 func (e *XMySQLExecutor) checkViewMetadataPrivilege(ctx *ExecutionContext, schema string) error {
@@ -16931,8 +17428,10 @@ func (e *XMySQLExecutor) checkViewDefinerPrivilege(ctx *ExecutionContext, path s
 	definer := strings.TrimSpace(info.Definer)
 	if definer == "" {
 		definer = "root@localhost"
-	} else if match := regexp.MustCompile(`^'([^']*)'@'([^']*)'$`).FindStringSubmatch(definer); len(match) == 3 {
-		definer = match[1] + "@" + match[2]
+	} else if parsed, parseErr := sqlparser.ParseForExecution("SHOW CREATE USER " + definer); parseErr == nil {
+		if account, ok := parsed.AST.(*sqlparser.AccountStatement); ok && len(account.Accounts) == 1 {
+			definer = account.Accounts[0].User + "@" + account.Accounts[0].Host
+		}
 	}
 	if strings.EqualFold(definer, user+"@"+host) {
 		return nil
@@ -16953,14 +17452,15 @@ func (e *XMySQLExecutor) checkViewDefinerPrivilege(ctx *ExecutionContext, path s
 }
 
 func (e *XMySQLExecutor) checkViewDefinerClausePrivilege(ctx *ExecutionContext, query string) error {
-	match := regexp.MustCompile(`(?is)\bdefiner\s*=\s*(?:current_user(?:\(\))?|'([^']*)'\s*@\s*'([^']*)'|"([^"]*)"\s*@\s*"([^"]*)")`).FindStringSubmatch(query)
-	if len(match) == 0 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil || parsed == nil {
 		return nil
 	}
-	definerUser, definerHost := strings.TrimSpace(match[1]), strings.TrimSpace(match[2])
-	if definerUser == "" && len(match) >= 5 {
-		definerUser, definerHost = strings.TrimSpace(match[3]), strings.TrimSpace(match[4])
+	view, ok := parsed.AST.(*sqlparser.ViewStatement)
+	if !ok {
+		return nil
 	}
+	definerUser, definerHost := strings.TrimSpace(view.Definer.User), strings.TrimSpace(view.Definer.Host)
 	if definerUser == "" {
 		return nil
 	}
@@ -16997,14 +17497,11 @@ func (e *XMySQLExecutor) executeInformationSchemaStatisticsSelect(query string, 
 	defaultColumns := []string{"TABLE_CATALOG", "TABLE_SCHEMA", "TABLE_NAME", "NON_UNIQUE", "INDEX_SCHEMA", "INDEX_NAME", "SEQ_IN_INDEX", "COLUMN_NAME", "COLLATION", "CARDINALITY", "SUB_PART", "PACKED", "NULLABLE", "INDEX_TYPE", "COMMENT", "INDEX_COMMENT", "IS_VISIBLE", "EXPRESSION"}
 	columns := requestedInformationSchemaColumns(query, defaultColumns)
 	lower := strings.ToLower(query)
-	if jdbcTableCatIdentifierPattern.MatchString(query) || strings.Contains(lower, "pk_name") || strings.Contains(lower, "index_qualifier") {
+	if jdbcTableCatIdentifierPresent(query) || strings.Contains(lower, "pk_name") || strings.Contains(lower, "index_qualifier") {
 		columns = jdbcStatisticsMetadataColumns(query)
 	}
 	rows := make([][]interface{}, 0)
-	indexNameFilter := ""
-	if match := regexp.MustCompile(`(?is)\bindex_name\s*=\s*'([^']*)'`).FindStringSubmatch(query); len(match) == 2 {
-		indexNameFilter = strings.TrimSpace(match[1])
-	}
+	indexNameFilter := strings.TrimSpace(informationSchemaASTEqualityFilters(query, map[string]bool{"index_name": true})["index_name"])
 	for _, table := range e.scanFrmTables() {
 		visibleTableName, visible := temporaryMetadataTableName(session, table.schemaName, table.tableName)
 		if !visible || !e.informationSchemaTableVisible(session, table.schemaName, table.tableName, false) || !metadataPatternMatches(table.schemaName, filters["table_schema"]) || !metadataPatternMatches(visibleTableName, filters["table_name"]) {
@@ -17033,7 +17530,7 @@ func (e *XMySQLExecutor) executeInformationSchemaStatisticsSelect(query string, 
 			if indexNameFilter != "" && !strings.EqualFold(indexName, indexNameFilter) {
 				continue
 			}
-			if strings.Contains(lower, "index_name='primary'") && !strings.EqualFold(indexName, "PRIMARY") {
+			if strings.EqualFold(indexNameFilter, "PRIMARY") && !strings.EqualFold(indexName, "PRIMARY") {
 				continue
 			}
 			unique, _ := index["unique"].(bool)
@@ -17058,7 +17555,7 @@ func (e *XMySQLExecutor) executeInformationSchemaStatisticsSelect(query string, 
 				if !unique {
 					row["NON_UNIQUE"] = int64(1)
 				}
-				if jdbcTableCatIdentifierPattern.MatchString(query) {
+				if jdbcTableCatIdentifierPresent(query) {
 					row["TABLE_CAT"] = table.schemaName
 					row["TABLE_SCHEM"] = nil
 					row["INDEX_QUALIFIER"] = nil
@@ -17106,21 +17603,36 @@ func (e *XMySQLExecutor) informationSchemaIndexPages(ctx context.Context, schema
 }
 
 func requestedInformationSchemaColumns(query string, defaults []string) []string {
-	match := regexp.MustCompile("(?is)^\\s*select\\s+(.+?)\\s+from\\s+").FindStringSubmatch(query)
-	if len(match) == 0 || strings.TrimSpace(match[1]) == "*" {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
 		return defaults
 	}
-	columns := make([]string, 0)
-	for _, item := range splitTopLevelComma(match[1]) {
-		item = strings.TrimSpace(item)
-		if idx := strings.LastIndex(strings.ToLower(item), " as "); idx >= 0 {
-			item = item[idx+4:]
-		} else if fields := strings.Fields(item); len(fields) > 1 {
-			item = fields[len(fields)-1]
+	selectStmt, ok := parsed.AST.(*sqlparser.Select)
+	if !ok || len(selectStmt.SelectExprs) == 0 {
+		return defaults
+	}
+	if len(selectStmt.SelectExprs) == 1 {
+		if _, star := selectStmt.SelectExprs[0].(*sqlparser.StarExpr); star {
+			return defaults
 		}
-		item = strings.Trim(strings.TrimSpace(item), "`")
-		if item != "" {
-			columns = append(columns, strings.ToUpper(item))
+	}
+	columns := make([]string, 0, len(selectStmt.SelectExprs))
+	for _, selectExpr := range selectStmt.SelectExprs {
+		aliased, ok := selectExpr.(*sqlparser.AliasedExpr)
+		if !ok {
+			continue
+		}
+		name := ""
+		if !aliased.As.IsEmpty() {
+			name = aliased.As.String()
+		} else if column, ok := aliased.Expr.(*sqlparser.ColName); ok {
+			name = column.Name.String()
+		} else {
+			name = sqlparser.String(aliased.Expr)
+		}
+		name = strings.Trim(strings.TrimSpace(name), "`")
+		if name != "" {
+			columns = append(columns, strings.ToUpper(name))
 		}
 	}
 	if len(columns) == 0 {
@@ -17138,57 +17650,85 @@ func normalizeInformationSchemaAggregate(query string, result *SelectResult) *Se
 	if result == nil {
 		return result
 	}
-	match := regexp.MustCompile(`(?is)^\s*select\s+(.+?)\s+from\s+`).FindStringSubmatch(query)
-	if len(match) != 2 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
 		return result
 	}
-	items := splitTopLevelComma(match[1])
-	if len(items) != 1 {
+	selectStmt, ok := parsed.AST.(*sqlparser.Select)
+	if !ok || len(selectStmt.SelectExprs) != 1 {
 		return result
 	}
-	item := strings.TrimSpace(items[0])
-	normalized := strings.ToLower(strings.ReplaceAll(item, " ", ""))
-	if strings.HasPrefix(normalized, "if(count(*)>") {
-		if match := regexp.MustCompile(`(?is)^if\s*\(\s*count\s*\(\s*\*\s*\)\s*>\s*0\s*,\s*('(?:''|[^'])*'|"(?:""|[^"])*")\s*,\s*('(?:''|[^'])*'|"(?:""|[^"])*")\s*\)$`).FindStringSubmatch(item); len(match) == 3 {
-			value := match[2]
-			if len(result.Records) > 0 {
-				value = match[1]
-			}
-			value = strings.Trim(value, "'\"")
-			value = strings.ReplaceAll(value, "''", "'")
-			value = strings.ReplaceAll(value, `""`, `"`)
-			return newInformationSchemaSelectResult("information_schema_aggregate", []string{item}, [][]interface{}{{value}})
-		}
-	}
-	if normalized != "count(*)" && !strings.HasPrefix(normalized, "count(*)as") {
+	aliased, ok := selectStmt.SelectExprs[0].(*sqlparser.AliasedExpr)
+	if !ok {
 		return result
 	}
 	column := "COUNT(*)"
-	if aliasIndex := strings.Index(strings.ToLower(item), " as "); aliasIndex >= 0 {
-		alias := strings.Trim(strings.TrimSpace(item[aliasIndex+4:]), "`")
-		if alias != "" {
-			column = alias
+	if !aliased.As.IsEmpty() {
+		column = aliased.As.String()
+	}
+	if function, ok := aliased.Expr.(*sqlparser.FuncExpr); ok && strings.EqualFold(function.Name.String(), "count") && len(function.Exprs) == 1 {
+		if _, star := function.Exprs[0].(*sqlparser.StarExpr); star {
+			return newInformationSchemaSelectResult("information_schema_aggregate", []string{column}, [][]interface{}{{int64(len(result.Records))}})
 		}
 	}
-	return newInformationSchemaSelectResult("information_schema_aggregate", []string{column}, [][]interface{}{{int64(len(result.Records))}})
+	if function, ok := aliased.Expr.(*sqlparser.FuncExpr); ok && strings.EqualFold(function.Name.String(), "if") && len(function.Exprs) == 3 {
+		condition, conditionOK := function.Exprs[0].(*sqlparser.AliasedExpr)
+		whenTrue, trueOK := function.Exprs[1].(*sqlparser.AliasedExpr)
+		whenFalse, falseOK := function.Exprs[2].(*sqlparser.AliasedExpr)
+		comparison, comparisonOK := condition.Expr.(*sqlparser.ComparisonExpr)
+		if conditionOK && trueOK && falseOK && comparisonOK && comparison.Operator == sqlparser.GreaterThanStr {
+			countExpr, countOK := comparison.Left.(*sqlparser.FuncExpr)
+			threshold, thresholdOK := comparison.Right.(*sqlparser.SQLVal)
+			if countOK && thresholdOK && strings.EqualFold(countExpr.Name.String(), "count") && len(countExpr.Exprs) == 1 {
+				if _, star := countExpr.Exprs[0].(*sqlparser.StarExpr); star {
+					thresholdValue, parseErr := strconv.ParseInt(string(threshold.Val), 10, 64)
+					if parseErr == nil {
+						valueExpr := whenFalse
+						if int64(len(result.Records)) > thresholdValue {
+							valueExpr = whenTrue
+						}
+						if value, valueOK := valueExpr.Expr.(*sqlparser.SQLVal); valueOK {
+							text := strings.Trim(string(value.Val), "'\"")
+							text = strings.ReplaceAll(text, "''", "'")
+							text = strings.ReplaceAll(text, `""`, `"`)
+							return newInformationSchemaSelectResult("information_schema_aggregate", []string{sqlparser.String(aliased.Expr)}, [][]interface{}{{text}})
+						}
+					}
+				}
+			}
+		}
+	}
+	return result
 }
 
 func informationSchemaSelectsAllColumns(query string) bool {
-	match := regexp.MustCompile(`(?is)^\s*select\s+(.+?)\s+from\s+`).FindStringSubmatch(query)
-	return len(match) == 2 && strings.TrimSpace(match[1]) == "*"
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return false
+	}
+	selectStmt, ok := parsed.AST.(*sqlparser.Select)
+	if !ok || len(selectStmt.SelectExprs) != 1 {
+		return false
+	}
+	_, ok = selectStmt.SelectExprs[0].(*sqlparser.StarExpr)
+	return ok
 }
 
 func informationSchemaSelectListContains(query, column string) bool {
-	match := regexp.MustCompile(`(?is)^\s*select\s+(.+?)\s+from\s+`).FindStringSubmatch(query)
-	if len(match) != 2 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
 		return false
 	}
-	for _, item := range splitTopLevelComma(match[1]) {
-		item = strings.TrimSpace(item)
-		if index := strings.Index(strings.ToLower(item), " as "); index >= 0 {
-			item = item[:index]
+	selectStmt, ok := parsed.AST.(*sqlparser.Select)
+	if !ok {
+		return false
+	}
+	for _, selectExpr := range selectStmt.SelectExprs {
+		aliased, ok := selectExpr.(*sqlparser.AliasedExpr)
+		if !ok {
+			continue
 		}
-		if strings.EqualFold(strings.Trim(strings.TrimSpace(item), "`"), column) {
+		if selectColumn, ok := aliased.Expr.(*sqlparser.ColName); ok && strings.EqualFold(selectColumn.Name.String(), column) {
 			return true
 		}
 	}
@@ -17418,7 +17958,8 @@ func (e *XMySQLExecutor) viewColumnMetadata(schemaName, viewName string) ([]*met
 		return nil, fmt.Errorf("view '%s.%s' does not exist: %w", schemaName, viewName, err)
 	}
 	var info struct {
-		Definition string `json:"definition"`
+		Definition string   `json:"definition"`
+		Columns    []string `json:"columns"`
 	}
 	if err := json.Unmarshal(raw, &info); err != nil {
 		return nil, fmt.Errorf("parse view metadata failed: %w", err)
@@ -17463,6 +18004,9 @@ func (e *XMySQLExecutor) viewColumnMetadata(schemaName, viewName string) ([]*met
 	columns := make([]*metadata.ColumnMeta, 0, len(result.Columns))
 	for index, name := range result.Columns {
 		columnName := strings.Trim(strings.TrimSpace(name), "`")
+		if index < len(info.Columns) && strings.TrimSpace(info.Columns[index]) != "" {
+			columnName = strings.Trim(strings.TrimSpace(info.Columns[index]), "`")
+		}
 		if columnName == "" {
 			columnName = fmt.Sprintf("column_%d", index+1)
 		}
@@ -17970,63 +18514,152 @@ func persistedBool(value interface{}) bool {
 }
 
 func informationSchemaMetadataFilters(query string) map[string]string {
-	filters := make(map[string]string)
-	for _, match := range informationSchemaMetadataFilterPattern.FindAllStringSubmatch(query, -1) {
-		value := match[2]
-		if value == "" {
-			value = match[3]
-		}
-		if value == "" {
-			// Keep an explicit `= ''`/`LIKE ''` distinguishable from an
-			// omitted predicate. The latter is represented by a missing map
-			// entry and must match every row; the former only matches an empty
-			// metadata value.
-			value = informationSchemaExplicitEmptyPattern
-		}
-		filters[strings.ToLower(match[1])] = value
+	if parsed, err := sqlparser.ParseForExecution(query); err == nil {
+		filters := make(map[string]string)
+		_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+			comparison, ok := node.(*sqlparser.ComparisonExpr)
+			if !ok || (comparison.Operator != sqlparser.EqualStr && !strings.EqualFold(comparison.Operator, sqlparser.LikeStr)) {
+				return true, nil
+			}
+			column, ok := comparison.Left.(*sqlparser.ColName)
+			if !ok {
+				return true, nil
+			}
+			name := strings.ToLower(strings.TrimSpace(column.Name.String()))
+			switch name {
+			case "table_schema", "table_name", "schema_name", "column_name", "constraint_name", "constraint_type":
+			default:
+				return true, nil
+			}
+			value, ok := comparison.Right.(*sqlparser.SQLVal)
+			if !ok || value.Type != sqlparser.StrVal {
+				return true, nil
+			}
+			filters[name] = string(value.Val)
+			return true, nil
+		}, parsed.AST)
+		return filters
 	}
-	return filters
+	return make(map[string]string)
 }
 
 const informationSchemaExplicitEmptyPattern = "\x00"
 
-var informationSchemaMetadataInFilterPattern = regexp.MustCompile(`(?is)\b(table_schema|table_name|schema_name|column_name|constraint_name|constraint_type)\b\s+(not\s+)?in\s*\(([^)]*)\)`)
-var informationSchemaMetadataNullFilterPattern = regexp.MustCompile(`(?is)\b(table_schema|table_name|schema_name|column_name|constraint_name|constraint_type)\b\s+is\s+(not\s+)?null`)
-var informationSchemaParameterInFilterPattern = regexp.MustCompile(`(?is)\b(ordinal_position|parameter_name|parameter_mode)\b\s+(not\s+)?in\s*\(([^)]*)\)`)
-
 func informationSchemaMetadataQueryMatches(query, column, value, equalityPattern string) bool {
-	if strings.TrimSpace(equalityPattern) != "" && !metadataPatternMatches(value, equalityPattern) {
+	if expr, err := metadataPredicateFromQuery(query); err == nil && expr != nil {
+		if keep, handled, evalErr := evaluateMetadataPredicateForColumn(expr, column, value); handled && evalErr == nil {
+			return keep
+		}
+	}
+	if strings.TrimSpace(equalityPattern) == "" {
+		return true
+	}
+	return metadataPatternMatches(value, equalityPattern)
+}
+
+// evaluateMetadataPredicateForColumn evaluates only the branches that depend
+// on one metadata column. This keeps the per-column caller correct for a
+// compound WHERE such as `table_schema IN (...) AND table_name LIKE ...`;
+// unrelated branches are evaluated by their own column pass.
+func evaluateMetadataPredicateForColumn(expr sqlparser.Expr, column, value string) (bool, bool, error) {
+	switch node := expr.(type) {
+	case *sqlparser.ParenExpr:
+		return evaluateMetadataPredicateForColumn(node.Expr, column, value)
+	case *sqlparser.AndExpr:
+		left, leftHandled, err := evaluateMetadataPredicateForColumn(node.Left, column, value)
+		if err != nil {
+			return false, leftHandled, err
+		}
+		right, rightHandled, err := evaluateMetadataPredicateForColumn(node.Right, column, value)
+		if err != nil {
+			return false, rightHandled, err
+		}
+		if !leftHandled && !rightHandled {
+			return true, false, nil
+		}
+		if leftHandled && rightHandled {
+			return left && right, true, nil
+		}
+		if leftHandled {
+			return left, true, nil
+		}
+		return right, true, nil
+	case *sqlparser.OrExpr:
+		// An OR branch that does not mention this column may independently
+		// make the whole predicate true, so do not prune this row.
+		left, leftHandled, err := evaluateMetadataPredicateForColumn(node.Left, column, value)
+		if err != nil {
+			return false, leftHandled, err
+		}
+		right, rightHandled, err := evaluateMetadataPredicateForColumn(node.Right, column, value)
+		if err != nil {
+			return false, rightHandled, err
+		}
+		if !leftHandled || !rightHandled {
+			return true, false, nil
+		}
+		return left || right, true, nil
+	case *sqlparser.NotExpr:
+		if !metadataPredicateUsesOnlyColumn(node.Expr, column) {
+			return true, false, nil
+		}
+		keep, err := evaluateMetadataPredicateCaseInsensitive(node, map[string]interface{}{column: value})
+		return keep, true, err
+	default:
+		if !metadataPredicateUsesOnlyColumn(expr, column) {
+			return true, false, nil
+		}
+		keep, err := evaluateMetadataPredicateCaseInsensitive(expr, map[string]interface{}{column: value})
+		return keep, true, err
+	}
+}
+
+func evaluateMetadataPredicateCaseInsensitive(expr sqlparser.Expr, values map[string]interface{}) (bool, error) {
+	if expr == nil {
+		return true, nil
+	}
+	// Metadata identifiers and their string predicates follow the default
+	// case-insensitive catalog collation. Normalize only this local parsed AST
+	// and value map; ordinary SQL expression evaluation remains unchanged.
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		if value, ok := node.(*sqlparser.SQLVal); ok && value.Type == sqlparser.StrVal {
+			value.Val = []byte(strings.ToLower(string(value.Val)))
+		}
+		return true, nil
+	}, expr)
+	normalized := make(map[string]interface{}, len(values))
+	for key, value := range values {
+		if bytes, ok := value.([]byte); ok {
+			value = string(bytes)
+		}
+		if text, ok := value.(string); ok {
+			normalized[key] = strings.ToLower(text)
+		} else {
+			normalized[key] = value
+		}
+	}
+	return evaluateMetadataPredicate(expr, normalized)
+}
+
+func metadataPredicateUsesOnlyColumn(expr sqlparser.Expr, column string) bool {
+	if expr == nil {
 		return false
 	}
-	for _, match := range informationSchemaMetadataNullFilterPattern.FindAllStringSubmatch(query, -1) {
-		if !strings.EqualFold(match[1], column) {
-			continue
+	usesColumn := false
+	valid := true
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		col, ok := node.(*sqlparser.ColName)
+		if !ok {
+			return true, nil
 		}
-		wantNull := strings.TrimSpace(match[2]) == ""
-		if wantNull {
-			return false
+		if !strings.EqualFold(strings.TrimSpace(col.Name.String()), strings.TrimSpace(column)) {
+			valid = false
+			return false, nil
 		}
-	}
-	for _, match := range informationSchemaMetadataInFilterPattern.FindAllStringSubmatch(query, -1) {
-		if !strings.EqualFold(match[1], column) {
-			continue
-		}
-		matched := false
-		for _, raw := range splitTopLevelComma(match[3]) {
-			candidate := strings.Trim(strings.TrimSpace(raw), "'\"")
-			candidate = strings.ReplaceAll(candidate, "''", "'")
-			candidate = strings.ReplaceAll(candidate, `""`, `"`)
-			if strings.EqualFold(candidate, value) {
-				matched = true
-				break
-			}
-		}
-		notIn := strings.TrimSpace(match[2]) != ""
-		if notIn == matched {
-			return false
-		}
-	}
-	return true
+		usesColumn = true
+		return true, nil
+	}, expr)
+	return valid && usesColumn
 }
 
 func metadataPatternMatches(value, pattern string) bool {
@@ -18040,11 +18673,36 @@ func metadataPatternMatches(value, pattern string) bool {
 }
 
 func metadataPatternMatchesAllowEmpty(value, pattern string) bool {
-	quoted := regexp.QuoteMeta(pattern)
-	quoted = strings.ReplaceAll(quoted, "%", ".*")
-	quoted = strings.ReplaceAll(quoted, "_", ".")
-	matched, err := regexp.MatchString("(?i)^"+quoted+"$", value)
-	return err == nil && matched
+	return sqlLikePatternMatchFold(value, pattern)
+}
+
+// sqlLikePatternMatchFold implements the SQL LIKE wildcard semantics needed
+// by metadata providers without translating the pattern into a regular
+// expression. Metadata filters use case-insensitive matching, as MySQL's
+// default metadata collation does.
+func sqlLikePatternMatchFold(value, pattern string) bool {
+	value = strings.ToLower(value)
+	pattern = strings.ToLower(pattern)
+	valueRunes, patternRunes := []rune(value), []rune(pattern)
+	previous := make([]bool, len(valueRunes)+1)
+	previous[0] = true
+	for index := 0; index < len(patternRunes); index++ {
+		current := make([]bool, len(valueRunes)+1)
+		if patternRunes[index] == '%' {
+			current[0] = previous[0]
+			for valueIndex := 1; valueIndex <= len(valueRunes); valueIndex++ {
+				current[valueIndex] = current[valueIndex-1] || previous[valueIndex]
+			}
+		} else {
+			for valueIndex := 1; valueIndex <= len(valueRunes); valueIndex++ {
+				if patternRunes[index] == '_' || patternRunes[index] == valueRunes[valueIndex-1] {
+					current[valueIndex] = previous[valueIndex-1]
+				}
+			}
+		}
+		previous = current
+	}
+	return previous[len(valueRunes)]
 }
 
 func (e *XMySQLExecutor) executeInformationSchemaParametersSelect(query string, session server.MySQLServerSession) (*SelectResult, error) {
@@ -18055,33 +18713,16 @@ func (e *XMySQLExecutor) executeInformationSchemaParametersSelect(query string, 
 		"DATA_TYPE", "CHARACTER_MAXIMUM_LENGTH", "CHARACTER_OCTET_LENGTH", "NUMERIC_PRECISION", "NUMERIC_SCALE",
 		"DATETIME_PRECISION", "CHARACTER_SET_NAME", "COLLATION_NAME", "DTD_IDENTIFIER", "ROUTINE_TYPE",
 	})
-	filters := map[string]string{}
-	filterPattern := regexp.MustCompile(`(?i)\b(?:specific_schema|specific_name|routine_schema|routine_name|specific_catalog)\b\s*(?:=|like)\s*(?:'([^']*)'|"([^"]*)")`)
-	for _, match := range filterPattern.FindAllStringSubmatch(query, -1) {
-		value := match[1]
-		if value == "" {
-			value = match[2]
-		}
-		key := strings.ToLower(strings.TrimSpace(strings.Fields(strings.ToLower(match[0]))[0]))
-		filters[key] = value
-	}
-	parameterFilterPattern := regexp.MustCompile(`(?i)\b(ordinal_position|parameter_name|parameter_mode)\b\s*(?:=|like)\s*(?:'([^']*)'|"([^"]*)"|([0-9]+))`)
-	parameterNullFilterPattern := regexp.MustCompile(`(?i)\b(ordinal_position|parameter_name|parameter_mode)\b\s+is\s+(not\s+)?null`)
-	parameterFilters := map[string]string{}
-	parameterNullFilters := map[string]bool{}
-	for _, match := range parameterFilterPattern.FindAllStringSubmatch(query, -1) {
-		value := match[2]
-		if value == "" {
-			value = match[3]
-		}
-		if value == "" {
-			value = match[4]
-		}
-		parameterFilters[strings.ToLower(match[1])] = value
-	}
-	for _, match := range parameterNullFilterPattern.FindAllStringSubmatch(query, -1) {
-		parameterNullFilters[strings.ToLower(match[1])] = strings.TrimSpace(match[2]) == ""
-	}
+	filters := informationSchemaASTEqualityFilters(query, map[string]bool{
+		"specific_schema": true, "specific_name": true, "routine_schema": true,
+		"routine_name": true, "specific_catalog": true,
+	})
+	parameterFilters := informationSchemaASTEqualityFilters(query, map[string]bool{
+		"ordinal_position": true, "parameter_name": true, "parameter_mode": true,
+	})
+	parameterNullFilters := informationSchemaASTNullFilters(query, map[string]bool{
+		"ordinal_position": true, "parameter_name": true, "parameter_mode": true,
+	})
 	rows := make([][]interface{}, 0)
 	objects := append(e.scanStoredObjects("procedure"), e.scanStoredObjects("function")...)
 	lockCtx := &ExecutionContext{Context: context.Background(), Session: session}
@@ -18224,30 +18865,112 @@ func metadataFilterMatches(value string, patterns ...string) bool {
 }
 
 func informationSchemaParameterInFilterMatches(query, field string, value interface{}, isNull bool) bool {
-	for _, match := range informationSchemaParameterInFilterPattern.FindAllStringSubmatch(query, -1) {
-		if !strings.EqualFold(match[1], field) {
-			continue
-		}
-		if isNull {
-			return false
-		}
-		valueText := fmt.Sprint(value)
-		matched := false
-		for _, raw := range splitTopLevelComma(match[3]) {
-			candidate := strings.Trim(strings.TrimSpace(raw), "'\"")
-			candidate = strings.ReplaceAll(candidate, "''", "'")
-			candidate = strings.ReplaceAll(candidate, `""`, `"`)
-			if strings.EqualFold(candidate, valueText) {
-				matched = true
-				break
-			}
-		}
-		notIn := strings.TrimSpace(match[2]) != ""
-		if notIn == matched {
-			return false
-		}
+	expr, err := metadataPredicateFromQuery(query)
+	if err != nil || expr == nil {
+		return true
 	}
-	return true
+	if isNull {
+		keep, handled, evalErr := evaluateMetadataPredicateForColumnValue(expr, field, nil)
+		return !handled || evalErr != nil || keep
+	}
+	keep, handled, evalErr := evaluateMetadataPredicateForColumnValue(expr, field, value)
+	return !handled || evalErr != nil || keep
+}
+
+func evaluateMetadataPredicateForColumnValue(expr sqlparser.Expr, column string, value interface{}) (bool, bool, error) {
+	switch node := expr.(type) {
+	case *sqlparser.ParenExpr:
+		return evaluateMetadataPredicateForColumnValue(node.Expr, column, value)
+	case *sqlparser.AndExpr:
+		left, leftHandled, err := evaluateMetadataPredicateForColumnValue(node.Left, column, value)
+		if err != nil {
+			return false, leftHandled, err
+		}
+		right, rightHandled, err := evaluateMetadataPredicateForColumnValue(node.Right, column, value)
+		if err != nil {
+			return false, rightHandled, err
+		}
+		if !leftHandled && !rightHandled {
+			return true, false, nil
+		}
+		if leftHandled && rightHandled {
+			return left && right, true, nil
+		}
+		if leftHandled {
+			return left, true, nil
+		}
+		return right, true, nil
+	case *sqlparser.OrExpr:
+		left, leftHandled, err := evaluateMetadataPredicateForColumnValue(node.Left, column, value)
+		if err != nil {
+			return false, leftHandled, err
+		}
+		right, rightHandled, err := evaluateMetadataPredicateForColumnValue(node.Right, column, value)
+		if err != nil {
+			return false, rightHandled, err
+		}
+		if !leftHandled || !rightHandled {
+			return true, false, nil
+		}
+		return left || right, true, nil
+	default:
+		if !metadataPredicateUsesOnlyColumn(expr, column) {
+			return true, false, nil
+		}
+		keep, err := evaluateMetadataPredicateCaseInsensitive(expr, map[string]interface{}{column: value})
+		return keep, true, err
+	}
+}
+
+func informationSchemaASTEqualityFilters(query string, allowed map[string]bool) map[string]string {
+	filters := make(map[string]string)
+	expr, err := metadataPredicateFromQuery(query)
+	if err != nil || expr == nil {
+		return filters
+	}
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		comparison, ok := node.(*sqlparser.ComparisonExpr)
+		if !ok || (comparison.Operator != sqlparser.EqualStr && !strings.EqualFold(comparison.Operator, sqlparser.LikeStr)) {
+			return true, nil
+		}
+		column, ok := comparison.Left.(*sqlparser.ColName)
+		value, valueOK := comparison.Right.(*sqlparser.SQLVal)
+		if !ok || !valueOK || value.Type != sqlparser.StrVal {
+			return true, nil
+		}
+		name := strings.ToLower(column.Name.String())
+		if allowed[name] {
+			filters[name] = string(value.Val)
+		}
+		return true, nil
+	}, expr)
+	return filters
+}
+
+func informationSchemaASTNullFilters(query string, allowed map[string]bool) map[string]bool {
+	filters := make(map[string]bool)
+	expr, err := metadataPredicateFromQuery(query)
+	if err != nil || expr == nil {
+		return filters
+	}
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		isExpr, ok := node.(*sqlparser.IsExpr)
+		if !ok {
+			return true, nil
+		}
+		column, ok := isExpr.Expr.(*sqlparser.ColName)
+		if !ok || !allowed[strings.ToLower(column.Name.String())] {
+			return true, nil
+		}
+		switch strings.ToLower(strings.TrimSpace(isExpr.Operator)) {
+		case sqlparser.IsNullStr:
+			filters[strings.ToLower(column.Name.String())] = true
+		case sqlparser.IsNotNullStr:
+			filters[strings.ToLower(column.Name.String())] = false
+		}
+		return true, nil
+	}, expr)
+	return filters
 }
 
 func parseStoredRoutineParameterMetadata(raw string) (mode, name, typeName string) {
@@ -18265,7 +18988,12 @@ func parseStoredRoutineParameterMetadata(raw string) (mode, name, typeName strin
 		name = strings.Trim(fields[start], "` ")
 	}
 	if start+1 < len(fields) {
-		typeName = strings.ToUpper(strings.TrimSpace(fields[start+1]))
+		typeName = strings.ToUpper(strings.TrimSpace(strings.Join(fields[start+1:], " ")))
+		typeName = strings.ReplaceAll(typeName, " (", "(")
+		typeName = strings.ReplaceAll(typeName, "( ", "(")
+		typeName = strings.ReplaceAll(typeName, " ,", ",")
+		typeName = strings.ReplaceAll(typeName, ", ", ",")
+		typeName = strings.ReplaceAll(typeName, " )", ")")
 	}
 	return mode, name, typeName
 }
@@ -18338,30 +19066,24 @@ func executeInformationSchemaCollationsSelect(query string) *SelectResult {
 		"COLLATION_NAME", "CHARACTER_SET_NAME", "ID", "IS_DEFAULT", "IS_COMPILED", "SORTLEN", "PAD_ATTRIBUTE",
 	})
 	rows := make([][]interface{}, 0, 4)
-	filters := map[string]string{}
-	filterPattern := regexp.MustCompile(`(?i)\b(collation_name|character_set_name|is_default)\b\s*(?:=|like)\s*(?:'([^']*)'|"([^"]*)")`)
-	for _, match := range filterPattern.FindAllStringSubmatch(query, -1) {
-		value := match[2]
-		if value == "" {
-			value = match[3]
-		}
-		filters[strings.ToLower(match[1])] = value
-	}
+	expr, _ := metadataPredicateFromQuery(query)
 	for _, collation := range common.InformationSchemaCollations() {
 		isDefault := "NO"
 		if collation.IsDefault {
 			isDefault = "YES"
 		}
-		if !metadataFilterMatches(collation.Name, filters["collation_name"]) ||
-			!metadataFilterMatches(collation.Charset, filters["character_set_name"]) ||
-			(strings.TrimSpace(filters["is_default"]) != "" && !strings.EqualFold(isDefault, filters["is_default"])) {
-			continue
-		}
-		rows = append(rows, projectInformationSchemaRow(columns, map[string]interface{}{
+		values := map[string]interface{}{
 			"COLLATION_NAME": collation.Name, "CHARACTER_SET_NAME": collation.Charset, "ID": int64(collation.ID),
 			"IS_DEFAULT": isDefault, "IS_COMPILED": "YES", "SORTLEN": collation.SortLen,
 			"PAD_ATTRIBUTE": collation.PadAttribute,
-		}))
+		}
+		if expr != nil {
+			keep, err := evaluateMetadataPredicateCaseInsensitive(expr, values)
+			if err != nil || !keep {
+				continue
+			}
+		}
+		rows = append(rows, projectInformationSchemaRow(columns, values))
 	}
 	return newInformationSchemaSelectResult("information_schema_collations", columns, rows)
 }
@@ -18369,20 +19091,16 @@ func executeInformationSchemaCollationsSelect(query string) *SelectResult {
 func executeInformationSchemaCharacterSetsSelect(query string) *SelectResult {
 	columns := requestedInformationSchemaColumns(query, []string{"CHARACTER_SET_NAME", "DEFAULT_COLLATE_NAME", "DESCRIPTION", "MAXLEN"})
 	rows := make([][]interface{}, 0, 3)
-	filter := regexp.MustCompile(`(?i)\bcharacter_set_name\b\s*(?:=|like)\s*(?:'([^']*)'|"([^"]*)")`).FindStringSubmatch(query)
-	pattern := ""
-	if len(filter) == 3 {
-		pattern = filter[1]
-		if pattern == "" {
-			pattern = filter[2]
-		}
-	}
+	expr, _ := metadataPredicateFromQuery(query)
 	for _, charset := range common.InformationSchemaCharsets() {
-		if !metadataFilterMatches(charset.Name, pattern) {
-			continue
-		}
 		values := map[string]interface{}{
 			"CHARACTER_SET_NAME": charset.Name, "DEFAULT_COLLATE_NAME": charset.MetadataCollationName(), "DESCRIPTION": charset.Description, "MAXLEN": fmt.Sprintf("%d", charset.MaxLen),
+		}
+		if expr != nil {
+			keep, err := evaluateMetadataPredicateCaseInsensitive(expr, values)
+			if err != nil || !keep {
+				continue
+			}
 		}
 		if !performanceSchemaLockValuesMatch(query, values) {
 			continue
@@ -18398,17 +19116,9 @@ func executeInformationSchemaEnginesSelect(query string) *SelectResult {
 		"ENGINE": "InnoDB", "SUPPORT": "DEFAULT", "COMMENT": "Supports transactions, row-level locking, and foreign keys",
 		"TRANSACTIONS": "YES", "XA": "YES", "SAVEPOINTS": "YES",
 	}
-	filters := make(map[string]string)
-	filterPattern := regexp.MustCompile(`(?i)\b(engine|support|comment|transactions|xa|savepoints)\b\s*(?:=|like)\s*(?:'([^']*)'|"([^"]*)")`)
-	for _, match := range filterPattern.FindAllStringSubmatch(query, -1) {
-		value := match[2]
-		if value == "" {
-			value = match[3]
-		}
-		filters[strings.ToUpper(match[1])] = value
-	}
-	for column, pattern := range filters {
-		if !metadataFilterMatches(fmt.Sprint(values[column]), pattern) {
+	if expr, err := metadataPredicateFromQuery(query); err == nil && expr != nil {
+		keep, evalErr := evaluateMetadataPredicateCaseInsensitive(expr, values)
+		if evalErr != nil || !keep {
 			return newInformationSchemaSelectResult("information_schema_engines", columns, nil)
 		}
 	}
@@ -19931,7 +20641,16 @@ func (e *XMySQLExecutor) executeSetStatement(ctx *ExecutionContext, stmt *sqlpar
 			continue
 		}
 		if cleanName == "names" {
-			if collation := parseSetNamesCollation(ctx.RawQuery); collation != "" {
+			collation := ""
+			if ctx.Parsed != nil {
+				if setStmt, ok := ctx.Parsed.AST.(*sqlparser.Set); ok {
+					collation = setStmt.NamesCollation
+				}
+			}
+			if collation == "" {
+				collation = parseSetNamesCollation(ctx.RawQuery)
+			}
+			if collation != "" {
 				session.SetParamByName("collation_connection", collation)
 			}
 		}
@@ -19962,17 +20681,15 @@ func (e *XMySQLExecutor) executeSetStatement(ctx *ExecutionContext, stmt *sqlpar
 }
 
 func parseSetNamesCollation(query string) string {
-	trimmed := strings.TrimSpace(strings.TrimSuffix(query, ";"))
-	match := regexp.MustCompile(`(?is)^\s*set\s+names\s+(?:'[^']*'|"[^"]*"|[a-zA-Z0-9_]+)\s+collate\s+(?:'([^']*)'|"([^"]*)"|([a-zA-Z0-9_]+))`).FindStringSubmatch(trimmed)
-	if len(match) == 0 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
 		return ""
 	}
-	for _, value := range match[1:] {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
+	stmt, ok := parsed.AST.(*sqlparser.Set)
+	if !ok {
+		return ""
 	}
-	return ""
+	return strings.TrimSpace(stmt.NamesCollation)
 }
 
 // validateTransactionCharacteristics rejects duplicate or conflicting
@@ -21301,25 +22018,33 @@ func (e *XMySQLExecutor) checkAlterForeignKeyPrivileges(ctx *ExecutionContext, d
 	if e == nil || ctx == nil {
 		return nil
 	}
-	pattern := regexp.MustCompile(`(?is)^\s*alter\s+table\s+` + "`?([a-zA-Z0-9_$]+)`?" + `\s+add\s+(?:constraint\s+` + "`?([a-zA-Z0-9_$]+)`?" + `\s+)?foreign\s+key\s*\(([^)]+)\)\s+references\s+(?:(?:` + "`?([a-zA-Z0-9_$]+)`?" + `)\.)?` + "`?([a-zA-Z0-9_$]+)`?" + `\s*\(([^)]+)\)`)
-	match := pattern.FindStringSubmatch(query)
-	if len(match) == 0 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
 		return nil
 	}
-	refSchema := strings.Trim(strings.TrimSpace(match[4]), "`")
-	if refSchema == "" {
-		refSchema = databaseName
-	}
-	refTable := strings.Trim(strings.TrimSpace(match[5]), "`")
-	if refTable == "" {
+	statement, ok := parsed.AST.(*sqlparser.AlterTable)
+	if !ok {
 		return nil
 	}
-	if err := e.checkTablePrivilege(ctx, refSchema, refTable, "REFERENCES"); err != nil {
-		constraint := strings.Trim(strings.TrimSpace(match[2]), "`")
-		if constraint == "" {
-			constraint = "foreign key"
+	for _, operation := range statement.Operations {
+		if operation.Kind != sqlparser.AlterOperationAddConstraint || !strings.EqualFold(operation.ConstraintType, "foreign") {
+			continue
 		}
-		return fmt.Errorf("cannot add %s: %w", constraint, err)
+		refSchema := strings.TrimSpace(operation.ReferencedSchema)
+		if refSchema == "" {
+			refSchema = databaseName
+		}
+		refTable := strings.Trim(strings.TrimSpace(operation.ReferencedTable), "`")
+		if refTable == "" {
+			continue
+		}
+		if err := e.checkTablePrivilege(ctx, refSchema, refTable, "REFERENCES"); err != nil {
+			constraint := strings.Trim(strings.TrimSpace(operation.Name), "`")
+			if constraint == "" {
+				constraint = "foreign key"
+			}
+			return fmt.Errorf("cannot add %s: %w", constraint, err)
+		}
 	}
 	return nil
 }
@@ -21457,13 +22182,13 @@ func (e *XMySQLExecutor) validateSelfReferentialForeignKey(stmt *sqlparser.DDL, 
 }
 
 func (e *XMySQLExecutor) initializeCreateTableAutoIncrement(schemaName, tableName, rawQuery string) error {
-	match := regexp.MustCompile(`(?is)\bauto_increment\s*=\s*([0-9]+)`).FindStringSubmatch(rawQuery)
-	if len(match) != 2 {
+	requestedText, found := scanAutoIncrementValue(rawQuery)
+	if !found {
 		return nil
 	}
-	requested, err := strconv.ParseUint(match[1], 10, 64)
+	requested, err := strconv.ParseUint(requestedText, 10, 64)
 	if err != nil || requested == 0 {
-		return fmt.Errorf("invalid AUTO_INCREMENT value %q", match[1])
+		return fmt.Errorf("invalid AUTO_INCREMENT value %q", requestedText)
 	}
 	tableInfo, err := readTableMetadataMap(filepath.Join(e.getDataDir(), schemaName, tableName+".frm"))
 	if err != nil {
@@ -21732,7 +22457,7 @@ func persistTableStorageIdentity(dataDir string, info *manager.TableStorageInfo)
 	if err != nil {
 		return fmt.Errorf("encode table metadata: %w", err)
 	}
-	if err := os.WriteFile(path, encoded, 0644); err != nil {
+	if err := writeMetadataFileAtomic(path, encoded); err != nil {
 		return fmt.Errorf("write table metadata: %w", err)
 	}
 	return nil
@@ -22760,28 +23485,32 @@ func parseCreateTableColumnsFallback(query string) []map[string]interface{} {
 }
 
 func parseCreateTableForeignKeysFallback(query string) []map[string]interface{} {
-	body := extractCreateTableBody(query)
-	if body == "" {
+	parsed := sqlparser.ForeignKeysInCreateTable(query)
+	if len(parsed) == 0 {
 		return nil
 	}
-	definitions := splitTopLevelComma(body)
-	foreignKeys := make([]map[string]interface{}, 0)
-	re := regexp.MustCompile("(?is)^\\s*(?:constraint\\s+`?([a-zA-Z0-9_$]+)`?\\s+)?foreign\\s+key\\s*\\(([^)]+)\\)\\s+references\\s+(?:(?:`?([a-zA-Z0-9_]+)`?)\\.)?`?([a-zA-Z0-9_]+)`?\\s*\\(([^)]+)\\)(.*)$")
-	for _, definition := range definitions {
-		matches := re.FindStringSubmatch(strings.TrimSpace(definition))
-		if len(matches) == 0 {
+	foreignKeys := make([]map[string]interface{}, 0, len(parsed))
+	for _, fk := range parsed {
+		if fk == nil {
 			continue
 		}
-		tail := strings.ToLower(matches[6])
+		columns := make([]string, 0, len(fk.Columns))
+		for _, column := range fk.Columns {
+			columns = append(columns, column.String())
+		}
+		referenced := make([]string, 0, len(fk.ReferencedColumns))
+		for _, column := range fk.ReferencedColumns {
+			referenced = append(referenced, column.String())
+		}
 		foreignKeys = append(foreignKeys, map[string]interface{}{
-			"name":           strings.Trim(matches[1], "` "),
-			"columns":        parseIdentifierList(matches[2]),
-			"ref_schema":     strings.Trim(matches[3], "` "),
-			"ref_table":      strings.Trim(matches[4], "` "),
-			"ref_columns":    parseIdentifierList(matches[5]),
-			"on_delete":      cascadeActionFromTail(tail, "delete"),
-			"on_update":      cascadeActionFromTail(tail, "update"),
-			"raw_definition": strings.TrimSpace(definition),
+			"name":           strings.Trim(fk.Name.String(), "` "),
+			"columns":        columns,
+			"ref_schema":     strings.Trim(fk.ReferencedTable.Qualifier.String(), "` "),
+			"ref_table":      strings.Trim(fk.ReferencedTable.Name.String(), "` "),
+			"ref_columns":    referenced,
+			"on_delete":      fk.OnDelete,
+			"on_update":      fk.OnUpdate,
+			"raw_definition": strings.TrimSpace(sqlparser.String(fk)),
 		})
 	}
 	return foreignKeys
@@ -22800,39 +23529,59 @@ func parseIdentifierList(input string) []string {
 }
 
 func cascadeActionFromTail(tail, action string) string {
-	pattern := regexp.MustCompile(`(?i)\bon\s+` + regexp.QuoteMeta(action) + `\s+(restrict|cascade|set\s+null|no\s+action)\b`)
-	match := pattern.FindStringSubmatch(tail)
-	if len(match) != 2 {
-		return ""
+	lower := strings.ToLower(tail)
+	marker := "on " + strings.ToLower(strings.TrimSpace(action))
+	start := 0
+	for {
+		at := strings.Index(lower[start:], marker)
+		if at < 0 {
+			return ""
+		}
+		at += start
+		if at > 0 && isSQLIdentByte(lower[at-1]) {
+			start = at + len(marker)
+			continue
+		}
+		value := strings.TrimSpace(lower[at+len(marker):])
+		switch {
+		case strings.HasPrefix(value, "set null"):
+			return "set null"
+		case strings.HasPrefix(value, "no action"):
+			return "no action"
+		case strings.HasPrefix(value, "cascade"):
+			return "cascade"
+		case strings.HasPrefix(value, "restrict"):
+			return "restrict"
+		default:
+			return ""
+		}
 	}
-	return strings.Join(strings.Fields(strings.ToLower(match[1])), " ")
 }
 
 func validateForeignKeyReferentialActions(definition string) error {
-	pattern := regexp.MustCompile(`(?i)\bon\s+(delete|update)\b`)
-	matches := pattern.FindAllStringSubmatchIndex(definition, -1)
-	for index, match := range matches {
-		if len(match) != 4 {
-			continue
-		}
-		end := len(definition)
-		if index+1 < len(matches) {
-			end = matches[index+1][0]
-		}
-		words := strings.Fields(strings.ToLower(strings.TrimSpace(definition[match[3]:end])))
-		if len(words) == 0 {
-			return fmt.Errorf("unsupported foreign key ON %s action %q", strings.ToUpper(definition[match[2]:match[3]]), "")
-		}
-		words[0] = strings.TrimRight(words[0], "(),;")
-		action := words[0]
-		if (action == "set" || action == "no") && len(words) > 1 {
-			action += " " + strings.TrimRight(words[1], "(),;")
-		}
-		switch action {
-		case "restrict", "cascade", "set null", "no action":
-			continue
-		default:
-			return fmt.Errorf("unsupported foreign key ON %s action %q", strings.ToUpper(definition[match[2]:match[3]]), action)
+	lower := strings.ToLower(definition)
+	for _, action := range []string{"delete", "update"} {
+		marker := "on " + action
+		start := 0
+		for {
+			at := strings.Index(lower[start:], marker)
+			if at < 0 {
+				break
+			}
+			at += start
+			if at > 0 && isSQLIdentByte(lower[at-1]) {
+				start = at + len(marker)
+				continue
+			}
+			after := at + len(marker)
+			if after < len(lower) && isSQLIdentByte(lower[after]) {
+				start = after
+				continue
+			}
+			if cascadeActionFromTail(lower[at:], action) == "" {
+				return fmt.Errorf("unsupported foreign key ON %s action", strings.ToUpper(action))
+			}
+			start = after
 		}
 	}
 	return nil
@@ -22962,12 +23711,11 @@ func parseCreateTableColumnDefinitionFallback(definition string) map[string]inte
 }
 
 func extractFallbackGeneratedExpression(definition string) string {
-	re := regexp.MustCompile(`(?is)\b(?:generated\s+always\s+)?as\s*\((.+)\)\s*(?:stored|virtual)?\s*$`)
-	matches := re.FindStringSubmatch(strings.TrimSpace(definition))
-	if len(matches) != 2 {
+	expression, ok := scanGeneratedExpression(definition)
+	if !ok {
 		return ""
 	}
-	return strings.TrimSpace(matches[1])
+	return expression
 }
 
 func mergeFallbackColumnMetadata(columns, fallback []map[string]interface{}) {
@@ -23259,22 +24007,11 @@ func normalizeTableRowFormat(value string) string {
 }
 
 func parseTableOptionValue(options, keyPattern string) (string, bool) {
-	pattern := regexp.MustCompile(`(?is)\b` + keyPattern + `\s*(?:=\s*)?([a-zA-Z0-9_]+)`).FindStringSubmatch(options)
-	if len(pattern) != 2 {
-		return "", false
-	}
-	return strings.TrimSpace(pattern[1]), true
+	return scanTableOptionValue(options, keyPattern)
 }
 
 func parseTableCommentOption(options string) (string, bool) {
-	match := regexp.MustCompile(`(?is)\bcomment\s*(?:=\s*)?(?:'((?:''|[^'])*)'|"((?:""|[^"])*)")`).FindStringSubmatch(options)
-	if len(match) != 3 {
-		return "", false
-	}
-	if match[1] != "" {
-		return strings.ReplaceAll(match[1], "''", "'"), true
-	}
-	return strings.ReplaceAll(match[2], `""`, `"`), true
+	return scanTableComment(options)
 }
 
 // executeShowStatement 执行 SHOW 语句
@@ -23325,7 +24062,7 @@ func (e *XMySQLExecutor) executeShowStatement(ctx *ExecutionContext, stmt *sqlpa
 		return
 	}
 
-	showType := strings.ToLower(stmt.Type)
+	showType := normalizedShowExecutionType(stmt, ctx.RawQuery)
 	rawShow := strings.ToLower(strings.TrimSpace(strings.TrimSuffix(ctx.RawQuery, ";")))
 	if rawShow == "show count(*) warnings" || rawShow == "show count(*) errors" {
 		e.executeShowWarningCount(ctx, strings.HasSuffix(rawShow, "errors"))
@@ -23403,8 +24140,8 @@ func (e *XMySQLExecutor) executeShowPlugins(ctx *ExecutionContext, rawQuery stri
 		{"caching_sha2_password", "ACTIVE", "AUTHENTICATION", nil, "GPL", "ON"},
 		{"sha256_password", "ACTIVE", "AUTHENTICATION", nil, "GPL", "ON"},
 	}
-	if match := regexp.MustCompile(`(?is)\blike\s+['"]([^'"]*)['"]`).FindStringSubmatch(rawQuery); len(match) == 2 {
-		pattern := match[1]
+	show := stagedShowStatement(ctx)
+	if pattern := extractShowLikePatternFromStmt(show); strings.TrimSpace(pattern) != "" {
 		filtered := make([][]interface{}, 0, len(rows))
 		for _, row := range rows {
 			if sqlLikeMatch(fmt.Sprint(row[0]), pattern) {
@@ -23426,10 +24163,7 @@ func (e *XMySQLExecutor) executeShowPlugins(ctx *ExecutionContext, rawQuery stri
 // discoverable. This is intentionally a lock-backed compatibility view, not a
 // claim of byte-for-byte parity with MySQL's private table-cache internals.
 func (e *XMySQLExecutor) executeShowOpenTables(ctx *ExecutionContext, stmt *sqlparser.Show, session server.MySQLServerSession, rawQuery string) {
-	databaseFilter := ""
-	if match := regexp.MustCompile(`(?is)\b(?:from|in)\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?").FindStringSubmatch(rawQuery); len(match) == 2 {
-		databaseFilter = match[1]
-	}
+	databaseFilter := showDatabaseFromAST(ctx, session)
 	if databaseFilter != "" {
 		if err := e.validateDatabaseExists(databaseFilter); err != nil {
 			ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
@@ -23485,11 +24219,6 @@ func (e *XMySQLExecutor) executeShowOpenTables(ctx *ExecutionContext, stmt *sqlp
 		rows = append(rows, []interface{}{object.database, object.table, inUse, nameLocked})
 	}
 	likePattern := ResolveShowLikePattern("open tables", stmt, rawQuery)
-	if strings.TrimSpace(likePattern) == "" {
-		if match := regexp.MustCompile(`(?is)\blike\s+['"]([^'"]*)['"]`).FindStringSubmatch(rawQuery); len(match) == 2 {
-			likePattern = match[1]
-		}
-	}
 	if strings.TrimSpace(likePattern) != "" {
 		filtered := make([][]interface{}, 0, len(rows))
 		for _, row := range rows {
@@ -23528,15 +24257,18 @@ func (e *XMySQLExecutor) showOpenTableCounters(databaseName, tableName string) (
 }
 
 func (e *XMySQLExecutor) executeShowIndex(ctx *ExecutionContext, rawQuery string) {
-	pattern := regexp.MustCompile("(?is)^\\s*show\\s+(?:index|indexes|keys)\\s+(?:from|in)\\s+`?([a-zA-Z0-9_$]+)`?(?:\\s+(?:from|in)\\s+`?([a-zA-Z0-9_$]+)`?)?")
-	matches := pattern.FindStringSubmatch(rawQuery)
-	if len(matches) == 0 {
+	tableName, databaseName := "", ctx.DatabaseName
+	if ctx != nil && ctx.Parsed != nil {
+		if parsedShow, ok := ctx.Parsed.AST.(*sqlparser.Show); ok && !parsedShow.OnTable.IsEmpty() {
+			tableName = parsedShow.OnTable.Name.String()
+			if parsedShow.OnTable.Qualifier.String() != "" {
+				databaseName = parsedShow.OnTable.Qualifier.String()
+			}
+		}
+	}
+	if tableName == "" {
 		ctx.Results <- &Result{Err: fmt.Errorf("SHOW INDEX requires a table name"), ResultType: common.RESULT_TYPE_QUERY}
 		return
-	}
-	tableName, databaseName := matches[1], ctx.DatabaseName
-	if matches[2] != "" {
-		databaseName, tableName = matches[2], matches[1]
 	}
 	physicalTableName, temporary := temporaryPhysicalTableName(ctx.Session, databaseName, tableName)
 	if !temporary && !e.tableMetadataVisibleToSession(ctx, databaseName, tableName, false) {
@@ -23642,55 +24374,72 @@ func (e *XMySQLExecutor) tableIndexCardinalities(ctx *ExecutionContext, database
 // executeShowStatementWithQuery 执行SHOW语句（带原始SQL）
 func (e *XMySQLExecutor) executeShowStatementWithQuery(ctx *ExecutionContext, stmt *sqlparser.Show, session server.MySQLServerSession, rawQuery string) {
 	logger.Debugf(" [executeShowStatementWithQuery] 处理SHOW语句: %s, rawQuery=%s", stmt.Type, rawQuery)
-	if isShowCharacterSetQuery(rawQuery) {
+	structuredShow := stagedShowStatement(ctx) != nil
+	showType := normalizedShowExecutionType(stmt, rawQuery)
+	if structuredShow && stmt != nil {
+		showType = normalizedShowExecutionType(stmt, rawQuery)
+	}
+	if showType == "character set" || (!structuredShow && showType == "" && isShowCharacterSetQuery(rawQuery)) {
 		e.executeShowCharacterSet(ctx, rawQuery)
 		return
 	}
-	if isShowCollationQuery(rawQuery) {
+	if showType == "collation" || (!structuredShow && showType == "" && isShowCollationQuery(rawQuery)) {
 		e.executeShowCollation(ctx, rawQuery)
 		return
 	}
-	if isShowTableStatusQuery(rawQuery) {
+	if showType == "table status" || (!structuredShow && isShowTableStatusQuery(rawQuery)) {
 		e.executeShowTableStatus(ctx, rawQuery, session)
 		return
 	}
-	if isShowTriggersQuery(rawQuery) {
+	if showType == "triggers" || (!structuredShow && isShowTriggersQuery(rawQuery)) {
 		e.executeShowTriggers(ctx, rawQuery, session)
 		return
 	}
-	if isShowEventsQuery(rawQuery) {
+	if showType == "events" || (!structuredShow && isShowEventsQuery(rawQuery)) {
 		e.executeShowEvents(ctx, rawQuery, session)
 		return
 	}
-	if routineType := showRoutineStatusType(rawQuery); routineType != "" {
+	routineType := ""
+	if showType == "procedure status" {
+		routineType = "procedure"
+	}
+	if showType == "function status" {
+		routineType = "function"
+	}
+	if routineType == "" {
+		if !structuredShow {
+			routineType = showRoutineStatusType(rawQuery)
+		}
+	}
+	if routineType != "" {
 		e.executeShowRoutineStatus(ctx, rawQuery, session, routineType)
 		return
 	}
-	if isShowMasterStatusQuery(rawQuery) {
+	if showType == "master status" || (!structuredShow && isShowMasterStatusQuery(rawQuery)) {
 		e.executeShowMasterStatus(ctx)
 		return
 	}
-	if isShowReplicaHostsQuery(rawQuery) {
+	if showType == "slave hosts" || showType == "replica hosts" || (!structuredShow && isShowReplicaHostsQuery(rawQuery)) {
 		e.executeShowReplicaHosts(ctx)
 		return
 	}
-	if isShowBinaryLogsQuery(rawQuery) {
+	if showType == "binary logs" || (!structuredShow && isShowBinaryLogsQuery(rawQuery)) {
 		e.executeShowBinaryLogs(ctx)
 		return
 	}
-	if isShowBinlogEventsQuery(rawQuery) {
+	if showType == "binlog events" || (!structuredShow && isShowBinlogEventsQuery(rawQuery)) {
 		e.executeShowBinlogEvents(ctx)
 		return
 	}
-	if isShowRelaylogEventsQuery(rawQuery) {
+	if showType == "relaylog events" || (!structuredShow && isShowRelaylogEventsQuery(rawQuery)) {
 		e.executeShowRelaylogEvents(ctx)
 		return
 	}
-	if isShowReplicaStatusQuery(rawQuery) {
+	if showType == "replica" || showType == "slave" || (!structuredShow && isShowReplicaStatusQuery(rawQuery)) {
 		e.executeShowReplicaStatus(ctx)
 		return
 	}
-	if isShowEngineInnoDBStatus(rawQuery) {
+	if showType == "engine" || (!structuredShow && isShowEngineInnoDBStatus(rawQuery)) {
 		e.executeShowEngineInnoDBStatus(ctx)
 		return
 	}
@@ -23700,7 +24449,6 @@ func (e *XMySQLExecutor) executeShowStatementWithQuery(ctx *ExecutionContext, st
 		return
 	}
 
-	showType := strings.ToLower(stmt.Type)
 	switch showType {
 	case "databases":
 		e.executeShowDatabasesWithQuery(ctx, stmt, rawQuery)
@@ -23853,8 +24601,8 @@ func (e *XMySQLExecutor) executeShowCharacterSet(ctx *ExecutionContext, rawQuery
 	for _, charset := range common.ShowCharsets() {
 		rows = append(rows, []interface{}{charset.Name, charset.Description, charset.MetadataCollationName(), charset.MaxLen})
 	}
-	rows = filterShowRowsByLike(rows, ResolveShowLikePattern("character set", nil, rawQuery))
-	rows = filterShowRowsByWhere(rows, columns, ResolveShowWhereExpr("character set", nil, rawQuery))
+	rows = filterShowRowsByLike(rows, ResolveShowLikePattern("character set", stagedShowStatement(ctx), rawQuery))
+	rows = filterShowRowsByWhere(rows, columns, ResolveShowWhereExpr("character set", stagedShowStatement(ctx), rawQuery))
 	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: map[string]interface{}{"columns": columns, "rows": rows}, Message: fmt.Sprintf("Found %d character sets", len(rows))}
 }
 
@@ -23868,22 +24616,13 @@ func (e *XMySQLExecutor) executeShowCollation(ctx *ExecutionContext, rawQuery st
 		}
 		rows = append(rows, []interface{}{collation.Name, collation.Charset, int64(collation.ID), isDefault, "Yes", collation.SortLen, collation.PadAttribute})
 	}
-	rows = filterShowRowsByLike(rows, ResolveShowLikePattern("collation", nil, rawQuery))
-	rows = filterShowRowsByWhere(rows, columns, ResolveShowWhereExpr("collation", nil, rawQuery))
+	rows = filterShowRowsByLike(rows, ResolveShowLikePattern("collation", stagedShowStatement(ctx), rawQuery))
+	rows = filterShowRowsByWhere(rows, columns, ResolveShowWhereExpr("collation", stagedShowStatement(ctx), rawQuery))
 	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: map[string]interface{}{"columns": columns, "rows": rows}, Message: fmt.Sprintf("Found %d collations", len(rows))}
 }
 
 func (e *XMySQLExecutor) executeShowTableStatus(ctx *ExecutionContext, rawQuery string, session server.MySQLServerSession) {
-	databaseName := strings.TrimSpace(ctx.DatabaseName)
-	if session != nil {
-		if value, ok := session.GetParamByName("database").(string); ok && strings.TrimSpace(value) != "" {
-			databaseName = strings.TrimSpace(value)
-		}
-	}
-	targetPattern := regexp.MustCompile(`(?is)\b(?:from|in)\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?")
-	if match := targetPattern.FindStringSubmatch(rawQuery); len(match) == 2 {
-		databaseName = match[1]
-	}
+	databaseName := showDatabaseFromAST(ctx, session)
 	if databaseName == "" {
 		ctx.Results <- &Result{Err: fmt.Errorf("no database selected"), ResultType: common.RESULT_TYPE_QUERY}
 		return
@@ -23937,22 +24676,13 @@ func (e *XMySQLExecutor) executeShowTableStatus(ctx *ExecutionContext, rawQuery 
 	sort.Slice(rows, func(i, j int) bool {
 		return strings.ToLower(fmt.Sprint(rows[i][0])) < strings.ToLower(fmt.Sprint(rows[j][0]))
 	})
-	rows = filterShowRowsByLike(rows, ResolveShowLikePattern("table status", nil, rawQuery))
-	rows = filterShowRowsByWhere(rows, columns, ResolveShowWhereExpr("table status", nil, rawQuery))
+	rows = filterShowRowsByLike(rows, ResolveShowLikePattern("table status", stagedShowStatement(ctx), rawQuery))
+	rows = filterShowRowsByWhere(rows, columns, ResolveShowWhereExpr("table status", stagedShowStatement(ctx), rawQuery))
 	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: map[string]interface{}{"columns": columns, "rows": rows}, Message: fmt.Sprintf("Found %d tables", len(rows))}
 }
 
 func (e *XMySQLExecutor) executeShowTriggers(ctx *ExecutionContext, rawQuery string, session server.MySQLServerSession) {
-	databaseName := strings.TrimSpace(ctx.DatabaseName)
-	if session != nil {
-		if value, ok := session.GetParamByName("database").(string); ok && strings.TrimSpace(value) != "" {
-			databaseName = strings.TrimSpace(value)
-		}
-	}
-	targetPattern := regexp.MustCompile(`(?is)\b(?:from|in)\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?")
-	if match := targetPattern.FindStringSubmatch(rawQuery); len(match) == 2 {
-		databaseName = match[1]
-	}
+	databaseName := showDatabaseFromAST(ctx, session)
 	if databaseName == "" {
 		ctx.Results <- &Result{Err: fmt.Errorf("no database selected"), ResultType: common.RESULT_TYPE_QUERY}
 		return
@@ -24006,22 +24736,13 @@ func (e *XMySQLExecutor) executeShowTriggers(ctx *ExecutionContext, rawQuery str
 	sort.Slice(rows, func(i, j int) bool {
 		return strings.ToLower(fmt.Sprint(rows[i][0])) < strings.ToLower(fmt.Sprint(rows[j][0]))
 	})
-	rows = filterShowRowsByLike(rows, ResolveShowLikePattern("triggers", nil, rawQuery))
-	rows = filterShowRowsByWhere(rows, columns, ResolveShowWhereExpr("triggers", nil, rawQuery))
+	rows = filterShowRowsByLike(rows, ResolveShowLikePattern("triggers", stagedShowStatement(ctx), rawQuery))
+	rows = filterShowRowsByWhere(rows, columns, ResolveShowWhereExpr("triggers", stagedShowStatement(ctx), rawQuery))
 	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: map[string]interface{}{"columns": columns, "rows": rows}, Message: fmt.Sprintf("Found %d triggers", len(rows))}
 }
 
 func (e *XMySQLExecutor) executeShowEvents(ctx *ExecutionContext, rawQuery string, session server.MySQLServerSession) {
-	databaseName := strings.TrimSpace(ctx.DatabaseName)
-	if session != nil {
-		if value, ok := session.GetParamByName("database").(string); ok && strings.TrimSpace(value) != "" {
-			databaseName = strings.TrimSpace(value)
-		}
-	}
-	targetPattern := regexp.MustCompile(`(?is)\b(?:from|in)\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?")
-	if match := targetPattern.FindStringSubmatch(rawQuery); len(match) == 2 {
-		databaseName = match[1]
-	}
+	databaseName := showDatabaseFromAST(ctx, session)
 	if databaseName == "" {
 		ctx.Results <- &Result{Err: fmt.Errorf("no database selected"), ResultType: common.RESULT_TYPE_QUERY}
 		return
@@ -24051,12 +24772,14 @@ func (e *XMySQLExecutor) executeShowEvents(ctx *ExecutionContext, rawQuery strin
 		}
 		eventType, executeAt, intervalValue, intervalField := parseEventInformationSchemaMetadata(object.Definition)
 		starts := interface{}(nil)
-		if match := regexp.MustCompile(`(?is)\bstarts\s+'([^']+)'`).FindStringSubmatch(object.Definition); len(match) == 2 {
-			starts = match[1]
-		}
 		ends := interface{}(nil)
-		if match := regexp.MustCompile(`(?is)\bends\s+'([^']+)'`).FindStringSubmatch(object.Definition); len(match) == 2 {
-			ends = match[1]
+		if object.DefinitionAST != nil && strings.EqualFold(object.DefinitionAST.ObjectType, "event") {
+			if value := strings.Trim(object.DefinitionAST.Starts, "'\""); value != "" && !strings.EqualFold(value, "current_timestamp") {
+				starts = value
+			}
+			if value := strings.Trim(object.DefinitionAST.Ends, "'\""); value != "" {
+				ends = value
+			}
 		}
 		definer := object.Definer
 		if strings.TrimSpace(definer) == "" {
@@ -24083,7 +24806,7 @@ func (e *XMySQLExecutor) executeShowEvents(ctx *ExecutionContext, rawQuery strin
 	sort.Slice(rows, func(i, j int) bool {
 		return strings.ToLower(fmt.Sprint(rows[i][1])) < strings.ToLower(fmt.Sprint(rows[j][1]))
 	})
-	if like := ResolveShowLikePattern("events", nil, rawQuery); strings.TrimSpace(like) != "" {
+	if like := ResolveShowLikePattern("events", stagedShowStatement(ctx), rawQuery); strings.TrimSpace(like) != "" {
 		filtered := make([][]interface{}, 0, len(rows))
 		for _, row := range rows {
 			if len(row) > 1 && sqlLikeMatch(fmt.Sprint(row[1]), like) {
@@ -24092,21 +24815,12 @@ func (e *XMySQLExecutor) executeShowEvents(ctx *ExecutionContext, rawQuery strin
 		}
 		rows = filtered
 	}
-	rows = filterShowRowsByWhere(rows, columns, ResolveShowWhereExpr("events", nil, rawQuery))
+	rows = filterShowRowsByWhere(rows, columns, ResolveShowWhereExpr("events", stagedShowStatement(ctx), rawQuery))
 	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: map[string]interface{}{"columns": columns, "rows": rows}, Message: fmt.Sprintf("Found %d events", len(rows))}
 }
 
 func (e *XMySQLExecutor) executeShowRoutineStatus(ctx *ExecutionContext, rawQuery string, session server.MySQLServerSession, routineType string) {
-	databaseName := strings.TrimSpace(ctx.DatabaseName)
-	if session != nil {
-		if value, ok := session.GetParamByName("database").(string); ok && strings.TrimSpace(value) != "" {
-			databaseName = strings.TrimSpace(value)
-		}
-	}
-	targetPattern := regexp.MustCompile(`(?is)\b(?:from|in)\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?")
-	if match := targetPattern.FindStringSubmatch(rawQuery); len(match) == 2 {
-		databaseName = match[1]
-	}
+	databaseName := showDatabaseFromAST(ctx, session)
 	if databaseName == "" {
 		ctx.Results <- &Result{Err: fmt.Errorf("no database selected"), ResultType: common.RESULT_TYPE_QUERY}
 		return
@@ -24147,7 +24861,7 @@ func (e *XMySQLExecutor) executeShowRoutineStatus(ctx *ExecutionContext, rawQuer
 	sort.Slice(rows, func(i, j int) bool {
 		return strings.ToLower(fmt.Sprint(rows[i][1])) < strings.ToLower(fmt.Sprint(rows[j][1]))
 	})
-	if like := ResolveShowLikePattern(routineType+" status", nil, rawQuery); strings.TrimSpace(like) != "" {
+	if like := ResolveShowLikePattern(routineType+" status", stagedShowStatement(ctx), rawQuery); strings.TrimSpace(like) != "" {
 		filtered := make([][]interface{}, 0, len(rows))
 		for _, row := range rows {
 			if len(row) > 1 && sqlLikeMatch(fmt.Sprint(row[1]), like) {
@@ -24156,7 +24870,7 @@ func (e *XMySQLExecutor) executeShowRoutineStatus(ctx *ExecutionContext, rawQuer
 		}
 		rows = filtered
 	}
-	rows = filterShowRowsByWhere(rows, columns, ResolveShowWhereExpr(routineType+" status", nil, rawQuery))
+	rows = filterShowRowsByWhere(rows, columns, ResolveShowWhereExpr(routineType+" status", stagedShowStatement(ctx), rawQuery))
 	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: map[string]interface{}{"columns": columns, "rows": rows}, Message: fmt.Sprintf("Found %d %s(s)", len(rows), routineType)}
 }
 
@@ -24173,6 +24887,7 @@ func (e *XMySQLExecutor) executeShowTables(ctx *ExecutionContext, stmt *sqlparse
 	}
 
 	// 获取当前数据库（优先使用 SHOW TABLES FROM db 显式指定）
+	full := stmt != nil && stmt.ShowTablesOpt != nil && strings.TrimSpace(stmt.ShowTablesOpt.Full) != ""
 	currentDB := ""
 	if stmt != nil && stmt.ShowTablesOpt != nil {
 		currentDB = strings.TrimSpace(stmt.ShowTablesOpt.DbName)
@@ -24191,7 +24906,7 @@ func (e *XMySQLExecutor) executeShowTables(ctx *ExecutionContext, stmt *sqlparse
 		}
 		return
 	}
-	if !e.hasTemporaryTableFilesInDirectory(currentDB) && !e.hasViewFilesInDirectory(currentDB) && e.tryExecuteShowExecutor(ctx, "TABLES", currentDB, "", stmt, rawQuery) {
+	if !full && !e.hasTemporaryTableFilesInDirectory(currentDB) && !e.hasViewFilesInDirectory(currentDB) && e.tryExecuteShowExecutor(ctx, "TABLES", currentDB, "", stmt, rawQuery) {
 		return
 	}
 
@@ -24249,7 +24964,15 @@ func (e *XMySQLExecutor) executeShowTables(ctx *ExecutionContext, stmt *sqlparse
 	// 构造结果集
 	rows := make([][]interface{}, len(tables))
 	for i, table := range tables {
-		rows[i] = []interface{}{table}
+		if full {
+			tableType := "BASE TABLE"
+			if tableViews[table] {
+				tableType = "VIEW"
+			}
+			rows[i] = []interface{}{table, tableType}
+		} else {
+			rows[i] = []interface{}{table}
+		}
 	}
 	likePattern := ResolveShowLikePattern("tables", stmt, rawQuery)
 	rows = filterShowRowsByLike(rows, likePattern)
@@ -24257,8 +24980,12 @@ func (e *XMySQLExecutor) executeShowTables(ctx *ExecutionContext, stmt *sqlparse
 	columnName := fmt.Sprintf("Tables_in_%s", currentDB)
 	whereExpr := ResolveShowWhereExpr("tables", stmt, rawQuery)
 	rows = filterShowRowsByWhere(rows, []string{columnName}, whereExpr)
+	columns := []string{columnName}
+	if full {
+		columns = append(columns, "Table_type")
+	}
 	resultData := map[string]interface{}{
-		"columns": []string{columnName},
+		"columns": columns,
 		"rows":    rows,
 	}
 
@@ -24389,22 +25116,27 @@ func (e *XMySQLExecutor) isViewMetadataTable(table frmMetadataTable) bool {
 	return err == nil
 }
 
-var showFullTablesPattern = regexp.MustCompile("(?is)^\\s*show\\s+full\\s+tables(?:\\s+(?:from|in)\\s+`?([A-Za-z0-9_$]+)`?)?(?:\\s+like\\s+'([^']*)')?(?:\\s+where\\s+[^;]+)?\\s*;?\\s*$")
-
 func isShowFullTablesQuery(query string) bool {
-	return showFullTablesPattern.MatchString(query)
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return false
+	}
+	show, ok := parsed.AST.(*sqlparser.Show)
+	return ok && strings.EqualFold(strings.TrimSpace(show.Type), "full tables")
 }
 
 func (e *XMySQLExecutor) executeShowFullTablesRaw(ctx *ExecutionContext, session server.MySQLServerSession, rawQuery string, databaseName string) {
-	matches := showFullTablesPattern.FindStringSubmatch(rawQuery)
+	parsed, err := sqlparser.ParseForExecution(rawQuery)
+	show, ok := parsed.AST.(*sqlparser.Show)
+	if err != nil || !ok {
+		ctx.Results <- &Result{Err: fmt.Errorf("invalid SHOW FULL TABLES statement"), ResultType: "ERROR"}
+		return
+	}
 	currentDB := ""
-	likePattern := ""
-	if len(matches) > 1 {
-		currentDB = strings.TrimSpace(matches[1])
+	if show.ShowTablesOpt != nil {
+		currentDB = strings.TrimSpace(show.ShowTablesOpt.DbName)
 	}
-	if len(matches) > 2 {
-		likePattern = strings.TrimSpace(matches[2])
-	}
+	likePattern := strings.TrimSpace(extractShowLikePatternFromStmt(show))
 	if currentDB == "" {
 		currentDB = databaseName
 	}
@@ -24510,14 +25242,19 @@ func (e *XMySQLExecutor) hasViewFilesInDirectory(databaseName string) bool {
 }
 
 func (e *XMySQLExecutor) executeShowFullColumns(ctx *ExecutionContext, query, databaseName string) {
-	match := regexp.MustCompile(`(?is)^show\s+full\s+(?:columns|fields)\s+(?:from|in)\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `(?:\s+from\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `)?`).FindStringSubmatch(strings.TrimSpace(strings.TrimSuffix(query, ";")))
-	if len(match) == 0 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil || parsed == nil {
 		ctx.Results <- &Result{Err: fmt.Errorf("SHOW FULL COLUMNS requires a table name"), ResultType: common.RESULT_TYPE_QUERY}
 		return
 	}
-	schemaName, tableName := databaseName, match[1]
-	if match[2] != "" {
-		schemaName, tableName = match[1], match[2]
+	show, ok := parsed.AST.(*sqlparser.Show)
+	if !ok || show.OnTable.IsEmpty() {
+		ctx.Results <- &Result{Err: fmt.Errorf("SHOW FULL COLUMNS requires a table name"), ResultType: common.RESULT_TYPE_QUERY}
+		return
+	}
+	schemaName, tableName := databaseName, show.OnTable.Name.String()
+	if !show.OnTable.Qualifier.IsEmpty() {
+		schemaName = show.OnTable.Qualifier.String()
 	}
 	_, temporary := temporaryPhysicalTableName(ctx.Session, schemaName, tableName)
 	if !temporary {
@@ -25085,7 +25822,10 @@ func (e *XMySQLExecutor) executeShowCreateTable(ctx *ExecutionContext, stmt *sql
 	}
 
 	databaseName := ctx.DatabaseName
-	if len(rawQuery) > 0 {
+	if stmt != nil && stmt.OnTable.Qualifier.String() != "" {
+		databaseName = stmt.OnTable.Qualifier.String()
+	}
+	if (stmt == nil || stmt.OnTable.IsEmpty()) && len(rawQuery) > 0 {
 		if schema, qualifiedTable := extractQualifiedTableFromShowCreate(rawQuery[0]); qualifiedTable != "" {
 			tableName = qualifiedTable
 			if schema != "" {
@@ -25158,7 +25898,7 @@ func (e *XMySQLExecutor) executeAdminReadQuery(ctx *ExecutionContext, query, dat
 	case strings.HasPrefix(lower, "optimize table "):
 		e.executeMaintenanceTableQuery(ctx, query, databaseName, "optimize")
 		return true
-	case regexp.MustCompile(`^show\s+full\s+(?:columns|fields)\b`).MatchString(lower):
+	case strings.HasPrefix(lower, "show full columns"), strings.HasPrefix(lower, "show full fields"):
 		e.executeShowFullColumns(ctx, query, databaseName)
 		return true
 	case strings.HasPrefix(lower, "describe "), strings.HasPrefix(lower, "desc "):
@@ -25216,9 +25956,19 @@ func (e *XMySQLExecutor) executeAdminReadQuery(ctx *ExecutionContext, query, dat
 func (e *XMySQLExecutor) executeViewDDL(ctx *ExecutionContext, query, databaseName string) bool {
 	trimmedQuery := strings.TrimSpace(strings.TrimSuffix(query, ";"))
 	lower := strings.ToLower(trimmedQuery)
-	viewOptions := `(?:(?:algorithm\s*=\s*(?:undefined|merge|temptable)|definer\s*=\s*(?:current_user(?:\(\))?|` + "'[^']*'@'[^']*'" + `)|sql\s+security\s+(?:definer|invoker))\s+)*`
-	isCreateView := regexp.MustCompile(`(?is)^create\s+(?:or\s+replace\s+)?` + viewOptions + `view\s+`).MatchString(trimmedQuery)
-	isAlterView := regexp.MustCompile(`(?is)^alter\s+` + viewOptions + `view\s+`).MatchString(trimmedQuery)
+	isCreateView, isAlterView := false, false
+	parsedView := (*sqlparser.ViewStatement)(nil)
+	if parsed, parseErr := sqlparser.ParseForExecution(trimmedQuery); parseErr == nil {
+		if staged, ok := parsed.AST.(*sqlparser.ViewStatement); ok && staged.Definition != nil && staged.Kind != "drop" {
+			parsedView = staged
+			isCreateView = strings.EqualFold(staged.Kind, "create")
+			isAlterView = strings.EqualFold(staged.Kind, "alter")
+		}
+	}
+	if parsedView != nil {
+		isCreateView = strings.EqualFold(parsedView.Kind, "create")
+		isAlterView = strings.EqualFold(parsedView.Kind, "alter")
+	}
 	if !isCreateView && !isAlterView && !strings.HasPrefix(lower, "drop view ") {
 		return false
 	}
@@ -25274,15 +26024,38 @@ func (e *XMySQLExecutor) executeViewDDL(ctx *ExecutionContext, query, databaseNa
 		return true
 	}
 	isAlter := isAlterView
-	isCreateOrReplace := regexp.MustCompile(`(?is)^create\s+or\s+replace\s+`).MatchString(trimmedQuery)
-	match := regexp.MustCompile("(?is)^\\s*(?:create\\s+(?:or\\s+replace\\s+)?" + viewOptions + "|alter\\s+" + viewOptions + ")view\\s+`?([a-zA-Z0-9_$]+)`?(?:\\s*\\.\\s*`?([a-zA-Z0-9_$]+)`?)?(?:\\s*\\(([^)]*)\\))?\\s+as\\s+(.+?)\\s*;?\\s*$").FindStringSubmatch(trimmedQuery)
-	if len(match) == 0 {
-		ctx.Results <- &Result{Err: fmt.Errorf("%s VIEW requires an AS SELECT definition", map[bool]string{true: "ALTER", false: "CREATE"}[isAlter]), ResultType: common.RESULT_TYPE_DDL}
-		return true
+	isCreateOrReplace := false
+	structuredView := parsedView
+	var definition string
+	schemaName, viewName := databaseName, ""
+	if structuredView != nil {
+		isAlter = strings.EqualFold(structuredView.Kind, "alter")
+		isCreateOrReplace = structuredView.OrReplace
+		schemaName, viewName = databaseName, structuredView.Name.Name.String()
+		if structuredView.Name.Qualifier.String() != "" {
+			schemaName = structuredView.Name.Qualifier.String()
+		}
+		definition = strings.TrimSpace(sqlparser.String(structuredView.Definition))
+		applyViewOutputColumnAliases(structuredView.Definition, structuredView.Columns)
+		definition = strings.TrimSpace(sqlparser.String(structuredView.Definition))
 	}
-	schemaName, viewName, definition := databaseName, match[1], strings.TrimSpace(match[4])
-	if match[2] != "" {
-		schemaName, viewName = match[1], match[2]
+	if ctx != nil && ctx.Parsed != nil {
+		if staged, ok := ctx.Parsed.AST.(*sqlparser.ViewStatement); ok && staged.Definition != nil && staged.Kind != "drop" {
+			structuredView = staged
+			isAlter = strings.EqualFold(staged.Kind, "alter")
+			isCreateOrReplace = staged.OrReplace
+			schemaName, viewName = databaseName, staged.Name.Name.String()
+			if staged.Name.Qualifier.String() != "" {
+				schemaName = staged.Name.Qualifier.String()
+			}
+			definition = strings.TrimSpace(sqlparser.String(staged.Definition))
+			applyViewOutputColumnAliases(staged.Definition, staged.Columns)
+			definition = strings.TrimSpace(sqlparser.String(staged.Definition))
+		}
+	}
+	if structuredView == nil {
+		ctx.Results <- &Result{Err: fmt.Errorf("%s VIEW requires an AST AS SELECT definition", map[bool]string{true: "ALTER", false: "CREATE"}[isAlter]), ResultType: common.RESULT_TYPE_DDL}
+		return true
 	}
 	sourceTables, sourceErr := e.collectViewSourceTables(schemaName, viewName, definition)
 	if sourceErr != nil {
@@ -25309,28 +26082,9 @@ func (e *XMySQLExecutor) executeViewDDL(ctx *ExecutionContext, query, databaseNa
 		}
 		defer releaseSourceLocks()
 	}
-	if columnList := strings.TrimSpace(match[3]); columnList != "" {
-		columns := splitTopLevelComma(columnList)
-		for _, column := range columns {
-			if !regexp.MustCompile("^`?[a-zA-Z0-9_$]+`?$").MatchString(strings.TrimSpace(column)) {
-				ctx.Results <- &Result{Err: fmt.Errorf("invalid CREATE VIEW column name %q", strings.TrimSpace(column)), ResultType: common.RESULT_TYPE_DDL}
-				return true
-			}
-		}
-		aliased := applyCTEColumnAliases(definition, columns)
-		if aliased == definition {
-			ctx.Results <- &Result{Err: fmt.Errorf("CREATE VIEW column list does not match SELECT projection"), ResultType: common.RESULT_TYPE_DDL}
-			return true
-		}
-		definition = aliased
-	}
 	checkOption := ""
-	if checkMatch := regexp.MustCompile(`(?is)\s+with\s+(?:(local|cascaded)\s+)?check\s+option\s*$`).FindStringSubmatch(definition); len(checkMatch) == 2 {
-		checkOption = strings.ToUpper(strings.TrimSpace(checkMatch[1]))
-		if checkOption == "" {
-			checkOption = "CASCADED"
-		}
-		definition = strings.TrimSpace(definition[:len(definition)-len(checkMatch[0])])
+	if structuredView != nil {
+		checkOption = structuredView.CheckOption
 	}
 	if schemaName == "" {
 		ctx.Results <- &Result{Err: fmt.Errorf("no database selected"), ResultType: common.RESULT_TYPE_DDL}
@@ -25398,14 +26152,19 @@ func (e *XMySQLExecutor) executeViewDDL(ctx *ExecutionContext, query, databaseNa
 	}
 	_, _, characterSetClient, collationConnection := storedObjectSessionMetadata(ctx.Session)
 	viewInfo := map[string]interface{}{"view_name": viewName, "definition": definition, "schema": schemaName, "created_at": time.Now().UTC().Format(time.RFC3339), "character_set_client": characterSetClient, "collation_connection": collationConnection}
-	if algorithmMatch := regexp.MustCompile(`(?is)\balgorithm\s*=\s*(undefined|merge|temptable)`).FindStringSubmatch(trimmedQuery); len(algorithmMatch) == 2 {
-		viewInfo["algorithm"] = strings.ToUpper(algorithmMatch[1])
-	}
-	if definerMatch := regexp.MustCompile(`(?is)\bdefiner\s*=\s*([^\s]+)`).FindStringSubmatch(trimmedQuery); len(definerMatch) == 2 {
-		viewInfo["definer"] = definerMatch[1]
-	}
-	if securityMatch := regexp.MustCompile(`(?is)\bsql\s+security\s+(definer|invoker)`).FindStringSubmatch(trimmedQuery); len(securityMatch) == 2 {
-		viewInfo["sql_security"] = strings.ToUpper(securityMatch[1])
+	if structuredView != nil {
+		if len(structuredView.Columns) > 0 {
+			viewInfo["columns"] = append([]string(nil), structuredView.Columns...)
+		}
+		if structuredView.Algorithm != "" {
+			viewInfo["algorithm"] = strings.ToUpper(structuredView.Algorithm)
+		}
+		if structuredView.Definer.User != "" {
+			viewInfo["definer"] = structuredView.Definer.User + "@" + structuredView.Definer.Host
+		}
+		if structuredView.Security != "" {
+			viewInfo["sql_security"] = strings.ToUpper(structuredView.Security)
+		}
 	}
 	if checkOption != "" {
 		viewInfo["check_option"] = checkOption
@@ -25486,13 +26245,25 @@ func (e *XMySQLExecutor) collectViewSourceTables(schemaName, viewName, definitio
 }
 
 func (e *XMySQLExecutor) executeShowCreateView(ctx *ExecutionContext, query, databaseName string) bool {
-	match := regexp.MustCompile("(?is)^\\s*show\\s+create\\s+view\\s+`?([a-zA-Z0-9_$]+)`?(?:\\s*\\.\\s*`?([a-zA-Z0-9_$]+)`?)?\\s*;?\\s*$").FindStringSubmatch(query)
-	if len(match) == 0 {
-		return false
-	}
-	schemaName, viewName := databaseName, match[1]
-	if match[2] != "" {
-		schemaName, viewName = match[1], match[2]
+	schemaName, viewName := databaseName, ""
+	if show := stagedShowStatement(ctx); show != nil && strings.EqualFold(show.Type, "create view") {
+		viewName = show.OnTable.Name.String()
+		if show.OnTable.Qualifier.String() != "" {
+			schemaName = show.OnTable.Qualifier.String()
+		}
+	} else {
+		parsed, err := sqlparser.ParseForExecution(query)
+		if err != nil || parsed == nil {
+			return false
+		}
+		show, ok := parsed.AST.(*sqlparser.Show)
+		if !ok || !strings.EqualFold(show.Type, "create view") || show.OnTable.IsEmpty() {
+			return false
+		}
+		viewName = show.OnTable.Name.String()
+		if !show.OnTable.Qualifier.IsEmpty() {
+			schemaName = show.OnTable.Qualifier.String()
+		}
 	}
 	if schemaName != "" {
 		releaseViewLock, lockErr := e.acquireStatementTableLocks(ctx, ctx.Session, "select * from "+schemaName+"."+viewName, schemaName)
@@ -25558,13 +26329,9 @@ func (e *XMySQLExecutor) applyViewExecutionSecurity(session server.MySQLServerSe
 	if session == nil {
 		return session, false, nil
 	}
-	match := regexp.MustCompile("(?is)^\\s*select\\s+.+?\\s+from\\s+(?:`?([a-zA-Z0-9_$]+)`?\\s*\\.\\s*)?`?([a-zA-Z0-9_$]+)`?").FindStringSubmatch(query)
-	if len(match) != 3 {
+	schemaName, viewName, astTarget := viewQueryTargetFromAST(query, databaseName)
+	if !astTarget {
 		return session, false, nil
-	}
-	schemaName, viewName := databaseName, match[2]
-	if match[1] != "" {
-		schemaName = match[1]
 	}
 	path := filepath.Join(e.getDataDir(), schemaName, viewName+".view.json")
 	raw, err := os.ReadFile(path)
@@ -25587,8 +26354,10 @@ func (e *XMySQLExecutor) applyViewExecutionSecurity(session server.MySQLServerSe
 	definer := strings.TrimSpace(info.Definer)
 	if definer == "" {
 		definer = "root@localhost"
-	} else if quoted := regexp.MustCompile(`^'([^']*)'@'([^']*)'$`).FindStringSubmatch(definer); len(quoted) == 3 {
-		definer = quoted[1] + "@" + quoted[2]
+	} else if parsed, parseErr := sqlparser.ParseForExecution("SHOW CREATE USER " + definer); parseErr == nil {
+		if account, ok := parsed.AST.(*sqlparser.AccountStatement); ok && len(account.Accounts) == 1 {
+			definer = account.Accounts[0].User + "@" + account.Accounts[0].Host
+		}
 	}
 	parts := strings.SplitN(definer, "@", 2)
 	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
@@ -25598,57 +26367,17 @@ func (e *XMySQLExecutor) applyViewExecutionSecurity(session server.MySQLServerSe
 }
 
 func (e *XMySQLExecutor) rewriteViewQuery(query, databaseName string) (string, error) {
-	match := regexp.MustCompile("(?is)^\\s*(select\\s+.+?\\s+from\\s+)(?:`?([a-zA-Z0-9_$]+)`?(?:\\s*\\.\\s*`?([a-zA-Z0-9_$]+)`?)?)(\\s+(?:as\\s+)?[a-zA-Z0-9_$]+)?(\\s+(?:where|group\\s+by|having|order\\s+by|limit|union|intersect|except)\\b.*)?\\s*;?\\s*$").FindStringSubmatch(query)
-	if len(match) == 0 {
-		return "", nil
-	}
-	schemaName, viewName := databaseName, match[2]
-	if match[3] != "" {
-		schemaName, viewName = match[2], match[3]
-	}
-	raw, err := os.ReadFile(filepath.Join(e.getDataDir(), schemaName, viewName+".view.json"))
-	if os.IsNotExist(err) {
-		return "", nil
-	}
-	if err != nil {
+	if preserved, changed, err := e.rewriteViewQueryPreservingCTE(query, databaseName); err != nil {
 		return "", err
+	} else if changed {
+		return preserved, nil
 	}
-	var info struct {
-		Definition string `json:"definition"`
-	}
-	if err := json.Unmarshal(raw, &info); err != nil {
+	if rewritten, changed, err := e.rewriteViewQueryFromAST(query, databaseName); err != nil {
 		return "", err
+	} else if changed {
+		return rewritten, nil
 	}
-	definition := strings.TrimSpace(strings.TrimSuffix(info.Definition, ";"))
-	if rewritten, rewriteErr := e.rewriteNestedCTESubqueries(definition); rewriteErr != nil {
-		return "", fmt.Errorf("rewrite nested view CTE failed: %w", rewriteErr)
-	} else if strings.TrimSpace(rewritten) != "" {
-		definition = rewritten
-	}
-	statement, parseErr := sqlparser.Parse(definition)
-	if parseErr != nil {
-		return "", fmt.Errorf("parse view definition failed: %w", parseErr)
-	}
-	definition = bindViewDefinitionTables(statement, definition, schemaName)
-	if _, ok := statement.(*sqlparser.Select); !ok {
-		if withStmt, withOK := statement.(*sqlparser.With); !withOK || withStmt.Body == nil {
-			return "", fmt.Errorf("view definition is not a SELECT")
-		}
-		if rewritten, rewriteErr := e.rewriteSimpleCTEQuery(definition); rewriteErr != nil {
-			return "", rewriteErr
-		} else if rewritten != "" {
-			definition = rewritten
-		}
-	}
-	alias := strings.TrimSpace(match[4])
-	if alias == "" {
-		alias = "AS " + quotePartitionIdentifier(viewName)
-	}
-	tail := strings.TrimSpace(match[5])
-	if tail != "" {
-		tail = " " + tail
-	}
-	return strings.TrimSpace(match[1]) + " (" + definition + ") " + alias + tail, nil
+	return "", nil
 }
 
 // bindViewDefinitionTables makes the database binding captured by MySQL when
@@ -25738,106 +26467,8 @@ func (e *XMySQLExecutor) rewriteNestedCTESubqueries(query string) (string, error
 	return rewritten, nil
 }
 
-// rewriteSimpleCTEQuery handles the common single-CTE shape used by clients
-// for metadata and small staging queries. The CTE query is already a normal
-// SELECT, so expanding SELECT * FROM cte preserves the existing planner path.
 func (e *XMySQLExecutor) rewriteSimpleCTEQuery(query string) (string, error) {
-	trimmed := strings.TrimSpace(strings.TrimSuffix(query, ";"))
-	lower := strings.ToLower(trimmed)
-	if !strings.HasPrefix(lower, "with ") {
-		return "", nil
-	}
-	pos := len("with")
-	for pos < len(trimmed) && (trimmed[pos] == ' ' || trimmed[pos] == '\t' || trimmed[pos] == '\r' || trimmed[pos] == '\n') {
-		pos++
-	}
-	if strings.HasPrefix(strings.ToLower(trimmed[pos:]), "recursive ") {
-		pos += len("recursive ")
-	}
-	definitionHeader := regexp.MustCompile(`(?is)^([a-zA-Z0-9_$]+)(?:\s*\(([^)]*)\))?\s+as\s*\(`)
-	definitions := map[string]string{}
-	for {
-		if pos >= len(trimmed) {
-			return "", fmt.Errorf("CTE query has no main SELECT")
-		}
-		match := definitionHeader.FindStringSubmatchIndex(trimmed[pos:])
-		if len(match) == 0 {
-			return "", fmt.Errorf("unsupported CTE syntax")
-		}
-		name := strings.ToLower(trimmed[pos+match[2] : pos+match[3]])
-		open := pos + match[1] - 1
-		close := matchingParenIndex(trimmed, open)
-		if close < 0 {
-			return "", fmt.Errorf("unterminated CTE definition")
-		}
-		if _, exists := definitions[name]; exists {
-			return "", fmt.Errorf("duplicate CTE name '%s'", name)
-		}
-		definition := strings.TrimSpace(trimmed[open+1 : close])
-		definitionLower := strings.ToLower(definition)
-		if !strings.HasPrefix(definitionLower, "select ") && !strings.HasPrefix(definitionLower, "(") {
-			return "", fmt.Errorf("CTE definition must be a SELECT")
-		}
-		if strings.HasPrefix(definitionLower, "(") {
-			if _, operators, ok := splitSetOperationQuery(definition); !ok || !hasNonUnionSetOperator(operators) {
-				return "", fmt.Errorf("CTE definition must be a SELECT")
-			}
-		}
-		if len(match) >= 6 && match[4] >= 0 && match[5] >= 0 {
-			definition = applyCTEColumnAliases(definition, splitTopLevelComma(trimmed[pos+match[4]:pos+match[5]]))
-		}
-		definitions[name] = definition
-		pos = close + 1
-		for pos < len(trimmed) && (trimmed[pos] == ' ' || trimmed[pos] == '\t' || trimmed[pos] == '\r' || trimmed[pos] == '\n') {
-			pos++
-		}
-		if pos < len(trimmed) && trimmed[pos] == ',' {
-			pos++
-			for pos < len(trimmed) && (trimmed[pos] == ' ' || trimmed[pos] == '\t' || trimmed[pos] == '\r' || trimmed[pos] == '\n') {
-				pos++
-			}
-			continue
-		}
-		break
-	}
-	main := strings.TrimSpace(trimmed[pos:])
-	if rewritten, ok := rewriteCTEInsertQuery(main, definitions); ok {
-		return rewritten, nil
-	}
-	if rewritten, ok := rewriteCTESourcesAsDerived(main, definitions); ok {
-		return rewritten, nil
-	}
-	if rewritten, ok := rewriteCTEDMLQuery(main, definitions); ok {
-		return rewritten, nil
-	}
-	if rewritten, ok := rewriteCTEJoinQuery(main, definitions); ok {
-		return rewritten, nil
-	}
-	mainMatch := regexp.MustCompile(`(?is)^select\s+\*\s+from\s+([a-zA-Z0-9_$]+)\s*$`).FindStringSubmatch(main)
-	if len(mainMatch) == 0 {
-		if rewritten, ok := rewriteMaterializedCTEQuery(main, definitions); ok {
-			return rewritten, nil
-		}
-		return "", nil
-	}
-	name := strings.ToLower(mainMatch[1])
-	definition, exists := definitions[name]
-	if !exists {
-		return "", fmt.Errorf("CTE '%s' is not defined", mainMatch[1])
-	}
-	// Resolve the useful client shape: a chain of SELECT * FROM CTE names.
-	for i := 0; i < len(definitions); i++ {
-		ref := regexp.MustCompile(`(?is)^select\s+\*\s+from\s+([a-zA-Z0-9_$]+)(.*)$`).FindStringSubmatch(definition)
-		if len(ref) == 0 {
-			break
-		}
-		referenced, ok := definitions[strings.ToLower(ref[1])]
-		if !ok {
-			break
-		}
-		definition = referenced + ref[2]
-	}
-	return definition, nil
+	return rewriteSimpleCTEFromAST(query)
 }
 
 func applyCTEColumnAliases(definition string, columns []string) string {
@@ -25867,282 +26498,54 @@ func applyCTEColumnAliases(definition string, columns []string) string {
 	return "select " + strings.Join(aliased, ", ") + " from " + strings.TrimSpace(parts[1])
 }
 
-func rewriteCTEInsertQuery(main string, definitions map[string]string) (string, bool) {
-	match := regexp.MustCompile(`(?is)^insert\s+into\s+(.+?)\s+select\s+(.+?)\s+from\s+([a-zA-Z0-9_$]+)(?:\s+where\s+(.+?))?\s*;?$`).FindStringSubmatch(strings.TrimSpace(main))
-	if len(match) != 5 {
-		return "", false
-	}
-	definition, ok := definitions[strings.ToLower(match[3])]
-	if !ok {
-		return "", false
-	}
-	definitionMatch := regexp.MustCompile(`(?is)^select\s+.+?\s+from\s+([a-zA-Z0-9_$]+)(?:\s+where\s+(.+?))?\s*$`).FindStringSubmatch(strings.TrimSpace(definition))
-	if len(definitionMatch) != 3 {
-		return "", false
-	}
-	whereParts := make([]string, 0, 2)
-	if strings.TrimSpace(definitionMatch[2]) != "" {
-		whereParts = append(whereParts, "("+strings.TrimSpace(definitionMatch[2])+")")
-	}
-	if strings.TrimSpace(match[4]) != "" {
-		whereParts = append(whereParts, "("+strings.TrimSpace(match[4])+")")
-	}
-	rewritten := fmt.Sprintf("insert into %s select %s from %s", strings.TrimSpace(match[1]), strings.TrimSpace(match[2]), definitionMatch[1])
-	if len(whereParts) > 0 {
-		rewritten += " where " + strings.Join(whereParts, " and ")
-	}
-	return rewritten, true
-}
-
-// rewriteCTESourcesAsDerived materializes ordinary CTE table references as
-// derived sources. This keeps the CTE scope statement-local while allowing
-// the normal derived-table executor to handle multiple CTEs, CTE chains and
-// joins without leaking temporary names into the catalog.
-func rewriteCTESourcesAsDerived(main string, definitions map[string]string) (string, bool) {
-	lowerMain := strings.ToLower(strings.TrimSpace(main))
-	if (!strings.HasPrefix(lowerMain, "select ") && !strings.HasPrefix(lowerMain, "insert ")) || len(definitions) == 0 {
-		return "", false
-	}
-	expanded := make(map[string]string, len(definitions))
-	visiting := make(map[string]bool, len(definitions))
-	var expand func(string) (string, bool)
-	expand = func(name string) (string, bool) {
-		name = strings.ToLower(name)
-		if value, ok := expanded[name]; ok {
-			return value, true
-		}
-		definition, ok := definitions[name]
-		if !ok || visiting[name] {
-			return "", false
-		}
-		visiting[name] = true
-		value, changed := replaceCTESourceReferences(definition, definitions, func(reference string) (string, bool) {
-			return expand(reference)
-		}, name)
-		delete(visiting, name)
-		if !changed {
-			value = definition
-		}
-		expanded[name] = value
-		return value, true
-	}
-
-	rewritten, changed := replaceCTESourceReferences(main, definitions, func(reference string) (string, bool) {
-		return expand(reference)
-	}, "")
-	if !changed {
-		return "", false
-	}
-	return rewritten, true
-}
-
-func replaceCTESourceReferences(sql string, definitions map[string]string, resolve func(string) (string, bool), current string) (string, bool) {
-	changed := false
-	result := sql
-	for name := range definitions {
-		if strings.EqualFold(name, current) {
-			continue
-		}
-		pattern := regexp.MustCompile(`(?is)(\b(?:from|join)\s+)` + regexp.QuoteMeta(name) + `\b(?:\s+(?:as\s+)?([a-zA-Z_][a-zA-Z0-9_$]*))?`)
-		matches := pattern.FindAllStringSubmatchIndex(result, -1)
-		if len(matches) == 0 {
-			continue
-		}
-		definition, ok := resolve(name)
-		if !ok {
-			continue
-		}
-		var builder strings.Builder
-		last := 0
-		for _, match := range matches {
-			alias := ""
-			end := match[1]
-			if len(match) >= 6 && match[4] >= 0 && match[5] >= 0 {
-				candidate := result[match[4]:match[5]]
-				if !isCTESourceKeyword(candidate) {
-					alias = candidate
-					end = match[5]
-				} else {
-					end = match[3] + len(name)
-				}
-			}
-			builder.WriteString(result[last:match[2]])
-			builder.WriteString(result[match[2]:match[3]])
-			builder.WriteString("(")
-			builder.WriteString(definition)
-			builder.WriteString(") AS ")
-			if alias == "" {
-				builder.WriteString(name)
-			} else {
-				builder.WriteString(alias)
-			}
-			last = end
-			changed = true
-		}
-		builder.WriteString(result[last:])
-		result = builder.String()
-	}
-	return result, changed
-}
-
-func isCTESourceKeyword(value string) bool {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "as", "join", "left", "right", "inner", "outer", "cross", "where", "group", "order", "limit", "having", "union", "on", "using":
-		return true
-	default:
-		return false
-	}
-}
-
-// rewriteCTEDMLQuery supports the common MySQL form where a CTE is consumed
-// by an IN subquery of UPDATE or DELETE. It only rewrites a simple single-table
-// CTE, leaving joins, aggregates and recursive DML to the normal unsupported
-// statement path with an explicit error.
-func rewriteCTEDMLQuery(main string, definitions map[string]string) (string, bool) {
-	lower := strings.ToLower(strings.TrimSpace(main))
-	if !strings.HasPrefix(lower, "update ") && !strings.HasPrefix(lower, "delete ") {
-		return "", false
-	}
-	result := main
-	rewritten := false
-	for name, definition := range definitions {
-		definitionMatch := regexp.MustCompile(`(?is)^select\s+(.+?)\s+from\s+([a-zA-Z0-9_$]+)(?:\s+where\s+(.+?))?$`).FindStringSubmatch(strings.TrimSpace(definition))
-		if len(definitionMatch) != 4 {
-			continue
-		}
-		subquery := regexp.MustCompile(`(?is)\(\s*select\s+(.+?)\s+from\s+` + regexp.QuoteMeta(name) + `\s*\)`).FindStringSubmatchIndex(result)
-		if len(subquery) == 0 {
-			continue
-		}
-		projection := strings.TrimSpace(result[subquery[2]:subquery[3]])
-		expanded := "(select " + projection + " from " + definitionMatch[2]
-		if predicate := strings.TrimSpace(definitionMatch[3]); predicate != "" {
-			expanded += " where " + predicate
-		}
-		expanded += ")"
-		result = result[:subquery[0]] + expanded + result[subquery[1]:]
-		rewritten = true
-	}
-	return result, rewritten
-}
-
-func rewriteMaterializedCTEQuery(main string, definitions map[string]string) (string, bool) {
-	match := regexp.MustCompile(`(?is)^select\s+(.+?)\s+from\s+([a-zA-Z0-9_$]+)(?:\s+where\s+(.+?))?(?:\s+order\s+by\s+(.+?))?(?:\s+limit\s+(.+?))?$`).FindStringSubmatch(strings.TrimSpace(main))
-	if len(match) == 0 {
-		return "", false
-	}
-	definition, ok := definitions[strings.ToLower(match[2])]
-	if !ok {
-		return "", false
-	}
-	definitionMatch := regexp.MustCompile(`(?is)^select\s+(.+?)\s+from\s+([a-zA-Z0-9_$]+)(?:\s+where\s+(.+?))?$`).FindStringSubmatch(strings.TrimSpace(definition))
-	if len(definitionMatch) == 0 {
-		return "", false
-	}
-	projection := strings.TrimSpace(match[1])
-	if projection == "*" {
-		projection = strings.TrimSpace(definitionMatch[1])
-	}
-	whereParts := make([]string, 0, 2)
-	if strings.TrimSpace(definitionMatch[3]) != "" {
-		whereParts = append(whereParts, strings.TrimSpace(definitionMatch[3]))
-	}
-	if strings.TrimSpace(match[3]) != "" {
-		whereParts = append(whereParts, strings.TrimSpace(match[3]))
-	}
-	rewritten := fmt.Sprintf("select %s from %s", projection, definitionMatch[2])
-	if len(whereParts) > 0 {
-		rewritten += " where " + strings.Join(whereParts, " and ")
-	}
-	if strings.TrimSpace(match[4]) != "" {
-		rewritten += " order by " + strings.TrimSpace(match[4])
-	}
-	if strings.TrimSpace(match[5]) != "" {
-		rewritten += " limit " + strings.TrimSpace(match[5])
-	}
-	return rewritten, true
-}
-
-// rewriteCTEJoinQuery expands the safe single-table CTE + JOIN shape without
-// introducing a derived-table parser dependency. The CTE predicate is kept
-// in the outer WHERE clause and the CTE name becomes a stable table alias.
-func rewriteCTEJoinQuery(main string, definitions map[string]string) (string, bool) {
-	match := regexp.MustCompile(`(?is)^select\s+(.+?)\s+from\s+([a-zA-Z0-9_$]+)(?:\s+(?:as\s+)?([a-zA-Z0-9_$]+))?\s+join\s+(.+)$`).FindStringSubmatch(strings.TrimSpace(main))
-	if len(match) != 5 {
-		return "", false
-	}
-	cteName := strings.ToLower(match[2])
-	definition, ok := definitions[cteName]
-	if !ok {
-		return "", false
-	}
-	definitionMatch := regexp.MustCompile(`(?is)^select\s+(.+?)\s+from\s+([a-zA-Z0-9_$]+)(?:\s+where\s+(.+?))?$`).FindStringSubmatch(strings.TrimSpace(definition))
-	if len(definitionMatch) != 4 {
-		return "", false
-	}
-	alias := strings.TrimSpace(match[3])
-	if alias == "" {
-		alias = match[2]
-	}
-	joinTail := strings.TrimSpace(match[4])
-	lowerTail := strings.ToLower(joinTail)
-	whereAt := strings.Index(lowerTail, " where ")
-	orderAt := strings.Index(lowerTail, " order by ")
-	limitAt := strings.Index(lowerTail, " limit ")
-	suffixAt := len(joinTail)
-	for _, at := range []int{whereAt, orderAt, limitAt} {
-		if at >= 0 && at < suffixAt {
-			suffixAt = at
-		}
-	}
-	joinPart := strings.TrimSpace(joinTail[:suffixAt])
-	suffix := strings.TrimSpace(joinTail[suffixAt:])
-	existingWhere := ""
-	if whereAt >= 0 && whereAt == suffixAt {
-		whereEnd := len(joinTail)
-		for _, at := range []int{orderAt, limitAt} {
-			if at > whereAt && at < whereEnd {
-				whereEnd = at
-			}
-		}
-		existingWhere = strings.TrimSpace(joinTail[whereAt+len(" where ") : whereEnd])
-		suffix = strings.TrimSpace(joinTail[whereEnd:])
-	}
-	rewritten := fmt.Sprintf("select %s from %s as %s join %s", strings.TrimSpace(match[1]), definitionMatch[2], alias, joinPart)
-	if predicate := strings.TrimSpace(definitionMatch[3]); predicate != "" {
-		rewritten += " where (" + predicate + ")"
-		if existingWhere != "" {
-			rewritten += " and (" + existingWhere + ")"
-		}
-	} else if existingWhere != "" {
-		rewritten += " where " + existingWhere
-	}
-	if suffix != "" {
-		rewritten += " " + suffix
-	}
-	return rewritten, true
-}
-
 func (e *XMySQLExecutor) executeSimpleWindowQuery(ctx *ExecutionContext, query, databaseName string) (bool, error) {
-	match := regexp.MustCompile(`(?is)^\s*select\s+([a-zA-Z0-9_$.` + "`" + `]+)\s*,\s*row_number\s*\(\s*\)\s+over\s*\(\s*order\s+by\s+([a-zA-Z0-9_$.` + "`" + `]+)\s*(asc|desc)?\s*\)\s+as\s+([a-zA-Z0-9_` + "`" + `]+)\s+from\s+([a-zA-Z0-9_$.` + "`" + `]+)\s*;?\s*$`).FindStringSubmatch(query)
-	if len(match) == 0 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
 		return false, nil
 	}
-	columnName := strings.Trim(match[1], "`")
-	orderColumn := strings.Trim(match[2], "`")
-	tableName := strings.Trim(match[5], "`")
-	if idx := strings.LastIndex(tableName, "."); idx >= 0 {
-		databaseName, tableName = tableName[:idx], tableName[idx+1:]
+	selectStmt, ok := parsed.AST.(*sqlparser.Select)
+	if !ok || len(selectStmt.SelectExprs) != 2 || len(selectStmt.From) != 1 {
+		return false, nil
+	}
+	first, ok := selectStmt.SelectExprs[0].(*sqlparser.AliasedExpr)
+	if !ok {
+		return false, nil
+	}
+	windowExpr, ok := selectStmt.SelectExprs[1].(*sqlparser.AliasedExpr)
+	if !ok {
+		return false, nil
+	}
+	fn, ok := windowExpr.Expr.(*sqlparser.FuncExpr)
+	if !ok || !strings.EqualFold(fn.Name.String(), "row_number") || fn.Over == nil || len(fn.Over.OrderBy) != 1 {
+		return false, nil
+	}
+	orderExpr, ok := fn.Over.OrderBy[0].Expr.(*sqlparser.ColName)
+	if !ok {
+		return false, nil
+	}
+	from, ok := selectStmt.From[0].(*sqlparser.AliasedTableExpr)
+	if !ok {
+		return false, nil
+	}
+	table, ok := from.Expr.(sqlparser.TableName)
+	if !ok {
+		return false, nil
+	}
+	columnName := strings.TrimSpace(sqlparser.String(first.Expr))
+	orderColumn := orderExpr.Name.String()
+	tableName := table.Name.String()
+	if table.Qualifier.String() != "" {
+		databaseName, tableName = table.Qualifier.String(), tableName
 	}
 	stmt, err := sqlparser.Parse(fmt.Sprintf("select %s from %s", columnName, tableName))
 	if err != nil {
 		return true, err
 	}
-	selectStmt, ok := stmt.(*sqlparser.Select)
-	if !ok {
+	selectWindowStmt, selectWindowOK := stmt.(*sqlparser.Select)
+	if !selectWindowOK {
 		return true, fmt.Errorf("window source is not a SELECT")
 	}
-	result, err := e.executeSelectStatement(ctx, selectStmt, databaseName)
+	result, err := e.executeSelectStatement(ctx, selectWindowStmt, databaseName)
 	if err != nil {
 		return true, err
 	}
@@ -26170,7 +26573,7 @@ func (e *XMySQLExecutor) executeSimpleWindowQuery(ctx *ExecutionContext, query, 
 		rows = append(rows, indexedRow{values: values, key: key})
 	}
 	sort.SliceStable(rows, func(i, j int) bool {
-		if strings.EqualFold(match[3], "desc") {
+		if len(fn.Over.OrderBy) > 0 && strings.EqualFold(fn.Over.OrderBy[0].Direction, "desc") {
 			return rows[i].key > rows[j].key
 		}
 		return rows[i].key < rows[j].key
@@ -26179,7 +26582,11 @@ func (e *XMySQLExecutor) executeSimpleWindowQuery(ctx *ExecutionContext, query, 
 	for index, row := range rows {
 		output = append(output, append(row.values, int64(index+1)))
 	}
-	columns := append([]string{columnName}, match[4])
+	windowAlias := windowExpr.As.String()
+	if windowAlias == "" {
+		windowAlias = "row_number"
+	}
+	columns := append([]string{columnName}, windowAlias)
 	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: newInformationSchemaSelectResult("window", columns, output), Message: fmt.Sprintf("SELECT query executed successfully, %d rows returned", len(output))}
 	return true, nil
 }
@@ -26214,13 +26621,20 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 		}
 	}
 
-	tablePattern := regexp.MustCompile("(?is)\\bfrom\\s+`?([a-zA-Z0-9_$]+)`?(?:\\s*\\.\\s*`?([a-zA-Z0-9_$]+)`?)?")
-	matches := tablePattern.FindStringSubmatch(selectSQL)
 	tableName, schemaName := "", databaseName
-	if len(matches) > 0 {
-		tableName = matches[1]
-		if matches[2] != "" {
-			schemaName, tableName = matches[1], matches[2]
+	if parsed, parseErr := sqlparser.ParseForExecution(query); parseErr == nil {
+		if explain, ok := parsed.AST.(*sqlparser.ExplainStatement); ok {
+			if !explain.Table.IsEmpty() {
+				schemaName, tableName = explain.Table.Qualifier.String(), explain.Table.Name.String()
+				if schemaName == "" {
+					schemaName = databaseName
+				}
+			}
+			if explain.Statement != nil {
+				if refs, refErr := sqlparser.CollectObjectReferences(explain.Statement, databaseName); refErr == nil && len(refs) > 0 {
+					schemaName, tableName = refs[0].Schema, refs[0].Name
+				}
+			}
 		}
 	}
 	columns := []string{"id", "select_type", "table", "partitions", "type", "possible_keys", "key", "key_len", "ref", "rows", "filtered", "Extra"}
@@ -26536,14 +26950,18 @@ func extractAdminTableTarget(query, databaseName string) (string, string) {
 }
 
 func extractQualifiedTableFromShowCreate(query string) (string, string) {
-	match := regexp.MustCompile("(?is)show\\s+create\\s+table\\s+`?([a-zA-Z0-9_$]+)`?(?:\\s*\\.\\s*`?([a-zA-Z0-9_$]+)`?)?").FindStringSubmatch(query)
-	if len(match) == 0 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
 		return "", ""
 	}
-	if match[2] != "" {
-		return match[1], match[2]
+	show, ok := parsed.AST.(*sqlparser.Show)
+	if !ok || !strings.EqualFold(show.Type, "create table") || show.OnTable.IsEmpty() {
+		return "", ""
 	}
-	return "", match[1]
+	if !show.OnTable.Qualifier.IsEmpty() {
+		return show.OnTable.Qualifier.String(), show.OnTable.Name.String()
+	}
+	return "", show.OnTable.Name.String()
 }
 
 func formatPersistedColumnType(column map[string]interface{}) string {
@@ -26620,7 +27038,10 @@ func (e *XMySQLExecutor) executeShowEngines(ctx *ExecutionContext) {
 func (e *XMySQLExecutor) executeShowWarnings(ctx *ExecutionContext) {
 	logger.Debugf(" [executeShowWarnings] 执行SHOW WARNINGS")
 	warnings := sessionWarnings(ctx)
-	start, end := showWarningsBounds(ctx.RawQuery, len(warnings))
+	start, end := showWarningsBoundsFromStatement(ctx, len(warnings))
+	if start == 0 && end == len(warnings) {
+		start, end = showWarningsBounds(ctx.RawQuery, len(warnings))
+	}
 	rows := make([][]interface{}, 0, end-start)
 	for _, warning := range warnings[start:end] {
 		rows = append(rows, []interface{}{warning.Level, warning.Code, warning.Message})
@@ -26645,7 +27066,10 @@ func (e *XMySQLExecutor) executeShowErrors(ctx *ExecutionContext) {
 			errorWarnings = append(errorWarnings, warning)
 		}
 	}
-	start, end := showWarningsBounds(ctx.RawQuery, len(errorWarnings))
+	start, end := showWarningsBoundsFromStatement(ctx, len(errorWarnings))
+	if start == 0 && end == len(errorWarnings) {
+		start, end = showWarningsBounds(ctx.RawQuery, len(errorWarnings))
+	}
 	rows := make([][]interface{}, 0, end-start)
 	for _, warning := range errorWarnings[start:end] {
 		rows = append(rows, []interface{}{warning.Level, warning.Code, warning.Message})

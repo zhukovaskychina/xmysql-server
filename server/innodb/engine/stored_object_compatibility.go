@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -21,27 +20,28 @@ import (
 )
 
 type persistedStoredObject struct {
-	Schema               string   `json:"schema"`
-	Name                 string   `json:"name"`
-	ObjectType           string   `json:"object_type"`
-	Definition           string   `json:"definition"`
-	Parameters           []string `json:"parameters,omitempty"`
-	ReturnType           string   `json:"return_type,omitempty"`
-	LocalVariables       []string `json:"local_variables,omitempty"`
-	ReturnExpression     string   `json:"return_expression,omitempty"`
-	Definer              string   `json:"definer,omitempty"`
-	SQLSecurity          string   `json:"sql_security,omitempty"`
-	RoutineComment       string   `json:"routine_comment,omitempty"`
-	Disabled             bool     `json:"disabled,omitempty"`
-	OnCompletionPreserve bool     `json:"on_completion_preserve,omitempty"`
-	CreatedAt            string   `json:"created_at"`
-	LastAlteredAt        string   `json:"last_altered_at,omitempty"`
-	LastExecutedAt       string   `json:"last_executed_at,omitempty"`
-	Originator           uint32   `json:"originator,omitempty"`
-	SQLMode              string   `json:"sql_mode,omitempty"`
-	TimeZone             string   `json:"time_zone,omitempty"`
-	CharacterSetClient   string   `json:"character_set_client,omitempty"`
-	CollationConnection  string   `json:"collation_connection,omitempty"`
+	Schema               string                           `json:"schema"`
+	Name                 string                           `json:"name"`
+	ObjectType           string                           `json:"object_type"`
+	Definition           string                           `json:"definition"`
+	Parameters           []string                         `json:"parameters,omitempty"`
+	ReturnType           string                           `json:"return_type,omitempty"`
+	LocalVariables       []string                         `json:"local_variables,omitempty"`
+	ReturnExpression     string                           `json:"return_expression,omitempty"`
+	Definer              string                           `json:"definer,omitempty"`
+	SQLSecurity          string                           `json:"sql_security,omitempty"`
+	RoutineComment       string                           `json:"routine_comment,omitempty"`
+	Disabled             bool                             `json:"disabled,omitempty"`
+	OnCompletionPreserve bool                             `json:"on_completion_preserve,omitempty"`
+	CreatedAt            string                           `json:"created_at"`
+	LastAlteredAt        string                           `json:"last_altered_at,omitempty"`
+	LastExecutedAt       string                           `json:"last_executed_at,omitempty"`
+	Originator           uint32                           `json:"originator,omitempty"`
+	SQLMode              string                           `json:"sql_mode,omitempty"`
+	TimeZone             string                           `json:"time_zone,omitempty"`
+	CharacterSetClient   string                           `json:"character_set_client,omitempty"`
+	CollationConnection  string                           `json:"collation_connection,omitempty"`
+	DefinitionAST        *sqlparser.StoredObjectStatement `json:"-"`
 }
 
 type storedRoutineCursor struct {
@@ -203,10 +203,43 @@ func (e *XMySQLExecutor) acquireTriggerExecutionLocks(ctx context.Context, sessi
 
 func (e *XMySQLExecutor) executeStoredObjectDDL(ctx *ExecutionContext, query, databaseName string) bool {
 	trimmed := strings.TrimSpace(strings.TrimSuffix(query, ";"))
-	createQuery := regexp.MustCompile(`(?is)^create\s+definer\s*=\s*'[^']*'\s*@\s*'[^']*'\s+`).ReplaceAllString(trimmed, "create ")
-	create := regexp.MustCompile(`(?is)^create\s+(?:or\s+replace\s+)?(procedure|function|trigger|event)\s+((?:` + "`?" + `[^\s.(]+` + "`?" + `)(?:\s*\.\s*` + "`?" + `[^\s.(]+` + "`?" + `)?)(?:\(([^)]*)\))?\s+(.+)$`).FindStringSubmatch(createQuery)
-	drop := regexp.MustCompile(`(?is)^drop\s+(procedure|function|trigger|event)\s+(?:if\s+exists\s+)?((?:` + "`?" + `[^\s.]+` + "`?" + `)(?:\s*\.\s*` + "`?" + `[^\s.]+` + "`?" + `)?)\s*$`).FindStringSubmatch(trimmed)
-	create = parseStoredObjectCreate(createQuery)
+	var create, drop []string
+	var stagedObject *sqlparser.StoredObjectStatement
+	if ctx != nil && ctx.Parsed != nil {
+		if staged, ok := ctx.Parsed.AST.(*sqlparser.StoredObjectStatement); ok && staged.ObjectType != "call" {
+			stagedObject = staged
+			qualified := staged.Name.Name.String()
+			if staged.Name.Qualifier.String() != "" {
+				qualified = staged.Name.Qualifier.String() + "." + qualified
+			}
+			if strings.EqualFold(staged.Kind, "drop") {
+				drop = []string{"drop", staged.ObjectType, qualified}
+			} else if strings.EqualFold(staged.Kind, "create") {
+				parameters := strings.Join(staged.Parameters, ", ")
+				create = []string{"create", staged.ObjectType, qualified, parameters, staged.Body}
+			}
+		}
+	}
+	if stagedObject == nil {
+		// Stored-object DDL is handled before the final legacy dispatch in the
+		// network engine. Parse it here as well so CREATE/DROP metadata does not
+		// need to rediscover the object header with regular expressions.
+		if parsed, parseErr := sqlparser.ParseForExecution(trimmed); parseErr == nil {
+			if staged, ok := parsed.AST.(*sqlparser.StoredObjectStatement); ok && staged.ObjectType != "call" {
+				stagedObject = staged
+				qualified := staged.Name.Name.String()
+				if staged.Name.Qualifier.String() != "" {
+					qualified = staged.Name.Qualifier.String() + "." + qualified
+				}
+				if strings.EqualFold(staged.Kind, "drop") {
+					drop = []string{"drop", staged.ObjectType, qualified}
+				} else if strings.EqualFold(staged.Kind, "create") {
+					parameters := strings.Join(staged.Parameters, ", ")
+					create = []string{"create", staged.ObjectType, qualified, parameters, staged.Body}
+				}
+			}
+		}
+	}
 	if len(create) == 0 && len(drop) == 0 {
 		return false
 	}
@@ -274,7 +307,15 @@ func (e *XMySQLExecutor) executeStoredObjectDDL(ctx *ExecutionContext, query, da
 		}
 	}
 	if strings.EqualFold(objectType, "trigger") {
-		_, _, triggerTable, _ := parseTriggerInformationSchemaMetadata(trimmed)
+		triggerTable := ""
+		if ctx != nil && ctx.Parsed != nil {
+			if staged, ok := ctx.Parsed.AST.(*sqlparser.StoredObjectStatement); ok && !staged.TargetTable.IsEmpty() {
+				triggerTable = staged.TargetTable.Name.String()
+			}
+		}
+		if triggerTable == "" {
+			_, _, triggerTable, _ = parseTriggerInformationSchemaMetadata(trimmed)
+		}
 		if err := e.checkStoredTriggerPrivilege(ctx, schema, triggerTable); err != nil {
 			ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
 			return true
@@ -283,8 +324,13 @@ func (e *XMySQLExecutor) executeStoredObjectDDL(ctx *ExecutionContext, query, da
 	objectPath := e.storedObjectPath(schema, name, objectType)
 	lowerQuery := strings.ToLower(trimmed)
 	if strings.EqualFold(objectType, "trigger") {
+		stagedTrigger := storedDefinitionAST(trimmed)
 		timing, event, tableName, _ := parseTriggerInformationSchemaMetadata(trimmed)
-		if _, referencedName, hasOrder := triggerOrderReference(trimmed); hasOrder {
+		referencedName := ""
+		if stagedTrigger != nil {
+			referencedName = stagedTrigger.TriggerOrderName
+		}
+		if referencedName != "" {
 			found := false
 			for _, trigger := range loadTableTriggers(e.getDataDir(), schema, tableName, event, timing) {
 				if strings.EqualFold(trigger.Name, referencedName) {
@@ -321,6 +367,9 @@ func (e *XMySQLExecutor) executeStoredObjectDDL(ctx *ExecutionContext, query, da
 		return true
 	}
 	definer := storedObjectDefiner(trimmed)
+	if stagedObject != nil && stagedObject.Definer.User != "" {
+		definer = stagedObject.Definer.User + "@" + stagedObject.Definer.Host
+	}
 	if definer != "" {
 		if err := e.validateStoredObjectAccount(definer); err != nil {
 			ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
@@ -328,7 +377,9 @@ func (e *XMySQLExecutor) executeStoredObjectDDL(ctx *ExecutionContext, query, da
 		}
 	}
 	security := ""
-	if strings.Contains(strings.ToLower(create[4]), "sql security invoker") {
+	if stagedObject != nil && stagedObject.Security != "" {
+		security = strings.ToUpper(stagedObject.Security)
+	} else if strings.Contains(strings.ToLower(create[4]), "sql security invoker") {
 		security = "INVOKER"
 	} else if definer != "" {
 		security = "DEFINER"
@@ -344,10 +395,16 @@ func (e *XMySQLExecutor) executeStoredObjectDDL(ctx *ExecutionContext, query, da
 		Definer:          definer, SQLSecurity: security, CreatedAt: time.Now().UTC().Format(time.RFC3339),
 		SQLMode: sqlMode, TimeZone: timeZone, CharacterSetClient: characterSetClient, CollationConnection: collationConnection,
 	}
+	if stagedObject != nil && stagedObject.ReturnType != "" {
+		object.ReturnType = strings.ToUpper(stagedObject.ReturnType)
+	}
 	if e.conf != nil {
 		object.Originator = e.conf.ReplicationServerID
 	}
 	if strings.EqualFold(objectType, "event") {
+		if stagedObject != nil && stagedObject.OnCompletionPreserve {
+			object.OnCompletionPreserve = true
+		}
 		schedule, err := parseSQLEventSchedule(object.Definition)
 		if err != nil {
 			ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
@@ -379,13 +436,21 @@ func (e *XMySQLExecutor) executeStoredObjectDDL(ctx *ExecutionContext, query, da
 // the same statement so ENABLE/DISABLE takes effect without a restart.
 func (e *XMySQLExecutor) executeStoredObjectAlter(ctx *ExecutionContext, query, databaseName string) bool {
 	trimmed := strings.TrimSpace(strings.TrimSuffix(query, ";"))
-	routineMatch := regexp.MustCompile(`(?is)^alter\s+(procedure|function)\s+((?:[a-zA-Z0-9_$]+\s*\.\s*)?[a-zA-Z0-9_$]+)\s+(.+)$`).FindStringSubmatch(trimmed)
-	if len(routineMatch) == 4 {
+	parsed, parseErr := sqlparser.ParseForExecution(trimmed)
+	stored, storedOK := (*sqlparser.StoredObjectStatement)(nil), false
+	if parseErr == nil && parsed != nil {
+		stored, storedOK = parsed.AST.(*sqlparser.StoredObjectStatement)
+	}
+	if storedOK && strings.EqualFold(stored.Kind, "alter") && (strings.EqualFold(stored.ObjectType, "procedure") || strings.EqualFold(stored.ObjectType, "function")) {
 		if err := e.prepareDDLImplicitCommit(ctx.Session); err != nil {
 			ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
 			return true
 		}
-		objectType, schema, name := parseStoredObjectName(routineMatch[1], routineMatch[2], databaseName)
+		objectType := strings.ToLower(stored.ObjectType)
+		schema, name := stored.Name.Qualifier.String(), stored.Name.Name.String()
+		if schema == "" {
+			schema = databaseName
+		}
 		releaseObjectLock, lockErr := e.acquireStoredObjectWriteLock(ctx, schema, name)
 		if lockErr != nil {
 			ctx.Results <- &Result{Err: tableLockWaitError(lockErr), ResultType: common.RESULT_TYPE_QUERY}
@@ -411,27 +476,26 @@ func (e *XMySQLExecutor) executeStoredObjectAlter(ctx *ExecutionContext, query, 
 			ctx.Results <- &Result{Err: fmt.Errorf("stored object %s.%s is not a %s", schema, name, objectType), ResultType: common.RESULT_TYPE_QUERY}
 			return true
 		}
-		options := strings.TrimSpace(routineMatch[3])
 		changed := false
-		if security := regexp.MustCompile(`(?is)\bsql\s+security\s+(definer|invoker)\b`).FindStringSubmatch(options); len(security) == 2 {
-			object.SQLSecurity = strings.ToUpper(security[1])
+		if stored.Security != "" {
+			object.SQLSecurity = strings.ToUpper(stored.Security)
 			object.Definition = replaceRoutineSecurity(object.Definition, object.SQLSecurity)
 			changed = true
 		}
-		if deterministic := regexp.MustCompile(`(?is)\b(?:not\s+)?deterministic\b`).FindString(options); deterministic != "" {
-			object.Definition = replaceRoutineClause(object.Definition, `(?:not\s+)?deterministic`, strings.ToUpper(strings.TrimSpace(deterministic)))
-			changed = true
-		}
-		if dataAccess := regexp.MustCompile(`(?is)\b(?:no\s+sql|contains\s+sql|reads\s+sql\s+data|modifies\s+sql\s+data)\b`).FindString(options); dataAccess != "" {
-			object.Definition = replaceRoutineClause(object.Definition, `(?:no\s+sql|contains\s+sql|reads\s+sql\s+data|modifies\s+sql\s+data)`, strings.ToUpper(strings.TrimSpace(dataAccess)))
-			changed = true
-		}
-		if comment := regexp.MustCompile(`(?is)\bcomment\s+(?:'((?:''|[^'])*)'|"((?:""|[^"])*)")`).FindStringSubmatch(options); len(comment) == 3 {
-			object.RoutineComment = comment[1]
-			if object.RoutineComment == "" {
-				object.RoutineComment = comment[2]
+		if stored.DeterministicSet {
+			deterministic := "DETERMINISTIC"
+			if !stored.Deterministic {
+				deterministic = "NOT DETERMINISTIC"
 			}
-			object.RoutineComment = strings.ReplaceAll(object.RoutineComment, "''", "'")
+			object.Definition = replaceRoutinePhrases(object.Definition, deterministic, [][]string{{"not", "deterministic"}, {"deterministic"}})
+			changed = true
+		}
+		if stored.DataAccess != "" {
+			object.Definition = replaceRoutinePhrases(object.Definition, strings.ToUpper(strings.TrimSpace(stored.DataAccess)), [][]string{{"no", "sql"}, {"contains", "sql"}, {"reads", "sql", "data"}, {"modifies", "sql", "data"}})
+			changed = true
+		}
+		if stored.CommentSet {
+			object.RoutineComment = strings.ReplaceAll(stored.Comment, "''", "'")
 			object.RoutineComment = strings.ReplaceAll(object.RoutineComment, "\"\"", "\"")
 			changed = true
 		}
@@ -452,15 +516,18 @@ func (e *XMySQLExecutor) executeStoredObjectAlter(ctx *ExecutionContext, query, 
 		return true
 	}
 
-	match := regexp.MustCompile(`(?is)^alter\s+event\s+((?:[a-zA-Z0-9_$]+\s*\.\s*)?[a-zA-Z0-9_$]+)\s+(.+?)\s*;?$`).FindStringSubmatch(trimmed)
-	if len(match) != 3 {
+	if !storedOK || !strings.EqualFold(stored.Kind, "alter") || !strings.EqualFold(stored.ObjectType, "event") {
 		return false
 	}
 	if err := e.prepareDDLImplicitCommit(ctx.Session); err != nil {
 		ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
 		return true
 	}
-	objectType, schema, name := parseStoredObjectName("event", match[1], databaseName)
+	objectType := "event"
+	schema, name := stored.Name.Qualifier.String(), stored.Name.Name.String()
+	if schema == "" {
+		schema = databaseName
+	}
 	releaseObjectLock, lockErr := e.acquireStoredObjectWriteLock(ctx, schema, name)
 	if lockErr != nil {
 		ctx.Results <- &Result{Err: tableLockWaitError(lockErr), ResultType: common.RESULT_TYPE_QUERY}
@@ -482,10 +549,14 @@ func (e *XMySQLExecutor) executeStoredObjectAlter(ctx *ExecutionContext, query, 
 		ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
 		return true
 	}
-	options := strings.TrimSpace(strings.TrimSuffix(match[2], ";"))
+	options := strings.TrimSpace(stored.Options)
 	lower := strings.ToLower(options)
-	if renameMatch := regexp.MustCompile(`(?is)^rename\s+to\s+((?:[a-zA-Z0-9_$]+\s*\.\s*)?[a-zA-Z0-9_$]+)$`).FindStringSubmatch(options); len(renameMatch) == 2 {
-		newType, newSchema, newName := parseStoredObjectName("event", renameMatch[1], schema)
+	if !stored.EventRenameTo.IsEmpty() {
+		newSchema, newName := stored.EventRenameTo.Qualifier.String(), stored.EventRenameTo.Name.String()
+		if newSchema == "" {
+			newSchema = schema
+		}
+		newType := "event"
 		if newType != "event" || !strings.EqualFold(newSchema, schema) {
 			ctx.Results <- &Result{Err: fmt.Errorf("ALTER EVENT RENAME must stay in the same schema"), ResultType: common.RESULT_TYPE_QUERY}
 			return true
@@ -523,14 +594,11 @@ func (e *XMySQLExecutor) executeStoredObjectAlter(ctx *ExecutionContext, query, 
 		ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: newInformationSchemaSelectResult("stored_object", nil, nil), Message: "event renamed"}
 		return true
 	}
-	if strings.Contains(lower, "disable") {
-		object.Disabled = true
-	}
-	if strings.Contains(lower, "enable") {
-		object.Disabled = false
+	if stored.EventEnabledSet {
+		object.Disabled = !stored.EventEnabled
 	}
 	if strings.Contains(lower, "on schedule") || strings.Contains(lower, " do ") {
-		definitionOptions := regexp.MustCompile(`(?is)\b(?:enable|disable)\b`).ReplaceAllString(options, "")
+		definitionOptions := removeEventToggleKeywords(options)
 		object.Definition = fmt.Sprintf("CREATE EVENT %s.%s %s", schema, name, strings.TrimSpace(definitionOptions))
 		schedule, err := parseSQLEventSchedule(object.Definition)
 		if err != nil {
@@ -563,53 +631,122 @@ func (e *XMySQLExecutor) executeStoredObjectAlter(ctx *ExecutionContext, query, 
 	return true
 }
 
-func replaceRoutineSecurity(definition, security string) string {
-	return replaceRoutineClause(definition, `sql\s+security\s+(?:definer|invoker)`, "SQL SECURITY "+strings.ToUpper(security))
+func removeEventToggleKeywords(input string) string {
+	var builder strings.Builder
+	for index := 0; index < len(input); {
+		if input[index] == '\'' || input[index] == '"' || input[index] == '`' {
+			quote := input[index]
+			start := index
+			index++
+			for index < len(input) {
+				if input[index] == quote {
+					if index+1 < len(input) && input[index+1] == quote {
+						index += 2
+						continue
+					}
+					index++
+					break
+				}
+				index++
+			}
+			builder.WriteString(input[start:index])
+			continue
+		}
+		if (input[index] >= 'a' && input[index] <= 'z') || (input[index] >= 'A' && input[index] <= 'Z') || input[index] == '_' {
+			start := index
+			for index < len(input) && ((input[index] >= 'a' && input[index] <= 'z') || (input[index] >= 'A' && input[index] <= 'Z') || (input[index] >= '0' && input[index] <= '9') || input[index] == '_') {
+				index++
+			}
+			word := input[start:index]
+			if strings.EqualFold(word, "enable") || strings.EqualFold(word, "disable") {
+				continue
+			}
+			builder.WriteString(word)
+			continue
+		}
+		builder.WriteByte(input[index])
+		index++
+	}
+	return builder.String()
 }
 
-func replaceRoutineClause(definition, pattern, clause string) string {
-	clausePattern := regexp.MustCompile(`(?is)\s+` + pattern + `\b`)
-	if clausePattern.MatchString(definition) {
-		return clausePattern.ReplaceAllString(definition, " "+clause)
+func replaceRoutineSecurity(definition, security string) string {
+	return replaceRoutinePhrases(definition, "SQL SECURITY "+strings.ToUpper(security), [][]string{{"sql", "security", "definer"}, {"sql", "security", "invoker"}})
+}
+
+func replaceRoutinePhrases(definition, clause string, phrases [][]string) string {
+	lower := strings.ToLower(definition)
+	bestAt, bestLen := -1, 0
+	for _, phrase := range phrases {
+		at, length := findRoutinePhrase(lower, phrase)
+		if at >= 0 && (bestAt < 0 || at < bestAt) {
+			bestAt, bestLen = at, length
+		}
+	}
+	if bestAt >= 0 {
+		start := bestAt
+		if start > 0 && isSQLSpaceByte(definition[start-1]) {
+			start--
+		}
+		return definition[:start] + " " + clause + definition[bestAt+bestLen:]
 	}
 	for _, keyword := range []string{"begin", "return"} {
-		if index := strings.Index(strings.ToLower(definition), keyword); index >= 0 {
-			return definition[:index] + " " + clause + " " + definition[index:]
+		if index := strings.Index(lower, keyword); index >= 0 && (index == 0 || !isSQLIdentByte(lower[index-1])) {
+			after := index + len(keyword)
+			if after == len(lower) || !isSQLIdentByte(lower[after]) {
+				return definition[:index] + " " + clause + " " + definition[index:]
+			}
 		}
 	}
 	return strings.TrimSpace(definition) + " " + clause
 }
 
-func parseStoredObjectCreate(query string) []string {
-	prefix := regexp.MustCompile("(?is)^create\\s+(?:or\\s+replace\\s+)?(?:if\\s+not\\s+exists\\s+)?(procedure|function|trigger|event)\\s+((?:`?[a-zA-Z0-9_$]+`?)(?:\\s*\\.\\s*`?[a-zA-Z0-9_$]+`?)?)")
-	match := prefix.FindStringSubmatch(query)
-	if len(match) != 3 {
-		return nil
+func findRoutinePhrase(lower string, phrase []string) (int, int) {
+	if len(phrase) == 0 {
+		return -1, 0
 	}
-	rest := strings.TrimSpace(query[len(match[0]):])
-	parameters := ""
-	if strings.HasPrefix(rest, "(") {
-		close := matchingParenIndex(rest, 0)
-		if close < 0 {
-			return nil
+	for start := 0; start < len(lower); {
+		at := strings.Index(lower[start:], phrase[0])
+		if at < 0 {
+			return -1, 0
 		}
-		parameters = rest[1:close]
-		rest = strings.TrimSpace(rest[close+1:])
+		at += start
+		if at > 0 && isSQLIdentByte(lower[at-1]) {
+			start = at + 1
+			continue
+		}
+		cursor := at + len(phrase[0])
+		matched := true
+		for _, word := range phrase[1:] {
+			for cursor < len(lower) && isSQLSpaceByte(lower[cursor]) {
+				cursor++
+			}
+			if cursor+len(word) > len(lower) || lower[cursor:cursor+len(word)] != word {
+				matched = false
+				break
+			}
+			if cursor+len(word) < len(lower) && isSQLIdentByte(lower[cursor+len(word)]) {
+				matched = false
+				break
+			}
+			cursor += len(word)
+		}
+		if matched && (cursor == len(lower) || !isSQLIdentByte(lower[cursor])) && (at == 0 || !isSQLIdentByte(lower[at-1])) {
+			return at, cursor - at
+		}
+		start = at + 1
 	}
-	if rest == "" {
-		return nil
-	}
-	return []string{"", match[1], match[2], parameters, rest}
+	return -1, 0
 }
 
 // executeStoredObjectCall implements the smallest useful routine execution
 // contract: CALL of a persisted procedure whose body contains SELECTs.
 func (e *XMySQLExecutor) executeStoredObjectCall(ctx *ExecutionContext, query, databaseName string) bool {
 	trimmed := strings.TrimSpace(strings.TrimSuffix(query, ";"))
-	if !storedProcedureCallPattern.MatchString(trimmed) {
+	if !(len(storedProcedureCallMatch(trimmed)) > 0) {
 		return false
 	}
-	match := storedProcedureCallPattern.FindStringSubmatch(trimmed)
+	match := storedProcedureCallMatch(trimmed)
 	_, schema, name := parseStoredObjectName("procedure", match[1], databaseName)
 	releaseObjectLock, lockErr := e.acquireStoredObjectReadLock(ctx, ctx.Session, schema, name)
 	if lockErr != nil {
@@ -625,7 +762,17 @@ func (e *XMySQLExecutor) executeStoredObjectCall(ctx *ExecutionContext, query, d
 	return true
 }
 
-var storedProcedureCallPattern = regexp.MustCompile(`(?is)^call\s+((?:` + "`?" + `[a-zA-Z0-9_$]+` + "`?" + `\s*\.\s*)?` + "`?" + `[a-zA-Z0-9_$]+` + "`?" + `)(?:\s*\(([^)]*)\))?\s*$`)
+func storedProcedureCallMatch(query string) []string {
+	object := storedDefinitionAST(query)
+	if object == nil || object.Kind != "call" {
+		return nil
+	}
+	arguments := make([]string, 0, len(object.Arguments))
+	for _, argument := range object.Arguments {
+		arguments = append(arguments, sqlparser.String(argument))
+	}
+	return []string{"", sqlparser.String(object.Name), strings.Join(arguments, ", ")}
+}
 
 type storedRoutineLocalReference struct {
 	local     string
@@ -633,7 +780,7 @@ type storedRoutineLocalReference struct {
 }
 
 func (e *XMySQLExecutor) resolveStoredProcedureCallWithLocalReferences(ctx *ExecutionContext, databaseName, statement string, state *storedRoutineState) (string, []storedRoutineLocalReference, error) {
-	match := storedProcedureCallPattern.FindStringSubmatch(strings.TrimSpace(statement))
+	match := storedProcedureCallMatch(strings.TrimSpace(statement))
 	if len(match) == 0 || strings.TrimSpace(match[2]) == "" {
 		return strings.TrimSpace(statement), nil, nil
 	}
@@ -694,8 +841,8 @@ func (e *XMySQLExecutor) storedProcedureParameterModes(schema, name string) ([]s
 	}
 	parameters := object.Parameters
 	if len(parameters) == 0 {
-		if header := regexp.MustCompile(`(?is)^create\s+procedure\s+[^\s(]+\s*\(([^)]*)\)`).FindStringSubmatch(object.Definition); len(header) == 2 {
-			parameters = parseRoutineParameterNames(header[1])
+		if definition := storedDefinitionAST(object.Definition); definition != nil {
+			parameters = definition.Parameters
 		}
 	}
 	modes := make([]string, 0, len(parameters))
@@ -711,7 +858,7 @@ func (e *XMySQLExecutor) storedProcedureParameterModes(schema, name string) ([]s
 }
 
 func resolveStoredProcedureCallArguments(statement string, variables map[string]string) (string, error) {
-	match := storedProcedureCallPattern.FindStringSubmatch(strings.TrimSpace(statement))
+	match := storedProcedureCallMatch(strings.TrimSpace(statement))
 	if len(match) == 0 || strings.TrimSpace(match[2]) == "" {
 		return strings.TrimSpace(statement), nil
 	}
@@ -741,7 +888,7 @@ func resolveStoredProcedureCallArguments(statement string, variables map[string]
 // retaining the same session, transaction and result channel for side effects
 // and nested statements.
 func (e *XMySQLExecutor) executeStoredProcedureCall(ctx *ExecutionContext, query, databaseName string, parent *storedRoutineState) error {
-	match := storedProcedureCallPattern.FindStringSubmatch(strings.TrimSpace(strings.TrimSuffix(query, ";")))
+	match := storedProcedureCallMatch(strings.TrimSpace(strings.TrimSuffix(query, ";")))
 	if len(match) == 0 {
 		return fmt.Errorf("invalid CALL statement")
 	}
@@ -771,10 +918,9 @@ func (e *XMySQLExecutor) executeStoredProcedureCall(ctx *ExecutionContext, query
 	body := strings.TrimSpace(object.Definition)
 	arguments := splitTopLevelComma(match[2])
 	parameters := object.Parameters
-	if len(parameters) == 0 {
-		if header := regexp.MustCompile(`(?is)^create\s+procedure\s+[^\s(]+\s*\(([^)]*)\)`).FindStringSubmatch(body); len(header) == 2 {
-			parameters = parseRoutineParameterNames(header[1])
-		}
+	parameterValues := make(map[string]string)
+	if definition := storedDefinitionAST(object.Definition); definition != nil && len(definition.Parameters) > 0 {
+		parameters = definition.Parameters
 	}
 	for i, parameter := range parameters {
 		if i >= len(arguments) {
@@ -791,8 +937,9 @@ func (e *XMySQLExecutor) executeStoredProcedureCall(ctx *ExecutionContext, query
 			nameIndex = len(fields) - 2
 		}
 		name := strings.Trim(fields[nameIndex], "`")
-		body = regexp.MustCompile(`(?i)\b`+regexp.QuoteMeta(name)+`\b`).ReplaceAllString(body, strings.TrimSpace(arguments[i]))
+		parameterValues[strings.ToLower(name)] = strings.TrimSpace(arguments[i])
 	}
+	body = substituteStoredRoutineParameters(body, parameterValues)
 	if begin := strings.Index(strings.ToLower(body), "begin"); begin >= 0 {
 		body = body[begin+len("begin"):]
 		if end := strings.LastIndex(strings.ToLower(body), "end"); end >= 0 {
@@ -984,19 +1131,19 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 				continue
 			}
 		}
-		if conditionMatch := regexp.MustCompile(`(?is)^declare\s+([a-zA-Z0-9_$]+)\s+condition\s+for\s+(?:sqlstate\s+'([^']+)'|([0-9]+))$`).FindStringSubmatch(statement); len(conditionMatch) == 4 {
-			condition := conditionMatch[2]
+		if conditionName, sqlState, errno, conditionOK := scanDeclareCondition(statement); conditionOK {
+			condition := sqlState
 			if condition == "" {
-				condition = conditionMatch[3]
+				condition = errno
 			}
 			if state.conditions == nil {
 				state.conditions = make(map[string]string)
 			}
 			resolvedCondition := condition
-			if conditionMatch[2] != "" {
+			if sqlState != "" {
 				resolvedCondition = "sqlstate'" + strings.ToLower(strings.TrimSpace(condition)) + "'"
 			}
-			state.conditions[strings.ToLower(strings.Trim(conditionMatch[1], "` "))] = resolvedCondition
+			state.conditions[strings.ToLower(strings.Trim(conditionName, "` "))] = resolvedCondition
 			continue
 		}
 		if handlers, matched := parseStoredRoutineHandlerDeclaration(statement, state); matched {
@@ -1016,21 +1163,21 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 			}
 			continue
 		}
-		if diagnosticsMatch := regexp.MustCompile(`(?is)^get\s+(?:current\s+)?diagnostics\s+condition\s+([0-9]+)\s+(.+)$`).FindStringSubmatch(statement); len(diagnosticsMatch) == 3 {
-			if diagnosticsMatch[1] != "1" {
+		if diagnosticNumber, diagnosticAssignments, diagnosticsOK := scanDiagnosticsCondition(statement); diagnosticsOK {
+			if diagnosticNumber != "1" {
 				return fmt.Errorf("routine GET DIAGNOSTICS only supports condition 1")
 			}
 			if state.activeCondition == nil {
 				return fmt.Errorf("routine GET DIAGNOSTICS without an active condition")
 			}
-			assignments := splitTopLevelComma(diagnosticsMatch[2])
+			assignments := splitTopLevelComma(diagnosticAssignments)
 			for _, assignment := range assignments {
-				assignmentMatch := regexp.MustCompile(`(?is)^\s*([@a-zA-Z0-9_$]+)\s*=\s*(` + common.RoutineDiagnosticReturnedSQLState + `|` + common.RoutineDiagnosticMessageText + `|` + common.RoutineDiagnosticMySQLErrno + `)\s*$`).FindStringSubmatch(assignment)
-				if len(assignmentMatch) != 3 {
+				targetName, itemName, assignmentOK := scanDiagnosticAssignment(assignment)
+				if !assignmentOK {
 					return fmt.Errorf("unsupported routine GET DIAGNOSTICS item %q", strings.TrimSpace(assignment))
 				}
 				value := ""
-				switch strings.ToLower(assignmentMatch[2]) {
+				switch strings.ToLower(itemName) {
 				case common.RoutineDiagnosticReturnedSQLState:
 					value = state.activeCondition.sqlState
 				case common.RoutineDiagnosticMessageText:
@@ -1044,7 +1191,7 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 						value = "1644"
 					}
 				}
-				target := strings.TrimSpace(assignmentMatch[1])
+				target := strings.TrimSpace(targetName)
 				if strings.HasPrefix(target, "@") {
 					if ctx == nil || ctx.Session == nil {
 						return fmt.Errorf("routine GET DIAGNOSTICS user variable requires a session")
@@ -1061,8 +1208,8 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 			}
 			continue
 		}
-		if cursorMatch := regexp.MustCompile(`(?is)^declare\s+([a-zA-Z0-9_$]+)\s+cursor\s+for\s+(.+)$`).FindStringSubmatch(statement); len(cursorMatch) == 3 {
-			state.cursors[strings.ToLower(strings.Trim(cursorMatch[1], "` "))] = &storedRoutineCursor{query: strings.TrimSpace(cursorMatch[2])}
+		if cursorName, cursorQuery, cursorOK := scanDeclareCursor(statement); cursorOK {
+			state.cursors[strings.ToLower(strings.Trim(cursorName, "` "))] = &storedRoutineCursor{query: strings.TrimSpace(cursorQuery)}
 			continue
 		}
 		if strings.HasPrefix(lower, "declare ") {
@@ -1080,20 +1227,24 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 			state.localVars[name] = struct{}{}
 			continue
 		}
-		if setMatch := regexp.MustCompile(`(?is)^set\s+([a-zA-Z0-9_$]+)\s*=\s*(.+)$`).FindStringSubmatch(statement); len(setMatch) == 3 {
-			name := strings.Trim(setMatch[1], "` ")
-			if _, local := state.vars[strings.ToLower(name)]; local {
-				expression := substituteStoredRoutineValues(strings.TrimSpace(setMatch[2]), state.vars)
-				value, err := evaluateStoredRoutineScalarExpression(expression)
-				if err != nil {
-					return err
+		if strings.HasPrefix(lower, "set ") {
+			if parsedSet, parseErr := sqlparser.ParseForExecution(statement); parseErr == nil {
+				if setStmt, setOK := parsedSet.AST.(*sqlparser.Set); setOK && len(setStmt.Exprs) == 1 {
+					name := strings.Trim(setStmt.Exprs[0].Name.String(), "` ")
+					if _, local := state.vars[strings.ToLower(name)]; local {
+						expression := substituteStoredRoutineValues(sqlparser.String(setStmt.Exprs[0].Expr), state.vars)
+						value, err := evaluateStoredRoutineScalarExpression(expression)
+						if err != nil {
+							return err
+						}
+						state.vars[strings.ToLower(name)] = sessionUserVariableSQLLiteral(value)
+						continue
+					}
 				}
-				state.vars[strings.ToLower(name)] = sessionUserVariableSQLLiteral(value)
-				continue
 			}
 		}
-		if prepareMatch := regexp.MustCompile(`(?is)^prepare\s+([a-zA-Z0-9_$]+)\s+from\s+(.+)$`).FindStringSubmatch(statement); len(prepareMatch) == 3 {
-			expression := strings.TrimSpace(prepareMatch[2])
+		if prepareName, prepareExpression, prepareOK := storedRoutinePrepareParts(statement); prepareOK {
+			expression := prepareExpression
 			if ctx != nil {
 				expression = e.rewriteSessionUserVariables(expression, ctx.Session)
 			}
@@ -1105,20 +1256,20 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 			if !ok || strings.TrimSpace(query) == "" {
 				return fmt.Errorf("routine PREPARE source must evaluate to a non-empty string")
 			}
-			state.prepared[strings.ToLower(strings.Trim(prepareMatch[1], "` "))] = strings.TrimSpace(query)
+			state.prepared[strings.ToLower(strings.Trim(prepareName, "` "))] = strings.TrimSpace(query)
 			continue
 		}
-		if deallocateMatch := regexp.MustCompile(`(?is)^deallocate\s+prepare\s+([a-zA-Z0-9_$]+)$`).FindStringSubmatch(statement); len(deallocateMatch) == 2 {
-			delete(state.prepared, strings.ToLower(strings.Trim(deallocateMatch[1], "` ")))
+		if preparedName, ok := storedRoutineDeallocateName(statement); ok {
+			delete(state.prepared, strings.ToLower(strings.Trim(preparedName, "` ")))
 			continue
 		}
-		if executeMatch := regexp.MustCompile(`(?is)^execute\s+([a-zA-Z0-9_$]+)(?:\s+using\s+(.+))?$`).FindStringSubmatch(statement); len(executeMatch) >= 2 {
-			query, ok := state.prepared[strings.ToLower(strings.Trim(executeMatch[1], "` "))]
+		if executeName, executeUsing, executeOK := storedRoutineExecuteParts(statement); executeOK {
+			query, ok := state.prepared[strings.ToLower(strings.Trim(executeName, "` "))]
 			if !ok {
-				return fmt.Errorf("unknown prepared routine statement %q", executeMatch[1])
+				return fmt.Errorf("unknown prepared routine statement %q", executeName)
 			}
-			if len(executeMatch) == 3 && strings.TrimSpace(executeMatch[2]) != "" {
-				arguments := splitTopLevelComma(executeMatch[2])
+			if strings.TrimSpace(executeUsing) != "" {
+				arguments := splitTopLevelComma(executeUsing)
 				values := make([]interface{}, 0, len(arguments))
 				for _, argument := range arguments {
 					argument = strings.TrimSpace(argument)
@@ -1149,13 +1300,14 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 			}
 			statement = query
 		}
-		if openMatch := regexp.MustCompile(`(?is)^open\s+([a-zA-Z0-9_$]+)$`).FindStringSubmatch(statement); len(openMatch) == 2 {
-			cursor, ok := state.cursors[strings.ToLower(strings.Trim(openMatch[1], "` "))]
+		if routineStatement, ok := singleStoredProgramStatement(statement); ok && routineStatement.Kind == "open" && routineStatement.Name != "" {
+			cursorName := strings.Trim(routineStatement.Name, "` ")
+			cursor, ok := state.cursors[strings.ToLower(cursorName)]
 			if !ok {
-				return fmt.Errorf("unknown routine cursor %q", openMatch[1])
+				return fmt.Errorf("unknown routine cursor %q", cursorName)
 			}
 			if cursor.open {
-				return fmt.Errorf("routine cursor %q is already open", openMatch[1])
+				return fmt.Errorf("routine cursor %q is already open", cursorName)
 			}
 			query := substituteStoredRoutineValues(cursor.query, state.vars)
 			if ctx != nil && ctx.Session != nil {
@@ -1171,14 +1323,14 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 			cursor.open = true
 			continue
 		}
-		if closeMatch := regexp.MustCompile(`(?is)^close\s+([a-zA-Z0-9_$]+)$`).FindStringSubmatch(statement); len(closeMatch) == 2 {
-			name := strings.ToLower(strings.Trim(closeMatch[1], "` "))
+		if routineStatement, ok := singleStoredProgramStatement(statement); ok && routineStatement.Kind == "close" && routineStatement.Name != "" {
+			name := strings.ToLower(strings.Trim(routineStatement.Name, "` "))
 			cursor, ok := state.cursors[name]
 			if !ok {
-				return fmt.Errorf("unknown routine cursor %q", closeMatch[1])
+				return fmt.Errorf("unknown routine cursor %q", routineStatement.Name)
 			}
 			if !cursor.open {
-				return fmt.Errorf("routine cursor %q is not open", closeMatch[1])
+				return fmt.Errorf("routine cursor %q is not open", routineStatement.Name)
 			}
 			// CLOSE releases the current result set but keeps the declared
 			// cursor available for a later OPEN in the same routine invocation.
@@ -1187,15 +1339,15 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 			cursor.position = 0
 			continue
 		}
-		if fetchMatch := regexp.MustCompile(`(?is)^fetch\s+(?:(?:next\s+)?from\s+)?([a-zA-Z0-9_$]+)\s+into\s+(.+)$`).FindStringSubmatch(statement); len(fetchMatch) == 3 {
-			cursor, ok := state.cursors[strings.ToLower(strings.Trim(fetchMatch[1], "` "))]
+		if fetchCursor, fetchTargets, fetchOK := storedRoutineFetchParts(statement); fetchOK {
+			cursor, ok := state.cursors[strings.ToLower(strings.Trim(fetchCursor, "` "))]
 			if !ok {
-				return fmt.Errorf("unknown routine cursor %q", fetchMatch[1])
+				return fmt.Errorf("unknown routine cursor %q", fetchCursor)
 			}
 			if !cursor.open {
-				return fmt.Errorf("routine cursor %q is not open", fetchMatch[1])
+				return fmt.Errorf("routine cursor %q is not open", fetchCursor)
 			}
-			targets := splitTopLevelComma(fetchMatch[2])
+			targets := splitTopLevelComma(fetchTargets)
 			if len(targets) != cursor.columnCount {
 				return fmt.Errorf("routine FETCH target count %d does not match cursor column count %d", len(targets), cursor.columnCount)
 			}
@@ -1243,8 +1395,8 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 			}
 			continue
 		}
-		if selectIntoMatch := regexp.MustCompile(`(?is)^select\s+(.+?)\s+into\s+(.+?)\s+from\s+(.+)$`).FindStringSubmatch(statement); len(selectIntoMatch) == 4 {
-			handled, err := e.executeStoredRoutineSelectInto(ctx, databaseName, selectIntoMatch[1], selectIntoMatch[2], selectIntoMatch[3], state)
+		if intoProjection, intoTargets, intoFrom, intoOK := scanSelectInto(statement); intoOK {
+			handled, err := e.executeStoredRoutineSelectInto(ctx, databaseName, intoProjection, intoTargets, intoFrom, state)
 			if err != nil {
 				return err
 			}
@@ -1252,7 +1404,7 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 				continue
 			}
 		}
-		if storedProcedureCallPattern.MatchString(statement) {
+		if len(storedProcedureCallMatch(statement)) > 0 {
 			resolvedCall, localReferences, err := e.resolveStoredProcedureCallWithLocalReferences(ctx, databaseName, statement, state)
 			if err != nil {
 				return err
@@ -1270,11 +1422,11 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 		}
 		statement = substituteStoredRoutineValues(statement, state.vars)
 		lower = strings.ToLower(statement)
-		if controlMatch := regexp.MustCompile(`(?is)^(` + routineControlLeave + `|` + routineControlIterate + `)\s+([a-zA-Z0-9_$]+)$`).FindStringSubmatch(statement); len(controlMatch) == 3 {
-			return &routineControlSignal{kind: strings.ToLower(controlMatch[1]), label: strings.ToLower(controlMatch[2])}
+		if controlKind, controlLabel, controlOK := scanRoutineControl(statement); controlOK {
+			return &routineControlSignal{kind: strings.ToLower(controlKind), label: strings.ToLower(controlLabel)}
 		}
-		if loopMatch := regexp.MustCompile(`(?is)^(?:([a-zA-Z0-9_$]+)\s*:\s*)?loop(?:\s+(.*))?$`).FindStringSubmatch(rawStatement); len(loopMatch) == 3 {
-			label := strings.ToLower(strings.TrimSpace(loopMatch[1]))
+		if loopLabel, loopBody, loopOK := scanLoopStatement(rawStatement); loopOK {
+			label := strings.ToLower(strings.TrimSpace(loopLabel))
 			end := index + 1
 			for end < len(statements) && !strings.HasPrefix(strings.ToLower(strings.TrimSpace(statements[end])), "end loop") {
 				end++
@@ -1283,7 +1435,7 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 				return fmt.Errorf("routine LOOP requires END LOOP")
 			}
 			body := make([]string, 0, end-index)
-			if firstBody := strings.TrimSpace(loopMatch[2]); firstBody != "" {
+			if firstBody := strings.TrimSpace(loopBody); firstBody != "" {
 				body = append(body, firstBody)
 			}
 			body = append(body, statements[index+1:end]...)
@@ -1362,7 +1514,7 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 				return fmt.Errorf("routine REPEAT requires UNTIL")
 			}
 			condition := strings.TrimSpace(untilStatement[len("until "):])
-			condition = strings.TrimSpace(regexp.MustCompile(`(?is)\s+end\s+repeat\s*$`).ReplaceAllString(condition, ""))
+			condition = trimRepeatEnd(condition)
 			body := make([]string, 0, end-index)
 			firstBody := strings.TrimSpace(rawStatement[len("repeat"):])
 			if firstBody != "" {
@@ -1552,23 +1704,19 @@ func (e *XMySQLExecutor) executeStoredRoutineStatements(ctx *ExecutionContext, d
 			if mysqlErrno == 0 {
 				mysqlErrno = 1644
 			}
-			resignalMatch := regexp.MustCompile(`(?is)^resignal(?:\s+set\s+(.+))?$`).FindStringSubmatch(statement)
-			if len(resignalMatch) < 2 {
+			assignments, resignalOK := scanResignal(statement)
+			if !resignalOK {
 				return fmt.Errorf("unsupported routine RESIGNAL syntax")
-			}
-			assignments := ""
-			if len(resignalMatch) == 2 {
-				assignments = resignalMatch[1]
 			}
 			if strings.TrimSpace(assignments) != "" {
 				for _, assignment := range splitTopLevelComma(assignments) {
 					assignment = strings.TrimSpace(assignment)
-					if messageMatch := regexp.MustCompile(`(?is)^` + common.RoutineDiagnosticMessageText + `\s*=\s*'([^']*)'$`).FindStringSubmatch(assignment); len(messageMatch) == 2 {
-						message = messageMatch[1]
+					if resignalMessage, messageOK := scanResignalMessage(assignment); messageOK {
+						message = resignalMessage
 						continue
 					}
-					if errnoMatch := regexp.MustCompile(`(?is)^mysql_errno\s*=\s*([0-9]+)$`).FindStringSubmatch(assignment); len(errnoMatch) == 2 {
-						if _, err := fmt.Sscanf(errnoMatch[1], "%d", &mysqlErrno); err != nil {
+					if resignalErrno, errnoOK := scanResignalErrno(assignment); errnoOK {
+						if _, err := fmt.Sscanf(resignalErrno, "%d", &mysqlErrno); err != nil {
 							return err
 						}
 						continue
@@ -1718,31 +1866,89 @@ func bindRoutineParameterMarkers(query string, values []interface{}) (string, er
 	return builder.String(), nil
 }
 
+func singleStoredProgramStatement(raw string) (sqlparser.StoredProgramStatement, bool) {
+	fields := strings.Fields(strings.TrimSpace(raw))
+	if len(fields) != 2 || (!strings.EqualFold(fields[0], "open") && !strings.EqualFold(fields[0], "close")) {
+		return sqlparser.StoredProgramStatement{}, false
+	}
+	return sqlparser.StoredProgramStatement{Kind: strings.ToLower(fields[0]), Name: strings.Trim(fields[1], "`:")}, true
+}
+
+func storedRoutineDeallocateName(raw string) (string, bool) {
+	fields := strings.Fields(strings.TrimSpace(raw))
+	if len(fields) == 3 && strings.EqualFold(fields[0], "deallocate") && strings.EqualFold(fields[1], "prepare") {
+		return fields[2], true
+	}
+	return "", false
+}
+
+func storedRoutineExecuteParts(raw string) (name, using string, ok bool) {
+	trimmed := strings.TrimSpace(raw)
+	fields := strings.Fields(trimmed)
+	if len(fields) < 2 || !strings.EqualFold(fields[0], "execute") {
+		return "", "", false
+	}
+	name = fields[1]
+	if len(fields) == 2 {
+		return name, "", true
+	}
+	lower := strings.ToLower(trimmed)
+	marker := strings.Index(lower, " using ")
+	if marker < 0 {
+		return "", "", false
+	}
+	return name, strings.TrimSpace(trimmed[marker+len(" using "):]), true
+}
+
+func storedRoutinePrepareParts(raw string) (name, expression string, ok bool) {
+	trimmed := strings.TrimSpace(raw)
+	fields := strings.Fields(trimmed)
+	if len(fields) < 4 || !strings.EqualFold(fields[0], "prepare") || !strings.EqualFold(fields[2], "from") {
+		return "", "", false
+	}
+	lower := strings.ToLower(trimmed)
+	marker := strings.Index(lower, " from ")
+	if marker < 0 {
+		return "", "", false
+	}
+	return fields[1], strings.TrimSpace(trimmed[marker+len(" from "):]), true
+}
+
+func storedRoutineFetchParts(raw string) (cursor, targets string, ok bool) {
+	trimmed := strings.TrimSpace(raw)
+	fields := strings.Fields(trimmed)
+	if len(fields) < 4 || !strings.EqualFold(fields[0], "fetch") {
+		return "", "", false
+	}
+	index := 1
+	if index < len(fields) && strings.EqualFold(fields[index], "next") {
+		index++
+	}
+	if index < len(fields) && strings.EqualFold(fields[index], "from") {
+		index++
+	}
+	if index >= len(fields) {
+		return "", "", false
+	}
+	cursor = fields[index]
+	lower := strings.ToLower(trimmed)
+	marker := strings.Index(lower, " into ")
+	if marker < 0 {
+		return "", "", false
+	}
+	return cursor, strings.TrimSpace(trimmed[marker+len(" into "):]), true
+}
+
 func parseStoredRoutineSignal(statement string) (string, string, int, bool) {
-	match := regexp.MustCompile(`(?is)^signal\s+sqlstate\s+'([^']+)'(?:\s+set\s+(.+))?$`).FindStringSubmatch(strings.TrimSpace(statement))
-	if len(match) != 3 {
+	parsed, err := sqlparser.ParseStoredProgramSignal(statement)
+	if err != nil || parsed == nil || parsed.Resignal {
 		return "", "", 0, false
 	}
 	messageText := ""
-	mysqlErrno := 1644
-	if strings.TrimSpace(match[2]) == "" {
-		return match[1], messageText, mysqlErrno, true
+	if parsed.HasMessageText {
+		messageText = parsed.MessageText
 	}
-	for _, assignment := range splitTopLevelComma(match[2]) {
-		assignment = strings.TrimSpace(assignment)
-		if messageMatch := regexp.MustCompile(`(?is)^` + common.RoutineDiagnosticMessageText + `\s*=\s*'([^']*)'$`).FindStringSubmatch(assignment); len(messageMatch) == 2 {
-			messageText = messageMatch[1]
-			continue
-		}
-		if errnoMatch := regexp.MustCompile(`(?is)^mysql_errno\s*=\s*([0-9]+)$`).FindStringSubmatch(assignment); len(errnoMatch) == 2 {
-			if _, err := fmt.Sscanf(errnoMatch[1], "%d", &mysqlErrno); err != nil {
-				return "", "", 0, false
-			}
-			continue
-		}
-		return "", "", 0, false
-	}
-	return match[1], messageText, mysqlErrno, true
+	return parsed.SQLState, messageText, parsed.MysqlErrno, true
 }
 
 func routineBlockStart(lower string) bool {
@@ -1816,12 +2022,12 @@ func routineHandlerExitSignal(handler *storedRoutineHandler) *routineControlSign
 }
 
 func parseStoredRoutineHandlerDeclaration(statement string, state *storedRoutineState) ([]storedRoutineHandler, bool) {
-	match := regexp.MustCompile(`(?is)^declare\s+(` + common.RoutineHandlerContinue + `|` + common.RoutineHandlerExit + `)\s+handler\s+for\s+(.+)$`).FindStringSubmatch(strings.TrimSpace(statement))
-	if len(match) != 3 {
+	action, rest, handlerOK := scanDeclareHandler(statement)
+	if !handlerOK {
 		return nil, false
 	}
-	action := strings.ToLower(strings.TrimSpace(match[1]))
-	rest := strings.TrimSpace(match[2])
+	action = strings.ToLower(strings.TrimSpace(action))
+	rest = strings.TrimSpace(rest)
 	conditions := make([]string, 0, 1)
 	for {
 		condition, remaining, ok := consumeStoredRoutineHandlerCondition(rest)
@@ -1857,13 +2063,17 @@ func consumeStoredRoutineHandlerCondition(input string) (string, string, bool) {
 		}
 	}
 	if strings.HasPrefix(lower, "sqlstate") {
-		match := regexp.MustCompile(`(?is)^sqlstate\s*'([^']+)'`).FindStringSubmatch(input)
-		if len(match) == 2 {
-			return "sqlstate'" + strings.ToLower(strings.TrimSpace(match[1])) + "'", input[len(match[0]):], true
+		rest := strings.TrimSpace(input[len("sqlstate"):])
+		if value, remainder, ok := consumeRoutineQuotedCondition(rest); ok {
+			return "sqlstate'" + strings.ToLower(strings.TrimSpace(value)) + "'", remainder, true
 		}
 	}
-	if match := regexp.MustCompile(`^[0-9]+`).FindString(input); match != "" && routineHandlerConditionBoundary(input, len(match)) {
-		return match, input[len(match):], true
+	digits := 0
+	for digits < len(input) && input[digits] >= '0' && input[digits] <= '9' {
+		digits++
+	}
+	if digits > 0 && routineHandlerConditionBoundary(input, digits) {
+		return input[:digits], input[digits:], true
 	}
 	end := 0
 	for end < len(input) && input[end] != ',' && input[end] != ' ' && input[end] != '\t' && input[end] != '\r' && input[end] != '\n' {
@@ -1873,6 +2083,25 @@ func consumeStoredRoutineHandlerCondition(input string) (string, string, bool) {
 		return "", input, false
 	}
 	return input[:end], input[end:], true
+}
+
+func consumeRoutineQuotedCondition(input string) (value, remainder string, ok bool) {
+	input = strings.TrimSpace(input)
+	if len(input) < 2 || (input[0] != '\'' && input[0] != '"') {
+		return "", input, false
+	}
+	quote := input[0]
+	for index := 1; index < len(input); index++ {
+		if input[index] != quote {
+			continue
+		}
+		if index+1 < len(input) && input[index+1] == quote {
+			index++
+			continue
+		}
+		return input[1:index], input[index+1:], true
+	}
+	return "", input, false
 }
 
 func routineHandlerConditionBoundary(input string, length int) bool {
@@ -2006,15 +2235,15 @@ func findStoredRoutineHandler(state *storedRoutineState, condition string, err e
 		handlerCondition := strings.ToLower(strings.TrimSpace(handler.condition))
 		rank := 0
 		switch {
-		case err != nil && regexp.MustCompile(`^\d+$`).MatchString(handlerCondition):
+		case err != nil && parseStoredRoutineHandlerErrorCode(handlerCondition) > 0:
 			if conditionDetails.mysqlErrno == parseStoredRoutineHandlerErrorCode(handlerCondition) || (conditionDetails.mysqlErrno == 0 && strings.Contains(err.Error(), handlerCondition)) {
 				rank = 3
 			}
 		case strings.HasPrefix(handlerCondition, "sqlstate") && err != nil:
-			handlerState := regexp.MustCompile(`sqlstate'?([0-9a-z]{5})'?`).FindStringSubmatch(handlerCondition)
-			errState := regexp.MustCompile(`(?i)sqlstate\s+'?([0-9a-z]{5})'?`).FindStringSubmatch(err.Error())
-			matchesState := len(handlerState) == 2 && strings.EqualFold(handlerState[1], conditionDetails.sqlState)
-			if len(handlerState) == 2 && len(errState) == 2 && strings.EqualFold(handlerState[1], errState[1]) {
+			handlerState := parseStoredRoutineSQLState(handlerCondition)
+			errState := parseStoredRoutineSQLState(err.Error())
+			matchesState := handlerState != "" && strings.EqualFold(handlerState, conditionDetails.sqlState)
+			if handlerState != "" && errState != "" && strings.EqualFold(handlerState, errState) {
 				matchesState = true
 			}
 			if matchesState {
@@ -2034,6 +2263,28 @@ func findStoredRoutineHandler(state *storedRoutineState, condition string, err e
 func parseStoredRoutineHandlerErrorCode(condition string) int {
 	code, _ := strconv.Atoi(strings.TrimSpace(condition))
 	return code
+}
+
+func parseStoredRoutineSQLState(value string) string {
+	lower := strings.ToLower(strings.TrimSpace(value))
+	if index := strings.Index(lower, "sqlstate"); index >= 0 {
+		lower = strings.TrimSpace(lower[index+len("sqlstate"):])
+		lower = strings.Trim(lower, " '\"")
+		if len(lower) >= 5 {
+			candidate := lower[:5]
+			valid := true
+			for _, r := range candidate {
+				if !(r >= '0' && r <= '9' || r >= 'a' && r <= 'z') {
+					valid = false
+					break
+				}
+			}
+			if valid {
+				return candidate
+			}
+		}
+	}
+	return ""
 }
 
 func storedRoutineConditionFromError(err error) *storedRoutineCondition {
@@ -2216,15 +2467,17 @@ func (e *XMySQLExecutor) executeStoredRoutineSelectInto(ctx *ExecutionContext, d
 }
 
 func parseRoutineDeclare(statement string) (string, string, error) {
-	match := regexp.MustCompile(`(?is)^declare\s+([a-zA-Z0-9_$]+)\s+.+?(?:\s+default\s+(.+))?$`).FindStringSubmatch(strings.TrimSpace(statement))
-	if len(match) != 3 {
+	trimmed := strings.TrimSpace(statement)
+	fields := strings.Fields(trimmed)
+	if len(fields) < 3 || !strings.EqualFold(fields[0], "declare") {
 		return "", "", fmt.Errorf("invalid routine DECLARE statement: %s", statement)
 	}
 	value := "NULL"
-	if strings.TrimSpace(match[2]) != "" {
-		value = strings.TrimSpace(match[2])
+	lower := strings.ToLower(trimmed)
+	if marker := strings.Index(lower, " default "); marker >= 0 {
+		value = strings.TrimSpace(trimmed[marker+len(" default "):])
 	}
-	return strings.ToLower(strings.Trim(match[1], "` ")), value, nil
+	return strings.ToLower(strings.Trim(fields[1], "` ")), value, nil
 }
 
 func evaluateStoredRoutineScalarExpression(expression string) (interface{}, error) {
@@ -2260,9 +2513,45 @@ func evaluateRoutineCondition(condition string) (bool, error) {
 // the resolved RETURN expression, so arithmetic, literals and built-in
 // functions keep one evaluation contract.
 func (e *XMySQLExecutor) executeStoredFunctionCall(ctx *ExecutionContext, query, databaseName string) bool {
-	match := regexp.MustCompile(`(?is)^select\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s*\((.*)\)\s*(?:as\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `)?\s*$`).FindStringSubmatch(strings.TrimSpace(strings.TrimSuffix(query, ";")))
-	if len(match) == 0 {
+	parsed, parseErr := sqlparser.ParseForExecution(query)
+	if parseErr != nil {
 		return false
+	}
+	selectStmt, ok := parsed.AST.(*sqlparser.Select)
+	if !ok || len(selectStmt.SelectExprs) != 1 {
+		return false
+	}
+	if len(selectStmt.From) > 0 {
+		if len(selectStmt.From) != 1 {
+			return false
+		}
+		dual, dualOK := selectStmt.From[0].(*sqlparser.AliasedTableExpr)
+		if !dualOK {
+			return false
+		}
+		table, tableOK := dual.Expr.(sqlparser.TableName)
+		if !tableOK || !strings.EqualFold(table.Name.String(), "dual") {
+			return false
+		}
+	}
+	aliased, ok := selectStmt.SelectExprs[0].(*sqlparser.AliasedExpr)
+	if !ok {
+		return false
+	}
+	function, ok := aliased.Expr.(*sqlparser.FuncExpr)
+	if !ok || function.Name.String() == "" {
+		return false
+	}
+	functionName := function.Name.String()
+	functionSchema := databaseName
+	if !function.Qualifier.IsEmpty() {
+		functionSchema = function.Qualifier.String()
+	}
+	functionArguments := make([]string, 0, len(function.Exprs))
+	for _, expression := range function.Exprs {
+		if item, ok := expression.(*sqlparser.AliasedExpr); ok {
+			functionArguments = append(functionArguments, sqlparser.String(item.Expr))
+		}
 	}
 	startedAt := time.Now()
 	cpuStart, cpuTime := int64(0), int64(0)
@@ -2277,11 +2566,6 @@ func (e *XMySQLExecutor) executeStoredFunctionCall(ctx *ExecutionContext, query,
 			runtime.UnlockOSThread()
 		}
 	}()
-	functionSchema, functionName := databaseName, strings.Trim(match[1], "`")
-	if strings.Contains(functionName, ".") {
-		parts := strings.SplitN(functionName, ".", 2)
-		functionSchema, functionName = parts[0], parts[1]
-	}
 	releaseObjectLock, lockErr := e.acquireStoredObjectReadLock(ctx, ctx.Session, functionSchema, functionName)
 	if lockErr != nil {
 		ctx.Results <- &Result{Err: tableLockWaitError(lockErr), ResultType: common.RESULT_TYPE_QUERY}
@@ -2311,7 +2595,7 @@ func (e *XMySQLExecutor) executeStoredFunctionCall(ctx *ExecutionContext, query,
 		ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
 		return true
 	}
-	expression, err := resolveStoredFunctionReturnExpression(object, splitTopLevelComma(match[2]))
+	expression, err := resolveStoredFunctionReturnExpression(object, functionArguments)
 	if err != nil {
 		ctx.Results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY}
 		return true
@@ -2322,8 +2606,8 @@ func (e *XMySQLExecutor) executeStoredFunctionCall(ctx *ExecutionContext, query,
 		return true
 	}
 	column := functionName
-	if strings.TrimSpace(match[3]) != "" {
-		column = strings.Trim(match[3], "`")
+	if !aliased.As.IsEmpty() {
+		column = aliased.As.String()
 	}
 	result := newInformationSchemaSelectResult("stored_function", []string{column}, [][]interface{}{{value}})
 	timerWait := time.Since(startedAt).Nanoseconds() * 1000
@@ -2368,16 +2652,33 @@ func resolveStoredFunctionReturnExpression(object persistedStoredObject, argumen
 	}
 	body := triggerBody(object.Definition)
 	returnExpression := strings.TrimSpace(object.ReturnExpression)
+	if block, parseErr := sqlparser.ParseStoredProgramBlock(body); parseErr == nil {
+		for _, structured := range block.Statements {
+			if structured.Kind == "set" {
+				if setStmt, ok := structured.AST.(*sqlparser.Set); ok && len(setStmt.Exprs) == 1 {
+					name := strings.Trim(setStmt.Exprs[0].Name.String(), "` ")
+					expression := substituteStoredRoutineValues(sqlparser.String(setStmt.Exprs[0].Expr), values)
+					values[name] = expression
+					continue
+				}
+			}
+			if structured.Kind == "return" && strings.TrimSpace(structured.ReturnExpr) != "" {
+				returnExpression = strings.TrimSpace(structured.ReturnExpr)
+				break
+			}
+		}
+		if returnExpression != "" {
+			return substituteStoredRoutineValues(returnExpression, values), nil
+		}
+	}
 	for _, statement := range splitStoredObjectStatements(body) {
 		statement = strings.TrimSpace(statement)
-		setMatch := regexp.MustCompile("(?is)^set\\s+`?([a-zA-Z0-9_$]+)`?\\s*=\\s*(.+)$").FindStringSubmatch(statement)
-		if len(setMatch) == 3 {
-			values[strings.Trim(setMatch[1], "`")] = substituteStoredRoutineValues(strings.TrimSpace(setMatch[2]), values)
+		if setName, setExpression, setOK := scanRoutineSet(statement); setOK {
+			values[strings.Trim(setName, "`")] = substituteStoredRoutineValues(strings.TrimSpace(setExpression), values)
 			continue
 		}
-		returnMatch := regexp.MustCompile(`(?is)^return\s+(.+)$`).FindStringSubmatch(statement)
-		if len(returnMatch) == 2 {
-			returnExpression = strings.TrimSpace(returnMatch[1])
+		if returned, returnOK := scanRoutineReturn(statement); returnOK {
+			returnExpression = strings.TrimSpace(returned)
 			break
 		}
 	}
@@ -2388,10 +2689,158 @@ func resolveStoredFunctionReturnExpression(object persistedStoredObject, argumen
 }
 
 func substituteStoredRoutineValues(expression string, values map[string]string) string {
-	for name, value := range values {
-		expression = regexp.MustCompile(`(?i)\b`+regexp.QuoteMeta(name)+`\b`).ReplaceAllString(expression, "("+value+")")
+	if rewritten, ok := substituteStoredRoutineValuesAST(expression, values); ok {
+		return rewritten
 	}
-	return expression
+	replacements := make(map[string]string, len(values))
+	for name, value := range values {
+		replacement := "(" + value + ")"
+		if strings.HasPrefix(strings.TrimSpace(value), "@") {
+			replacement = value
+		}
+		replacements[name] = replacement
+	}
+	return substituteStoredRoutineParameters(expression, replacements)
+}
+
+// substituteStoredRoutineParameters replaces only unqualified identifier
+// tokens outside SQL literals and comments. Routine arguments are substituted
+// before statement dispatch so SELECT ... INTO targets and control-flow
+// statements retain their original grammar without regex rewriting.
+func substituteStoredRoutineParameters(sql string, values map[string]string) string {
+	if strings.TrimSpace(sql) == "" || len(values) == 0 {
+		return sql
+	}
+	var builder strings.Builder
+	for index := 0; index < len(sql); {
+		if sql[index] == '\'' || sql[index] == '"' {
+			quote := sql[index]
+			start := index
+			index++
+			for index < len(sql) {
+				if sql[index] == '\\' && index+1 < len(sql) {
+					index += 2
+					continue
+				}
+				if sql[index] == quote {
+					if index+1 < len(sql) && sql[index+1] == quote {
+						index += 2
+						continue
+					}
+					index++
+					break
+				}
+				index++
+			}
+			builder.WriteString(sql[start:index])
+			continue
+		}
+		if sql[index] == '-' && index+1 < len(sql) && sql[index+1] == '-' {
+			start := index
+			index += 2
+			for index < len(sql) && sql[index] != '\n' {
+				index++
+			}
+			builder.WriteString(sql[start:index])
+			continue
+		}
+		if sql[index] == '#' {
+			start := index
+			for index < len(sql) && sql[index] != '\n' {
+				index++
+			}
+			builder.WriteString(sql[start:index])
+			continue
+		}
+		if sql[index] == '/' && index+1 < len(sql) && sql[index+1] == '*' {
+			start := index
+			index += 2
+			for index+1 < len(sql) && !(sql[index] == '*' && sql[index+1] == '/') {
+				index++
+			}
+			if index+1 < len(sql) {
+				index += 2
+			}
+			builder.WriteString(sql[start:index])
+			continue
+		}
+		if isRoutineIdentifierChar(sql[index]) {
+			start := index
+			for index < len(sql) && isRoutineIdentifierChar(sql[index]) {
+				index++
+			}
+			word := sql[start:index]
+			lower := strings.ToLower(word)
+			previous := byte(0)
+			if start > 0 {
+				previous = sql[start-1]
+			}
+			if value, ok := values[lower]; ok && previous != '.' && previous != '@' {
+				builder.WriteString(value)
+			} else {
+				builder.WriteString(word)
+			}
+			continue
+		}
+		builder.WriteByte(sql[index])
+		index++
+	}
+	return builder.String()
+}
+
+func substituteStoredRoutineValuesAST(expression string, values map[string]string) (string, bool) {
+	parsed, err := sqlparser.Parse("select " + strings.TrimSpace(expression))
+	if err != nil {
+		return "", false
+	}
+	selectStmt, ok := parsed.(*sqlparser.Select)
+	fromIsSyntheticDual := len(selectStmt.From) == 0
+	if len(selectStmt.From) == 1 {
+		if tableExpr, tableOK := selectStmt.From[0].(*sqlparser.AliasedTableExpr); tableOK {
+			if table, tableNameOK := tableExpr.Expr.(sqlparser.TableName); tableNameOK && strings.EqualFold(table.Name.String(), "dual") {
+				fromIsSyntheticDual = true
+			}
+		}
+	}
+	if !ok || len(selectStmt.SelectExprs) != 1 || !fromIsSyntheticDual || selectStmt.Where != nil || selectStmt.GroupBy != nil || selectStmt.Having != nil {
+		return "", false
+	}
+	aliased, ok := selectStmt.SelectExprs[0].(*sqlparser.AliasedExpr)
+	if !ok || aliased.Expr == nil {
+		return "", false
+	}
+	root := aliased.Expr
+	replaced := false
+	for name, value := range values {
+		valueStmt, valueErr := sqlparser.Parse("select " + strings.TrimSpace(value))
+		if valueErr != nil {
+			return "", false
+		}
+		valueSelect, valueOK := valueStmt.(*sqlparser.Select)
+		if !valueOK || len(valueSelect.SelectExprs) != 1 {
+			return "", false
+		}
+		valueExpr, valueOK := valueSelect.SelectExprs[0].(*sqlparser.AliasedExpr)
+		if !valueOK || valueExpr.Expr == nil {
+			return "", false
+		}
+		var columns []*sqlparser.ColName
+		_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+			column, isColumn := node.(*sqlparser.ColName)
+			if isColumn && column.Qualifier.IsEmpty() && strings.EqualFold(column.Name.String(), name) {
+				columns = append(columns, column)
+			}
+			return true, nil
+		}, root)
+		for _, column := range columns {
+			root = sqlparser.ReplaceExpr(root, column, valueExpr.Expr)
+			replaced = true
+		}
+	}
+	if !replaced {
+		return expression, true
+	}
+	return sqlparser.String(root), true
 }
 
 func (e *XMySQLExecutor) evaluateStoredFunctionExpression(parent *ExecutionContext, databaseName, expression string) (interface{}, error) {
@@ -2413,11 +2862,10 @@ func (e *XMySQLExecutor) evaluateStoredFunctionExpression(parent *ExecutionConte
 }
 
 func storedObjectDefiner(query string) string {
-	match := regexp.MustCompile(`(?is)definer\s*=\s*'([^']*)'\s*@\s*'([^']*)'`).FindStringSubmatch(query)
-	if len(match) != 3 {
-		return ""
+	if object := storedDefinitionAST(query); object != nil && object.Definer.User != "" {
+		return object.Definer.User + "@" + object.Definer.Host
 	}
-	return match[1] + "@" + match[2]
+	return ""
 }
 
 func (e *XMySQLExecutor) validateStoredObjectAccount(definer string) error {
@@ -2529,21 +2977,31 @@ func parseRoutineReturnType(objectType, definition string) string {
 	if !strings.EqualFold(objectType, "function") {
 		return ""
 	}
-	match := regexp.MustCompile(`(?is)\breturns\s+([a-zA-Z0-9_]+(?:\s*\([^)]*\))?(?:\s+unsigned)?)`).FindStringSubmatch(definition)
-	if len(match) == 2 {
-		return strings.ToUpper(strings.TrimSpace(match[1]))
+	if object := storedDefinitionAST(definition); object != nil {
+		return strings.ToUpper(object.ReturnType)
 	}
 	return ""
 }
 
 func parseRoutineLocalVariables(definition string) []string {
-	matches := regexp.MustCompile(`(?is)\bdeclare\s+([a-zA-Z0-9_$]+)\s+([^;]+)`).FindAllStringSubmatch(definition, -1)
-	result := make([]string, 0, len(matches))
-	for _, match := range matches {
-		if len(match) == 3 {
-			result = append(result, strings.TrimSpace(match[1])+" "+strings.TrimSpace(match[2]))
+	block := storedRoutineBodyAST(definition)
+	result := make([]string, 0)
+	var collect func(*sqlparser.StoredProgramBlock)
+	collect = func(current *sqlparser.StoredProgramBlock) {
+		if current == nil {
+			return
+		}
+		for _, statement := range current.Statements {
+			if statement.Kind == "declare" && statement.HandlerCondition == "" && statement.Name != "" {
+				fields := strings.Fields(statement.Raw)
+				if len(fields) >= 3 {
+					result = append(result, strings.Trim(statement.Name, "` ")+" "+strings.TrimSpace(strings.Join(fields[2:], " ")))
+				}
+			}
+			collect(statement.Children)
 		}
 	}
+	collect(block)
 	return result
 }
 
@@ -2551,49 +3009,41 @@ func parseRoutineReturnExpression(objectType, definition string) string {
 	if !strings.EqualFold(objectType, "function") {
 		return ""
 	}
-	match := regexp.MustCompile(`(?is)\breturn\s+(.+?)(?:;|\bend\b)`).FindStringSubmatch(definition)
-	if len(match) == 2 {
-		return strings.TrimSpace(match[1])
+	if block := storedRoutineBodyAST(definition); block != nil {
+		var find func(*sqlparser.StoredProgramBlock) string
+		find = func(current *sqlparser.StoredProgramBlock) string {
+			if current == nil {
+				return ""
+			}
+			for _, statement := range current.Statements {
+				if statement.Kind == "return" && strings.TrimSpace(statement.ReturnExpr) != "" {
+					return strings.TrimSpace(statement.ReturnExpr)
+				}
+				if value := find(statement.Children); value != "" {
+					return value
+				}
+			}
+			return ""
+		}
+		return find(block)
 	}
 	return ""
 }
 
+func storedRoutineBodyAST(definition string) *sqlparser.StoredProgramBlock {
+	object := storedDefinitionAST(definition)
+	if object == nil || strings.TrimSpace(object.Body) == "" {
+		return nil
+	}
+	block, err := sqlparser.ParseStoredProgramBlock(object.Body)
+	if err != nil {
+		return nil
+	}
+	return block
+}
+
 func splitStoredObjectStatements(body string) []string {
-	statements := make([]string, 0, 2)
-	start, depth := 0, 0
-	var quote byte
-	for i := 0; i < len(body); i++ {
-		ch := body[i]
-		if quote != 0 {
-			if ch == quote && (i == 0 || body[i-1] != '\\') {
-				quote = 0
-			}
-			continue
-		}
-		if ch == '\'' || ch == '"' {
-			quote = ch
-			continue
-		}
-		switch ch {
-		case '(':
-			depth++
-		case ')':
-			if depth > 0 {
-				depth--
-			}
-		case ';':
-			if depth == 0 {
-				if value := strings.TrimSpace(body[start:i]); value != "" {
-					statements = append(statements, value)
-				}
-				start = i + 1
-			}
-		}
-	}
-	if value := strings.TrimSpace(body[start:]); value != "" {
-		statements = append(statements, value)
-	}
-	return statements
+	return sqlparser.SplitStoredProgramStatements(body)
 }
 
 func parseStoredObjectName(objectType, rawName, databaseName string) (string, string, string) {
@@ -2608,13 +3058,21 @@ func parseStoredObjectName(objectType, rawName, databaseName string) (string, st
 }
 
 func (e *XMySQLExecutor) executeShowCreateStoredObject(ctx *ExecutionContext, query, databaseName string) bool {
-	match := regexp.MustCompile(`(?is)^show\s+create\s+(procedure|function|trigger|event)\s+` + "`?" + `([^\s.]+)` + "`?" + `(?:\s*\.\s*` + "`?" + `([^\s.]+)` + "`?" + `)?\s*$`).FindStringSubmatch(strings.TrimSpace(strings.TrimSuffix(query, ";")))
-	if len(match) == 0 {
-		return false
+	objectType, schema, name := "", databaseName, ""
+	if ctx != nil && ctx.Parsed != nil {
+		if show, ok := ctx.Parsed.AST.(*sqlparser.Show); ok && strings.HasPrefix(strings.ToLower(strings.TrimSpace(show.Type)), "create ") {
+			objectType = strings.TrimSpace(strings.TrimPrefix(strings.ToLower(strings.TrimSpace(show.Type)), "create "))
+			name = strings.TrimSpace(show.OnTable.Name.String())
+			if show.OnTable.Qualifier.String() != "" {
+				schema = show.OnTable.Qualifier.String()
+			}
+			if objectType != "procedure" && objectType != "function" && objectType != "trigger" && objectType != "event" {
+				objectType, name = "", ""
+			}
+		}
 	}
-	objectType, schema, name := match[1], databaseName, match[2]
-	if match[3] != "" {
-		schema, name = match[2], match[3]
+	if objectType == "" || name == "" {
+		return false
 	}
 	releaseObjectLock, lockErr := e.acquireStoredObjectReadLock(ctx, ctx.Session, schema, name)
 	if lockErr != nil {
@@ -3008,6 +3466,7 @@ func (e *XMySQLExecutor) scanStoredObjects(objectType string) []persistedStoredO
 			}
 			var object persistedStoredObject
 			if json.Unmarshal(raw, &object) == nil && strings.EqualFold(object.ObjectType, objectType) {
+				hydrateStoredObjectAST(&object)
 				objects = append(objects, object)
 			}
 		}
@@ -3015,8 +3474,19 @@ func (e *XMySQLExecutor) scanStoredObjects(objectType string) []persistedStoredO
 	return objects
 }
 
+func hydrateStoredObjectAST(object *persistedStoredObject) {
+	if object == nil || strings.TrimSpace(object.Definition) == "" {
+		return
+	}
+	if parsed, err := sqlparser.ParseForExecution(object.Definition); err == nil {
+		if statement, ok := parsed.AST.(*sqlparser.StoredObjectStatement); ok {
+			object.DefinitionAST = statement
+		}
+	}
+}
+
 func (e *XMySQLExecutor) findStoredObjectTableDependency(schema, table string) string {
-	needle := regexp.MustCompile(`(?i)(?:^|[^a-z0-9_$])` + regexp.QuoteMeta(table) + `(?:[^a-z0-9_$]|$)`)
+	needle := table
 	viewPath := filepath.Join(e.getDataDir(), schema)
 	entries, _ := os.ReadDir(viewPath)
 	for _, entry := range entries {
@@ -3031,13 +3501,13 @@ func (e *XMySQLExecutor) findStoredObjectTableDependency(schema, table string) s
 			Definition string `json:"definition"`
 			ViewName   string `json:"view_name"`
 		}
-		if json.Unmarshal(raw, &info) == nil && needle.MatchString(info.Definition) {
+		if json.Unmarshal(raw, &info) == nil && identifierMentioned(info.Definition, needle) {
 			return fmt.Sprintf("view %s.%s", schema, info.ViewName)
 		}
 	}
 	for _, objectType := range []string{"procedure", "function", "event"} {
 		for _, object := range e.scanStoredObjects(objectType) {
-			if !strings.EqualFold(object.Schema, schema) || !needle.MatchString(object.Definition) {
+			if !strings.EqualFold(object.Schema, schema) || !identifierMentioned(object.Definition, needle) {
 				continue
 			}
 			return fmt.Sprintf("%s %s.%s", objectType, schema, object.Name)
@@ -3075,14 +3545,7 @@ func (e *XMySQLExecutor) executeInformationSchemaRoutinesSelect(query string, se
 	}
 	nativeFilters := map[string]string{}
 	if native {
-		filterPattern := regexp.MustCompile(`(?i)\b(routine_schema|routine_name|routine_type)\b\s*(?:=|like)\s*(?:'([^']*)'|"([^"]*)")`)
-		for _, match := range filterPattern.FindAllStringSubmatch(query, -1) {
-			value := match[2]
-			if value == "" {
-				value = match[3]
-			}
-			nativeFilters[strings.ToLower(match[1])] = value
-		}
+		nativeFilters = informationSchemaASTEqualityFilters(query, map[string]bool{"routine_schema": true, "routine_name": true, "routine_type": true})
 	}
 	rows := make([][]interface{}, 0)
 	for _, object := range objects {
@@ -3166,18 +3629,10 @@ func routineSecurityType(value string) string {
 // CREATE statement; I_S exposes the executable body after the routine header.
 // The persisted definition is intentionally retained verbatim elsewhere.
 func storedRoutineBodyDefinition(definition string) string {
-	definition = strings.TrimSpace(definition)
-	definition = regexp.MustCompile(`(?is)^create\s+definer\s*=\s*'[^']*'\s*@\s*'[^']*'\s+`).ReplaceAllString(definition, "create ")
-	parsed := parseStoredObjectCreate(definition)
-	if len(parsed) != 5 {
-		return definition
+	if object := storedDefinitionAST(definition); object != nil {
+		return strings.TrimSpace(object.Body)
 	}
-	body := strings.TrimSpace(parsed[4])
-	marker := regexp.MustCompile(`(?is)\b(begin|return)\b`).FindStringIndex(body)
-	if marker == nil {
-		return body
-	}
-	return strings.TrimSpace(body[marker[0]:])
+	return strings.TrimSpace(definition)
 }
 
 // storedRoutineMetadataVisibility follows MySQL's INFORMATION_SCHEMA.ROUTINES
@@ -3231,38 +3686,31 @@ func (e *XMySQLExecutor) storedRoutineMetadataVisibility(ctx *ExecutionContext, 
 }
 
 func parseRoutineComment(definition string) string {
-	comment := regexp.MustCompile(`(?is)\bcomment\s+(?:'((?:''|[^'])*)'|"((?:""|[^"])*)")`).FindStringSubmatch(definition)
-	if len(comment) != 3 {
-		return ""
+	if object := storedDefinitionAST(definition); object != nil {
+		return object.Comment
 	}
-	value := comment[1]
-	if value == "" {
-		value = comment[2]
-	}
-	value = strings.ReplaceAll(value, "''", "'")
-	return strings.ReplaceAll(value, "\"\"", "\"")
+	return ""
 }
 
 func routineIsDeterministic(definition string) bool {
-	lower := strings.ToLower(definition)
-	if regexp.MustCompile(`\bnot\s+deterministic\b`).MatchString(lower) {
-		return false
-	}
-	return regexp.MustCompile(`\bdeterministic\b`).MatchString(lower)
+	object := storedDefinitionAST(definition)
+	return object != nil && object.Deterministic
 }
 
 func routineSQLDataAccess(definition string) string {
-	lower := strings.ToLower(definition)
-	switch {
-	case regexp.MustCompile(`\bmodifies\s+sql\s+data\b`).MatchString(lower):
-		return "MODIFIES SQL DATA"
-	case regexp.MustCompile(`\breads\s+sql\s+data\b`).MatchString(lower):
-		return "READS SQL DATA"
-	case regexp.MustCompile(`\bno\s+sql\b`).MatchString(lower):
-		return "NO SQL"
-	default:
-		return "CONTAINS SQL"
+	if object := storedDefinitionAST(definition); object != nil && object.DataAccess != "" {
+		return object.DataAccess
 	}
+	return "CONTAINS SQL"
+}
+
+func storedDefinitionAST(definition string) *sqlparser.StoredObjectStatement {
+	parsed, err := sqlparser.ParseForExecution(definition)
+	if err != nil {
+		return nil
+	}
+	object, _ := parsed.AST.(*sqlparser.StoredObjectStatement)
+	return object
 }
 
 func boolToYesNo(value bool) string {
@@ -3288,12 +3736,12 @@ func (e *XMySQLExecutor) executeInformationSchemaTriggersSelect(query string, se
 	}
 	rows := make([][]interface{}, 0)
 	for _, object := range objects {
-		_, _, tableName, _ := parseTriggerInformationSchemaMetadata(object.Definition)
+		_, _, tableName, _ := parseTriggerInformationSchemaMetadataObject(object)
 		if err := e.checkStoredTriggerPrivilege(&ExecutionContext{Session: session}, object.Schema, tableName); err != nil {
 			// INFORMATION_SCHEMA hides trigger definitions without TRIGGER.
 			continue
 		}
-		timing, event, tableName, action := parseTriggerInformationSchemaMetadata(object.Definition)
+		timing, event, tableName, action := parseTriggerInformationSchemaMetadataObject(object)
 		actionOrder := int64(1)
 		for index, orderedTrigger := range loadTableTriggers(e.getDataDir(), object.Schema, tableName, event, timing) {
 			if strings.EqualFold(orderedTrigger.Name, object.Name) {
@@ -3323,11 +3771,19 @@ func (e *XMySQLExecutor) executeInformationSchemaTriggersSelect(query string, se
 }
 
 func parseTriggerInformationSchemaMetadata(definition string) (timing, event, tableName, action string) {
-	match := regexp.MustCompile(`(?is)^create\s+trigger\s+` + "`?" + `[a-zA-Z0-9_$]+` + "`?" + `\s+(before|after)\s+(insert|update|delete)\s+on\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s+for\s+each\s+row\s+(.+)$`).FindStringSubmatch(strings.TrimSpace(strings.TrimSuffix(definition, ";")))
-	if len(match) == 0 {
-		return "", "", "", strings.TrimSpace(definition)
+	if parsed, err := sqlparser.ParseForExecution(definition); err == nil {
+		if object, ok := parsed.AST.(*sqlparser.StoredObjectStatement); ok && strings.EqualFold(object.ObjectType, "trigger") && object.TriggerTiming != "" && object.TriggerEvent != "" && !object.TargetTable.IsEmpty() {
+			return strings.ToUpper(object.TriggerTiming), strings.ToUpper(object.TriggerEvent), object.TargetTable.Name.String(), strings.TrimSpace(triggerBody(object.Body))
+		}
 	}
-	return strings.ToUpper(match[1]), strings.ToUpper(match[2]), match[3], stripTriggerOrderPrefix(strings.TrimSpace(match[4]))
+	return "", "", "", strings.TrimSpace(definition)
+}
+
+func parseTriggerInformationSchemaMetadataObject(object persistedStoredObject) (timing, event, tableName, action string) {
+	if object.DefinitionAST != nil && strings.EqualFold(object.DefinitionAST.ObjectType, "trigger") && object.DefinitionAST.TriggerTiming != "" && object.DefinitionAST.TriggerEvent != "" && !object.DefinitionAST.TargetTable.IsEmpty() {
+		return strings.ToUpper(object.DefinitionAST.TriggerTiming), strings.ToUpper(object.DefinitionAST.TriggerEvent), object.DefinitionAST.TargetTable.Name.String(), strings.TrimSpace(triggerBody(object.DefinitionAST.Body))
+	}
+	return parseTriggerInformationSchemaMetadata(object.Definition)
 }
 
 func (e *XMySQLExecutor) executeInformationSchemaEventsSelect(query string, session server.MySQLServerSession) (*SelectResult, error) {
@@ -3353,12 +3809,15 @@ func (e *XMySQLExecutor) executeInformationSchemaEventsSelect(query string, sess
 		}
 		eventType, executeAt, intervalValue, intervalField := parseEventInformationSchemaMetadata(object.Definition)
 		starts := interface{}(nil)
-		if match := regexp.MustCompile(`(?is)\bstarts\s+'([^']+)'`).FindStringSubmatch(object.Definition); len(match) == 2 {
-			starts = match[1]
-		}
 		ends := interface{}(nil)
-		if match := regexp.MustCompile(`(?is)\bends\s+'([^']+)'`).FindStringSubmatch(object.Definition); len(match) == 2 {
-			ends = match[1]
+		if object.DefinitionAST != nil && strings.EqualFold(object.DefinitionAST.ObjectType, "event") {
+			eventType, executeAt, intervalValue, intervalField = parseEventInformationSchemaMetadataAST(object.DefinitionAST)
+			if value := strings.Trim(object.DefinitionAST.Starts, "'\""); value != "" && !strings.EqualFold(value, "current_timestamp") {
+				starts = value
+			}
+			if value := strings.Trim(object.DefinitionAST.Ends, "'\""); value != "" {
+				ends = value
+			}
 		}
 		definer := strings.TrimSpace(object.Definer)
 		if definer == "" {
@@ -3415,12 +3874,36 @@ func storedEventBodyDefinition(definition string) string {
 }
 
 func parseEventInformationSchemaMetadata(definition string) (eventType string, executeAt, intervalValue, intervalField interface{}) {
-	trimmed := strings.TrimSpace(strings.TrimSuffix(definition, ";"))
-	if every := regexp.MustCompile(`(?is)\bon\s+schedule\s+every\s+(\d+)\s+(second|minute|hour|day|week|month|year)`).FindStringSubmatch(trimmed); len(every) == 3 {
-		return "RECURRING", nil, every[1], strings.ToUpper(every[2])
+	if parsed, err := sqlparser.ParseForExecution(definition); err == nil {
+		if object, ok := parsed.AST.(*sqlparser.StoredObjectStatement); ok && strings.EqualFold(object.ObjectType, "event") {
+			if strings.EqualFold(object.ScheduleKind, "EVERY") && object.IntervalValue > 0 {
+				return "RECURRING", nil, strconv.FormatInt(object.IntervalValue, 10), strings.ToUpper(object.IntervalUnit)
+			}
+			if strings.EqualFold(object.ScheduleKind, "AT") {
+				at := strings.Trim(object.Starts, "'\"")
+				if strings.EqualFold(at, "current_timestamp") || strings.EqualFold(at, "current_timestamp()") {
+					return "ONE TIME", nil, nil, nil
+				}
+				return "ONE TIME", at, nil, nil
+			}
+		}
 	}
-	if at := regexp.MustCompile(`(?is)\bon\s+schedule\s+at\s+'([^']+)'`).FindStringSubmatch(trimmed); len(at) == 2 {
-		return "ONE TIME", at[1], nil, nil
+	return "ONE TIME", nil, nil, nil
+}
+
+func parseEventInformationSchemaMetadataAST(object *sqlparser.StoredObjectStatement) (eventType string, executeAt, intervalValue, intervalField interface{}) {
+	if object == nil {
+		return "ONE TIME", nil, nil, nil
+	}
+	if strings.EqualFold(object.ScheduleKind, "EVERY") && object.IntervalValue > 0 {
+		return "RECURRING", nil, strconv.FormatInt(object.IntervalValue, 10), strings.ToUpper(object.IntervalUnit)
+	}
+	if strings.EqualFold(object.ScheduleKind, "AT") {
+		at := strings.Trim(object.Starts, "'\"")
+		if strings.EqualFold(at, "current_timestamp") || strings.EqualFold(at, "current_timestamp()") {
+			return "ONE TIME", nil, nil, nil
+		}
+		return "ONE TIME", at, nil, nil
 	}
 	return "ONE TIME", nil, nil, nil
 }

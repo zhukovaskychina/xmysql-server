@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/common"
@@ -11,24 +10,41 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
-var alterTableTablespacePattern = regexp.MustCompile(`(?is)^\s*alter\s+table\s+(` + compatibilityIdentifierPattern + `(?:\s*\.\s*` + compatibilityIdentifierPattern + `)?)\s+tablespace\s+(` + compatibilityIdentifierPattern + `)(?:\s+storage\s+disk)?\s*$`)
+func isAlterTableTablespaceQuery(query string) bool {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return false
+	}
+	stmt, ok := parsed.AST.(*sqlparser.AlterTable)
+	return ok && len(stmt.Operations) == 1 && stmt.Operations[0].Kind == sqlparser.AlterOperationTablespace
+}
 
 // executeRawTableTablespaceCompatibility implements the data-moving form of
 // ALTER TABLE ... TABLESPACE. It is intentionally separate from standalone
 // tablespace DDL because the operation changes a table's clustered-index
 // ownership and must preserve rows.
 func (e *XMySQLExecutor) executeRawTableTablespaceCompatibility(ctx *ExecutionContext, query, databaseName string) (bool, error) {
-	match := alterTableTablespacePattern.FindStringSubmatch(strings.TrimSpace(strings.TrimSuffix(query, ";")))
-	if len(match) != 3 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
 		return false, nil
 	}
-	parts := strings.Split(match[1], ".")
-	schemaName := strings.Trim(parts[0], "` ")
-	tableName := strings.Trim(parts[len(parts)-1], "` ")
-	if len(parts) == 1 {
+	stmt, ok := parsed.AST.(*sqlparser.AlterTable)
+	if !ok || len(stmt.Operations) != 1 || stmt.Operations[0].Kind != sqlparser.AlterOperationTablespace {
+		return false, nil
+	}
+	schemaName := strings.TrimSpace(stmt.Table.Qualifier.String())
+	if schemaName == "" {
 		schemaName = databaseName
 	}
-	targetName := unquoteTablespaceIdentifier(match[2])
+	tableName := strings.TrimSpace(stmt.Table.Name.String())
+	targetName := unquoteTablespaceIdentifier(stmt.Operations[0].Name)
+	return e.executeTableTablespaceCompatibility(ctx, schemaName, tableName, targetName)
+}
+
+// executeTableTablespaceCompatibility is the typed execution core shared by
+// the AST ALTER path and the legacy text adapter. It receives already
+// separated identifiers and therefore does not rediscover SQL syntax.
+func (e *XMySQLExecutor) executeTableTablespaceCompatibility(ctx *ExecutionContext, schemaName, tableName, targetName string) (bool, error) {
 	if schemaName == "" || tableName == "" || targetName == "" {
 		return true, fmt.Errorf("ALTER TABLE TABLESPACE requires schema, table, and tablespace")
 	}

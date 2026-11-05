@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 type informationSchemaVisibleView struct {
@@ -62,17 +62,32 @@ func (e *XMySQLExecutor) informationSchemaVisibleViewDefinitions(session server.
 	return views
 }
 
-var informationSchemaSpaceNameFilterPattern = regexp.MustCompile(`(?is)\b(?:tablespace_name|name)\b\s*(?:=|like)\s*(?:'([^']*)'|"([^"]*)")`)
-
 func informationSchemaSpaceNamePattern(query string) string {
-	match := informationSchemaSpaceNameFilterPattern.FindStringSubmatch(query)
-	if len(match) == 0 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
 		return ""
 	}
-	if match[1] != "" {
-		return match[1]
+	selectStmt, ok := parsed.AST.(*sqlparser.Select)
+	if !ok || selectStmt.Where == nil {
+		return ""
 	}
-	return match[2]
+	pattern := ""
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		if pattern != "" {
+			return false, nil
+		}
+		comparison, ok := node.(*sqlparser.ComparisonExpr)
+		if !ok || (comparison.Operator != sqlparser.EqualStr && !strings.EqualFold(comparison.Operator, sqlparser.LikeStr)) {
+			return true, nil
+		}
+		column, ok := comparison.Left.(*sqlparser.ColName)
+		value, valueOK := comparison.Right.(*sqlparser.SQLVal)
+		if ok && valueOK && (strings.EqualFold(column.Name.String(), "tablespace_name") || strings.EqualFold(column.Name.String(), "name")) {
+			pattern = string(value.Val)
+		}
+		return true, nil
+	}, selectStmt.Where.Expr)
+	return pattern
 }
 
 func informationSchemaSpaceFileSize(space basic.SpaceInfo) int64 {
@@ -427,9 +442,17 @@ func (e *XMySQLExecutor) executeInformationSchemaInnoDBVirtualSelect(query strin
 // position and the number of referenced base columns; no synthetic dependency
 // is emitted when an expression has no resolvable column reference.
 func innodbVirtualBasePositions(expression string, columns []frmMetadataColumn, generatedPosition int) []int {
-	// Ignore quoted literals before matching identifiers.  This avoids treating
-	// an expression such as `concat('qty', price)` as a dependency on qty.
-	expression = regexp.MustCompile(`(?s)'(?:''|[^'])*'|"(?:""|[^"])*"`).ReplaceAllString(expression, " ")
+	parsed, err := sqlparser.Parse("select " + expression)
+	if err != nil {
+		return nil
+	}
+	references := make(map[string]struct{})
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		if column, ok := node.(*sqlparser.ColName); ok && column.Qualifier.IsEmpty() {
+			references[strings.ToLower(strings.Trim(column.Name.String(), "` "))] = struct{}{}
+		}
+		return true, nil
+	}, parsed)
 	positions := make([]int, 0, len(columns))
 	for position, column := range columns {
 		if position == generatedPosition || strings.TrimSpace(column.name) == "" {
@@ -439,8 +462,7 @@ func innodbVirtualBasePositions(expression string, columns []frmMetadataColumn, 
 		if name == "" {
 			continue
 		}
-		pattern := `(?i)(^|[^a-z0-9_$])` + regexp.QuoteMeta(name) + `([^a-z0-9_$]|$)`
-		if regexp.MustCompile(pattern).MatchString(expression) {
+		if _, exists := references[strings.ToLower(name)]; exists {
 			positions = append(positions, position)
 		}
 	}
@@ -448,18 +470,31 @@ func innodbVirtualBasePositions(expression string, columns []frmMetadataColumn, 
 }
 
 func informationSchemaRoutineCallMatches(definition string, object persistedStoredObject, viewSchema string) bool {
-	name := regexp.QuoteMeta(strings.Trim(object.Name, "`"))
+	name := strings.Trim(object.Name, "` ")
 	if name == "" {
 		return false
 	}
-	qualified := regexp.QuoteMeta(strings.Trim(object.Schema, "`")) + `\s*\.\s*` + name
-	if regexp.MustCompile(`(?i)(?:^|[^a-z0-9_$])` + qualified + `\s*\(`).MatchString(definition) {
-		return true
-	}
-	if !strings.EqualFold(object.Schema, viewSchema) {
+	parsed, err := sqlparser.ParseForExecution(definition)
+	if err != nil {
 		return false
 	}
-	return regexp.MustCompile(`(?i)(?:^|[^a-z0-9_$])` + name + `\s*\(`).MatchString(definition)
+	matched := false
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		if matched {
+			return false, nil
+		}
+		call, ok := node.(*sqlparser.FuncExpr)
+		if !ok || !strings.EqualFold(call.Name.String(), name) {
+			return true, nil
+		}
+		if !call.Qualifier.IsEmpty() {
+			matched = strings.EqualFold(call.Qualifier.String(), object.Schema)
+		} else {
+			matched = strings.EqualFold(object.Schema, viewSchema)
+		}
+		return true, nil
+	}, parsed.AST)
+	return matched
 }
 
 // executeInformationSchemaViewRoutineUsageSelect reports persisted stored
@@ -578,27 +613,40 @@ func (e *XMySQLExecutor) executeInformationSchemaSTGeometryColumnsSelect(query s
 	return newInformationSchemaSelectResult("information_schema.st_geometry_columns", columns, rows)
 }
 
-var informationSchemaGeometryColumnFilterPattern = regexp.MustCompile(`(?i)\b(table_catalog|geometry_type_name|geometry_type|srs_id)\b\s*(?:=|like)\s*(?:'([^']*)'|"([^"]*)")`)
-
 func informationSchemaGeometryColumnFilters(query string) map[string]string {
 	filters := make(map[string]string)
-	for _, match := range informationSchemaGeometryColumnFilterPattern.FindAllStringSubmatch(query, -1) {
-		value := match[2]
-		if value == "" {
-			value = match[3]
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return filters
+	}
+	selectStmt, ok := parsed.AST.(*sqlparser.Select)
+	if !ok || selectStmt.Where == nil {
+		return filters
+	}
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		comparison, ok := node.(*sqlparser.ComparisonExpr)
+		if !ok || (comparison.Operator != sqlparser.EqualStr && !strings.EqualFold(comparison.Operator, sqlparser.LikeStr)) {
+			return true, nil
 		}
-		if value == "" {
-			// Keep explicit empty-string predicates distinct from an omitted
-			// geometry filter. This matters for nullable SRS_ID, where `= ''`
-			// must not become an unrestricted scan.
-			value = informationSchemaExplicitEmptyPattern
+		left, leftOK := comparison.Left.(*sqlparser.ColName)
+		value, valueOK := comparison.Right.(*sqlparser.SQLVal)
+		if !leftOK || !valueOK {
+			return true, nil
 		}
-		column := strings.ToUpper(match[1])
+		column := strings.ToUpper(left.Name.String())
 		if column == "GEOMETRY_TYPE" {
 			column = "GEOMETRY_TYPE_NAME"
 		}
-		filters[column] = value
-	}
+		if column != "TABLE_CATALOG" && column != "GEOMETRY_TYPE_NAME" && column != "SRS_ID" {
+			return true, nil
+		}
+		filter := string(value.Val)
+		if filter == "" {
+			filter = informationSchemaExplicitEmptyPattern
+		}
+		filters[column] = filter
+		return true, nil
+	}, selectStmt.Where.Expr)
 	return filters
 }
 

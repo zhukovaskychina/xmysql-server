@@ -7,7 +7,10 @@ import (
 
 type ViewStatement struct {
 	Kind        string
+	OrReplace   bool
 	Name        TableName
+	Targets     []TableName
+	IfExists    bool
 	Columns     []string
 	Definition  Statement
 	Algorithm   string
@@ -33,7 +36,15 @@ func (node *ViewStatement) walkSubtree(visit Visit) error {
 	if node == nil {
 		return nil
 	}
-	return Walk(visit, node.Name, node.Definition)
+	if err := Walk(visit, node.Name, node.Definition); err != nil {
+		return err
+	}
+	for _, target := range node.Targets {
+		if err := Walk(visit, target); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func tryParseViewForExecution(query string) (*ViewStatement, bool, error) {
@@ -43,11 +54,30 @@ func tryParseViewForExecution(query string) (*ViewStatement, bool, error) {
 	}
 	kind := strings.ToLower(tokens[0].text)
 	if kind == "drop" && len(tokens) >= 3 && strings.EqualFold(tokens[1].text, "view") {
-		name, _, ok := parseShowQualifiedName(tokens, 2)
+		index := 2
+		if index+1 < len(tokens) && strings.EqualFold(tokens[index].text, "if") && strings.EqualFold(tokens[index+1].text, "exists") {
+			index += 2
+		}
+		if index == 4 { /* IF EXISTS was present */
+		}
+		name, next, ok := parseShowQualifiedName(tokens, index)
 		if !ok {
 			return nil, true, fmt.Errorf("%w: VIEW name missing", ErrInvalidStatement)
 		}
-		return &ViewStatement{Kind: kind, Name: name, Raw: query}, true, nil
+		targets := []TableName{name}
+		for next < len(tokens) {
+			if tokens[next].text != "," {
+				return nil, true, fmt.Errorf("%w: unexpected DROP VIEW token %q", ErrInvalidStatement, tokens[next].text)
+			}
+			next++
+			view, after, valid := parseShowQualifiedName(tokens, next)
+			if !valid {
+				return nil, true, fmt.Errorf("%w: VIEW name missing", ErrInvalidStatement)
+			}
+			targets = append(targets, view)
+			next = after
+		}
+		return &ViewStatement{Kind: kind, Name: name, Targets: targets, IfExists: index == 4, Raw: query}, true, nil
 	}
 	if kind != "create" && kind != "alter" {
 		return nil, false, nil
@@ -75,7 +105,7 @@ func tryParseViewForExecution(query string) (*ViewStatement, bool, error) {
 		return nil, true, fmt.Errorf("%w: VIEW name missing", ErrInvalidStatement)
 	}
 	index = next
-	statement := &ViewStatement{Kind: kind, Name: name, Raw: query}
+	statement := &ViewStatement{Kind: kind, Name: name, OrReplace: kind == "create" && optionStart > 1, Raw: query}
 	for optionIndex := optionStart; optionIndex < viewIndex; optionIndex++ {
 		if strings.EqualFold(tokens[optionIndex].text, "algorithm") && optionIndex+2 < viewIndex && tokens[optionIndex+1].text == "=" {
 			statement.Algorithm = strings.ToLower(tokens[optionIndex+2].text)

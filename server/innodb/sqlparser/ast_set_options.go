@@ -10,14 +10,6 @@ func enrichSetOptions(stmt *Set, query string) {
 	if err != nil || len(tokens) < 2 || !strings.EqualFold(tokens[0].text, "set") {
 		return
 	}
-	for _, token := range tokens[1:] {
-		if strings.EqualFold(token.text, "persist") {
-			stmt.Persist = true
-		}
-		if strings.EqualFold(token.text, "reset") {
-			stmt.Reset = true
-		}
-	}
 	if len(tokens) < 3 || !strings.EqualFold(tokens[1].text, "names") {
 		return
 	}

@@ -6,8 +6,10 @@ import (
 )
 
 type showExecutionToken struct {
-	kind int
-	text string
+	kind  int
+	text  string
+	start int
+	end   int
 }
 
 func parseShowForExecution(query string) (*Show, error) {
@@ -22,12 +24,19 @@ func parseShowForExecution(query string) (*Show, error) {
 	index := 1
 	if index < len(tokens) && strings.EqualFold(tokens[index].text, "full") {
 		index++
-		if index >= len(tokens) || !strings.EqualFold(tokens[index].text, "tables") {
+		if index >= len(tokens) {
 			return nil, fmt.Errorf("%w: FULL must be followed by TABLES", ErrInvalidStatement)
 		}
-		show.Type = "tables"
-		show.ShowTablesOpt = &ShowTablesOpt{Full: "full "}
-		index++
+		if strings.EqualFold(tokens[index].text, "tables") {
+			show.Type = "tables"
+			show.ShowTablesOpt = &ShowTablesOpt{Full: "full "}
+			index++
+		} else if strings.EqualFold(tokens[index].text, "columns") || strings.EqualFold(tokens[index].text, "fields") {
+			show.Type = strings.ToLower(tokens[index].text)
+			index++
+		} else {
+			return nil, fmt.Errorf("%w: FULL must be followed by TABLES or COLUMNS", ErrInvalidStatement)
+		}
 	} else if index < len(tokens) && strings.EqualFold(tokens[index].text, "create") {
 		index++
 		if index >= len(tokens) {
@@ -103,7 +112,7 @@ func parseShowForExecution(query string) (*Show, error) {
 		}
 	}
 
-	if show.Type == "binlog events" || show.Type == "binary logs" {
+	if show.Type == "binlog events" || show.Type == "binary logs" || show.Type == "relaylog events" {
 		if index < len(tokens) && strings.EqualFold(tokens[index].text, "in") {
 			index++
 			if index >= len(tokens) {
@@ -176,6 +185,13 @@ func parseShowForExecution(query string) (*Show, error) {
 			limit.Offset = first
 			limit.Rowcount = NewIntVal([]byte(tokens[index].text))
 			index++
+		} else if index < len(tokens) && strings.EqualFold(tokens[index].text, "offset") {
+			index++
+			if index >= len(tokens) {
+				return nil, fmt.Errorf("%w: LIMIT offset missing", ErrInvalidStatement)
+			}
+			limit.Offset = NewIntVal([]byte(tokens[index].text))
+			index++
 		}
 		show.Limit = limit
 	}
@@ -199,11 +215,16 @@ func scanShowExecutionTokens(query string) ([]showExecutionToken, error) {
 	tokens := make([]showExecutionToken, 0, 16)
 	semicolon := false
 	for {
+		if tokenizer.lastChar == 0 {
+			tokenizer.next()
+		}
+		tokenizer.skipBlank()
+		start := tokenizer.Position - 1
 		kind, value := tokenizer.Scan()
 		if kind == 0 {
 			break
 		}
-		if kind == COMMENT || kind == COMMENT_KEYWORD {
+		if kind == COMMENT {
 			continue
 		}
 		if kind == ';' {
@@ -220,7 +241,11 @@ func scanShowExecutionTokens(query string) ([]showExecutionToken, error) {
 		if text == "" && kind < 256 {
 			text = string(rune(kind))
 		}
-		tokens = append(tokens, showExecutionToken{kind: kind, text: text})
+		end := tokenizer.Position - 1
+		if end > len(query) {
+			end = len(query)
+		}
+		tokens = append(tokens, showExecutionToken{kind: kind, text: text, start: start, end: end})
 	}
 	if tokenizer.LastError != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidStatement, tokenizer.LastError)

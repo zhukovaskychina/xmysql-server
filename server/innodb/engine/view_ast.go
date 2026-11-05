@@ -46,13 +46,74 @@ func (e *XMySQLExecutor) expandViewStatement(ctx *ExecutionContext, stmt sqlpars
 func (e *XMySQLExecutor) rewriteViewQueryFromAST(query, databaseName string) (string, bool, error) {
 	parsed, err := sqlparser.ParseForExecution(query)
 	if err != nil {
-		return "", false, nil
+		statement, parseErr := sqlparser.Parse(query)
+		if parseErr != nil {
+			return "", false, nil
+		}
+		changed, rewriteErr := e.rewriteViewSelectStatement(statement, databaseName)
+		if rewriteErr != nil || !changed {
+			return "", changed, rewriteErr
+		}
+		return sqlparser.String(statement), true, nil
 	}
 	changed, err := e.rewriteViewSelectStatement(parsed.AST, databaseName)
 	if err != nil || !changed {
 		return "", changed, err
 	}
 	return sqlparser.String(parsed.AST), true, nil
+}
+
+func (e *XMySQLExecutor) rewriteViewQueryForExecution(query, databaseName string) (string, error) {
+	if rewritten, changed, err := e.rewriteViewQueryFromAST(query, databaseName); err != nil {
+		return "", err
+	} else if changed {
+		return rewritten, nil
+	}
+	return "", nil
+}
+
+func (e *XMySQLExecutor) rewriteViewQueryPreservingCTE(query, databaseName string) (string, bool, error) {
+	schema, viewName, ok := viewQueryTargetFromAST(query, databaseName)
+	if !ok {
+		return "", false, nil
+	}
+	raw, err := os.ReadFile(filepath.Join(e.getDataDir(), schema, viewName+".view.json"))
+	if os.IsNotExist(err) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	var info struct {
+		Definition string `json:"definition"`
+	}
+	if err := json.Unmarshal(raw, &info); err != nil {
+		return "", false, err
+	}
+	definition, err := sqlparser.Parse(strings.TrimSpace(strings.TrimSuffix(info.Definition, ";")))
+	if err != nil {
+		return "", false, err
+	}
+	if _, isWith := definition.(*sqlparser.With); !isWith {
+		return "", false, nil
+	}
+	outer, err := sqlparser.Parse(query)
+	if err != nil {
+		return "", false, nil
+	}
+	selectStmt, ok := outer.(*sqlparser.Select)
+	if !ok || len(selectStmt.From) != 1 {
+		return "", false, nil
+	}
+	aliased, ok := selectStmt.From[0].(*sqlparser.AliasedTableExpr)
+	if !ok {
+		return "", false, nil
+	}
+	aliased.Expr = &sqlparser.Subquery{Select: definition.(sqlparser.SelectStatement)}
+	if aliased.As.IsEmpty() {
+		aliased.As = sqlparser.NewTableIdent(viewName)
+	}
+	return sqlparser.String(selectStmt), true, nil
 }
 
 func (e *XMySQLExecutor) rewriteViewSelectStatement(stmt sqlparser.Statement, databaseName string) (bool, error) {
@@ -109,7 +170,8 @@ func (e *XMySQLExecutor) rewriteViewTableExpr(expr sqlparser.TableExpr, database
 			return false, err
 		}
 		var info struct {
-			Definition string `json:"definition"`
+			Definition string   `json:"definition"`
+			Columns    []string `json:"columns"`
 		}
 		if err := json.Unmarshal(raw, &info); err != nil {
 			return false, err
@@ -123,10 +185,26 @@ func (e *XMySQLExecutor) rewriteViewTableExpr(expr sqlparser.TableExpr, database
 			return false, fmt.Errorf("parse view definition failed: %w", err)
 		}
 		selectStmt, ok := definitionStmt.(sqlparser.SelectStatement)
+		if _, isWith := definitionStmt.(*sqlparser.With); isWith {
+			ok = false
+		}
 		if !ok {
-			// CTE definitions need the existing compatibility rewriter because
-			// the subquery node accepts SelectStatement rather than With.
-			return false, nil
+			// A derived table owns a SelectStatement, so expand a top-level CTE
+			// definition through the existing AST-aware compatibility rewriter
+			// before attaching it to the outer query.
+			rewritten, rewriteErr := e.rewriteSimpleCTEQuery(definition)
+			if rewriteErr != nil || strings.TrimSpace(rewritten) == "" {
+				return false, rewriteErr
+			}
+			definition = rewritten
+			definitionStmt, err = sqlparser.Parse(definition)
+			if err != nil {
+				return false, fmt.Errorf("reparse expanded view CTE failed: %w", err)
+			}
+			selectStmt, ok = definitionStmt.(sqlparser.SelectStatement)
+			if !ok {
+				return false, nil
+			}
 		}
 		definition = bindViewDefinitionTables(definitionStmt, definition, schema)
 		definitionStmt, err = sqlparser.Parse(definition)
@@ -137,6 +215,7 @@ func (e *XMySQLExecutor) rewriteViewTableExpr(expr sqlparser.TableExpr, database
 		if !ok {
 			return false, nil
 		}
+		applyViewOutputColumnAliases(definitionStmt, info.Columns)
 		node.Expr = &sqlparser.Subquery{Select: selectStmt}
 		if node.As.IsEmpty() {
 			node.As = sqlparser.NewTableIdent(viewName)
@@ -156,10 +235,38 @@ func (e *XMySQLExecutor) rewriteViewTableExpr(expr sqlparser.TableExpr, database
 	}
 }
 
+func applyViewOutputColumnAliases(statement sqlparser.Statement, columns []string) {
+	selectStmt, ok := statement.(*sqlparser.Select)
+	if !ok || len(columns) == 0 {
+		return
+	}
+	for index, name := range columns {
+		if index >= len(selectStmt.SelectExprs) || strings.TrimSpace(name) == "" {
+			break
+		}
+		if expression, ok := selectStmt.SelectExprs[index].(*sqlparser.AliasedExpr); ok {
+			expression.As = sqlparser.NewColIdent(strings.Trim(name, "` "))
+		}
+	}
+}
+
 func viewQueryTargetFromAST(query, databaseName string) (schema, view string, ok bool) {
 	parsed, err := sqlparser.ParseForExecution(query)
 	if err != nil {
-		return "", "", false
+		statement, parseErr := sqlparser.Parse(query)
+		if parseErr != nil {
+			return "", "", false
+		}
+		table, found := firstViewQueryTable(statement)
+		if !found {
+			return "", "", false
+		}
+		schema = strings.TrimSpace(table.Qualifier.String())
+		if schema == "" {
+			schema = strings.TrimSpace(databaseName)
+		}
+		view = strings.TrimSpace(table.Name.String())
+		return schema, view, schema != "" && view != ""
 	}
 	table, found := firstViewQueryTable(parsed.AST)
 	if !found {

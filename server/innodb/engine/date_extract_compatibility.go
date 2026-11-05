@@ -2,8 +2,9 @@ package engine
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 var supportedExtractDateUnits = map[string]struct{}{
@@ -49,17 +50,29 @@ func rewriteExtractDateFunctions(query string) (string, error) {
 			return "", fmt.Errorf("EXTRACT has an unterminated argument list")
 		}
 		body := strings.TrimSpace(rewritten[open+1 : close])
-		parts := extractDateUnitPattern.FindStringSubmatch(body)
-		if len(parts) != 3 {
+		parsed, parseErr := sqlparser.Parse("select extract(" + body + ")")
+		if parseErr != nil {
 			return "", fmt.Errorf("EXTRACT requires a date unit and FROM expression")
 		}
-		unit := strings.ToUpper(strings.TrimSpace(parts[1]))
+		selectStmt, ok := parsed.(*sqlparser.Select)
+		if !ok || len(selectStmt.SelectExprs) != 1 {
+			return "", fmt.Errorf("EXTRACT requires a date unit and FROM expression")
+		}
+		aliased, ok := selectStmt.SelectExprs[0].(*sqlparser.AliasedExpr)
+		if !ok {
+			return "", fmt.Errorf("EXTRACT requires a date unit and FROM expression")
+		}
+		extract, ok := aliased.Expr.(*sqlparser.ExtractExpr)
+		if !ok {
+			return "", fmt.Errorf("EXTRACT requires a date unit and FROM expression")
+		}
+		unit := strings.ToUpper(strings.TrimSpace(extract.Unit.String()))
 		_, simpleUnit := supportedExtractDateUnits[unit]
 		_, compositeUnit := supportedExtractCompositeUnits[unit]
 		if !simpleUnit && !compositeUnit {
 			return "", fmt.Errorf("unsupported EXTRACT unit %s", unit)
 		}
-		expression, err := rewriteExtractDateFunctions(strings.TrimSpace(parts[2]))
+		expression, err := rewriteExtractDateFunctions(strings.TrimSpace(sqlparser.String(extract.Expr)))
 		if err != nil {
 			return "", err
 		}
@@ -71,8 +84,6 @@ func rewriteExtractDateFunctions(query string) (string, error) {
 		rewritten = rewritten[:start] + replacement + rewritten[close+1:]
 	}
 }
-
-var extractDateUnitPattern = regexp.MustCompile(`(?is)^\s*([a-zA-Z_]+)\s+from\s+(.+?)\s*$`)
 
 func findExtractFunction(input string) (start, open int, ok bool) {
 	var quote byte

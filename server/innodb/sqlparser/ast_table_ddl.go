@@ -17,11 +17,14 @@ type TableDDLStatement struct {
 	TableSpec     *TableSpec
 	PartitionSpec *PartitionSpec
 	IfExists      bool
+	IfNotExists   bool
 	Definition    string
 	TableOptions  string
 	PartitionSQL  string
 	Like          TableName
 	AsSelect      Statement
+	AsSelectSQL   string
+	SelectMode    string
 	Temporary     bool
 	Raw           string
 }
@@ -34,6 +37,28 @@ func (node *TableDDLStatement) Format(buf *TrackedBuffer) {
 	}
 	if node.Primary != nil {
 		node.Primary.Format(buf)
+		return
+	}
+	if node.AsSelect != nil && len(node.Targets) == 1 {
+		buf.Myprintf("create ")
+		if node.Temporary {
+			buf.Myprintf("temporary ")
+		}
+		buf.Myprintf("table ")
+		if node.IfNotExists {
+			buf.Myprintf("if not exists ")
+		}
+		buf.Myprintf("%v", node.Targets[0])
+		if node.Definition != "" {
+			buf.Myprintf(" (%s)", node.Definition)
+		}
+		if node.TableOptions != "" {
+			buf.Myprintf(" %s", node.TableOptions)
+		}
+		if node.SelectMode != "" {
+			buf.Myprintf(" %s", node.SelectMode)
+		}
+		buf.Myprintf(" as %v", node.AsSelect)
 		return
 	}
 	buf.Myprintf("%s", node.Action)
@@ -67,6 +92,9 @@ func (node *TableDDLStatement) walkSubtree(visit Visit) error {
 
 func parseTableDDLForExecution(query string) (*TableDDLStatement, error) {
 	trimmed := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(query), ";"))
+	if statement, matched, err := ParseCreateTableAsSelect(trimmed); matched || err != nil {
+		return statement, err
+	}
 	if validationErr := validateTableDDLText(trimmed); validationErr != nil {
 		return nil, validationErr
 	}
@@ -96,6 +124,14 @@ func parseTableDDLForExecution(query string) (*TableDDLStatement, error) {
 			statement.Targets = []TableName{{Name: NewTableIdent(node.DBName)}}
 		default:
 			return nil, fmt.Errorf("%w: unsupported DDL node %T", ErrUnsupportedStatement, parsed)
+		}
+		if statement.Action == RenameStr {
+			if tokens, tokenErr := scanShowExecutionTokens(trimmed); tokenErr == nil {
+				if targets, destinations, ok := parseRenameTableTargets(tokens); ok {
+					statement.Targets = targets
+					statement.RenameTo = destinations
+				}
+			}
 		}
 		attachCreateSelect(statement, trimmed)
 		return statement, nil
@@ -152,6 +188,10 @@ func parseTableDDLForExecution(query string) (*TableDDLStatement, error) {
 			index++
 		}
 	}
+	if action == "drop" && index+2 < len(tokens) && strings.EqualFold(tokens[index].text, "if") && strings.EqualFold(tokens[index+1].text, "exists") {
+		statement.IfExists = true
+		index += 2
+	}
 	for index < len(tokens) {
 		name, next, ok := parseShowQualifiedName(tokens, index)
 		if !ok {
@@ -183,6 +223,130 @@ func parseTableDDLForExecution(query string) (*TableDDLStatement, error) {
 		return nil, fmt.Errorf("%w: %s target missing", ErrInvalidStatement, action)
 	}
 	return statement, nil
+}
+
+func parseRenameTableTargets(tokens []showExecutionToken) ([]TableName, []TableName, bool) {
+	if len(tokens) < 5 || !strings.EqualFold(tokens[0].text, "rename") || !strings.EqualFold(tokens[1].text, "table") {
+		return nil, nil, false
+	}
+	targets := make([]TableName, 0, 2)
+	destinations := make([]TableName, 0, 2)
+	index := 2
+	for index < len(tokens) {
+		source, next, ok := parseShowQualifiedName(tokens, index)
+		if !ok || next >= len(tokens) || !strings.EqualFold(tokens[next].text, "to") {
+			return nil, nil, false
+		}
+		destination, end, ok := parseShowQualifiedName(tokens, next+1)
+		if !ok {
+			return nil, nil, false
+		}
+		targets = append(targets, source)
+		destinations = append(destinations, destination)
+		index = end
+		if index == len(tokens) {
+			return targets, destinations, true
+		}
+		if tokens[index].text != "," {
+			return nil, nil, false
+		}
+		index++
+	}
+	return nil, nil, false
+}
+
+// ParseCreateTableAsSelect separates the CREATE header and SELECT using
+// lexer spans. Parentheses and keywords inside strings, comments or the source
+// query never become CREATE column definitions or table options.
+func ParseCreateTableAsSelect(query string) (*TableDDLStatement, bool, error) {
+	tokens, err := scanShowExecutionTokens(query)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(tokens) < 4 || tokens[0].kind != CREATE {
+		return nil, false, nil
+	}
+	index := 1
+	temporary := false
+	if strings.EqualFold(tokens[index].text, "temporary") {
+		temporary = true
+		index++
+	}
+	if index >= len(tokens) || tokens[index].kind != TABLE {
+		return nil, false, nil
+	}
+	index++
+	ifNotExists := false
+	if index+2 < len(tokens) && tokens[index].kind == IF && tokens[index+1].kind == NOT && tokens[index+2].kind == EXISTS {
+		ifNotExists = true
+		index += 3
+	}
+	target, next, ok := parseAdminTableName(tokens, index)
+	if !ok || next >= len(tokens) {
+		return nil, false, nil
+	}
+	index = next
+	definition := ""
+	optionsStart := tokens[index].start
+	if tokens[index].kind == '(' {
+		open := index
+		depth := 1
+		index++
+		for index < len(tokens) && depth > 0 {
+			if tokens[index].kind == '(' {
+				depth++
+			}
+			if tokens[index].kind == ')' {
+				depth--
+			}
+			index++
+		}
+		if depth != 0 {
+			return nil, false, fmt.Errorf("%w: unclosed CREATE TABLE definition", ErrInvalidStatement)
+		}
+		definition = strings.TrimSpace(query[tokens[open].end:tokens[index-1].start])
+		optionsStart = tokens[index-1].end
+	}
+	sourceIndex := -1
+	depth := 0
+	for pos := index; pos < len(tokens); pos++ {
+		switch tokens[pos].kind {
+		case '(':
+			depth++
+		case ')':
+			depth--
+		case SELECT, WITH:
+			if depth == 0 {
+				sourceIndex = pos
+			}
+		}
+		if sourceIndex >= 0 {
+			break
+		}
+	}
+	if sourceIndex < 0 {
+		return nil, false, nil
+	}
+	optionsEnd := tokens[sourceIndex].start
+	mode := ""
+	previous := sourceIndex - 1
+	if previous >= index && tokens[previous].kind == AS {
+		optionsEnd = tokens[previous].start
+		previous--
+	}
+	if previous >= index && (tokens[previous].kind == IGNORE || tokens[previous].kind == REPLACE) {
+		mode = strings.ToLower(tokens[previous].text)
+		optionsEnd = tokens[previous].start
+	}
+	sourceSQL := strings.TrimSpace(query[tokens[sourceIndex].start:])
+	source, err := ParseForExecution(sourceSQL)
+	if err != nil {
+		return nil, true, fmt.Errorf("%w: CREATE TABLE SELECT source: %v", ErrInvalidStatement, err)
+	}
+	if source.Family != StatementFamilySelect {
+		return nil, true, fmt.Errorf("%w: SELECT source expected", ErrInvalidStatement)
+	}
+	return &TableDDLStatement{Action: CreateStr, Targets: []TableName{target}, IfNotExists: ifNotExists, Definition: definition, TableOptions: strings.TrimSpace(query[optionsStart:optionsEnd]), AsSelect: source.AST, AsSelectSQL: sourceSQL, SelectMode: mode, Temporary: temporary, Raw: query}, true, nil
 }
 
 func tableDDLFragments(query string) (definition, options, partition string) {

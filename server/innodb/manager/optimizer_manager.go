@@ -3,11 +3,11 @@ package manager
 import (
 	"context"
 	"math"
-	"regexp"
 	"strings"
 	"sync"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 // OptimizerManager 查询优化器管理器
@@ -177,16 +177,63 @@ func optimizerTableStats(stats *metadata.InfoTableStats) *TableStats {
 
 func optimizerIndexMatchesConditions(column string, conditions []string) bool {
 	column = strings.ToLower(strings.Trim(strings.TrimSpace(column), "`"))
-	pattern := regexp.MustCompile(`(?i)(^|[^a-z0-9_$])` + regexp.QuoteMeta(column) + `\s*(?:<=>|=|<=|>=|<>|<|>|\b(?:not\s+)?in\b|\b(?:not\s+)?like\b|\b(?:not\s+)?between\b|\bis\s+(?:not\s+)?null\b)`)
-	reversePattern := regexp.MustCompile(`(?i)(^|[^a-z0-9_$])(?:'[^']*'|"[^"]*"|[-+]?[0-9]+(?:\.[0-9]+)?|\bnull\b)\s*(?:<=>|=|<=|>=|<>|<|>)\s*` + regexp.QuoteMeta(column) + `($|[^a-z0-9_$])`)
-	tuplePattern := regexp.MustCompile(`(?i)\([^()]*\b` + regexp.QuoteMeta(column) + `\b[^()]*\)\s*(?:<=>|=)\s*\(`)
 	for _, condition := range conditions {
-		compact := strings.ToLower(strings.ReplaceAll(condition, "`", ""))
-		if pattern.MatchString(compact) || reversePattern.MatchString(compact) || tuplePattern.MatchString(compact) {
+		parsed, err := sqlparser.Parse("select 1 from dual where " + strings.TrimSpace(condition))
+		if err != nil {
+			continue
+		}
+		selectStmt, ok := parsed.(*sqlparser.Select)
+		if !ok || selectStmt.Where == nil {
+			continue
+		}
+		matched := false
+		_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+			switch expression := node.(type) {
+			case *sqlparser.RangeCond:
+				matched = matched || optimizerExprContainsColumn(expression.Left, column)
+			case *sqlparser.IsExpr:
+				matched = matched || optimizerExprContainsColumn(expression.Expr, column) &&
+					(expression.Operator == sqlparser.IsNullStr || expression.Operator == sqlparser.IsNotNullStr)
+			case *sqlparser.ComparisonExpr:
+				if !optimizerComparisonOperatorSupported(expression.Operator) {
+					return true, nil
+				}
+				matched = matched || optimizerExprContainsColumn(expression.Left, column) || optimizerExprContainsColumn(expression.Right, column)
+			}
+			if matched {
+				return false, nil
+			}
+			return true, nil
+		}, selectStmt.Where.Expr)
+		if matched {
 			return true
 		}
 	}
 	return false
+}
+
+func optimizerComparisonOperatorSupported(operator string) bool {
+	switch strings.ToLower(strings.TrimSpace(operator)) {
+	case sqlparser.NullSafeEqualStr, sqlparser.EqualStr, sqlparser.LessEqualStr,
+		sqlparser.GreaterEqualStr, sqlparser.NotEqualStr, sqlparser.LessThanStr,
+		sqlparser.GreaterThanStr, sqlparser.InStr, sqlparser.NotInStr,
+		sqlparser.LikeStr, sqlparser.NotLikeStr:
+		return true
+	default:
+		return false
+	}
+}
+
+func optimizerExprContainsColumn(expression sqlparser.Expr, column string) bool {
+	found := false
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		if col, ok := node.(*sqlparser.ColName); ok && strings.EqualFold(col.Name.String(), column) {
+			found = true
+			return false, nil
+		}
+		return true, nil
+	}, expression)
+	return found
 }
 
 func optimizerIndexPrefixLength(columns []string, conditions []string) int {

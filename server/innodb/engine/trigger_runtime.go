@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -31,42 +30,73 @@ func applyBeforeTriggers(dataDir, schemaName, tableName, event string, row map[s
 			}
 			observe(schemaName, tableName, object.Name, timerWait, triggerErr)
 		}
-		definition := object.Definition
+		definition := triggerBodyForExecution(object)
 		if len(definition) == 0 {
 			recordExecution(nil)
 			continue
 		}
-		setMatches := regexp.MustCompile(`(?is)\bset\s+new\.([a-zA-Z0-9_$]+)\s*=\s*([^;]+)`).FindAllStringSubmatch(definition, -1)
-		if len(setMatches) == 0 {
+		assignments, ok := triggerSetAssignmentsFromStatements(definition)
+		if !ok {
 			recordExecution(nil)
 			continue
 		}
-		for _, setMatch := range setMatches {
-			if len(setMatch) != 3 {
-				continue
-			}
-			value, err := triggerLiteralValue(strings.TrimSpace(setMatch[2]), row)
+		for _, assignment := range assignments {
+			value, err := triggerLiteralValue(assignment.expression, row)
 			if err != nil {
 				triggerErr := fmt.Errorf("trigger %s: %w", object.Name, err)
 				recordExecution(triggerErr)
 				return triggerErr
 			}
-			row[setMatch[1]] = value
+			row[assignment.column] = value
 		}
 		recordExecution(nil)
 	}
 	return nil
 }
 
+type triggerASTAssignment struct {
+	column     string
+	expression string
+}
+
+func triggerSetAssignmentsFromStatements(body string) ([]triggerASTAssignment, bool) {
+	assignments := make([]triggerASTAssignment, 0)
+	for _, raw := range sqlparser.SplitStoredProgramStatements(body) {
+		statement := strings.TrimSpace(raw)
+		if statement == "" {
+			continue
+		}
+		parsed, err := sqlparser.ParseForExecution(statement)
+		if err != nil {
+			continue
+		}
+		setStmt, ok := parsed.AST.(*sqlparser.Set)
+		if !ok {
+			continue
+		}
+		for _, expression := range setStmt.Exprs {
+			name := strings.TrimSpace(expression.Name.String())
+			if len(name) <= len("new.") || !strings.EqualFold(name[:len("new.")], "new.") {
+				continue
+			}
+			assignments = append(assignments, triggerASTAssignment{
+				column:     strings.TrimSpace(name[len("new."):]),
+				expression: sqlparser.String(expression.Expr),
+			})
+		}
+	}
+	return assignments, len(assignments) > 0
+}
+
 // applyAfterTriggers is the post-write hook. AFTER triggers cannot mutate NEW,
 // but they may execute DML side effects such as an audit INSERT.
 func applyAfterTriggers(dataDir, schemaName, tableName, event string, newRow, oldRow map[string]interface{}, execute func(string, string, string, string) error, beginAtomic func(string, string, string) (func(bool), error)) error {
 	for _, object := range loadTableTriggers(dataDir, schemaName, tableName, event, "after") {
-		definition := object.Definition
+		definition := triggerBodyForExecution(object)
 		if len(definition) == 0 {
 			continue
 		}
-		if regexp.MustCompile(`(?is)\bset\s+new\.`).MatchString(definition) {
+		if _, hasNewAssignment := triggerSetAssignmentsFromStatements(definition); hasNewAssignment {
 			return fmt.Errorf("trigger %s cannot update NEW in an AFTER trigger", object.Name)
 		}
 		if execute == nil {
@@ -103,10 +133,10 @@ func applyAfterTriggers(dataDir, schemaName, tableName, event string, newRow, ol
 				return fmt.Errorf("trigger %s has unsupported AFTER statement %q", object.Name, statement)
 			}
 			for name, literal := range newArguments {
-				statement = regexp.MustCompile(`(?i)\bnew\.`+regexp.QuoteMeta(name)+`\b`).ReplaceAllString(statement, literal)
+				statement = replaceQualifiedName(statement, "new", name, literal)
 			}
 			for name, literal := range oldArguments {
-				statement = regexp.MustCompile(`(?i)\bold\.`+regexp.QuoteMeta(name)+`\b`).ReplaceAllString(statement, literal)
+				statement = replaceQualifiedName(statement, "old", name, literal)
 			}
 			if err := execute(schemaName, statement, tableName, object.Name); err != nil {
 				finishAtomic(false)
@@ -116,6 +146,17 @@ func applyAfterTriggers(dataDir, schemaName, tableName, event string, newRow, ol
 		finishAtomic(true)
 	}
 	return nil
+}
+
+// triggerBodyForExecution prefers the hydrated AST body. The parser keeps the
+// trigger's FOR EACH ROW marker in Body so triggerBody remains the single
+// compatibility normalizer for the executable portion. Persisted definitions
+// without a parseable AST continue through the legacy source.
+func triggerBodyForExecution(object persistedStoredObject) string {
+	if object.DefinitionAST != nil && strings.EqualFold(object.DefinitionAST.ObjectType, "trigger") && strings.TrimSpace(object.DefinitionAST.Body) != "" {
+		return triggerBody(object.DefinitionAST.Body)
+	}
+	return triggerBody(object.Definition)
 }
 
 // loadTableTriggers returns triggers for one table/event/timing in MySQL's
@@ -138,6 +179,14 @@ func loadTableTriggers(dataDir, schemaName, tableName, event, timing string) []p
 		}
 		var object persistedStoredObject
 		if json.Unmarshal(raw, &object) != nil {
+			continue
+		}
+		hydrateStoredObjectAST(&object)
+		if object.DefinitionAST != nil && strings.EqualFold(object.DefinitionAST.ObjectType, "trigger") && !object.DefinitionAST.TargetTable.IsEmpty() {
+			if !strings.EqualFold(object.DefinitionAST.TargetTable.Name.String(), tableName) || !strings.EqualFold(object.DefinitionAST.TriggerTiming, timing) || !strings.EqualFold(object.DefinitionAST.TriggerEvent, event) {
+				continue
+			}
+			triggers = append(triggers, object)
 			continue
 		}
 		lower := strings.ToLower(object.Definition)
@@ -164,16 +213,19 @@ func loadTableTriggers(dataDir, schemaName, tableName, event, timing string) []p
 	dependents := make([][]int, len(triggers))
 	indegree := make([]int, len(triggers))
 	for index, trigger := range triggers {
-		match := regexp.MustCompile(`(?is)\b(follows|precedes)\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?").FindStringSubmatch(trigger.Definition)
-		if len(match) != 3 {
+		kind, reference := "", ""
+		if trigger.DefinitionAST != nil {
+			kind, reference = trigger.DefinitionAST.TriggerOrderKind, trigger.DefinitionAST.TriggerOrderName
+		}
+		if kind == "" || reference == "" {
 			continue
 		}
-		referenced, exists := byName[strings.ToLower(match[2])]
+		referenced, exists := byName[strings.ToLower(reference)]
 		if !exists || referenced == index {
 			continue
 		}
 		from, to := referenced, index
-		if strings.EqualFold(match[1], "precedes") {
+		if strings.EqualFold(kind, "precedes") {
 			from, to = index, referenced
 		}
 		if dependencies[to] == nil {
@@ -216,14 +268,6 @@ func loadTableTriggers(dataDir, schemaName, tableName, event, timing string) []p
 	return ordered
 }
 
-func triggerOrderReference(definition string) (kind, name string, ok bool) {
-	match := regexp.MustCompile("(?is)\\b(follows|precedes)\\s+`?([a-zA-Z0-9_$]+)`?").FindStringSubmatch(definition)
-	if len(match) != 3 {
-		return "", "", false
-	}
-	return strings.ToLower(match[1]), match[2], true
-}
-
 func triggerBody(definition string) string {
 	body := strings.TrimSpace(definition)
 	lower := strings.ToLower(body)
@@ -236,8 +280,8 @@ func triggerBody(definition string) string {
 		}
 		return body
 	}
-	if match := regexp.MustCompile(`(?is)\bfor\s+each\s+row\s+(.+)$`).FindStringSubmatch(body); len(match) == 2 {
-		body = strings.TrimSpace(match[1])
+	if marker := strings.Index(lower, "for each row "); marker >= 0 {
+		body = strings.TrimSpace(body[marker+len("for each row "):])
 		body = stripTriggerOrderPrefix(body)
 		return stripTriggerOrderPrefix(body)
 	}
@@ -245,8 +289,16 @@ func triggerBody(definition string) string {
 }
 
 func stripTriggerOrderPrefix(body string) string {
-	orderPrefix := "(?is)^(?:follows|precedes)\\s+`?[a-zA-Z0-9_$]+`?\\s+"
-	return regexp.MustCompile(orderPrefix).ReplaceAllString(strings.TrimSpace(body), "")
+	trimmed := strings.TrimSpace(body)
+	fields := strings.Fields(trimmed)
+	if len(fields) < 3 || (!strings.EqualFold(fields[0], "follows") && !strings.EqualFold(fields[0], "precedes")) {
+		return trimmed
+	}
+	nameAt := strings.Index(strings.ToLower(trimmed), strings.ToLower(fields[1]))
+	if nameAt < 0 {
+		return trimmed
+	}
+	return strings.TrimSpace(trimmed[nameAt+len(fields[1]):])
 }
 
 func triggerSQLLiteral(value interface{}) string {
@@ -265,8 +317,14 @@ func triggerSQLLiteral(value interface{}) string {
 
 func triggerLiteralValue(raw string, row map[string]interface{}) (interface{}, error) {
 	raw = strings.TrimSpace(strings.TrimSuffix(raw, ";"))
-	if directColumn := regexp.MustCompile(`(?i)^new\.([a-zA-Z0-9_$]+)$`).FindStringSubmatch(raw); len(directColumn) == 2 {
-		return row[directColumn[1]], nil
+	if parsed, err := sqlparser.Parse("select " + raw); err == nil {
+		if selectStmt, ok := parsed.(*sqlparser.Select); ok && len(selectStmt.SelectExprs) == 1 {
+			if aliased, ok := selectStmt.SelectExprs[0].(*sqlparser.AliasedExpr); ok {
+				if column, ok := aliased.Expr.(*sqlparser.ColName); ok && strings.EqualFold(column.Qualifier.Name.String(), "new") {
+					return row[column.Name.String()], nil
+				}
+			}
+		}
 	}
 	if strings.EqualFold(raw, "null") {
 		return nil, nil

@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 // These auxiliary INFORMATION_SCHEMA tables are catalog shells. XMySQL does
@@ -199,14 +199,34 @@ func (e *XMySQLExecutor) executeInformationSchemaConnectionControlFailedLoginAtt
 }
 
 func informationSchemaConnectionControlUserHostMatches(query, value string) bool {
-	pattern := regexp.MustCompile(`(?is)\buserhost\s*(=|like)\s*'((?:''|[^'])*)'`)
-	match := pattern.FindStringSubmatch(query)
-	if len(match) != 3 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
 		return true
 	}
-	filter := strings.ReplaceAll(match[2], "''", "'")
-	if strings.EqualFold(match[1], "=") {
-		return strings.EqualFold(value, filter)
+	selectStmt, ok := parsed.AST.(*sqlparser.Select)
+	if !ok || selectStmt.Where == nil {
+		return true
 	}
-	return performanceSchemaSQLLike(filter, value)
+	var matched bool
+	var seen bool
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		comparison, ok := node.(*sqlparser.ComparisonExpr)
+		if !ok {
+			return true, nil
+		}
+		column, ok := comparison.Left.(*sqlparser.ColName)
+		literal, literalOK := comparison.Right.(*sqlparser.SQLVal)
+		if !ok || !literalOK || !strings.EqualFold(column.Name.String(), "userhost") {
+			return true, nil
+		}
+		seen = true
+		filter := strings.ReplaceAll(string(literal.Val), "''", "'")
+		if comparison.Operator == sqlparser.EqualStr {
+			matched = strings.EqualFold(value, filter)
+		} else if strings.EqualFold(comparison.Operator, sqlparser.LikeStr) {
+			matched = performanceSchemaSQLLike(filter, value)
+		}
+		return true, nil
+	}, selectStmt.Where.Expr)
+	return !seen || matched
 }

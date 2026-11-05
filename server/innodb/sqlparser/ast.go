@@ -96,6 +96,30 @@ type CTEDefinition struct {
 
 func (*With) iStatement() {}
 
+// With can appear wherever a SELECT statement is accepted, including as a
+// derived table. The wrapper keeps its CTE list and delegates ordering/limit
+// mutations to the body when that body supports them.
+func (*With) iSelectStatement() {}
+func (*With) iInsertRows()      {}
+
+func (node *With) AddOrder(order *Order) {
+	if node == nil || order == nil {
+		return
+	}
+	if selectStmt, ok := node.Body.(SelectStatement); ok {
+		selectStmt.AddOrder(order)
+	}
+}
+
+func (node *With) SetLimit(limit *Limit) {
+	if node == nil {
+		return
+	}
+	if selectStmt, ok := node.Body.(SelectStatement); ok {
+		selectStmt.SetLimit(limit)
+	}
+}
+
 func (node *With) Format(buf *TrackedBuffer) {
 	if node == nil {
 		return
@@ -1112,22 +1136,23 @@ type Statement interface {
 	SQLNode
 }
 
-func (*Union) iStatement()      {}
-func (*Select) iStatement()     {}
-func (*Stream) iStatement()     {}
-func (*Insert) iStatement()     {}
-func (*Update) iStatement()     {}
-func (*Delete) iStatement()     {}
-func (*Set) iStatement()        {}
-func (*DBDDL) iStatement()      {}
-func (*DDL) iStatement()        {}
-func (*Show) iStatement()       {}
-func (*Use) iStatement()        {}
-func (*Begin) iStatement()      {}
-func (*Commit) iStatement()     {}
-func (*Rollback) iStatement()   {}
-func (*OtherRead) iStatement()  {}
-func (*OtherAdmin) iStatement() {}
+func (*Union) iStatement()            {}
+func (*Select) iStatement()           {}
+func (*Stream) iStatement()           {}
+func (*Insert) iStatement()           {}
+func (*Update) iStatement()           {}
+func (*Delete) iStatement()           {}
+func (*Set) iStatement()              {}
+func (*DBDDL) iStatement()            {}
+func (*DDL) iStatement()              {}
+func (*Show) iStatement()             {}
+func (*Use) iStatement()              {}
+func (*Begin) iStatement()            {}
+func (*Commit) iStatement()           {}
+func (*Rollback) iStatement()         {}
+func (*OtherRead) iStatement()        {}
+func (*OtherAdmin) iStatement()       {}
+func (*ExplainStatement) iStatement() {}
 
 // ParenSelect can actually not be a top level statement,
 // but we have to allow it because it's a requirement
@@ -1513,9 +1538,14 @@ func (node *Delete) walkSubtree(visit Visit) error {
 
 // Set represents a SET statement.
 type Set struct {
-	Comments Comments
-	Exprs    SetExprs
-	Scope    string
+	Comments       Comments
+	Exprs          SetExprs
+	Scope          string
+	NamesCharset   string
+	NamesCollation string
+	Persist        bool
+	PersistOnly    bool
+	Reset          bool
 }
 
 // Set.Scope or Show.Scope
@@ -1526,10 +1556,19 @@ const (
 
 // Format formats the node.
 func (node *Set) Format(buf *TrackedBuffer) {
+	prefix := "set"
+	if node.PersistOnly {
+		prefix += " persist_only"
+	} else if node.Persist {
+		prefix += " persist"
+	}
+	if node.Reset {
+		prefix += " persist_only"
+	}
 	if node.Scope == "" {
-		buf.Myprintf("set %v%v", node.Comments, node.Exprs)
+		buf.Myprintf("%s %v%v", prefix, node.Comments, node.Exprs)
 	} else {
-		buf.Myprintf("set %v%s %v", node.Comments, node.Scope, node.Exprs)
+		buf.Myprintf("%s %v%s %v", prefix, node.Comments, node.Scope, node.Exprs)
 	}
 }
 
@@ -2179,7 +2218,7 @@ func (idx *IndexDefinition) Format(buf *TrackedBuffer) {
 		buf.Myprintf(" %s", opt.Name)
 		if opt.Using != "" {
 			buf.Myprintf(" %s", opt.Using)
-		} else {
+		} else if opt.Value != nil {
 			buf.Myprintf(" %v", opt.Value)
 		}
 	}
@@ -2234,11 +2273,24 @@ type LengthScaleOption struct {
 	Scale  *SQLVal
 }
 
-// IndexOption is used for trailing options for indexes: COMMENT, KEY_BLOCK_SIZE, USING
+// IndexOption is used for trailing index options, including visibility.
 type IndexOption struct {
 	Name  string
 	Value *SQLVal
 	Using string
+}
+
+// Visibility is a contextual index option: these words remain legal names in
+// CREATE TABLE column and index definitions.
+func indexVisibilityOption(value string) string {
+	switch strings.ToLower(value) {
+	case "visible":
+		return "visible"
+	case "invisible":
+		return "invisible"
+	default:
+		return ""
+	}
 }
 
 // ColumnKeyOption indicates whether or not the given column is defined as an
@@ -2337,6 +2389,10 @@ type Show struct {
 	ShowTablesOpt *ShowTablesOpt
 	Filter        *ShowFilter
 	Scope         string
+	Limit         *Limit
+	LogFile       string
+	LogPosition   Expr
+	Channel       string
 }
 
 // Format formats the node.
@@ -2370,6 +2426,9 @@ func (node *Show) Format(buf *TrackedBuffer) {
 	if node.Filter != nil {
 		buf.Myprintf(" %v", node.Filter)
 	}
+	if node.Limit != nil {
+		buf.Myprintf("%v", node.Limit)
+	}
 }
 
 // HasOnTable returns true if the show statement has an "on" clause
@@ -2378,7 +2437,7 @@ func (node *Show) HasOnTable() bool {
 }
 
 func (node *Show) walkSubtree(visit Visit) error {
-	return nil
+	return Walk(visit, node.OnTable, node.Filter, node.Limit, node.LogPosition)
 }
 
 // ShowTablesOpt is show tables option
@@ -2489,6 +2548,41 @@ func (node *OtherAdmin) Format(buf *TrackedBuffer) {
 
 func (node *OtherAdmin) walkSubtree(visit Visit) error {
 	return nil
+}
+
+// ExplainStatement represents DESCRIBE, DESC and EXPLAIN after the execution
+// parser has preserved either an object target or the explained inner query.
+type ExplainStatement struct {
+	Kind          string
+	Table         TableName
+	Statement     Statement
+	ExplainFormat string
+	Analyze       bool
+}
+
+func (node *ExplainStatement) Format(buf *TrackedBuffer) {
+	if node == nil {
+		return
+	}
+	buf.Myprintf("%s", node.Kind)
+	if node.ExplainFormat != "" {
+		buf.Myprintf(" format=%s", node.ExplainFormat)
+	}
+	if node.Analyze {
+		buf.Myprintf(" analyze")
+	}
+	if node.Statement != nil {
+		buf.Myprintf(" %v", node.Statement)
+	} else if !node.Table.IsEmpty() {
+		buf.Myprintf(" %v", node.Table)
+	}
+}
+
+func (node *ExplainStatement) walkSubtree(visit Visit) error {
+	if node == nil {
+		return nil
+	}
+	return Walk(visit, node.Table, node.Statement)
 }
 
 // Comments represents a list of comments.
@@ -3684,6 +3778,38 @@ type FuncExpr struct {
 	Distinct  bool
 	Exprs     SelectExprs
 	Over      *WindowSpec
+}
+
+// ExtractExpr represents MySQL's EXTRACT(unit FROM expression) syntax.
+// Keeping the unit separate from the value preserves the grammar boundary;
+// execution layers may rewrite it to their supported date-part functions.
+type ExtractExpr struct {
+	Unit ColIdent
+	Expr Expr
+}
+
+func (*ExtractExpr) iExpr() {}
+
+func (node *ExtractExpr) Format(buf *TrackedBuffer) {
+	buf.Myprintf("extract(%v from %v)", node.Unit, node.Expr)
+}
+
+func (node *ExtractExpr) walkSubtree(visit Visit) error {
+	if node == nil {
+		return nil
+	}
+	return Walk(visit, node.Unit, node.Expr)
+}
+
+func (node *ExtractExpr) replace(from, to Expr) bool {
+	if node == nil {
+		return false
+	}
+	if node.Expr == from {
+		node.Expr = to
+		return true
+	}
+	return node.Expr != nil && node.Expr.replace(from, to)
 }
 
 // Format formats the node.

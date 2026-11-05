@@ -30,6 +30,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/ibd"
 	observabilitymetrics "github.com/zhukovaskychina/xmysql-server/server/observability/metrics"
 	"github.com/zhukovaskychina/xmysql-server/server/replication"
 )
@@ -65,6 +66,9 @@ type XMySQLEngine struct {
 	replicationRuntime *replication.Runtime
 	replicaRegistry    *replication.ReplicaRegistry
 	ready              atomic.Bool
+	startupErr         error
+	doublewrite        *ibd.Doublewrite
+	doublewriteDir     string
 }
 
 func NewXMySQLEngine(conf *conf.Cfg) *XMySQLEngine {
@@ -92,7 +96,15 @@ func (e *XMySQLEngine) Start(ctx context.Context) error {
 		return fmt.Errorf("engine is not initialized")
 	}
 	e.ready.Store(false)
+	if e.startupErr != nil {
+		return e.startupErr
+	}
 	logger.Info("🚀 Starting XMySQL Engine...")
+	if e.doublewrite != nil && e.doublewriteDir != "" {
+		if err := ibd.Restore(e.doublewriteDir); err != nil {
+			return fmt.Errorf("doublewrite restore failed: %w", err)
+		}
+	}
 
 	// 1. 执行崩溃恢复
 	if e.crashRecovery != nil {
@@ -226,6 +238,10 @@ func (e *XMySQLEngine) Close() error {
 	if e.storageMgr != nil {
 		joinCloseErr("storage manager", e.storageMgr.Close())
 	}
+	if e.doublewrite != nil {
+		ibd.ReleaseDoublewrite(e.doublewriteDir, e.doublewrite)
+		e.doublewrite = nil
+	}
 
 	return closeErr
 }
@@ -281,6 +297,32 @@ func (e *XMySQLEngine) CreatePhysicalBackup(ctx context.Context, archivePath str
 
 func (e *XMySQLEngine) initStorageLayer() {
 	e.storageMgr = manager.NewStorageManager(e.conf)
+	if e.conf != nil && e.conf.InnodbCompression.Enabled {
+		e.startupErr = fmt.Errorf("innodb compression is not supported: compressed pages cannot be allocated")
+		return
+	}
+	if e.conf != nil && strings.TrimSpace(e.conf.InnodbEncryption.MasterKey) != "" {
+		e.startupErr = fmt.Errorf("innodb encryption is not supported: encrypted pages cannot be allocated")
+		return
+	}
+	if e.conf == nil || !e.conf.InnodbDoublewrite {
+		return
+	}
+	dir := strings.TrimSpace(e.conf.DataDir)
+	if dir == "" {
+		dir = strings.TrimSpace(e.conf.InnodbDataDir)
+	}
+	if dir == "" {
+		e.startupErr = fmt.Errorf("innodb_doublewrite is enabled but no data directory is configured")
+		return
+	}
+	buffer, err := ibd.EnableDoublewrite(dir)
+	if err != nil {
+		e.startupErr = fmt.Errorf("innodb_doublewrite is enabled but the doublewrite buffer could not be opened: %w", err)
+		return
+	}
+	e.doublewrite = buffer
+	e.doublewriteDir = dir
 }
 
 func (e *XMySQLEngine) initIndexLayer() {
@@ -886,6 +928,22 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			Session:      session,
 		}
 		statementContext = ctx
+		if family, classifyErr := sqlparser.ClassifyStatement(query); classifyErr == nil && (family == sqlparser.StatementFamilyPrepared || family == sqlparser.StatementFamilyComponent || family == sqlparser.StatementFamilyShow || family == sqlparser.StatementFamilyExplain || family == sqlparser.StatementFamilyAdmin) {
+			if parsed, parseErr := e.QueryExecutor.ensureParsedStatement(ctx, query); parseErr == nil {
+				ctx.Parsed = parsed
+			}
+		}
+		if ctx.Parsed == nil {
+			if parsed, parseErr := sqlparser.ParseForExecution(query); parseErr == nil && parsed.Family == sqlparser.StatementFamilyAccount {
+				if account, ok := parsed.AST.(*sqlparser.AccountStatement); ok {
+					kind := strings.ToLower(strings.TrimSpace(account.Kind))
+					grantLike := strings.HasPrefix(kind, "grant") || strings.HasPrefix(kind, "revoke")
+					if !grantLike || (account.Scope != "" && account.PrivilegeSpec != "" && len(account.Accounts) > 0) || (len(account.RoleSources) > 0 && len(account.Accounts) > 0) {
+						ctx.Parsed = parsed
+					}
+				}
+			}
+		}
 		if metricsEnabled && e.QueryExecutor != nil && e.QueryExecutor.performanceSchemaConsumerEnabled("events_statements_cpu") {
 			runtime.LockOSThread()
 			cpuStart, cpuSupported := observabilitymetrics.CurrentThreadCPUTimeNanos()
@@ -1066,6 +1124,74 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 		if e.QueryExecutor.executeUserVariableAssignment(ctx, query, session) {
 			return
 		}
+		if ctx.Parsed != nil {
+			if prepared, ok := ctx.Parsed.AST.(*sqlparser.PreparedStatement); ok {
+				if handled, err2 := e.QueryExecutor.executeParsedPreparedStatement(ctx, session, prepared, databaseName, results); handled {
+					stage = "sql-prepared-statement-ast"
+					if err2 != nil {
+						execErr = err2
+						status = "failed"
+						results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_QUERY, Message: err2.Error()}
+					}
+					return
+				}
+			}
+			if component, ok := ctx.Parsed.AST.(*sqlparser.ComponentStatement); ok {
+				if handled, err2 := e.QueryExecutor.executeParsedComponentLifecycle(ctx, session, component); handled {
+					stage = "component-ast"
+					if err2 != nil {
+						execErr = err2
+						status = "failed"
+						results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_QUERY, Message: err2.Error()}
+					}
+					return
+				}
+			}
+			if admin, ok := ctx.Parsed.AST.(*sqlparser.AdminStatement); ok {
+				// The typed replication path must retain the same global privilege
+				// gate as the compatibility path. KILL/LOCK/UNLOCK stay on their
+				// established handlers until their complete authorization contract
+				// is represented by the AST adapter.
+				isTypedReplication := false
+				switch admin.Kind {
+				case "start", "stop", "reset", "purge", "flush", "change":
+					isTypedReplication = true
+				}
+				if !isTypedReplication {
+					// Leave non-replication admin statements to the compatibility
+					// path; parsing still rejects malformed trailing tokens.
+					admin = nil
+				}
+				if isTypedReplication {
+					requiredPrivilege := replicationControlRequiredPrivilege(strings.ToLower(strings.TrimSpace(query)))
+					if requiredPrivilege == "" {
+						requiredPrivilege = sourceBinlogRequiredPrivilege(strings.ToLower(strings.TrimSpace(query)))
+					}
+					if requiredPrivilege != "" {
+						if privilegeErr := e.QueryExecutor.checkGlobalPrivilege(ctx, requiredPrivilege); privilegeErr != nil {
+							stage = "admin-ast"
+							execErr = privilegeErr
+							status = "failed"
+							results <- &Result{Err: privilegeErr, ResultType: common.RESULT_TYPE_QUERY, Message: privilegeErr.Error()}
+							return
+						}
+					}
+				}
+				if admin != nil {
+					if parsedResult, parsedErr := e.QueryExecutor.executeParsedAdmin(ctx, admin, session); parsedResult != nil || parsedErr != nil {
+						stage = "admin-ast"
+						if parsedErr != nil {
+							execErr = parsedErr
+							status = "failed"
+							results <- &Result{Err: parsedErr, ResultType: common.RESULT_TYPE_QUERY, Message: parsedErr.Error()}
+						} else {
+							results <- parsedResult
+						}
+						return
+					}
+				}
+			}
+		}
 		if handled, err2 := e.QueryExecutor.executeSQLPreparedStatementCompatibility(ctx, session, query, databaseName, results); handled {
 			stage = "sql-prepared-statement-compatibility"
 			if err2 != nil {
@@ -1124,7 +1250,7 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			return
 		}
 
-		if isShowFullTablesQuery(query) {
+		if isShowFullTablesQuery(query) && ctx.Parsed == nil {
 			stage = "show"
 			e.QueryExecutor.executeShowFullTablesRaw(ctx, session, query, databaseName)
 			return
@@ -1359,7 +1485,7 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			query = rewritten
 			ctx.RawQuery = rewritten
 		}
-		if rewritten, err2 := e.QueryExecutor.rewriteViewQuery(query, databaseName); err2 != nil {
+		if rewritten, err2 := e.QueryExecutor.rewriteViewQueryForExecution(query, databaseName); err2 != nil {
 			execErr = err2
 			status = "failed"
 			results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
@@ -1534,14 +1660,22 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			return
 		}
 
-		stmt, err := sqlparser.Parse(query)
-		if err != nil {
-			ctx.statementParseError = true
-			logger.Errorf(" [XMySQLEngine.ExecuteQuery] SQL解析错误: %v", err)
-			execErr = fmt.Errorf("parse error: %v", err)
-			status = "failed"
-			results <- &Result{Err: execErr, ResultType: common.RESULT_TYPE_ERROR}
-			return
+		var (
+			stmt sqlparser.Statement
+			err  error
+		)
+		if ctx.Parsed != nil && (ctx.Parsed.Family == sqlparser.StatementFamilyShow || ctx.Parsed.Family == sqlparser.StatementFamilyExplain) {
+			stmt = ctx.Parsed.AST
+		} else {
+			stmt, err = sqlparser.Parse(query)
+			if err != nil {
+				ctx.statementParseError = true
+				logger.Errorf(" [XMySQLEngine.ExecuteQuery] SQL解析错误: %v", err)
+				execErr = fmt.Errorf("parse error: %v", err)
+				status = "failed"
+				results <- &Result{Err: execErr, ResultType: common.RESULT_TYPE_ERROR}
+				return
+			}
 		}
 
 		logger.Debugf(" [XMySQLEngine.ExecuteQuery] SQL解析成功，语句类型: %T", stmt)
@@ -1809,6 +1943,26 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 	}()
 
 	return results
+}
+
+// ExecuteParsedQuery forwards a dispatcher-validated AST to the query
+// executor. It preserves the existing result type while avoiding a second
+// parse at the engine boundary.
+func (e *XMySQLEngine) ExecuteParsedQuery(session server.MySQLServerSession, parsed *sqlparser.ParsedStatement, databaseName string) <-chan *Result {
+	if e == nil || e.QueryExecutor == nil {
+		results := make(chan *Result, 1)
+		results <- &Result{Err: fmt.Errorf("query executor is unavailable")}
+		close(results)
+		return results
+	}
+	// Keep the engine-owned lifecycle authoritative when statement metrics are
+	// enabled. In lightweight contexts the executor can consume the immutable
+	// AST directly; metric-enabled network sessions use the established outer
+	// lifecycle to avoid double or missing records.
+	if e.QueryExecutor.metricsRecorder == nil || !runtimeMetricsEnabled(session) {
+		return e.QueryExecutor.ExecuteParsedQuery(session, parsed, databaseName)
+	}
+	return e.ExecuteQuery(session, parsed.RawSQL, databaseName)
 }
 
 // runtimeMetricsEnabled distinguishes client statements from SQL issued by

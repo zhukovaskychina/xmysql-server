@@ -2,20 +2,22 @@ package engine
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
-var showCreateDatabasePattern = regexp.MustCompile(`(?is)^\s*show\s+create\s+(?:database|schema)\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s*;?\s*$`)
-
 func (e *XMySQLExecutor) executeShowCreateDatabaseCompatibility(ctx *ExecutionContext, query string) (bool, error) {
-	match := showCreateDatabasePattern.FindStringSubmatch(strings.TrimSpace(query))
-	if len(match) == 0 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
 		return false, nil
 	}
-	databaseName := match[1]
+	show, ok := parsed.AST.(*sqlparser.Show)
+	if !ok || (!strings.EqualFold(show.Type, "create database") && !strings.EqualFold(show.Type, "create schema")) || show.OnTable.IsEmpty() {
+		return false, nil
+	}
+	databaseName := show.OnTable.Name.String()
 	if err := e.validateDatabaseExists(databaseName); err != nil {
 		return true, err
 	}

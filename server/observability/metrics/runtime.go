@@ -2,11 +2,12 @@ package metrics
 
 import (
 	"fmt"
-	"regexp"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 // MySQL exposes ten completed events per thread in *_history tables and keeps
@@ -151,8 +152,6 @@ type statementDigestKey struct {
 	schema     string
 	digestText string
 }
-
-var tableIOReferencePattern = regexp.MustCompile(`(?i)\b(?:from|join|into|update)\s+([[:alnum:]_$` + "`" + `.-]+)`)
 
 type statementStageKey struct {
 	threadID int64
@@ -1112,13 +1111,71 @@ func (c *TableIOCounters) add(timer int64) {
 }
 
 func tableIOReferences(sql, defaultSchema string) [][2]string {
+	if parsed, err := sqlparser.ParseForExecution(sql); err == nil {
+		if objectRefs, refErr := sqlparser.CollectObjectReferences(parsed.AST, defaultSchema); refErr == nil {
+			refs := make([][2]string, 0, len(objectRefs))
+			seen := make(map[string]struct{})
+			for _, ref := range objectRefs {
+				if ref.Kind != sqlparser.ObjectKindTable || strings.EqualFold(ref.Schema, "performance_schema") || strings.EqualFold(ref.Schema, "information_schema") || strings.EqualFold(ref.Name, "dual") || ref.Name == "" {
+					continue
+				}
+				key := strings.ToLower(ref.Schema + "\x00" + ref.Name)
+				if _, exists := seen[key]; exists {
+					continue
+				}
+				seen[key] = struct{}{}
+				refs = append(refs, [2]string{ref.Schema, ref.Name})
+			}
+			return refs
+		}
+	}
 	seen := make(map[string]struct{})
 	refs := make([][2]string, 0)
-	for _, match := range tableIOReferencePattern.FindAllStringSubmatch(sql, -1) {
-		if len(match) < 2 {
+	tokenizer := sqlparser.NewStringTokenizer(sql)
+	expectTable := false
+	for {
+		kind, value := tokenizer.Scan()
+		if kind == 0 {
+			break
+		}
+		text := string(value)
+		if text == "" {
+			text = sqlparser.KeywordString(kind)
+		}
+		lower := strings.ToLower(text)
+		if lower == "from" || lower == "join" || lower == "into" || lower == "update" {
+			expectTable = true
 			continue
 		}
-		raw := strings.Trim(strings.TrimSpace(match[1]), "`")
+		if !expectTable {
+			continue
+		}
+		if text == "(" || lower == "select" {
+			expectTable = false
+			continue
+		}
+		raw := strings.Trim(strings.TrimSpace(text), "`")
+		if raw == "" {
+			continue
+		}
+		// A qualified name is tokenized as identifier, dot, identifier.
+		nextKind, nextValue := tokenizer.Scan()
+		nextText := string(nextValue)
+		if nextText == "" {
+			nextText = sqlparser.KeywordString(nextKind)
+		}
+		if nextText == "." {
+			lastKind, lastValue := tokenizer.Scan()
+			lastText := string(lastValue)
+			if lastText == "" {
+				lastText = sqlparser.KeywordString(lastKind)
+			}
+			raw += "." + strings.Trim(lastText, "`")
+		} else {
+			// The token belongs to the following clause; the compatibility
+			// fallback only needs the first table name and can continue from it.
+		}
+		expectTable = false
 		if raw == "" || strings.HasPrefix(raw, "(") {
 			continue
 		}
@@ -1458,6 +1515,23 @@ func (r *RuntimeRecorder) recordStatementSummaryDimensionsLocked(event Statement
 			rows[key] = row
 		}
 		accumulateStatementSummary(row, event, timer)
+	}
+}
+
+func (r *RuntimeRecorder) ensureStatementSummaryDimensionsLocked(event StatementEvent) {
+	if r.statementSummaryByDimension == nil {
+		r.statementSummaryByDimension = make(map[string]map[string]*StatementSummaryRow)
+	}
+	for _, dimension := range statementSummaryDimensionNames {
+		rows := r.statementSummaryByDimension[dimension]
+		if rows == nil {
+			rows = make(map[string]*StatementSummaryRow)
+			r.statementSummaryByDimension[dimension] = rows
+		}
+		key := statementSummaryDimensionKey(event, dimension)
+		if rows[key] == nil {
+			rows[key] = &StatementSummaryRow{ThreadID: event.ThreadID, User: event.User, Host: event.Host, Schema: event.Schema, StatementType: event.StatementType, SQL: event.SQL}
+		}
 	}
 }
 
@@ -2149,6 +2223,9 @@ func (r *RuntimeRecorder) RecordProtocolCommandWithSettings(threadID int64, user
 	}
 	r.RecordQuery(database, statementType, status, latency)
 	if !instrumented {
+		r.statementMu.Lock()
+		r.ensureStatementSummaryDimensionsLocked(StatementEvent{ThreadID: threadID, User: user, Host: host, Schema: database, StatementType: statementType, Status: status, SQL: ""})
+		r.statementMu.Unlock()
 		return
 	}
 	if threadID == 0 && strings.TrimSpace(user) == "" && strings.TrimSpace(host) == "" {

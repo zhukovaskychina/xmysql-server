@@ -7,7 +7,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -438,41 +437,65 @@ func (e *SystemVariableEngine) ExecuteQuery(session server.MySQLServerSession, q
 	return resultChan
 }
 
-var directSystemVariableSelectPattern = regexp.MustCompile(`(?is)^\s*select\s+(.+?)\s*;?\s*$`)
-var directSystemVariableTokenPattern = regexp.MustCompile(`(?is)^@@(?:(global|session|local)\s*\.\s*)?` + "`?([a-zA-Z0-9_]+)`?" + `(?:\s+(?:as\s+)?([a-zA-Z_][a-zA-Z0-9_]*))?\s*$`)
-
 // executeDirectSystemVariableSelect handles the no-FROM scoped-variable form
 // used by MySQL replication clients. It deliberately stays narrow so SELECTs
 // containing expressions, FROM clauses, or user variables keep their normal
 // routing and expression semantics.
 func (e *SystemVariableEngine) executeDirectSystemVariableSelect(session server.MySQLServerSession, query string) (*SQLResult, bool) {
-	match := directSystemVariableSelectPattern.FindStringSubmatch(strings.TrimSpace(query))
-	if len(match) != 2 || strings.Contains(strings.ToLower(match[1]), " from ") {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
 		return nil, false
 	}
-
-	parts := splitDirectSystemVariableSelectList(match[1])
-	if len(parts) == 0 {
+	selectStmt, ok := parsed.AST.(*sqlparser.Select)
+	if !ok || selectStmt.Where != nil || selectStmt.Having != nil || len(selectStmt.GroupBy) > 0 || len(selectStmt.OrderBy) > 0 || selectStmt.Limit != nil || len(selectStmt.SelectExprs) == 0 {
+		return nil, false
+	}
+	if len(selectStmt.From) != 1 {
+		return nil, false
+	}
+	fromTable, ok := selectStmt.From[0].(*sqlparser.AliasedTableExpr)
+	if !ok {
+		return nil, false
+	}
+	dual, ok := fromTable.Expr.(sqlparser.TableName)
+	if !ok || !dual.Qualifier.IsEmpty() || !strings.EqualFold(dual.Name.String(), "dual") {
 		return nil, false
 	}
 
 	sessionID := e.getSessionID(session)
-	row := make([]interface{}, 0, len(parts))
-	columns := make([]string, 0, len(parts))
-	columnTypes := make([]string, 0, len(parts))
-	for _, part := range parts {
-		token := directSystemVariableTokenPattern.FindStringSubmatch(strings.TrimSpace(part))
-		if len(token) != 4 {
+	row := make([]interface{}, 0, len(selectStmt.SelectExprs))
+	columns := make([]string, 0, len(selectStmt.SelectExprs))
+	columnTypes := make([]string, 0, len(selectStmt.SelectExprs))
+	for _, selectExpr := range selectStmt.SelectExprs {
+		aliased, ok := selectExpr.(*sqlparser.AliasedExpr)
+		if !ok {
 			return nil, false
 		}
-
-		name := strings.ToLower(token[2])
-		scope := manager.SessionScope
-		if strings.EqualFold(token[1], "global") {
-			scope = manager.GlobalScope
+		col, ok := aliased.Expr.(*sqlparser.ColName)
+		if !ok || !col.Qualifier.IsEmpty() {
+			return nil, false
 		}
-		if strings.EqualFold(token[1], "local") {
-			scope = manager.SessionScope
+		token := strings.TrimSpace(col.Name.String())
+		if !strings.HasPrefix(token, "@@") {
+			return nil, false
+		}
+		variable := strings.TrimSpace(strings.TrimPrefix(token, "@@"))
+		scope := manager.SessionScope
+		if dot := strings.IndexByte(variable, '.'); dot >= 0 {
+			scopeName := strings.ToLower(strings.TrimSpace(variable[:dot]))
+			switch scopeName {
+			case "global":
+				scope = manager.GlobalScope
+			case "session", "local":
+				scope = manager.SessionScope
+			default:
+				return nil, false
+			}
+			variable = strings.TrimSpace(variable[dot+1:])
+		}
+		name := strings.ToLower(strings.Trim(variable, "`"))
+		if name == "" || strings.ContainsAny(name, " .\t\r\n") {
+			return nil, false
 		}
 
 		value, err := e.sysVarManager.GetVariable(sessionID, name, scope)
@@ -492,9 +515,9 @@ func (e *SystemVariableEngine) executeDirectSystemVariableSelect(session server.
 			}
 		}
 
-		column := strings.TrimSpace(token[3])
+		column := strings.TrimSpace(aliased.As.String())
 		if column == "" {
-			column = strings.TrimSpace(part)
+			column = token
 		}
 		columns = append(columns, column)
 		row = append(row, value)
@@ -515,52 +538,10 @@ func (e *SystemVariableEngine) executeDirectSystemVariableSelect(session server.
 	}, true
 }
 
-func splitDirectSystemVariableSelectList(input string) []string {
-	parts := make([]string, 0, 2)
-	start := 0
-	quote := byte(0)
-	depth := 0
-	for i := 0; i < len(input); i++ {
-		ch := input[i]
-		if quote != 0 {
-			if ch == quote && (i == 0 || input[i-1] != '\\') {
-				quote = 0
-			}
-			continue
-		}
-		switch ch {
-		case '\'', '"', '`':
-			quote = ch
-		case '(':
-			depth++
-		case ')':
-			if depth > 0 {
-				depth--
-			}
-		case ',':
-			if depth == 0 {
-				parts = append(parts, strings.TrimSpace(input[start:i]))
-				start = i + 1
-			}
-		}
-	}
-	if tail := strings.TrimSpace(input[start:]); tail != "" {
-		parts = append(parts, tail)
-	}
-	return parts
-}
-
-var informationSchemaTablesQueryPattern = regexp.MustCompile("(?is)^\\s*select\\b.*\\bfrom\\s+(?:`?information_schema`?\\s*\\.\\s*`?tables`?)(?:\\s|$)")
-var informationSchemaTableFilterPattern = regexp.MustCompile(`(?i)\b(table_schema|table_name)\b\s*(?:=|like)\s*'([^']*)'`)
-
 func (e *SystemVariableEngine) executeInformationSchemaTablesQuery(query string) *SQLResult {
-	if !informationSchemaTablesQueryPattern.MatchString(query) {
+	filters, structured := informationSchemaTableFiltersFromAST(query)
+	if !structured {
 		return nil
-	}
-
-	filters := map[string]string{}
-	for _, match := range informationSchemaTableFilterPattern.FindAllStringSubmatch(query, -1) {
-		filters[strings.ToLower(match[1])] = match[2]
 	}
 
 	dataDir := filepath.Join("server", "net", "data")
@@ -605,6 +586,57 @@ func (e *SystemVariableEngine) executeInformationSchemaTablesQuery(query string)
 	return &SQLResult{ResultType: "select", Columns: informationSchemaTablesColumns(), Rows: rows}
 }
 
+func informationSchemaTableFiltersFromAST(query string) (map[string]string, bool) {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return nil, false
+	}
+	selectStmt, ok := parsed.AST.(*sqlparser.Select)
+	if !ok {
+		return nil, false
+	}
+	refs, err := sqlparser.CollectObjectReferences(selectStmt, "")
+	if err != nil {
+		return nil, false
+	}
+	matched := false
+	for _, ref := range refs {
+		if strings.EqualFold(ref.Schema, "information_schema") && strings.EqualFold(ref.Name, "tables") {
+			matched = true
+			break
+		}
+	}
+	if !matched {
+		return nil, false
+	}
+	filters := make(map[string]string)
+	if selectStmt.Where == nil {
+		return filters, true
+	}
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		comparison, ok := node.(*sqlparser.ComparisonExpr)
+		if !ok {
+			return true, nil
+		}
+		column, ok := comparison.Left.(*sqlparser.ColName)
+		if !ok {
+			return true, nil
+		}
+		value, ok := comparison.Right.(*sqlparser.SQLVal)
+		if !ok || value.Type != sqlparser.StrVal {
+			return true, nil
+		}
+		if comparison.Operator == sqlparser.EqualStr || strings.EqualFold(comparison.Operator, "like") {
+			name := strings.ToLower(column.Name.String())
+			if name == "table_schema" || name == "table_name" {
+				filters[name] = string(value.Val)
+			}
+		}
+		return true, nil
+	}, selectStmt.Where.Expr)
+	return filters, true
+}
+
 func informationSchemaTablesColumns() []string {
 	return append(manager.JDBCTablesMetadataColumns(), []string{
 		"TYPE_CAT",
@@ -616,22 +648,38 @@ func informationSchemaTablesColumns() []string {
 }
 
 func isInformationSchemaMetadataQuery(query string) bool {
-	lower := strings.ToLower(strings.TrimSpace(query))
-	lower = strings.ReplaceAll(lower, "`", "")
-	lower = regexp.MustCompile(`\s*\.\s*`).ReplaceAllString(lower, ".")
-	for _, tableName := range informationSchemaMetadataTableNames() {
-		if strings.Contains(lower, "information_schema."+tableName) {
-			return true
+	if parsed, err := sqlparser.ParseForExecution(query); err == nil {
+		if refs, refErr := sqlparser.CollectObjectReferences(parsed.AST, ""); refErr == nil {
+			for _, ref := range refs {
+				if strings.EqualFold(ref.Schema, "information_schema") {
+					for _, name := range informationSchemaMetadataTableNames() {
+						if strings.EqualFold(ref.Name, name) {
+							return true
+						}
+					}
+				}
+			}
+			// A successfully parsed statement with no metadata reference is
+			// authoritative. Do not rediscover a table name inside a literal or
+			// comment with the legacy text fallback.
+			return false
 		}
 	}
 	return false
 }
 
 func isMySQLMetadataQuery(query string) bool {
-	lower := strings.ToLower(strings.TrimSpace(query))
-	lower = strings.ReplaceAll(lower, "`", "")
-	lower = regexp.MustCompile(`\s*\.\s*`).ReplaceAllString(lower, ".")
-	return strings.Contains(lower, "mysql.procs_priv")
+	if parsed, err := sqlparser.ParseForExecution(query); err == nil {
+		if refs, refErr := sqlparser.CollectObjectReferences(parsed.AST, ""); refErr == nil {
+			for _, ref := range refs {
+				if strings.EqualFold(ref.Schema, "mysql") && strings.EqualFold(ref.Name, "procs_priv") {
+					return true
+				}
+			}
+			return false
+		}
+	}
+	return false
 }
 
 func informationSchemaMetadataTableNames() []string {
@@ -667,11 +715,26 @@ func matchesMetadataPattern(value, pattern string) bool {
 	if pattern == "" {
 		return true
 	}
-	pattern = regexp.QuoteMeta(pattern)
-	pattern = strings.ReplaceAll(pattern, "%", ".*")
-	pattern = strings.ReplaceAll(pattern, "_", ".")
-	matched, err := regexp.MatchString("(?i)^"+pattern+"$", value)
-	return err == nil && matched
+	valueRunes, patternRunes := []rune(strings.ToLower(value)), []rune(strings.ToLower(pattern))
+	previous := make([]bool, len(valueRunes)+1)
+	previous[0] = true
+	for _, patternRune := range patternRunes {
+		current := make([]bool, len(valueRunes)+1)
+		if patternRune == '%' {
+			current[0] = previous[0]
+			for valueIndex := 1; valueIndex <= len(valueRunes); valueIndex++ {
+				current[valueIndex] = current[valueIndex-1] || previous[valueIndex]
+			}
+		} else {
+			for valueIndex := 1; valueIndex <= len(valueRunes); valueIndex++ {
+				if patternRune == '_' || patternRune == valueRunes[valueIndex-1] {
+					current[valueIndex] = previous[valueIndex-1]
+				}
+			}
+		}
+		previous = current
+	}
+	return previous[len(valueRunes)]
 }
 
 // syncSessionVariables 确保握手阶段写入 session attribute 的关键变量能够在系统变量管理器中生效
@@ -1209,13 +1272,13 @@ func (e *SystemVariableEngine) executeSetStatement(session server.MySQLServerSes
 	logger.Debugf(" [executeSetStatement] 检查SET语句: %s", query)
 
 	// 解析SQL语句
-	stmt, err := sqlparser.Parse(query)
+	parsed, err := sqlparser.ParseForExecution(query)
 	if err != nil {
 		logger.Debugf(" [executeSetStatement] SQL解析失败: %v", err)
 		return nil
 	}
 
-	setStmt, ok := stmt.(*sqlparser.Set)
+	setStmt, ok := parsed.AST.(*sqlparser.Set)
 	if !ok {
 		logger.Debugf(" [executeSetStatement] 不是SET语句")
 		return nil
@@ -1268,7 +1331,11 @@ func (e *SystemVariableEngine) executeSetStatement(session server.MySQLServerSes
 			}
 		}
 		if cleanName == "names" && session != nil {
-			if collation := parseSetNamesCollation(query); collation != "" {
+			collation := setStmt.NamesCollation
+			if collation == "" {
+				collation = parseSetNamesCollation(query)
+			}
+			if collation != "" {
 				session.SetParamByName("collation_connection", collation)
 			}
 		}
@@ -1286,17 +1353,15 @@ func (e *SystemVariableEngine) executeSetStatement(session server.MySQLServerSes
 }
 
 func parseSetNamesCollation(query string) string {
-	trimmed := strings.TrimSpace(strings.TrimSuffix(query, ";"))
-	match := regexp.MustCompile(`(?is)^\s*set\s+names\s+(?:'[^']*'|"[^"]*"|[a-zA-Z0-9_]+)\s+collate\s+(?:'([^']*)'|"([^"]*)"|([a-zA-Z0-9_]+))`).FindStringSubmatch(trimmed)
-	if len(match) == 0 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
 		return ""
 	}
-	for _, value := range match[1:] {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
+	setStmt, ok := parsed.AST.(*sqlparser.Set)
+	if !ok || setStmt.NamesCollation == "" {
+		return ""
 	}
-	return ""
+	return strings.Trim(strings.TrimSpace(setStmt.NamesCollation), "'\"")
 }
 
 func isUnscopedSetTransaction(query string) bool {
@@ -1651,32 +1716,65 @@ func (e *SystemVariableEngine) evaluateSetValue(expr sqlparser.Expr) (interface{
 		return expr.Name.String(), nil
 
 	default:
-		// Evaluate the small arithmetic subset commonly used by routine OUT
-		// assignments before falling back to the historical textual value.
 		text := strings.TrimSpace(sqlparser.String(expr))
-		parts := regexp.MustCompile(`^(-?[0-9]+(?:\.[0-9]+)?)\s*([+\-*/])\s*(-?[0-9]+(?:\.[0-9]+)?)$`).FindStringSubmatch(text)
-		if len(parts) == 4 {
-			left, _ := strconv.ParseFloat(parts[1], 64)
-			right, _ := strconv.ParseFloat(parts[3], 64)
-			var value float64
-			switch parts[2] {
-			case "+":
-				value = left + right
-			case "-":
-				value = left - right
-			case "*":
-				value = left * right
-			case "/":
-				if right != 0 {
-					value = left / right
-				}
-			}
+		if value, ok := setArithmeticNumber(expr); ok {
 			if value == float64(int64(value)) {
 				return strconv.FormatInt(int64(value), 10), nil
 			}
 			return strconv.FormatFloat(value, 'f', -1, 64), nil
 		}
 		return text, nil
+	}
+}
+
+// setArithmeticNumber consumes numeric AST nodes directly; quoted strings
+// and unresolved column names never become arithmetic through formatting.
+func setArithmeticNumber(expr sqlparser.Expr) (float64, bool) {
+	switch node := expr.(type) {
+	case *sqlparser.SQLVal:
+		if node.Type != sqlparser.IntVal && node.Type != sqlparser.FloatVal {
+			return 0, false
+		}
+		value, err := strconv.ParseFloat(string(node.Val), 64)
+		return value, err == nil
+	case *sqlparser.ParenExpr:
+		return setArithmeticNumber(node.Expr)
+	case *sqlparser.UnaryExpr:
+		value, ok := setArithmeticNumber(node.Expr)
+		if !ok {
+			return 0, false
+		}
+		switch node.Operator {
+		case sqlparser.UMinusStr:
+			return -value, true
+		case sqlparser.UPlusStr:
+			return value, true
+		default:
+			return 0, false
+		}
+	case *sqlparser.BinaryExpr:
+		left, leftOK := setArithmeticNumber(node.Left)
+		right, rightOK := setArithmeticNumber(node.Right)
+		if !leftOK || !rightOK {
+			return 0, false
+		}
+		switch node.Operator {
+		case sqlparser.PlusStr:
+			return left + right, true
+		case sqlparser.MinusStr:
+			return left - right, true
+		case sqlparser.MultStr:
+			return left * right, true
+		case sqlparser.DivStr:
+			if right == 0 {
+				return 0, true
+			}
+			return left / right, true
+		default:
+			return 0, false
+		}
+	default:
+		return 0, false
 	}
 }
 

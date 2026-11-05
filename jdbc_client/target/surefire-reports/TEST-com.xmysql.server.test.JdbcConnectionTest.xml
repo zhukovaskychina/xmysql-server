@@ -1,75 +1,83 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report-3.0.xsd" version="3.0" name="com.xmysql.server.test.JdbcConnectionTest" time="0.659" tests="9" errors="0" skipped="0" failures="0">
+<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report-3.0.xsd" version="3.0" name="com.xmysql.server.test.JdbcConnectionTest" time="0.46" tests="11" errors="1" skipped="0" failures="0">
   <properties>
-    <property name="socksProxyHost" value="127.0.0.1"/>
-    <property name="http.proxyHost" value="127.0.0.1"/>
     <property name="java.specification.version" value="17"/>
+    <property name="sun.cpu.isalist" value="amd64"/>
     <property name="sun.jnu.encoding" value="UTF-8"/>
-    <property name="java.class.path" value="/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/target/test-classes:/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/target/classes:/Users/zhukovasky/.m2/repository/com/mysql/mysql-connector-j/8.0.33/mysql-connector-j-8.0.33.jar:/Users/zhukovasky/.m2/repository/com/google/protobuf/protobuf-java/3.21.9/protobuf-java-3.21.9.jar:/Users/zhukovasky/.m2/repository/org/junit/jupiter/junit-jupiter-api/5.10.1/junit-jupiter-api-5.10.1.jar:/Users/zhukovasky/.m2/repository/org/opentest4j/opentest4j/1.3.0/opentest4j-1.3.0.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-commons/1.10.1/junit-platform-commons-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/apiguardian/apiguardian-api/1.1.2/apiguardian-api-1.1.2.jar:/Users/zhukovasky/.m2/repository/org/junit/jupiter/junit-jupiter-engine/5.10.1/junit-jupiter-engine-5.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-engine/1.10.1/junit-platform-engine-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/jupiter/junit-jupiter-params/5.10.1/junit-jupiter-params-5.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-suite-api/1.10.1/junit-platform-suite-api-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-suite-engine/1.10.1/junit-platform-suite-engine-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-suite-commons/1.10.1/junit-platform-suite-commons-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-launcher/1.10.1/junit-platform-launcher-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/assertj/assertj-core/3.24.2/assertj-core-3.24.2.jar:/Users/zhukovasky/.m2/repository/net/bytebuddy/byte-buddy/1.12.21/byte-buddy-1.12.21.jar:/Users/zhukovasky/.m2/repository/org/mockito/mockito-core/5.8.0/mockito-core-5.8.0.jar:/Users/zhukovasky/.m2/repository/net/bytebuddy/byte-buddy-agent/1.14.10/byte-buddy-agent-1.14.10.jar:/Users/zhukovasky/.m2/repository/org/objenesis/objenesis/3.3/objenesis-3.3.jar:/Users/zhukovasky/.m2/repository/org/mockito/mockito-junit-jupiter/5.8.0/mockito-junit-jupiter-5.8.0.jar:"/>
-    <property name="https.proxyPort" value="7890"/>
-    <property name="java.vm.vendor" value="Oracle Corporation"/>
+    <property name="java.class.path" value="D:\workspaces\GolandProjects\xmysql-server\jdbc_client\target\test-classes;D:\workspaces\GolandProjects\xmysql-server\jdbc_client\target\classes;D:\maven-repository\com\mysql\mysql-connector-j\8.0.33\mysql-connector-j-8.0.33.jar;D:\maven-repository\com\google\protobuf\protobuf-java\3.21.9\protobuf-java-3.21.9.jar;D:\maven-repository\org\junit\jupiter\junit-jupiter-api\5.10.1\junit-jupiter-api-5.10.1.jar;D:\maven-repository\org\opentest4j\opentest4j\1.3.0\opentest4j-1.3.0.jar;D:\maven-repository\org\junit\platform\junit-platform-commons\1.10.1\junit-platform-commons-1.10.1.jar;D:\maven-repository\org\apiguardian\apiguardian-api\1.1.2\apiguardian-api-1.1.2.jar;D:\maven-repository\org\junit\jupiter\junit-jupiter-engine\5.10.1\junit-jupiter-engine-5.10.1.jar;D:\maven-repository\org\junit\platform\junit-platform-engine\1.10.1\junit-platform-engine-1.10.1.jar;D:\maven-repository\org\junit\jupiter\junit-jupiter-params\5.10.1\junit-jupiter-params-5.10.1.jar;D:\maven-repository\org\junit\platform\junit-platform-suite-api\1.10.1\junit-platform-suite-api-1.10.1.jar;D:\maven-repository\org\junit\platform\junit-platform-suite-engine\1.10.1\junit-platform-suite-engine-1.10.1.jar;D:\maven-repository\org\junit\platform\junit-platform-suite-commons\1.10.1\junit-platform-suite-commons-1.10.1.jar;D:\maven-repository\org\junit\platform\junit-platform-launcher\1.10.1\junit-platform-launcher-1.10.1.jar;D:\maven-repository\org\assertj\assertj-core\3.24.2\assertj-core-3.24.2.jar;D:\maven-repository\net\bytebuddy\byte-buddy\1.12.21\byte-buddy-1.12.21.jar;D:\maven-repository\org\mockito\mockito-core\5.8.0\mockito-core-5.8.0.jar;D:\maven-repository\net\bytebuddy\byte-buddy-agent\1.14.10\byte-buddy-agent-1.14.10.jar;D:\maven-repository\org\objenesis\objenesis\3.3\objenesis-3.3.jar;D:\maven-repository\org\mockito\mockito-junit-jupiter\5.8.0\mockito-junit-jupiter-5.8.0.jar;"/>
+    <property name="java.vm.vendor" value="Eclipse Adoptium"/>
     <property name="sun.arch.data.model" value="64"/>
-    <property name="java.vendor.url" value="https://java.oracle.com/"/>
+    <property name="user.variant" value=""/>
+    <property name="java.vendor.url" value="https://adoptium.net/"/>
     <property name="user.timezone" value="Asia/Shanghai"/>
-    <property name="os.name" value="Mac OS X"/>
+    <property name="os.name" value="Windows 11"/>
     <property name="java.vm.specification.version" value="17"/>
     <property name="sun.java.launcher" value="SUN_STANDARD"/>
     <property name="user.country" value="CN"/>
-    <property name="sun.boot.library.path" value="/Library/Java/JavaVirtualMachines/jdk-17.0.1.jdk/Contents/Home/lib"/>
-    <property name="sun.java.command" value="/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/target/surefire/surefirebooter-20260725215143365_3.jar /Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/target/surefire 2026-07-25T21-51-43_209-jvmRun1 surefire-20260725215143365_1tmp surefire_0-20260725215143365_2tmp"/>
-    <property name="http.nonProxyHosts" value="192.168.0.0/16|*.192.168.0.0/16|10.0.0.0/8|*.10.0.0.0/8|172.16.0.0/12|*.172.16.0.0/12|127.0.0.1|localhost|*.localhost|local|*.local|crashlytics.com|*.crashlytics.com|www.proxifier.com|*.www.proxifier.com|proxifier.com|*.proxifier.com"/>
+    <property name="sun.boot.library.path" value="C:\Program Files\Eclipse Adoptium\jdk-17.0.20.8-hotspot\bin"/>
+    <property name="sun.java.command" value="C:\Users\zx187\AppData\Local\Temp\surefire8185271633912177911\surefirebooter-20261102220534659_3.jar C:\Users\zx187\AppData\Local\Temp\surefire8185271633912177911 2026-11-02T22-05-34_442-jvmRun1 surefire-20261102220534659_1tmp surefire_0-20261102220534659_2tmp"/>
     <property name="jdk.debug" value="release"/>
     <property name="test" value="JdbcConnectionTest"/>
-    <property name="surefire.test.class.path" value="/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/target/test-classes:/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/target/classes:/Users/zhukovasky/.m2/repository/com/mysql/mysql-connector-j/8.0.33/mysql-connector-j-8.0.33.jar:/Users/zhukovasky/.m2/repository/com/google/protobuf/protobuf-java/3.21.9/protobuf-java-3.21.9.jar:/Users/zhukovasky/.m2/repository/org/junit/jupiter/junit-jupiter-api/5.10.1/junit-jupiter-api-5.10.1.jar:/Users/zhukovasky/.m2/repository/org/opentest4j/opentest4j/1.3.0/opentest4j-1.3.0.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-commons/1.10.1/junit-platform-commons-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/apiguardian/apiguardian-api/1.1.2/apiguardian-api-1.1.2.jar:/Users/zhukovasky/.m2/repository/org/junit/jupiter/junit-jupiter-engine/5.10.1/junit-jupiter-engine-5.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-engine/1.10.1/junit-platform-engine-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/jupiter/junit-jupiter-params/5.10.1/junit-jupiter-params-5.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-suite-api/1.10.1/junit-platform-suite-api-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-suite-engine/1.10.1/junit-platform-suite-engine-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-suite-commons/1.10.1/junit-platform-suite-commons-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/junit/platform/junit-platform-launcher/1.10.1/junit-platform-launcher-1.10.1.jar:/Users/zhukovasky/.m2/repository/org/assertj/assertj-core/3.24.2/assertj-core-3.24.2.jar:/Users/zhukovasky/.m2/repository/net/bytebuddy/byte-buddy/1.12.21/byte-buddy-1.12.21.jar:/Users/zhukovasky/.m2/repository/org/mockito/mockito-core/5.8.0/mockito-core-5.8.0.jar:/Users/zhukovasky/.m2/repository/net/bytebuddy/byte-buddy-agent/1.14.10/byte-buddy-agent-1.14.10.jar:/Users/zhukovasky/.m2/repository/org/objenesis/objenesis/3.3/objenesis-3.3.jar:/Users/zhukovasky/.m2/repository/org/mockito/mockito-junit-jupiter/5.8.0/mockito-junit-jupiter-5.8.0.jar:"/>
+    <property name="surefire.test.class.path" value="D:\workspaces\GolandProjects\xmysql-server\jdbc_client\target\test-classes;D:\workspaces\GolandProjects\xmysql-server\jdbc_client\target\classes;D:\maven-repository\com\mysql\mysql-connector-j\8.0.33\mysql-connector-j-8.0.33.jar;D:\maven-repository\com\google\protobuf\protobuf-java\3.21.9\protobuf-java-3.21.9.jar;D:\maven-repository\org\junit\jupiter\junit-jupiter-api\5.10.1\junit-jupiter-api-5.10.1.jar;D:\maven-repository\org\opentest4j\opentest4j\1.3.0\opentest4j-1.3.0.jar;D:\maven-repository\org\junit\platform\junit-platform-commons\1.10.1\junit-platform-commons-1.10.1.jar;D:\maven-repository\org\apiguardian\apiguardian-api\1.1.2\apiguardian-api-1.1.2.jar;D:\maven-repository\org\junit\jupiter\junit-jupiter-engine\5.10.1\junit-jupiter-engine-5.10.1.jar;D:\maven-repository\org\junit\platform\junit-platform-engine\1.10.1\junit-platform-engine-1.10.1.jar;D:\maven-repository\org\junit\jupiter\junit-jupiter-params\5.10.1\junit-jupiter-params-5.10.1.jar;D:\maven-repository\org\junit\platform\junit-platform-suite-api\1.10.1\junit-platform-suite-api-1.10.1.jar;D:\maven-repository\org\junit\platform\junit-platform-suite-engine\1.10.1\junit-platform-suite-engine-1.10.1.jar;D:\maven-repository\org\junit\platform\junit-platform-suite-commons\1.10.1\junit-platform-suite-commons-1.10.1.jar;D:\maven-repository\org\junit\platform\junit-platform-launcher\1.10.1\junit-platform-launcher-1.10.1.jar;D:\maven-repository\org\assertj\assertj-core\3.24.2\assertj-core-3.24.2.jar;D:\maven-repository\net\bytebuddy\byte-buddy\1.12.21\byte-buddy-1.12.21.jar;D:\maven-repository\org\mockito\mockito-core\5.8.0\mockito-core-5.8.0.jar;D:\maven-repository\net\bytebuddy\byte-buddy-agent\1.14.10\byte-buddy-agent-1.14.10.jar;D:\maven-repository\org\objenesis\objenesis\3.3\objenesis-3.3.jar;D:\maven-repository\org\mockito\mockito-junit-jupiter\5.8.0\mockito-junit-jupiter-5.8.0.jar;"/>
     <property name="sun.cpu.endian" value="little"/>
-    <property name="user.home" value="/Users/zhukovasky"/>
+    <property name="user.home" value="C:\Users\zx187"/>
     <property name="user.language" value="zh"/>
     <property name="java.specification.vendor" value="Oracle Corporation"/>
-    <property name="java.version.date" value="2021-10-19"/>
-    <property name="java.home" value="/Library/Java/JavaVirtualMachines/jdk-17.0.1.jdk/Contents/Home"/>
-    <property name="file.separator" value="/"/>
-    <property name="https.proxyHost" value="127.0.0.1"/>
-    <property name="basedir" value="/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client"/>
+    <property name="java.version.date" value="2026-07-21"/>
+    <property name="java.home" value="C:\Program Files\Eclipse Adoptium\jdk-17.0.20.8-hotspot"/>
+    <property name="file.separator" value="\"/>
+    <property name="basedir" value="D:\workspaces\GolandProjects\xmysql-server\jdbc_client"/>
     <property name="java.vm.compressedOopsMode" value="Zero based"/>
     <property name="line.separator" value="&#10;"/>
     <property name="java.vm.specification.vendor" value="Oracle Corporation"/>
     <property name="java.specification.name" value="Java Platform API Specification"/>
-    <property name="surefire.real.class.path" value="/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client/target/surefire/surefirebooter-20260725215143365_3.jar"/>
-    <property name="user.script" value="Hans"/>
+    <property name="surefire.real.class.path" value="C:\Users\zx187\AppData\Local\Temp\surefire8185271633912177911\surefirebooter-20261102220534659_3.jar"/>
+    <property name="user.script" value=""/>
     <property name="sun.management.compiler" value="HotSpot 64-Bit Tiered Compilers"/>
-    <property name="ftp.nonProxyHosts" value="192.168.0.0/16|*.192.168.0.0/16|10.0.0.0/8|*.10.0.0.0/8|172.16.0.0/12|*.172.16.0.0/12|127.0.0.1|localhost|*.localhost|local|*.local|crashlytics.com|*.crashlytics.com|www.proxifier.com|*.www.proxifier.com|proxifier.com|*.proxifier.com"/>
-    <property name="java.runtime.version" value="17.0.1+12-LTS-39"/>
-    <property name="user.name" value="zhukovasky"/>
-    <property name="path.separator" value=":"/>
-    <property name="os.version" value="26.4.1"/>
-    <property name="java.runtime.name" value="Java(TM) SE Runtime Environment"/>
+    <property name="java.runtime.version" value="17.0.20+8"/>
+    <property name="user.name" value="zx187"/>
+    <property name="path.separator" value=";"/>
+    <property name="os.version" value="10.0"/>
+    <property name="java.runtime.name" value="OpenJDK Runtime Environment"/>
     <property name="file.encoding" value="UTF-8"/>
-    <property name="java.vm.name" value="Java HotSpot(TM) 64-Bit Server VM"/>
-    <property name="localRepository" value="/Users/zhukovasky/.m2/repository"/>
-    <property name="java.vendor.url.bug" value="https://bugreport.java.com/bugreport/"/>
-    <property name="java.io.tmpdir" value="/var/folders/49/8wx73cl55l33j49pmbkm2jg80000gn/T/"/>
-    <property name="java.version" value="17.0.1"/>
-    <property name="user.dir" value="/Users/zhukovasky/GolandProjects/xmysql-server/jdbc_client"/>
-    <property name="os.arch" value="x86_64"/>
-    <property name="socksProxyPort" value="7890"/>
+    <property name="java.vm.name" value="OpenJDK 64-Bit Server VM"/>
+    <property name="java.vendor.version" value="Temurin-17.0.20+8"/>
+    <property name="localRepository" value="D:\maven-repository"/>
+    <property name="java.vendor.url.bug" value="https://github.com/adoptium/adoptium-support/issues"/>
+    <property name="java.io.tmpdir" value="C:\Users\zx187\AppData\Local\Temp\"/>
+    <property name="java.version" value="17.0.20"/>
+    <property name="user.dir" value="D:\workspaces\GolandProjects\xmysql-server\jdbc_client"/>
+    <property name="os.arch" value="amd64"/>
     <property name="java.vm.specification.name" value="Java Virtual Machine Specification"/>
+    <property name="sun.os.patch.level" value=""/>
     <property name="native.encoding" value="UTF-8"/>
-    <property name="java.library.path" value="/Users/zhukovasky/Library/Java/Extensions:/Library/Java/Extensions:/Network/Library/Java/Extensions:/System/Library/Java/Extensions:/usr/lib/java:."/>
+    <property name="java.library.path" value="C:\Program Files\Eclipse Adoptium\jdk-17.0.20.8-hotspot\bin;C:\WINDOWS\Sun\Java\bin;C:\WINDOWS\system32;C:\WINDOWS;c:\Users\zx187\AppData\Local\Programs\cursor\resources\app\node_modules\@vscode\ripgrep\bin;C:\Program Files\Eclipse Adoptium\jdk-17.0.20.8-hotspot\bin;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files (x86)\Windows Kits\10\Windows Performance Toolkit\;C:\Program Files\dotnet\;C:\Program Files (x86)\HP\Common\HPDestPlgIn\;C:\Program Files\nodejs\;C:\Program Files (x86)\Tencent\微信web开发者工具\dll;C:\Program Fi;es\Git-Xet\;C:\Program Files\Docker\Docker\resources\bin;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;D:\softwares\Git\cmd;C:\Program Files\PuTTY\;C:\Users\zx187\AppData\Local\Programs\DeepSeek Harness\resources\runtime\cli\bin;C:\Users\zx187\AppData\Local\Microsoft\WindowsApps;C:\Program Files (x86)\HP\Common\HPDestPlgIn\;D:\softwares\Microsoft VS Code\bin;C:\Users\zx187\AppData\Roaming\npm;D:\softwares\cursor\resources\app\bin;C:\Program Files\Eclipse Adoptium\jdk-17.0.20.8-hotspot\bin;C:\Program Files\JetBrains\IntelliJ IDEA 2026.2.1\bin;C:\Users\zx187\tools\apache-maven-3.9.16\bin;C:\Users\zx187\AppData\Local\Microsoft\WinGet\Packages\oschwartz10612.Poppler_Microsoft.Winget.Source_8wekyb3d8bbwe\poppler-25.07.0\Library\bin;C:\Users\zx187\AppData\Local\Python\bin;C:\Users\zx187\AppData\Local\Programs\DockerDesktop\resources\bin;C:\Users\zx187\AppData\Local\Programs\cursor\resources\app\bin;D:\softwares\Microsoft VS Code\bin\copilot-shim;."/>
     <property name="java.vm.info" value="mixed mode, sharing"/>
-    <property name="java.vendor" value="Oracle Corporation"/>
-    <property name="java.vm.version" value="17.0.1+12-LTS-39"/>
-    <property name="sun.io.unicode.encoding" value="UnicodeBig"/>
-    <property name="socksNonProxyHosts" value="192.168.0.0/16|*.192.168.0.0/16|10.0.0.0/8|*.10.0.0.0/8|172.16.0.0/12|*.172.16.0.0/12|127.0.0.1|localhost|*.localhost|local|*.local|crashlytics.com|*.crashlytics.com|www.proxifier.com|*.www.proxifier.com|proxifier.com|*.proxifier.com"/>
+    <property name="java.vendor" value="Eclipse Adoptium"/>
+    <property name="java.vm.version" value="17.0.20+8"/>
+    <property name="java.specification.maintenance.version" value="1"/>
+    <property name="sun.io.unicode.encoding" value="UnicodeLittle"/>
     <property name="java.class.version" value="61.0"/>
-    <property name="http.proxyPort" value="7890"/>
   </properties>
-  <testcase name="testConnectionSucceedsWithValidCredentials" classname="com.xmysql.server.test.JdbcConnectionTest" time="0.091"/>
-  <testcase name="testConnectionMetadataReflectsServer" classname="com.xmysql.server.test.JdbcConnectionTest" time="0.016"/>
-  <testcase name="testConnectionCloseMakesIsClosedTrue" classname="com.xmysql.server.test.JdbcConnectionTest" time="0.008"/>
-  <testcase name="testConnectionFailsWithWrongPassword" classname="com.xmysql.server.test.JdbcConnectionTest" time="0.014"/>
-  <testcase name="testConnectionWithDefaultDatabaseInUrl" classname="com.xmysql.server.test.JdbcConnectionTest" time="0.009"/>
-  <testcase name="testConnectionWithoutDatabaseCatalog" classname="com.xmysql.server.test.JdbcConnectionTest" time="0.007"/>
-  <testcase name="testExecuteSimpleQueryAfterConnect" classname="com.xmysql.server.test.JdbcConnectionTest" time="0.045"/>
-  <testcase name="testDataGripMetadataProbeQueriesDoNotFail" classname="com.xmysql.server.test.JdbcConnectionTest" time="0.025"/>
-  <testcase name="testDataGripFullMetadataSqlProbesDoNotFail" classname="com.xmysql.server.test.JdbcConnectionTest" time="0.052"/>
+  <testcase name="testConnectionSucceedsWithValidCredentials" classname="com.xmysql.server.test.JdbcConnectionTest" time="0.052"/>
+  <testcase name="testConnectionMetadataReflectsServer" classname="com.xmysql.server.test.JdbcConnectionTest" time="0.014"/>
+  <testcase name="testConnectionCloseMakesIsClosedTrue" classname="com.xmysql.server.test.JdbcConnectionTest" time="0.007"/>
+  <testcase name="testConnectionFailsWithWrongPassword" classname="com.xmysql.server.test.JdbcConnectionTest" time="0.009"/>
+  <testcase name="testConnectionWithDefaultDatabaseInUrl" classname="com.xmysql.server.test.JdbcConnectionTest" time="0.012"/>
+  <testcase name="testConnectionWithoutDatabaseCatalog" classname="com.xmysql.server.test.JdbcConnectionTest" time="0.008"/>
+  <testcase name="testExecuteSimpleQueryAfterConnect" classname="com.xmysql.server.test.JdbcConnectionTest" time="0.025"/>
+  <testcase name="testDataGripMetadataProbeQueriesDoNotFail" classname="com.xmysql.server.test.JdbcConnectionTest" time="0.043"/>
+  <testcase name="testDataGripFullMetadataSqlProbesDoNotFail" classname="com.xmysql.server.test.JdbcConnectionTest" time="0.013">
+    <error message="failed to analyze query: SQL解析失败: invalid SQL statement: syntax error at position 34 near &apos;auto_increment&apos;" type="java.sql.SQLSyntaxErrorException"><![CDATA[java.sql.SQLSyntaxErrorException: failed to analyze query: SQL解析失败: invalid SQL statement: syntax error at position 34 near 'auto_increment'
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeQuery(StatementImpl.java:1200)
+	at com.xmysql.server.test.JdbcConnectionTest.testDataGripFullMetadataSqlProbesDoNotFail(JdbcConnectionTest.java:171)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+]]></error>
+  </testcase>
+  <testcase name="testServerSideCursorFetchReadsAllRows" classname="com.xmysql.server.test.JdbcConnectionTest" time="0.084"/>
+  <testcase name="testShowErrorsAfterFailedStatement" classname="com.xmysql.server.test.JdbcConnectionTest" time="0.013"/>
 </testsuite>

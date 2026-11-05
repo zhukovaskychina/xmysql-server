@@ -1,12 +1,14 @@
-# SQL 正则迁移进展（2026-10-18）
+# SQL 正则迁移进展（截至 2026-11-05）
 
-当前状态：继续实施，尚未全部完成。以下扫描、代码和测试证据更新了此前过于宽泛的“仅剩值语义”结论。
+当前状态：继续实施，尚未全部完成。JSON_VALUE 结构和 mysql.user 的 user/host 条件已在本轮迁移。以下扫描、代码和测试证据更新了此前过于宽泛的“仅剩值语义”结论。
 
-## 当前扫描
+## 当前扫描（最新）
 
-执行 `go run ./scripts/sql-regex-audit -root . -exclude cmd,client -output docs/planning/2026-10-16-sql-regex-audit-ci-scope.json`：1077 个 Go 文件、28 个 regexp 导入文件、150 个 regexp 包直接调用位置，Go 源码解析异常 0。分类为 pattern_definition 99、syntax_candidate_or_value_match 9、value_match_or_escaping 42。
+执行 `go run ./scripts/sql-regex-audit -root . -exclude cmd,client -output docs/planning/2026-10-16-sql-regex-audit-ci-scope.json`：1086 个 Go 文件、12 个 regexp 导入文件、35 个 regexp 包直接调用位置，Go 源码解析异常 0。分类为 pattern_definition 15、syntax_candidate_or_value_match 9、value_match_or_escaping 11。
 
-相对于本次连续实施起点的 51 文件、450 位置，减少 23 个 regexp 导入文件和 300 个直接调用位置。这不是独立正则条数，也不表示剩余 150 位置均适合 AST。审计脚本现记录首个参数源码，并修复包级声明误归到上一个函数的问题。
+这表示当前仍不是“全部 AST”。9 个 syntax_candidate_or_value_match 中，账户主机匹配和 SQL `LIKE`/`REGEXP` 属于值语义；其余残留主要是 JSON/空间值、时区、动态权限名、数据库名校验及优化器模式。扫描结果以 JSON 为准，不能把 regexp 导入数直接当作待迁移 SQL 结构数。
+
+相对于本次连续实施起点的 51 文件、450 位置，减少 39 个 regexp 导入文件和 415 个直接调用位置。这不是独立正则条数；剩余位置仍需按输入和消费者逐项判断。审计脚本现记录首个参数源码，并修复包级声明误归到上一个函数的问题。
 
 完整清单：[逐位置清单](2026-10-17-sql-regex-remaining-inventory.md)。JSON 和清单覆盖当前剩余位置，不把 Compile/MustCompile 声明自动认作可保留。
 

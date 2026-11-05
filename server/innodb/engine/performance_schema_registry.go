@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -495,20 +494,6 @@ func performanceSchemaTLSBool(value interface{}) (bool, bool) {
 func performanceSchemaTLSStatusQueryMatches(query, column, value string) bool {
 	if predicates, ok := parsePerformanceSchemaSetupPredicates(query, column); ok {
 		return performanceSchemaSetupPredicatesMatch(predicates, value)
-	}
-	pattern := regexp.MustCompile(`(?is)\b` + regexp.QuoteMeta(column) + `\s*(=|like)\s*['"]([^'"]*)['"]`)
-	if match := pattern.FindStringSubmatch(query); len(match) == 3 {
-		return metadataPatternMatches(value, match[2])
-	}
-	inPattern := regexp.MustCompile(`(?is)\b` + regexp.QuoteMeta(column) + `\s+in\s*\(([^)]*)\)`)
-	if match := inPattern.FindStringSubmatch(query); len(match) == 2 {
-		for _, candidate := range splitTopLevelComma(match[1]) {
-			candidate = strings.Trim(strings.TrimSpace(candidate), "'\"")
-			if strings.EqualFold(candidate, value) {
-				return true
-			}
-		}
-		return false
 	}
 	return true
 }

@@ -92,7 +92,7 @@ func ClassifyStatement(sql string) (StatementFamily, error) {
 			return StatementFamilyAdmin, nil
 		default:
 			switch strings.ToLower(string(value)) {
-			case "flush", "kill", "unlock":
+			case "flush", "kill", "unlock", "check":
 				return StatementFamilyAdmin, nil
 			case "reset", "start", "stop", "change", "purge":
 				return StatementFamilyAdmin, nil
@@ -115,6 +115,18 @@ func ParseForExecution(sql string) (*ParsedStatement, error) {
 	trimmed := strings.TrimSpace(sql)
 	if trimmed == "" {
 		return nil, fmt.Errorf("%w: empty input", ErrInvalidStatement)
+	}
+	if tablespace, matched, tablespaceErr := tryParseTablespaceForExecution(trimmed); matched {
+		if tablespaceErr != nil {
+			return nil, tablespaceErr
+		}
+		return &ParsedStatement{AST: tablespace, RawSQL: sql, Family: StatementFamilyDDL, Complete: true}, nil
+	}
+	if indexDDL, matched, indexErr := tryParseIndexDDLForExecution(trimmed); matched {
+		if indexErr != nil {
+			return nil, indexErr
+		}
+		return &ParsedStatement{AST: indexDDL, RawSQL: sql, Family: StatementFamilyDDL, Complete: true}, nil
 	}
 	if view, matched, viewErr := tryParseViewForExecution(trimmed); matched {
 		if viewErr != nil {
@@ -175,6 +187,13 @@ func ParseForExecution(sql string) (*ParsedStatement, error) {
 		}
 		return &ParsedStatement{AST: prepared, RawSQL: sql, Family: family, Complete: true}, nil
 	case StatementFamilyHandler:
+		// The generic execution contract keeps the legacy HANDLER family
+		// unsupported. The engine compatibility path calls ParseHandlerForExecution
+		// directly for MySQL's table-first syntax.
+		fields := strings.Fields(trimmed)
+		if len(fields) > 1 && !strings.EqualFold(fields[1], "open") && !strings.EqualFold(fields[1], "close") && !strings.EqualFold(fields[1], "read") {
+			return nil, fmt.Errorf("%w: handler", ErrUnsupportedStatement)
+		}
 		handler, handlerErr := parseHandlerForExecution(trimmed)
 		if handlerErr != nil {
 			return nil, handlerErr
@@ -224,17 +243,39 @@ func parseSetCompatibilityForExecution(query string) (*Set, error) {
 	if err != nil || len(tokens) < 4 {
 		return nil, fmt.Errorf("%w: SET syntax", ErrInvalidStatement)
 	}
+	if len(tokens) >= 6 && strings.EqualFold(tokens[0].text, "set") && strings.EqualFold(tokens[1].text, "new") && tokens[2].text == "." && tokens[4].text == "=" {
+		column := strings.Trim(tokens[3].text, "`")
+		if column == "" {
+			return nil, fmt.Errorf("%w: SET NEW column missing", ErrInvalidStatement)
+		}
+		expressionStart := tokens[5].start
+		if expressionStart < 0 || expressionStart >= len(query) {
+			return nil, fmt.Errorf("%w: SET NEW expression missing", ErrInvalidStatement)
+		}
+		expressionSQL := strings.TrimSpace(query[expressionStart:])
+		parsed, parseErr := Parse("select " + expressionSQL)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		selectStmt, ok := parsed.(*Select)
+		if !ok || len(selectStmt.SelectExprs) != 1 {
+			return nil, fmt.Errorf("%w: SET NEW expression", ErrInvalidStatement)
+		}
+		aliased, ok := selectStmt.SelectExprs[0].(*AliasedExpr)
+		if !ok {
+			return nil, fmt.Errorf("%w: SET NEW expression", ErrInvalidStatement)
+		}
+		return &Set{Exprs: SetExprs{&SetExpr{Name: NewColIdent("new." + column), Expr: aliased.Expr}}}, nil
+	}
 	modifier := strings.ToLower(tokens[1].text)
-	if modifier != "persist" && modifier != "persist_only" {
+	if tokens[1].kind != ID || (modifier != "persist" && modifier != "persist_only") {
 		return nil, fmt.Errorf("%w: SET syntax", ErrInvalidStatement)
 	}
-	marker := " " + modifier + " "
-	lower := strings.ToLower(query)
-	position := strings.Index(lower, marker)
-	if position < 0 {
+	start, end := tokens[1].start, tokens[1].end
+	if start < 0 || end > len(query) || start >= end || query[start] == '`' {
 		return nil, fmt.Errorf("%w: SET syntax", ErrInvalidStatement)
 	}
-	inner, parseErr := Parse(strings.TrimSpace(query[:position] + " " + query[position+len(marker):]))
+	inner, parseErr := Parse(query[:start] + " " + query[end:])
 	if parseErr != nil {
 		return nil, parseErr
 	}
@@ -243,6 +284,7 @@ func parseSetCompatibilityForExecution(query string) (*Set, error) {
 		return nil, fmt.Errorf("%w: SET AST %T", ErrInvalidStatement, inner)
 	}
 	setStmt.Persist = true
+	setStmt.PersistOnly = modifier == "persist_only"
 	return setStmt, nil
 }
 
@@ -308,8 +350,12 @@ func isExecutionFamilyAST(family StatementFamily, stmt Statement) bool {
 		_, ok := stmt.(*StoredObjectStatement)
 		return ok
 	case StatementFamilyDDL:
-		_, ok := stmt.(*TableDDLStatement)
-		return ok
+		switch stmt.(type) {
+		case *TableDDLStatement, *TablespaceStatement, *IndexDDLStatement:
+			return true
+		default:
+			return false
+		}
 	default:
 		return false
 	}

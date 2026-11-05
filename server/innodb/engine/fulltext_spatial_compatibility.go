@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -19,11 +18,6 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
-
-var fullTextAgainstPattern = regexp.MustCompile(`(?is)MATCH\s*\(([^)]*)\)\s+AGAINST\s*\(\s*(?:'([^']*)'|"([^"]*)")(?:\s+IN\s+(BOOLEAN|NATURAL\s+LANGUAGE)\s+MODE(?:\s+WITH\s+QUERY\s+EXPANSION)?|\s+WITH\s+QUERY\s+EXPANSION)?\s*\)`)
-var fullTextFromTablePattern = regexp.MustCompile(`(?is)\bfrom\s+(?:` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s*\.\s*)?` + "`?" + `([a-zA-Z0-9_$]+)` + "`?")
-var spatialPredicateColumnFirstPattern = regexp.MustCompile("(?is)(ST_WITHIN|ST_CONTAINS|ST_INTERSECTS|ST_DISJOINT|ST_TOUCHES|ST_OVERLAPS|ST_CROSSES|ST_EQUALS|MBRCONTAINS|MBRWITHIN|MBRINTERSECTS|MBREQUALS|MBRDISJOINT)\\s*\\(\\s*([a-zA-Z0-9_`.]+)\\s*,\\s*ST_GEOMFROMTEXT\\s*\\(\\s*'([^']+)'(?:\\s*,\\s*([0-9]+))?\\s*\\)\\s*\\)")
-var spatialPredicateGeometryFirstPattern = regexp.MustCompile("(?is)(ST_WITHIN|ST_CONTAINS|ST_INTERSECTS|ST_DISJOINT|ST_TOUCHES|ST_OVERLAPS|ST_CROSSES|ST_EQUALS|MBRCONTAINS|MBRWITHIN|MBRINTERSECTS|MBREQUALS|MBRDISJOINT)\\s*\\(\\s*ST_GEOMFROMTEXT\\s*\\(\\s*'([^']+)'(?:\\s*,\\s*([0-9]+))?\\s*\\)\\s*,\\s*([a-zA-Z0-9_`.]+)\\s*\\)")
 
 const spatialProbeColumn = "__xmysql_spatial_probe"
 
@@ -239,7 +233,7 @@ func (e *XMySQLExecutor) executeRawFullTextSpatialCreate(ctx *ExecutionContext, 
 	// The table has just been created and no concurrent metadata reader can
 	// observe it yet. A direct write avoids Windows rename semantics colliding
 	// with the storage manager's freshly opened .frm handle.
-	return true, os.WriteFile(filepathForTable(e, databaseName, tableName), data, 0644)
+	return true, writeMetadataFileAtomic(filepathForTable(e, databaseName, tableName), data)
 }
 
 func filepathForTable(e *XMySQLExecutor, databaseName, tableName string) string {
@@ -319,12 +313,12 @@ func parseAdvancedIndexDefinition(definition string) (advancedIndexDefinition, b
 }
 
 func (e *XMySQLExecutor) executeFullTextQuery(ctx *ExecutionContext, query, databaseName string) (bool, error) {
-	match := fullTextAgainstPattern.FindStringSubmatch(query)
-	if len(match) == 0 {
+	matchStart, matchEnd, columnText, term, mode, matched := findMatchAgainst(query)
+	if !matched {
 		return false, nil
 	}
 	columns := make([]string, 0)
-	for _, column := range strings.Split(match[1], ",") {
+	for _, column := range strings.Split(columnText, ",") {
 		column = strings.Trim(strings.TrimSpace(column), "`")
 		if dot := strings.LastIndex(column, "."); dot >= 0 {
 			column = strings.Trim(strings.TrimSpace(column[dot+1:]), "`")
@@ -333,16 +327,15 @@ func (e *XMySQLExecutor) executeFullTextQuery(ctx *ExecutionContext, query, data
 			columns = append(columns, column)
 		}
 	}
-	term := match[2]
-	if term == "" {
-		term = match[3]
-	}
 	if len(columns) == 0 || strings.TrimSpace(term) == "" {
 		return true, fmt.Errorf("MATCH AGAINST requires at least one column and a search term")
 	}
-	mode := strings.ToUpper(strings.TrimSpace(match[4]))
+	mode = strings.ToUpper(strings.TrimSpace(mode))
+	if strings.Contains(strings.ToUpper(query), "QUERY EXPANSION") {
+		return true, common.NewErr(common.ErrNotSupportedYet, "fulltext query expansion")
+	}
 	booleanMode := mode == "BOOLEAN"
-	rewritten := fullTextAgainstPattern.ReplaceAllString(query, "1 = 1")
+	rewritten := query[:matchStart] + "1 = 1" + query[matchEnd:]
 	probeNames := make([]string, len(columns))
 	for index, column := range columns {
 		probeNames[index] = column
@@ -511,15 +504,27 @@ func parseFullTextBooleanTerms(query string) []fullTextQueryTerm {
 }
 
 func fullTextQueryTable(query, databaseName string) (string, string, bool) {
-	match := fullTextFromTablePattern.FindStringSubmatch(query)
-	if len(match) != 3 {
+	parsed, err := sqlparser.Parse(query)
+	if err != nil || parsed == nil {
 		return "", "", false
 	}
-	schema := strings.Trim(strings.TrimSpace(match[1]), "`")
+	selectStmt, ok := parsed.(*sqlparser.Select)
+	if !ok || len(selectStmt.From) == 0 {
+		return "", "", false
+	}
+	from, ok := selectStmt.From[0].(*sqlparser.AliasedTableExpr)
+	if !ok {
+		return "", "", false
+	}
+	tableName, ok := from.Expr.(sqlparser.TableName)
+	if !ok {
+		return "", "", false
+	}
+	schema := strings.Trim(tableName.Qualifier.String(), "`")
 	if schema == "" {
 		schema = strings.TrimSpace(databaseName)
 	}
-	table := strings.Trim(strings.TrimSpace(match[2]), "`")
+	table := strings.Trim(tableName.Name.String(), "`")
 	return schema, table, schema != "" && table != ""
 }
 
@@ -825,7 +830,10 @@ func (e *XMySQLExecutor) executeSpatialQuery(ctx *ExecutionContext, query, datab
 	if !ok {
 		return true, fmt.Errorf("invalid geometry WKT")
 	}
-	rewritten := strings.Replace(query, match.fullExpression, "1 = 1", 1)
+	rewritten, rewrittenOK := rewriteSpatialPredicateQuery(query)
+	if !rewrittenOK {
+		return true, fmt.Errorf("spatial predicate AST rewrite failed")
+	}
 	probeInjected := false
 	if !querySelectProjectsColumn(rewritten, match.column) {
 		var injected bool
@@ -1132,17 +1140,121 @@ func spatialRecordStorageKey(record Record, tableMeta *metadata.TableMeta) (stri
 }
 
 func parseSpatialPredicate(query string) (spatialPredicateMatch, bool) {
-	if groups := spatialPredicateColumnFirstPattern.FindStringSubmatch(query); len(groups) == 5 {
-		return spatialPredicateMatch{
-			predicate: groups[1], column: groups[2], wkt: groups[3], srid: groups[4], fullExpression: groups[0],
-		}, true
+	parsed, err := sqlparser.Parse(query)
+	if err != nil {
+		return spatialPredicateMatch{}, false
 	}
-	if groups := spatialPredicateGeometryFirstPattern.FindStringSubmatch(query); len(groups) == 5 {
-		return spatialPredicateMatch{
-			predicate: groups[1], wkt: groups[2], srid: groups[3], column: groups[4], geometryFirst: true, fullExpression: groups[0],
-		}, true
+	selectStmt, ok := parsed.(*sqlparser.Select)
+	if !ok || selectStmt.Where == nil {
+		return spatialPredicateMatch{}, false
 	}
-	return spatialPredicateMatch{}, false
+	var match spatialPredicateMatch
+	found := false
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		if found {
+			return false, nil
+		}
+		function, ok := node.(*sqlparser.FuncExpr)
+		if !ok || !isSpatialPredicateName(function.Name.String()) || len(function.Exprs) != 2 {
+			return true, nil
+		}
+		first, firstOK := spatialFunctionArgument(function.Exprs[0])
+		second, secondOK := spatialFunctionArgument(function.Exprs[1])
+		if !firstOK || !secondOK {
+			return true, nil
+		}
+		if geometry, ok := spatialGeometryArgument(first); ok {
+			if column, ok := second.(*sqlparser.ColName); ok {
+				match = spatialPredicateMatch{predicate: function.Name.String(), column: sqlparser.String(column), wkt: geometry.wkt, srid: geometry.srid, geometryFirst: true, fullExpression: sqlparser.String(function)}
+				found = true
+			}
+		} else if geometry, ok := spatialGeometryArgument(second); ok {
+			if column, ok := first.(*sqlparser.ColName); ok {
+				match = spatialPredicateMatch{predicate: function.Name.String(), column: sqlparser.String(column), wkt: geometry.wkt, srid: geometry.srid, fullExpression: sqlparser.String(function)}
+				found = true
+			}
+		}
+		return !found, nil
+	}, selectStmt.Where.Expr)
+	return match, found
+}
+
+type spatialGeometryValue struct {
+	wkt  string
+	srid string
+}
+
+func isSpatialPredicateName(name string) bool {
+	switch strings.ToUpper(name) {
+	case "ST_WITHIN", "ST_CONTAINS", "ST_INTERSECTS", "ST_DISJOINT", "ST_TOUCHES", "ST_OVERLAPS", "ST_CROSSES", "ST_EQUALS", "MBRCONTAINS", "MBRWITHIN", "MBRINTERSECTS", "MBREQUALS", "MBRDISJOINT":
+		return true
+	default:
+		return false
+	}
+}
+
+func spatialFunctionArgument(expression sqlparser.SelectExpr) (sqlparser.Expr, bool) {
+	aliased, ok := expression.(*sqlparser.AliasedExpr)
+	if !ok || aliased.Expr == nil || !aliased.As.IsEmpty() {
+		return nil, false
+	}
+	return aliased.Expr, true
+}
+
+func spatialGeometryArgument(expression sqlparser.Expr) (spatialGeometryValue, bool) {
+	function, ok := expression.(*sqlparser.FuncExpr)
+	if !ok || !strings.EqualFold(function.Name.String(), "ST_GEOMFROMTEXT") || len(function.Exprs) < 1 || len(function.Exprs) > 2 {
+		return spatialGeometryValue{}, false
+	}
+	wktExpr, ok := spatialFunctionArgument(function.Exprs[0])
+	literal, literalOK := wktExpr.(*sqlparser.SQLVal)
+	if !ok || !literalOK || literal.Type != sqlparser.StrVal {
+		return spatialGeometryValue{}, false
+	}
+	geometry := spatialGeometryValue{wkt: string(literal.Val)}
+	if len(function.Exprs) == 2 {
+		sridExpr, sridOK := spatialFunctionArgument(function.Exprs[1])
+		sridLiteral, sridLiteralOK := sridExpr.(*sqlparser.SQLVal)
+		if !sridOK || !sridLiteralOK || sridLiteral.Type != sqlparser.IntVal {
+			return spatialGeometryValue{}, false
+		}
+		geometry.srid = string(sridLiteral.Val)
+	}
+	return geometry, true
+}
+
+func rewriteSpatialPredicateQuery(query string) (string, bool) {
+	parsed, err := sqlparser.Parse(query)
+	if err != nil {
+		return query, false
+	}
+	selectStmt, ok := parsed.(*sqlparser.Select)
+	if !ok || selectStmt.Where == nil {
+		return query, false
+	}
+	var target *sqlparser.FuncExpr
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		function, ok := node.(*sqlparser.FuncExpr)
+		if ok && isSpatialPredicateName(function.Name.String()) && len(function.Exprs) == 2 {
+			first, firstOK := spatialFunctionArgument(function.Exprs[0])
+			second, secondOK := spatialFunctionArgument(function.Exprs[1])
+			_, firstGeometry := spatialGeometryArgument(first)
+			_, secondGeometry := spatialGeometryArgument(second)
+			_, firstColumn := first.(*sqlparser.ColName)
+			_, secondColumn := second.(*sqlparser.ColName)
+			if firstOK && secondOK && ((firstGeometry && secondColumn) || (secondGeometry && firstColumn)) {
+				target = function
+				return false, nil
+			}
+		}
+		return target == nil, nil
+	}, selectStmt.Where.Expr)
+	if target == nil {
+		return query, false
+	}
+	replacement := &sqlparser.ComparisonExpr{Operator: sqlparser.EqualStr, Left: sqlparser.NewIntVal([]byte("1")), Right: sqlparser.NewIntVal([]byte("1"))}
+	selectStmt.Where.Expr = sqlparser.ReplaceExpr(selectStmt.Where.Expr, target, replacement)
+	return sqlparser.String(selectStmt), true
 }
 
 func querySelectProjectsColumn(query, column string) bool {
@@ -1301,7 +1413,83 @@ func rawSpatialBoolean(value interface{}) (bool, bool) {
 	}
 }
 
+func findMatchAgainst(sql string) (start, end int, columns, term, mode string, ok bool) {
+	lower := strings.ToLower(sql)
+	for from := 0; from < len(lower); {
+		at := strings.Index(lower[from:], "match")
+		if at < 0 {
+			return 0, 0, "", "", "", false
+		}
+		at += from
+		if at > 0 && isSQLIdentByte(lower[at-1]) {
+			from = at + len("match")
+			continue
+		}
+		cursor := at + len("match")
+		if cursor < len(lower) && isSQLIdentByte(lower[cursor]) {
+			from = cursor
+			continue
+		}
+		for cursor < len(lower) && isSQLSpaceByte(lower[cursor]) {
+			cursor++
+		}
+		if cursor >= len(lower) || lower[cursor] != '(' {
+			from = at + len("match")
+			continue
+		}
+		columnClose := matchingParenIndex(sql, cursor)
+		if columnClose < 0 {
+			return 0, 0, "", "", "", false
+		}
+		columns = sql[cursor+1 : columnClose]
+		cursor = columnClose + 1
+		for cursor < len(lower) && isSQLSpaceByte(lower[cursor]) {
+			cursor++
+		}
+		if cursor+len("against") > len(lower) || lower[cursor:cursor+len("against")] != "against" {
+			from = at + len("match")
+			continue
+		}
+		cursor += len("against")
+		for cursor < len(lower) && isSQLSpaceByte(lower[cursor]) {
+			cursor++
+		}
+		if cursor >= len(lower) || lower[cursor] != '(' {
+			from = at + len("match")
+			continue
+		}
+		againstClose := matchingParenIndex(sql, cursor)
+		if againstClose < 0 {
+			return 0, 0, "", "", "", false
+		}
+		against := strings.TrimSpace(sql[cursor+1 : againstClose])
+		literal, tail, quoted := takeSingleQuoted(against)
+		if !quoted && strings.HasPrefix(against, `"`) {
+			endQuote := strings.Index(against[1:], `"`)
+			if endQuote >= 0 {
+				literal = against[1 : 1+endQuote]
+				tail = against[2+endQuote:]
+				quoted = true
+			}
+		}
+		if !quoted {
+			from = at + len("match")
+			continue
+		}
+		mode = strings.TrimSpace(tail)
+		mode = strings.TrimPrefix(strings.ToLower(mode), "in ")
+		mode = strings.TrimSuffix(mode, " mode")
+		mode = strings.TrimSpace(mode)
+		if space := strings.Index(mode, " "); space >= 0 {
+			mode = mode[:space]
+		}
+		return at, againstClose + 1, columns, literal, mode, true
+	}
+	return 0, 0, "", "", "", false
+}
+
 func spatialBounds(wkt string) (float64, float64, float64, float64, bool) {
+	// regexp-value: retained. WKT coordinates are geometry values.
 	points := regexp.MustCompile(`[-+]?[0-9]*\.?[0-9]+\s+[-+]?[0-9]*\.?[0-9]+`).FindAllString(wkt, -1)
 	if len(points) == 0 {
 		return 0, 0, 0, 0, false

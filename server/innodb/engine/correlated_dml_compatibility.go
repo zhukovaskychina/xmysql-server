@@ -3,12 +3,12 @@ package engine
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 // rewriteCorrelatedDMLSubquery materializes the target primary keys for the
@@ -169,7 +169,7 @@ func (e *XMySQLExecutor) rewriteCorrelatedDMLScalarAssignment(ctx *ExecutionCont
 	}
 	column := strings.Trim(strings.TrimSpace(assignment[:equals]), "`")
 	right := strings.TrimSpace(assignment[equals+1:])
-	if !regexp.MustCompile(`(?is)^[a-zA-Z0-9_$]+$`).MatchString(column) {
+	if !isCorrelatedDMLAssignmentColumn(column) {
 		return "", false, nil
 	}
 	ranges := correlatedDMLScalarSubqueryRanges(right, target.alias)
@@ -266,7 +266,6 @@ type correlatedDMLScalarRange struct {
 
 func correlatedDMLScalarSubqueryRanges(expression, alias string) []correlatedDMLScalarRange {
 	ranges := make([]correlatedDMLScalarRange, 0, 2)
-	correlation := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(alias) + `\s*\.`)
 	for index := 0; index < len(expression); index++ {
 		if expression[index] != '(' {
 			continue
@@ -276,12 +275,29 @@ func correlatedDMLScalarSubqueryRanges(expression, alias string) []correlatedDML
 			return nil
 		}
 		inner := strings.TrimSpace(expression[index+1 : close])
-		if strings.HasPrefix(strings.ToLower(inner), "select ") && correlation.MatchString(inner) {
+		if strings.HasPrefix(strings.ToLower(inner), "select ") && correlatedDMLInnerReferencesAlias(inner, alias) {
 			ranges = append(ranges, correlatedDMLScalarRange{start: index, end: close, inner: inner})
 			index = close
 		}
 	}
 	return ranges
+}
+
+func correlatedDMLInnerReferencesAlias(inner, alias string) bool {
+	parsed, err := sqlparser.Parse(inner)
+	if err != nil || parsed == nil {
+		return false
+	}
+	found := false
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		column, ok := node.(*sqlparser.ColName)
+		if ok && !column.Qualifier.IsEmpty() && strings.EqualFold(strings.Trim(column.Qualifier.Name.String(), "`"), strings.Trim(alias, "`")) {
+			found = true
+			return false, nil
+		}
+		return true, nil
+	}, parsed)
+	return found
 }
 
 func (e *XMySQLExecutor) rewriteCorrelatedDMLMultiScalarAssignment(ctx *ExecutionContext, databaseName string, target correlatedDMLTarget, targetClause string, assignments []string, whereText string) (string, bool, error) {
@@ -301,7 +317,7 @@ func (e *XMySQLExecutor) rewriteCorrelatedDMLMultiScalarAssignment(ctx *Executio
 		}
 		column := strings.Trim(strings.TrimSpace(assignment[:equals]), "`")
 		right := strings.TrimSpace(assignment[equals+1:])
-		if !regexp.MustCompile(`(?is)^[a-zA-Z0-9_$]+$`).MatchString(column) {
+		if !isCorrelatedDMLAssignmentColumn(column) {
 			return "", false, nil
 		}
 		ranges := correlatedDMLScalarSubqueryRanges(right, target.alias)
@@ -390,6 +406,23 @@ func (e *XMySQLExecutor) rewriteCorrelatedDMLMultiScalarAssignment(ctx *Executio
 	return fmt.Sprintf("update %s set %s where %s", targetClause, strings.Join(setClauses, ", "), predicate), true, nil
 }
 
+func isCorrelatedDMLAssignmentColumn(column string) bool {
+	parsed, err := sqlparser.Parse("select " + strings.TrimSpace(column))
+	if err != nil || parsed == nil {
+		return false
+	}
+	selectStmt, ok := parsed.(*sqlparser.Select)
+	if !ok || len(selectStmt.SelectExprs) != 1 {
+		return false
+	}
+	aliased, ok := selectStmt.SelectExprs[0].(*sqlparser.AliasedExpr)
+	if !ok || !aliased.As.IsEmpty() {
+		return false
+	}
+	name, ok := aliased.Expr.(*sqlparser.ColName)
+	return ok && name.Qualifier.IsEmpty()
+}
+
 func topLevelAssignmentIndex(input string) int {
 	depth := 0
 	var quote byte
@@ -422,22 +455,22 @@ func topLevelAssignmentIndex(input string) int {
 }
 
 func (e *XMySQLExecutor) rewriteCorrelatedDMLPredicate(ctx *ExecutionContext, databaseName, kind string, target correlatedDMLTarget, targetClause, setText, whereText string) (string, bool, error) {
-	match := regexp.MustCompile(`(?is)^(.+?)\s+(not\s+in|in)\s*\(`).FindStringSubmatchIndex(strings.TrimSpace(whereText))
-	if len(match) != 6 {
+	whereText = strings.TrimSpace(whereText)
+	matchStart, matchEnd, inFound := findLeadingInCall(whereText)
+	if !inFound {
 		return "", false, nil
 	}
-	whereText = strings.TrimSpace(whereText)
-	open := strings.Index(whereText[match[0]:match[1]], "(")
+	open := strings.Index(whereText[matchStart:matchEnd], "(")
 	if open < 0 {
 		return "", true, fmt.Errorf("correlated DML predicate is missing parentheses")
 	}
-	open += match[0]
+	open += matchStart
 	close := matchingParenIndex(whereText, open)
 	if close < 0 || strings.TrimSpace(whereText[close+1:]) != "" {
 		return "", false, nil
 	}
 	innerSQL := strings.TrimSpace(whereText[open+1 : close])
-	if !strings.HasPrefix(strings.ToLower(innerSQL), "select ") || !regexp.MustCompile(`(?i)`+regexp.QuoteMeta(target.alias)+`\s*\.`).MatchString(innerSQL) {
+	if !strings.HasPrefix(strings.ToLower(innerSQL), "select ") || !sqlHasQualifierDot(innerSQL, target.alias) {
 		return "", false, nil
 	}
 	meta, err := e.correlatedDMLTableMetadata(contextOrBackground(ctx), correlatedDMLSchema(databaseName, target), target.tableName)
@@ -561,25 +594,31 @@ type correlatedDMLTarget struct {
 }
 
 func parseCorrelatedDMLTarget(text string) (correlatedDMLTarget, bool) {
-	pattern := regexp.MustCompile("(?is)^(`?[a-zA-Z0-9_$]+`?(?:\\s*\\.\\s*`?[a-zA-Z0-9_$]+`?)?)(?:\\s+(?:as\\s+)?(`?[a-zA-Z0-9_$]+`?))?$")
-	match := pattern.FindStringSubmatch(strings.TrimSpace(text))
-	if len(match) != 3 {
+	stmt, err := sqlparser.Parse("select * from " + strings.TrimSpace(text))
+	if err != nil {
 		return correlatedDMLTarget{}, false
 	}
-	qualified := strings.TrimSpace(match[1])
-	parts := strings.Split(qualified, ".")
-	if len(parts) > 2 {
+	selectStmt, ok := stmt.(*sqlparser.Select)
+	if !ok || len(selectStmt.From) != 1 {
 		return correlatedDMLTarget{}, false
 	}
-	tableName := strings.Trim(strings.TrimSpace(parts[len(parts)-1]), "`")
+	aliased, ok := selectStmt.From[0].(*sqlparser.AliasedTableExpr)
+	if !ok {
+		return correlatedDMLTarget{}, false
+	}
+	table, ok := aliased.Expr.(sqlparser.TableName)
+	if !ok {
+		return correlatedDMLTarget{}, false
+	}
+	tableName := strings.Trim(table.Name.String(), "`")
 	if tableName == "" {
 		return correlatedDMLTarget{}, false
 	}
 	schemaName := ""
-	if len(parts) == 2 {
-		schemaName = strings.Trim(strings.TrimSpace(parts[0]), "`")
+	if table.Qualifier.String() != "" {
+		schemaName = strings.Trim(table.Qualifier.String(), "`")
 	}
-	alias := strings.Trim(strings.TrimSpace(match[2]), "`")
+	alias := strings.Trim(aliased.As.String(), "`")
 	if alias == "" {
 		alias = tableName
 	}

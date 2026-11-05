@@ -2,11 +2,12 @@ package engine
 
 import (
 	"errors"
-	"regexp"
+
 	"strconv"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 const mysqlGenericExecutionErrorCode uint16 = 1105
@@ -43,23 +44,33 @@ func recordSessionError(session server.MySQLServerSession, err error) {
 	session.SetParamByName("warnings", warnings)
 }
 
-var showWarningsLimitPattern = regexp.MustCompile(`(?is)^show\s+(?:warnings|errors)\s+limit\s+(?:(\d+)\s*,\s*)?(\d+)(?:\s+offset\s+(\d+))?$`)
-
 func showWarningsBounds(rawQuery string, total int) (int, int) {
-	query := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(rawQuery), ";"))
-	match := showWarningsLimitPattern.FindStringSubmatch(query)
-	if len(match) == 0 {
+	parsed, err := sqlparser.ParseForExecution(rawQuery)
+	if err != nil {
 		return 0, total
 	}
-
-	offset := uint64(0)
-	countText := match[2]
-	if match[1] != "" {
-		offset, _ = strconv.ParseUint(match[1], 10, 64)
-	} else if match[3] != "" {
-		offset, _ = strconv.ParseUint(match[3], 10, 64)
+	show, ok := parsed.AST.(*sqlparser.Show)
+	if !ok || (show.Type != "warnings" && show.Type != "errors") {
+		return 0, total
 	}
-	count, _ := strconv.ParseUint(countText, 10, 64)
+	return showWarningsBoundsFromStatement(&ExecutionContext{Parsed: parsed}, total)
+}
+func showWarningsBoundsFromStatement(ctx *ExecutionContext, total int) (int, int) {
+	if ctx == nil || ctx.Parsed == nil {
+		return showWarningsBounds("", total)
+	}
+	show, ok := ctx.Parsed.AST.(*sqlparser.Show)
+	if !ok || show.Limit == nil || show.Limit.Rowcount == nil {
+		return 0, total
+	}
+	parseValue := func(expr sqlparser.Expr) uint64 {
+		if expr == nil {
+			return 0
+		}
+		value, _ := strconv.ParseUint(strings.TrimSpace(sqlparser.String(expr)), 10, 64)
+		return value
+	}
+	offset, count := parseValue(show.Limit.Offset), parseValue(show.Limit.Rowcount)
 	if offset >= uint64(total) {
 		return total, total
 	}

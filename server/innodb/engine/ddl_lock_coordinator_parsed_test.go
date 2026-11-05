@@ -29,3 +29,20 @@ func TestStatementTableAccessesFromParsedRejectsNil(t *testing.T) {
 		t.Fatalf("nil result = %#v, %v, %v", tables, writes, ok)
 	}
 }
+
+func TestStatementTableLocksLeaveExplicitLockingToCommandHandlers(t *testing.T) {
+	for _, query := range []string{
+		"LOCK TABLES app.t WRITE", "ALTER TABLE app.t ADD COLUMN n INT",
+		"CREATE TRIGGER app.tr BEFORE INSERT ON app.t FOR EACH ROW SET @n=1",
+		"CREATE PROCEDURE app.p() SELECT * FROM app.t",
+	} {
+		parsed, err := sqlparser.ParseForExecution(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		tables, writes, ok := statementTableAccessesFromParsed(parsed, "app")
+		if !ok || len(tables) != 0 || writes {
+			t.Fatalf("generic statement locks for %s: %v, writes=%v, accepted=%v", query, tables, writes, ok)
+		}
+	}
+}

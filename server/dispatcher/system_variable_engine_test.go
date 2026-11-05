@@ -18,6 +18,19 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
+func TestSystemVariableEngine_SetArithmeticUsesAST(t *testing.T) {
+	for _, tc := range []struct{ expression, want string }{
+		{"-8 / 2", "-4"}, {"(2 + 3) * 4", "20"}, {"1.5 + 2.25", "3.75"}, {"'1 + 2'", "1 + 2"},
+	} {
+		parsed, err := sqlparser.ParseForExecution("select " + tc.expression)
+		require.NoError(t, err)
+		expr := parsed.AST.(*sqlparser.Select).SelectExprs[0].(*sqlparser.AliasedExpr).Expr
+		value, err := (&SystemVariableEngine{}).evaluateSetValue(expr)
+		require.NoError(t, err)
+		require.Equal(t, tc.want, value, tc.expression)
+	}
+}
+
 func TestSystemVariableEngine_InformationSchemaTablesFiltersEqualityPredicates(t *testing.T) {
 	useInformationSchemaTablesFixture(t, map[string][]string{
 		"app_schema":   {"orders", "archive"},
@@ -82,6 +95,13 @@ func TestSystemVariableEngine_DoesNotRouteInformationSchemaMetadataQueries(t *te
 
 	assert.Equal(t, "innodb", NewDefaultSQLRouter().Route(nil, query))
 	assert.False(t, (&SystemVariableEngine{}).CanHandle(query))
+}
+
+func TestSystemVariableEngineMetadataRoutingDoesNotInspectLiterals(t *testing.T) {
+	assert.False(t, isInformationSchemaMetadataQuery("SELECT 'information_schema.tables' AS text_value"))
+	assert.False(t, isMySQLMetadataQuery("SELECT 'mysql.procs_priv' AS text_value"))
+	assert.True(t, isInformationSchemaMetadataQuery("SELECT TABLE_NAME FROM information_schema.tables"))
+	assert.True(t, isMySQLMetadataQuery("SELECT user FROM mysql.procs_priv"))
 }
 
 func TestSystemVariableEngine_DoesNotRouteJDBCInformationSchemaProbes(t *testing.T) {
@@ -318,6 +338,50 @@ func TestSystemVariableEngine_SetNamesCollationSyncsSessionState(t *testing.T) {
 	require.NoError(t, result.Err)
 	assert.Equal(t, "latin1", session.GetParamByName("character_set_client"))
 	assert.Equal(t, "latin1_swedish_ci", session.GetParamByName("collation_connection"))
+}
+
+func TestVariableASTSessionAndGlobalEffects(t *testing.T) {
+	sessionSet, err := sqlparser.ParseForExecution("SET SESSION autocommit = 0")
+	require.NoError(t, err)
+	globalSet, err := sqlparser.ParseForExecution("SET GLOBAL autocommit = 1")
+	require.NoError(t, err)
+	assert.Equal(t, "session", sessionSet.AST.(*sqlparser.Set).Scope)
+	assert.Equal(t, "global", globalSet.AST.(*sqlparser.Set).Scope)
+	sysVarMgr := manager.NewSystemVariablesManager()
+	e := &SystemVariableEngine{name: "system_variable", sysVarManager: sysVarMgr}
+	first, second := newTestDispatcherSession(), newTestDispatcherSession()
+	first.SetParamByName("session_id", "ast-session-first")
+	second.SetParamByName("session_id", "ast-session-second")
+	require.NoError(t, sysVarMgr.SetVariable("", "autocommit", "ON", manager.GlobalScope))
+	require.NoError(t, sysVarMgr.SetVariable("ast-session-first", "autocommit", "OFF", manager.SessionScope))
+	value, err := sysVarMgr.GetVariable("ast-session-first", "autocommit", manager.SessionScope)
+	require.NoError(t, err)
+	assert.Equal(t, "OFF", value)
+	value, err = sysVarMgr.GetVariable("ast-session-second", "autocommit", manager.SessionScope)
+	require.NoError(t, err)
+	assert.NotEqual(t, "OFF", value)
+	_ = e
+}
+
+func TestSystemVariableEngine_DirectScopedSelectUsesASTExpressions(t *testing.T) {
+	sysVarMgr := manager.NewSystemVariablesManager()
+	engine := &SystemVariableEngine{name: "system_variable", sysVarManager: sysVarMgr}
+	session := newTestDispatcherSession()
+	session.SetParamByName("session_id", "direct-ast")
+	require.NoError(t, sysVarMgr.SetVariable("direct-ast", "autocommit", "ON", manager.SessionScope))
+	require.NoError(t, sysVarMgr.SetVariable("", "read_only", "OFF", manager.GlobalScope))
+
+	result, ok := engine.executeDirectSystemVariableSelect(session, "SELECT @@session.autocommit AS session_value, @@global.read_only")
+	require.True(t, ok)
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+	assert.Equal(t, []string{"session_value", "@@global.read_only"}, result.Columns)
+	assert.Equal(t, [][]interface{}{{"ON", "OFF"}}, result.Rows)
+
+	_, ok = engine.executeDirectSystemVariableSelect(session, "SELECT @@session.autocommit + 1")
+	assert.False(t, ok)
+	_, ok = engine.executeDirectSystemVariableSelect(session, "SELECT @@session.autocommit FROM app.t")
+	assert.False(t, ok)
 }
 
 func TestSystemVariableEngine_SuperReadOnlySynchronizesGlobalState(t *testing.T) {

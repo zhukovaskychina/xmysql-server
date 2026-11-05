@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 type AlterOperationKind string
@@ -22,6 +22,7 @@ const (
 	AlterDropIndex            AlterOperationKind = "DROP_INDEX"
 	AlterRenameIndex          AlterOperationKind = "RENAME_INDEX"
 	AlterAlterIndexVisibility AlterOperationKind = "ALTER_INDEX_VISIBILITY"
+	AlterTableOption          AlterOperationKind = "TABLE_OPTION"
 )
 
 type AlterOperation struct {
@@ -39,33 +40,59 @@ type AlterOperation struct {
 	VisibilitySet bool
 	First         bool
 	AfterColumn   string
+	OptionName    string
+	OptionValue   string
+	Collation     string
 }
 
 func parseAlterOperations(query string) (string, []AlterOperation, bool, error) {
-	match := regexp.MustCompile(`(?is)^alter\s+table\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s+(.+)$`).FindStringSubmatch(strings.TrimSpace(strings.TrimSuffix(query, ";")))
-	if len(match) == 0 {
+	trimmed := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(query), ";"))
+	parsed, parseErr := sqlparser.ParseForExecution(trimmed)
+	if parseErr != nil {
 		return "", nil, false, nil
 	}
-	rawParts := splitTopLevelComma(match[2])
+	statement, ok := parsed.AST.(*sqlparser.AlterTable)
+	if !ok || statement.Table.Name.String() == "" {
+		return "", nil, false, nil
+	}
+	// The first comma-separated fragment contains the table name. Remove it
+	// with the same identifier lexer used by the ALTER AST parser so quoted and
+	// qualified names keep their exact SQL boundary.
+	rest := strings.TrimSpace(trimmed[len("alter table"):])
+	_, rest, ok = consumeAlterIdentifier(rest)
+	if !ok {
+		return "", nil, false, nil
+	}
+	rest = strings.TrimSpace(rest)
+	if strings.HasPrefix(rest, ".") {
+		_, rest, ok = consumeAlterIdentifier(strings.TrimSpace(rest[1:]))
+		if !ok {
+			return "", nil, false, nil
+		}
+	}
+	rawParts := splitTopLevelComma(rest)
 	if err := validateAlterExecutionOptions(rawParts); err != nil {
-		return match[1], nil, true, err
+		return statement.Table.Name.String(), nil, true, err
 	}
 	parts := make([]string, 0, len(rawParts))
 	for _, part := range rawParts {
 		trimmedPart := strings.TrimSpace(part)
-		if strings.EqualFold(trimmedPart, "force") || regexp.MustCompile(`(?is)^\s*(?:algorithm|lock|engine)\s*=`).MatchString(trimmedPart) {
+		if strings.EqualFold(trimmedPart, "force") || isAlterExecutionOption(trimmedPart) {
 			continue
 		}
 		parts = append(parts, part)
 	}
 	if len(parts) == 0 {
-		return match[1], nil, true, nil
+		return statement.Table.Name.String(), nil, true, nil
 	}
 	if len(parts) <= 1 {
-		modifier := regexp.MustCompile(`(?i)\bif\s+(?:not\s+)?exists\b`).MatchString(match[2])
-		columnPosition := regexp.MustCompile(`(?is)^\s*(?:add\s+(?:column\s+)?|modify\s+(?:column\s+)?|change\s+(?:column\s+)?)[^,]+\s+\b(?:first|after)\b`).MatchString(parts[0])
-		indexVisibility := regexp.MustCompile(`(?is)^\s*alter\s+(?:index|key)\s+` + "`?" + `[a-zA-Z0-9_$]+` + "`?" + `\s+(?:visible|invisible)\s*$`).MatchString(parts[0])
-		indexVisibility = indexVisibility || regexp.MustCompile(`(?is)^\s*add\s+(?:unique\s+)?(?:index|key)\b.*\b(?:visible|invisible)\s*$`).MatchString(parts[0])
+		lowerPart := strings.ToLower(parts[0])
+		modifier := strings.Contains(lowerPart, "if exists") || strings.Contains(lowerPart, "if not exists")
+		columnPosition, indexVisibility := false, false
+		if operation, parseErr := parseSingleAlterOperation(parts[0]); parseErr == nil {
+			columnPosition = operation.First || operation.AfterColumn != ""
+			indexVisibility = operation.Kind == AlterAlterIndexVisibility || (operation.Kind == AlterAddIndex && operation.VisibilitySet)
+		}
 		if len(parts) == len(rawParts) && !modifier && !columnPosition && !indexVisibility {
 			return "", nil, false, nil
 		}
@@ -74,27 +101,26 @@ func parseAlterOperations(query string) (string, []AlterOperation, bool, error) 
 	for _, raw := range parts {
 		operation, err := parseSingleAlterOperation(strings.TrimSpace(raw))
 		if err != nil {
-			return match[1], nil, true, err
+			return statement.Table.Name.String(), nil, true, err
 		}
 		ops = append(ops, operation)
 	}
-	return match[1], ops, true, nil
+	return statement.Table.Name.String(), ops, true, nil
 }
 
 func validateAlterExecutionOptions(parts []string) error {
 	seen := map[string]string{}
 	for _, raw := range parts {
 		part := strings.TrimSpace(raw)
-		match := regexp.MustCompile(`(?is)^(algorithm|lock|engine)\s*=\s*([a-z_]+)$`).FindStringSubmatch(part)
-		if len(match) == 0 {
+		name, value, ok := alterExecutionOption(part)
+		if !ok {
 			lower := strings.ToLower(part)
 			if strings.HasPrefix(lower, "algorithm") || strings.HasPrefix(lower, "lock") {
 				return fmt.Errorf("invalid ALTER TABLE option %q", part)
 			}
 			continue
 		}
-		name := strings.ToLower(match[1])
-		value := strings.ToLower(match[2])
+		name, value = strings.ToLower(name), strings.ToLower(value)
 		if previous, exists := seen[name]; exists {
 			return fmt.Errorf("ALTER TABLE option %s specified more than once (%s, %s)", strings.ToUpper(name), previous, value)
 		}
@@ -117,38 +143,70 @@ func validateAlterExecutionOptions(parts []string) error {
 	return nil
 }
 
+func alterExecutionOption(part string) (name, value string, ok bool) {
+	trimmed := strings.TrimSpace(part)
+	equal := strings.Index(trimmed, "=")
+	if equal <= 0 {
+		return "", "", false
+	}
+	name, value = strings.TrimSpace(trimmed[:equal]), strings.TrimSpace(trimmed[equal+1:])
+	if !strings.EqualFold(name, "algorithm") && !strings.EqualFold(name, "lock") && !strings.EqualFold(name, "engine") || value == "" || strings.ContainsAny(value, " \t\r\n") {
+		return "", "", false
+	}
+	return name, value, true
+}
+
+func isAlterExecutionOption(part string) bool {
+	_, _, ok := alterExecutionOption(part)
+	return ok
+}
+
 func parseSingleAlterOperation(raw string) (AlterOperation, error) {
-	if match := regexp.MustCompile(`(?is)^alter\s+(?:index|key)\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s+(visible|invisible)\s*$`).FindStringSubmatch(raw); len(match) > 0 {
-		return AlterOperation{Kind: AlterAlterIndexVisibility, IndexName: match[1], Visible: strings.EqualFold(match[2], "visible")}, nil
+	parsed, err := sqlparser.ParseForExecution("ALTER TABLE __xmysql_alter_target " + strings.TrimSpace(raw))
+	if err != nil {
+		return AlterOperation{}, fmt.Errorf("unsupported ALTER operation %q: %w", raw, err)
 	}
-	if match := regexp.MustCompile(`(?is)^add\s+(fulltext\s+)?(unique\s+)?(?:index|key)\s+(if\s+not\s+exists\s+)?` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s*\(([^)]+)\)\s*(visible|invisible)?\s*$`).FindStringSubmatch(raw); len(match) > 0 {
-		return AlterOperation{Kind: AlterAddIndex, IndexName: match[4], Columns: splitIdentifierList(match[5]), Unique: strings.TrimSpace(match[2]) != "", FullText: strings.TrimSpace(match[1]) != "", IfNotExists: strings.TrimSpace(match[3]) != "", Visible: !strings.EqualFold(strings.TrimSpace(match[6]), "invisible"), VisibilitySet: strings.TrimSpace(match[6]) != ""}, nil
+	statement, ok := parsed.AST.(*sqlparser.AlterTable)
+	if !ok || len(statement.Operations) != 1 {
+		return AlterOperation{}, fmt.Errorf("unsupported ALTER operation %q", raw)
 	}
-	if match := regexp.MustCompile(`(?is)^add\s+(?:column\s+)?(if\s+not\s+exists\s+)?` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s+(.+)$`).FindStringSubmatch(raw); len(match) > 0 {
-		definition, first, after := parseColumnPosition(match[3])
-		return AlterOperation{Kind: AlterAddColumn, NewName: match[2], Definition: definition, IfNotExists: strings.TrimSpace(match[1]) != "", First: first, AfterColumn: after}, nil
+	source := statement.Operations[0]
+	switch source.Kind {
+	case sqlparser.AlterOperationAddColumn:
+		return AlterOperation{Kind: AlterAddColumn, NewName: source.Name, Definition: alterOperationDefinitionTail(source), First: source.First, AfterColumn: source.After, IfNotExists: source.IfNotExists}, nil
+	case sqlparser.AlterOperationDropColumn:
+		return AlterOperation{Kind: AlterDropColumn, OldName: source.Name, IfExists: source.IfExists}, nil
+	case sqlparser.AlterOperationModifyColumn:
+		definition, first, after := parseColumnPosition(alterDefinitionTail(source.Definition, source.Name))
+		return AlterOperation{Kind: AlterModifyColumn, OldName: source.Name, NewName: source.Name, Definition: definition, First: first, AfterColumn: after}, nil
+	case sqlparser.AlterOperationChangeColumn:
+		definition, first, after := parseColumnPosition(alterDefinitionTail(source.Definition, source.Name))
+		return AlterOperation{Kind: AlterChangeColumn, OldName: source.Name, NewName: source.NewName, Definition: definition, First: first, AfterColumn: after}, nil
+	case sqlparser.AlterOperationRenameColumn:
+		return AlterOperation{Kind: AlterRenameColumn, OldName: source.Name, NewName: source.NewName}, nil
+	case sqlparser.AlterOperationAddIndex:
+		return AlterOperation{Kind: AlterAddIndex, IndexName: source.Name, Columns: append([]string(nil), source.Columns...), Unique: strings.EqualFold(source.ConstraintType, "unique"), FullText: strings.Contains(strings.ToLower(source.Definition), "fulltext"), Visible: !strings.EqualFold(source.Visible, "invisible"), VisibilitySet: source.Visible != "", IfNotExists: source.IfNotExists}, nil
+	case sqlparser.AlterOperationDropIndex:
+		return AlterOperation{Kind: AlterDropIndex, IndexName: source.Name, IfExists: source.IfExists}, nil
+	case sqlparser.AlterOperationRenameIndex:
+		return AlterOperation{Kind: AlterRenameIndex, OldName: source.Name, NewName: source.NewName}, nil
+	case sqlparser.AlterOperationAlterIndexVisibility:
+		return AlterOperation{Kind: AlterAlterIndexVisibility, IndexName: source.Name, Visible: !strings.EqualFold(source.Visible, "invisible"), VisibilitySet: true}, nil
+	default:
+		return AlterOperation{}, fmt.Errorf("unsupported ALTER operation %q", raw)
 	}
-	if match := regexp.MustCompile(`(?is)^drop\s+column\s+(if\s+exists\s+)?` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `$`).FindStringSubmatch(raw); len(match) > 0 {
-		return AlterOperation{Kind: AlterDropColumn, OldName: match[2], IfExists: strings.TrimSpace(match[1]) != ""}, nil
+}
+
+func alterOperationDefinitionTail(source sqlparser.AlterTableOperation) string {
+	definition := alterDefinitionTail(source.Definition, source.Name)
+	fields := strings.Fields(definition)
+	if source.First && len(fields) > 0 && strings.EqualFold(fields[len(fields)-1], "first") {
+		return strings.Join(fields[:len(fields)-1], " ")
 	}
-	if match := regexp.MustCompile(`(?is)^modify\s+(?:column\s+)?` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s+(.+)$`).FindStringSubmatch(raw); len(match) > 0 {
-		definition, first, after := parseColumnPosition(match[2])
-		return AlterOperation{Kind: AlterModifyColumn, OldName: match[1], NewName: match[1], Definition: definition, First: first, AfterColumn: after}, nil
+	if source.After != "" && len(fields) >= 2 && strings.EqualFold(fields[len(fields)-2], "after") {
+		return strings.Join(fields[:len(fields)-2], " ")
 	}
-	if match := regexp.MustCompile(`(?is)^change\s+(?:column\s+)?` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s+(.+)$`).FindStringSubmatch(raw); len(match) > 0 {
-		definition, first, after := parseColumnPosition(match[3])
-		return AlterOperation{Kind: AlterChangeColumn, OldName: match[1], NewName: match[2], Definition: definition, First: first, AfterColumn: after}, nil
-	}
-	if match := regexp.MustCompile(`(?is)^rename\s+column\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s+to\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `$`).FindStringSubmatch(raw); len(match) > 0 {
-		return AlterOperation{Kind: AlterRenameColumn, OldName: match[1], NewName: match[2]}, nil
-	}
-	if match := regexp.MustCompile(`(?is)^drop\s+(?:index|key)\s+(if\s+exists\s+)?` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `$`).FindStringSubmatch(raw); len(match) > 0 {
-		return AlterOperation{Kind: AlterDropIndex, IndexName: match[2], IfExists: strings.TrimSpace(match[1]) != ""}, nil
-	}
-	if match := regexp.MustCompile(`(?is)^rename\s+(?:index|key)\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `\s+to\s+` + "`?" + `([a-zA-Z0-9_$]+)` + "`?" + `$`).FindStringSubmatch(raw); len(match) > 0 {
-		return AlterOperation{Kind: AlterRenameIndex, OldName: match[1], NewName: match[2]}, nil
-	}
-	return AlterOperation{}, fmt.Errorf("unsupported ALTER operation %q", raw)
+	return definition
 }
 
 func splitIdentifierList(input string) []string {
@@ -206,6 +264,7 @@ func (e *XMySQLExecutor) executeAlterOperationsCompatibility(query, databaseName
 	if err := applyAlterOperationsWithForeignKeyChecks(tableInfo, operations, foreignKeyChecksEnabled); err != nil {
 		return true, err
 	}
+	normalizeTemporaryAlteredColumnTypes(tableInfo, operations)
 	if alterUsesInstantAlgorithm(query) {
 		markInstantAddedColumns(tableInfo, original, operations)
 	}
@@ -232,7 +291,20 @@ func (e *XMySQLExecutor) executeAlterOperationsCompatibility(query, databaseName
 }
 
 func alterUsesInstantAlgorithm(query string) bool {
-	return regexp.MustCompile(`(?i)\balgorithm\s*=\s*instant\b`).MatchString(query)
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return false
+	}
+	statement, ok := parsed.AST.(*sqlparser.AlterTable)
+	if !ok {
+		return false
+	}
+	for _, operation := range statement.Operations {
+		if strings.EqualFold(operation.Name, "algorithm") && strings.EqualFold(operation.Value, "instant") {
+			return true
+		}
+	}
+	return false
 }
 
 // markInstantAddedColumns preserves the one piece of INNODB_COLUMNS metadata
@@ -294,19 +366,60 @@ func markInstantAddedColumns(tableInfo, before map[string]interface{}, operation
 // target database. RENAME TABLE-style cross-schema moves are intentionally
 // handled by their dedicated path and must not be normalized here.
 func normalizeQualifiedAlterTableTarget(query, currentDB string) (string, string, string, bool, error) {
-	pattern := regexp.MustCompile("(?is)^\\s*alter\\s+table\\s+((?:`?[a-zA-Z0-9_$]+`?\\s*\\.\\s*)?`?[a-zA-Z0-9_$]+`?)\\s+")
-	match := pattern.FindStringSubmatchIndex(query)
-	if len(match) == 0 {
+	trimmed := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(query), ";"))
+	lower := strings.ToLower(trimmed)
+	if !strings.HasPrefix(lower, "alter table") || len(trimmed) == len("alter table") || !isSQLSpace(trimmed[len("alter table")]) {
 		return query, currentDB, "", false, nil
 	}
-	rawTarget := query[match[2]:match[3]]
+	rest := strings.TrimSpace(trimmed[len("alter table"):])
+	first, remaining, ok := consumeAlterIdentifier(rest)
+	if !ok {
+		return query, currentDB, "", true, fmt.Errorf("ALTER TABLE requires a database and table name")
+	}
+	rawTarget := first
+	remaining = strings.TrimSpace(remaining)
+	if strings.HasPrefix(remaining, ".") {
+		second, after, secondOK := consumeAlterIdentifier(strings.TrimSpace(remaining[1:]))
+		if !secondOK {
+			return query, currentDB, "", true, fmt.Errorf("ALTER TABLE requires a database and table name")
+		}
+		rawTarget = first + "." + second
+		remaining = after
+	}
 	targetDB, targetTable := compatibilityQualifiedTable(rawTarget, currentDB)
 	if targetDB == "" || targetTable == "" {
 		return query, currentDB, "", true, fmt.Errorf("ALTER TABLE requires a database and table name")
 	}
-	rest := strings.TrimSpace(query[match[1]:])
+	rest = strings.TrimSpace(remaining)
 	normalized := "alter table " + targetTable + " " + rest
 	return normalized, targetDB, targetTable, true, nil
+}
+
+func consumeAlterIdentifier(input string) (identifier, remainder string, ok bool) {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return "", "", false
+	}
+	if input[0] == '`' {
+		end := strings.Index(input[1:], "`")
+		if end < 0 {
+			return "", "", false
+		}
+		end++
+		return input[:end+1], input[end+1:], true
+	}
+	end := 0
+	for end < len(input) && input[end] != '.' && !isSQLSpace(input[end]) {
+		end++
+	}
+	if end == 0 {
+		return "", "", false
+	}
+	return input[:end], input[end:], true
+}
+
+func isSQLSpace(value byte) bool {
+	return value == ' ' || value == '\t' || value == '\r' || value == '\n'
 }
 
 // rewriteRowsAfterSchemaChange rewrites existing clustered records after a
@@ -742,13 +855,12 @@ func indexExists(indexes []interface{}, name string) bool {
 
 func parseColumnPosition(definition string) (string, bool, string) {
 	definition = strings.TrimSpace(definition)
-	if regexp.MustCompile(`(?is)\s+first\s*$`).MatchString(definition) {
-		return strings.TrimSpace(regexp.MustCompile(`(?is)\s+first\s*$`).ReplaceAllString(definition, "")), true, ""
+	fields := strings.Fields(definition)
+	if len(fields) > 0 && strings.EqualFold(fields[len(fields)-1], "first") {
+		return strings.TrimSpace(strings.Join(fields[:len(fields)-1], " ")), true, ""
 	}
-	positionPattern := "(?is)\\s+after\\s+`?([a-zA-Z0-9_$]+)`?\\s*$"
-	if match := regexp.MustCompile(positionPattern).FindStringSubmatch(definition); len(match) > 0 {
-		clean := regexp.MustCompile(positionPattern).ReplaceAllString(definition, "")
-		return strings.TrimSpace(clean), false, match[1]
+	if len(fields) >= 2 && strings.EqualFold(fields[len(fields)-2], "after") {
+		return strings.TrimSpace(strings.Join(fields[:len(fields)-2], " ")), false, strings.Trim(fields[len(fields)-1], "` ")
 	}
 	return definition, false, ""
 }
@@ -823,8 +935,19 @@ func checkExpressionReferencesColumn(expression, columnName string) bool {
 	if columnName == "" {
 		return false
 	}
-	pattern := regexp.MustCompile(`(?i)(?:^|[^a-zA-Z0-9_$])` + regexp.QuoteMeta(columnName) + `(?:$|[^a-zA-Z0-9_$])`)
-	return pattern.MatchString(expression)
+	parsed, err := sqlparser.Parse("select " + strings.TrimSpace(expression))
+	if err != nil || parsed == nil {
+		return false
+	}
+	found := false
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		if column, ok := node.(*sqlparser.ColName); ok && strings.EqualFold(strings.Trim(column.Name.String(), "`"), columnName) {
+			found = true
+			return false, nil
+		}
+		return true, nil
+	}, parsed)
+	return found
 }
 
 func reconcileForeignKeysAfterColumnDrop(tableInfo map[string]interface{}, droppedColumn string) error {

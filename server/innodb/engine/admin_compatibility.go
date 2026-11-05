@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/url"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -359,7 +358,7 @@ func (e *XMySQLExecutor) executeAdminCompatibility(ctx *ExecutionContext, sessio
 			targets = []tableMaintenanceTarget{histogram.target}
 		} else {
 			var targetErr error
-			targets, targetErr = parseTableMaintenanceTargets(tableMaintenancePattern.FindStringSubmatch(q)[2], ctxDatabaseName(ctx))
+			targets, targetErr = tableMaintenanceTargets(q, ctxDatabaseName(ctx))
 			if targetErr != nil {
 				return true, targetErr
 			}
@@ -427,11 +426,33 @@ func (e *XMySQLExecutor) executeAdminCompatibility(ctx *ExecutionContext, sessio
 	return false, nil
 }
 
-var flushTablesPattern = regexp.MustCompile(`(?is)^\s*flush\s+(?:(?:no_write_to_binlog|local)\s+)?tables(?:\s+(.+?))?\s*$`)
-var flushOptimizerCostsPattern = regexp.MustCompile(`(?is)^\s*flush\s+(?:(?:no_write_to_binlog|local)\s+)?optimizer_costs\s*$`)
+func parsedFlushStatement(query string) *sqlparser.AdminStatement {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return nil
+	}
+	stmt, ok := parsed.AST.(*sqlparser.AdminStatement)
+	if !ok || stmt.Kind != "flush" {
+		return nil
+	}
+	return stmt
+}
+
+func flushOptimizerCostsStatement(query string) bool {
+	stmt := parsedFlushStatement(query)
+	if stmt == nil || stmt.Options["optimizer_costs"] != "true" {
+		return false
+	}
+	for key := range stmt.Options {
+		if key != "optimizer_costs" && key != "local" && key != "no_write_to_binlog" {
+			return false
+		}
+	}
+	return true
+}
 
 func (e *XMySQLExecutor) executeFlushOptimizerCosts(ctx *ExecutionContext, query string) (bool, error) {
-	if !flushOptimizerCostsPattern.MatchString(query) {
+	if !flushOptimizerCostsStatement(query) {
 		return false, nil
 	}
 	if err := e.prepareDDLImplicitCommit(ctx.Session); err != nil {
@@ -449,28 +470,20 @@ func (e *XMySQLExecutor) executeFlushOptimizerCosts(ctx *ExecutionContext, query
 // WITH READ LOCK additionally holds the instance read barrier until UNLOCK
 // TABLES, allowing SELECTs while blocking recognized table writers.
 func (e *XMySQLExecutor) executeFlushTables(ctx *ExecutionContext, query string) (bool, error) {
-	match := flushTablesPattern.FindStringSubmatch(query)
-	if len(match) == 0 {
+	stmt := parsedFlushStatement(query)
+	if stmt == nil || stmt.Options["tables"] != "true" {
 		return false, nil
 	}
 	if err := e.prepareDDLImplicitCommit(ctx.Session); err != nil {
 		return true, err
 	}
-	rest := strings.TrimSpace(match[1])
-	withReadLock := false
-	if strings.EqualFold(rest, "with read lock") {
-		withReadLock = true
-		rest = ""
-	} else if strings.HasSuffix(strings.ToLower(rest), " with read lock") {
-		withReadLock = true
-		rest = strings.TrimSpace(rest[:len(rest)-len(" with read lock")])
-	}
+	withReadLock := stmt.Options["with_read_lock"] == "true"
 	if withReadLock && (e == nil || ctx == nil || ctx.Session == nil) {
 		return true, fmt.Errorf("FLUSH TABLES WITH READ LOCK requires a session")
 	}
-	if rest != "" {
-		if _, err := parseTableMaintenanceTargets(rest, ctxDatabaseName(ctx)); err != nil {
-			return true, fmt.Errorf("invalid FLUSH TABLES target: %w", err)
+	for _, target := range stmt.Targets {
+		if target.Qualifier.IsEmpty() && ctxDatabaseName(ctx) == "" {
+			return true, fmt.Errorf("invalid FLUSH TABLES target: no database selected")
 		}
 	}
 	if e == nil || e.storageManager == nil {
@@ -559,31 +572,28 @@ func globalReadLockWriteStatement(query string) bool {
 	return false
 }
 
-var lockTableEntryPattern = regexp.MustCompile("(?is)^\\s*((?:`?[a-zA-Z0-9_$]+`?\\s*\\.\\s*)?`?[a-zA-Z0-9_$]+`?)\\s+(read(?:\\s+local)?|write)\\s*$")
-
 func (e *XMySQLExecutor) parseSessionTableLockRequests(ctx *ExecutionContext, query, defaultSchema string) ([]sessionTableLockRequest, error) {
-	trimmed := strings.TrimSpace(query)
-	if len(trimmed) < len("lock tables") || !strings.EqualFold(trimmed[:len("lock tables")], "lock tables") {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
 		return nil, fmt.Errorf("invalid LOCK TABLES syntax")
 	}
-	parts := strings.Split(strings.TrimSpace(trimmed[len("lock tables"):]), ",")
-	if len(parts) == 0 {
+	statement, ok := parsed.AST.(*sqlparser.AdminStatement)
+	if !ok || statement.Kind != "lock" || len(statement.Targets) == 0 || len(statement.TargetModes) != len(statement.Targets) {
 		return nil, fmt.Errorf("invalid LOCK TABLES syntax")
 	}
-	requests := make([]sessionTableLockRequest, 0, len(parts))
-	seen := make(map[string]struct{}, len(parts))
-	for _, part := range parts {
-		match := lockTableEntryPattern.FindStringSubmatch(part)
-		if len(match) != 3 {
-			return nil, fmt.Errorf("invalid LOCK TABLES syntax near %q", strings.TrimSpace(part))
+	requests := make([]sessionTableLockRequest, 0, len(statement.Targets))
+	seen := make(map[string]struct{}, len(statement.Targets))
+	for index, target := range statement.Targets {
+		database, table := target.Qualifier.String(), target.Name.String()
+		if database == "" {
+			database = defaultSchema
 		}
-		database, table := compatibilityQualifiedTable(match[1], defaultSchema)
 		if database == "" || table == "" {
-			return nil, fmt.Errorf("invalid LOCK TABLES table %q", match[1])
+			return nil, fmt.Errorf("invalid LOCK TABLES table %q", table)
 		}
 		key := strings.ToLower(strings.TrimSpace(database)) + "." + strings.ToLower(strings.TrimSpace(table))
 		if _, exists := seen[key]; exists {
-			return nil, fmt.Errorf("duplicate table in LOCK TABLES: %s", match[1])
+			return nil, fmt.Errorf("duplicate table in LOCK TABLES: %s", table)
 		}
 		seen[key] = struct{}{}
 		if err := e.checkTablePrivilege(ctx, database, table, "LOCK TABLES"); err != nil {
@@ -593,7 +603,7 @@ func (e *XMySQLExecutor) parseSessionTableLockRequests(ctx *ExecutionContext, qu
 			return nil, err
 		}
 		mode := "read"
-		if strings.EqualFold(strings.TrimSpace(match[2]), "write") {
+		if strings.EqualFold(statement.TargetModes[index], "write") {
 			mode = "write"
 		}
 		requests = append(requests, sessionTableLockRequest{table: key, mode: mode})
@@ -608,427 +618,126 @@ func ctxDatabaseName(ctx *ExecutionContext) string {
 	return strings.TrimSpace(ctx.DatabaseName)
 }
 
-var killConnectionPattern = regexp.MustCompile(`(?is)^kill\s+(?:(connection)\s+)?([0-9]+)$`)
-
-func (e *XMySQLExecutor) executeSessionKill(session server.MySQLServerSession, query, lower string) (bool, error) {
-	if !strings.HasPrefix(lower, "kill ") {
+func (e *XMySQLExecutor) executeSessionKill(session server.MySQLServerSession, query, _ string) (bool, error) {
+	tokenizer := sqlparser.NewStringTokenizer(query)
+	_, first := tokenizer.Scan()
+	if !strings.EqualFold(string(first), "kill") {
 		return false, nil
 	}
-	isQuery := strings.HasPrefix(lower, "kill query ")
-	matchPattern := killConnectionPattern
-	if isQuery {
-		matchPattern = regexp.MustCompile(`(?is)^kill\s+query\s+([0-9]+)$`)
-	}
-	match := matchPattern.FindStringSubmatch(query)
-	if len(match) == 0 {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
 		return true, fmt.Errorf("invalid KILL syntax")
 	}
-	idIndex := 2
-	if isQuery {
-		idIndex = 1
+	statement, ok := parsed.AST.(*sqlparser.AdminStatement)
+	if !ok || statement.Kind != "kill" {
+		return false, nil
 	}
-	targetID, err := strconv.ParseUint(match[idIndex], 10, 32)
-	if err != nil || targetID == 0 {
-		return true, fmt.Errorf("invalid KILL thread id")
-	}
-	if isQuery {
-		if e == nil || e.sessionQueryKill == nil {
-			return true, fmt.Errorf("session query kill control is not configured")
-		}
-		return true, e.sessionQueryKill(uint32(targetID), session)
-	}
-	if e == nil || e.sessionKill == nil {
-		return true, fmt.Errorf("session kill control is not configured")
-	}
-	return true, e.sessionKill(uint32(targetID), session)
+	_, err = e.executeParsedAdmin(&ExecutionContext{Session: session}, statement, session)
+	return true, err
 }
 
-func replicationControlRequiredPrivilege(lower string) string {
-	if lower == "reset replica" || lower == "reset slave" ||
-		strings.HasPrefix(lower, "reset replica ") || strings.HasPrefix(lower, "reset slave ") {
+func replicationControlRequiredPrivilege(query string) string {
+	stmt := parsedAdminStatement(query)
+	if stmt == nil {
+		return ""
+	}
+	if stmt.Kind == "reset" && stmt.Options["replica"] != "" {
 		return "RELOAD"
 	}
-	if strings.HasPrefix(lower, "change replication source to ") ||
-		strings.HasPrefix(lower, "change master to ") ||
-		strings.HasPrefix(lower, "change replication filter ") ||
-		lower == "start replica" || lower == "start slave" ||
-		strings.HasPrefix(lower, "start replica ") || strings.HasPrefix(lower, "start slave ") ||
-		lower == "stop replica" || lower == "stop slave" ||
-		strings.HasPrefix(lower, "stop replica ") || strings.HasPrefix(lower, "stop slave ") {
+	if stmt.Kind == "change" || ((stmt.Kind == "start" || stmt.Kind == "stop") && stmt.Options["replica"] != "") {
 		return "REPLICATION_SLAVE_ADMIN"
 	}
 	return ""
 }
 
-func sourceBinlogRequiredPrivilege(lower string) string {
-	if flushOptimizerCostsPattern.MatchString(lower) {
-		return "FLUSH_OPTIMIZER_COSTS"
+func sourceBinlogRequiredPrivilege(query string) string {
+	stmt := parsedAdminStatement(query)
+	if stmt == nil {
+		return ""
 	}
-	if lower == "flush binary logs" || lower == "reset master" ||
-		lower == "reset binary logs and gtids" || strings.HasPrefix(lower, "reset binary logs and gtids ") {
-		return "RELOAD"
-	}
-	if strings.HasPrefix(lower, "purge binary logs to ") ||
-		strings.HasPrefix(lower, "purge master logs to ") ||
-		strings.HasPrefix(lower, "purge binary logs before ") ||
-		strings.HasPrefix(lower, "purge master logs before ") {
+	return sourceBinlogPrivilegeFromAST(stmt)
+}
+
+func sourceBinlogPrivilegeFromAST(stmt *sqlparser.AdminStatement) string {
+	switch stmt.Kind {
+	case "flush":
+		if stmt.Options["optimizer_costs"] == "true" {
+			return "FLUSH_OPTIMIZER_COSTS"
+		}
+		if stmt.Options["binary"] == "true" && stmt.Options["logs"] == "true" {
+			return "RELOAD"
+		}
+	case "reset":
+		if stmt.Options["master"] == "true" || stmt.Options["binary_gtids"] == "true" {
+			return "RELOAD"
+		}
+	case "purge":
 		return "BINLOG_ADMIN"
 	}
 	return ""
 }
 
-func (e *XMySQLExecutor) executeReplicationControl(query, lower string) (bool, error) {
-	if strings.HasPrefix(lower, "purge binary logs before ") || strings.HasPrefix(lower, "purge master logs before ") {
-		if e == nil || e.replicationPurgeBinaryLogsBefore == nil {
-			return true, fmt.Errorf("replication source is not configured")
-		}
-		match := purgeBinaryLogsBeforePattern.FindStringSubmatch(query)
-		if len(match) != 2 || strings.TrimSpace(match[1]) == "" {
-			return true, fmt.Errorf("invalid PURGE BINARY LOGS syntax")
-		}
-		cutoff, err := parseBinlogPurgeTime(strings.TrimSpace(match[1]))
-		if err != nil {
-			return true, err
-		}
-		return true, e.replicationPurgeBinaryLogsBefore(cutoff)
+func parsedAdminStatement(query string) *sqlparser.AdminStatement {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return nil
 	}
-	if strings.HasPrefix(lower, "purge binary logs to ") || strings.HasPrefix(lower, "purge master logs to ") {
-		if e == nil || e.replicationPurgeBinaryLogsTo == nil {
-			return true, fmt.Errorf("replication source is not configured")
-		}
-		match := purgeBinaryLogsPattern.FindStringSubmatch(query)
-		if len(match) != 2 || strings.TrimSpace(match[1]) == "" {
-			return true, fmt.Errorf("invalid PURGE BINARY LOGS syntax")
-		}
-		return true, e.replicationPurgeBinaryLogsTo(strings.TrimSpace(match[1]))
+	stmt, _ := parsed.AST.(*sqlparser.AdminStatement)
+	return stmt
+}
+
+func (e *XMySQLExecutor) executeReplicationControl(query, _ string) (bool, error) {
+	// Select only replication commands here: RESET PERSIST and transaction START
+	// are owned by other handlers. All executable parameters come from the AST.
+	tokenizer := sqlparser.NewStringTokenizer(query)
+	_, first := tokenizer.Scan()
+	_, second := tokenizer.Scan()
+	kind, target := strings.ToLower(string(first)), strings.ToLower(string(second))
+	recognized := false
+	switch kind {
+	case "start", "stop":
+		recognized = target == "replica" || target == "slave"
+	case "reset":
+		recognized = target == "replica" || target == "slave" || target == "master" || target == "binary"
+	case "change":
+		recognized = target == "replication" || target == "master"
+	case "purge":
+		recognized = true
+	case "flush":
+		recognized = target == "binary"
 	}
-	if lower == "flush binary logs" {
-		if e == nil || e.replicationFlushLogs == nil {
-			return true, fmt.Errorf("replication source is not configured")
-		}
-		return true, e.replicationFlushLogs()
-	}
-	if lower == "reset master" {
-		if e == nil || e.replicationResetMaster == nil {
-			return true, fmt.Errorf("replication source is not configured")
-		}
-		return true, e.replicationResetMaster()
-	}
-	if lower == "reset binary logs and gtids" || strings.HasPrefix(lower, "reset binary logs and gtids ") {
-		if e == nil || e.replicationResetBinaryLogsAndGTIDs == nil {
-			return true, fmt.Errorf("replication source is not configured")
-		}
-		match := resetBinaryLogsAndGTIDsPattern.FindStringSubmatch(query)
-		if len(match) != 2 {
-			return true, fmt.Errorf("invalid RESET BINARY LOGS AND GTIDS syntax")
-		}
-		index := uint32(1)
-		if strings.TrimSpace(match[1]) != "" {
-			parsed, err := strconv.ParseUint(strings.TrimSpace(match[1]), 10, 32)
-			if err != nil || parsed == 0 {
-				return true, fmt.Errorf("invalid RESET BINARY LOGS AND GTIDS file index %q", strings.TrimSpace(match[1]))
-			}
-			index = uint32(parsed)
-		}
-		return true, e.replicationResetBinaryLogsAndGTIDs(index)
-	}
-	if strings.HasPrefix(lower, "change replication source to ") || strings.HasPrefix(lower, "change master to ") {
-		if e == nil {
-			return true, fmt.Errorf("replication runtime is not configured")
-		}
-		sourceURL, err := parseReplicationSourceURL(query)
-		if err != nil {
-			return true, err
-		}
-		_, channel, _ := splitReplicationChannelSuffix(query)
-		if channel != "" {
-			if e.replicationChangeSourceForChannel == nil {
-				return true, fmt.Errorf("only the default replication channel is supported")
-			}
-			return true, e.replicationChangeSourceForChannel(channel, sourceURL)
-		}
-		if e.replicationChangeSource == nil {
-			return true, fmt.Errorf("replication runtime is not configured")
-		}
-		return true, e.replicationChangeSource(sourceURL)
-	}
-	if strings.HasPrefix(lower, "change replication filter ") {
-		if e == nil {
-			return true, fmt.Errorf("replication runtime is not configured")
-		}
-		filters, err := parseReplicationFilter(query)
-		if err != nil {
-			return true, err
-		}
-		_, channel, _ := splitReplicationChannelSuffix(query)
-		if channel != "" {
-			if e.replicationChangeFilterForChannel == nil {
-				return true, fmt.Errorf("only the default replication channel is supported")
-			}
-			return true, e.replicationChangeFilterForChannel(channel, filters)
-		}
-		if e.replicationChangeFilter == nil {
-			return true, fmt.Errorf("replication runtime is not configured")
-		}
-		return true, e.replicationChangeFilter(filters)
-	}
-	reset := lower == "reset replica" || lower == "reset slave" || strings.HasPrefix(lower, "reset replica ") || strings.HasPrefix(lower, "reset slave ")
-	if reset {
-		resetAll, channel, valid := parseResetReplicaStatement(query)
-		if !valid {
-			return true, fmt.Errorf("invalid RESET REPLICA syntax")
-		}
-		if resetAll {
-			if channel != "" {
-				if e == nil || e.replicationResetAllForChannel == nil {
-					return true, fmt.Errorf("only the default replication channel is supported")
-				}
-				return true, e.replicationResetAllForChannel(channel)
-			}
-			if e == nil || e.replicationResetAll == nil {
-				return true, fmt.Errorf("replication runtime is not configured")
-			}
-			return true, e.replicationResetAll()
-		}
-		if channel != "" {
-			if e == nil || e.replicationResetForChannel == nil {
-				return true, fmt.Errorf("only the default replication channel is supported")
-			}
-			return true, e.replicationResetForChannel(channel)
-		}
-		if e == nil || e.replicationReset == nil {
-			return true, fmt.Errorf("replication runtime is not configured")
-		}
-		return true, e.replicationReset()
-	}
-	start := lower == "start replica" || lower == "start slave" || strings.HasPrefix(lower, "start replica ") || strings.HasPrefix(lower, "start slave ")
-	stop := lower == "stop replica" || lower == "stop slave" || strings.HasPrefix(lower, "stop replica ") || strings.HasPrefix(lower, "stop slave ")
-	if !start && !stop {
+	if !recognized {
 		return false, nil
 	}
-	channel, channelSyntax := parseReplicationChannelControl(query)
-	if !channelSyntax {
-		fields := strings.Fields(lower)
-		if len(fields) > 2 {
-			return true, fmt.Errorf("replication thread options are not supported")
-		}
-		if len(fields) < 2 {
-			return true, fmt.Errorf("invalid replication control statement")
-		}
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return true, err
 	}
-	if start {
-		if channel != "" {
-			if e == nil || e.replicationStartForChannel == nil {
-				return true, fmt.Errorf("only the default replication channel is supported")
-			}
-			return true, e.replicationStartForChannel(channel)
-		}
-		if e == nil || e.replicationStart == nil {
-			return true, fmt.Errorf("replication runtime is not configured")
-		}
-		return true, e.replicationStart()
+	stmt, ok := parsed.AST.(*sqlparser.AdminStatement)
+	if !ok {
+		return true, fmt.Errorf("invalid replication admin statement")
 	}
-	if channel != "" {
-		if e == nil || e.replicationStopForChannel == nil {
-			return true, fmt.Errorf("only the default replication channel is supported")
-		}
-		return true, e.replicationStopForChannel(channel)
-	}
-	if e == nil || e.replicationStop == nil {
+	if e == nil {
 		return true, fmt.Errorf("replication runtime is not configured")
 	}
-	return true, e.replicationStop()
-}
-
-var resetReplicaPattern = regexp.MustCompile(`(?is)^\s*reset\s+(?:replica|slave)(?:\s+(all))?(?:\s+for\s+channel\s+(?:"((?:""|[^"])*)"|'((?:''|[^'])*)'|([^\s]+)))?\s*$`)
-
-var replicationChannelPattern = regexp.MustCompile(`(?is)^\s*(?:start|stop)\s+(?:replica|slave)\s+for\s+channel\s+(?:"((?:""|[^"])*)"|'((?:''|[^'])*)'|([^\s]+))\s*$`)
-
-func parseReplicationChannelControl(query string) (channel string, matched bool) {
-	match := replicationChannelPattern.FindStringSubmatch(query)
-	if len(match) != 4 {
-		return "", false
+	if stmt.Kind == "change" {
+		_, err = e.executeParsedAdmin(nil, stmt, nil)
+		return true, err
 	}
-	channel = match[1]
-	if channel == "" {
-		channel = match[2]
-	}
-	if channel == "" {
-		channel = match[3]
-	}
-	channel = strings.ReplaceAll(channel, `""`, `"`)
-	channel = strings.ReplaceAll(channel, "''", "'")
-	return strings.TrimSpace(channel), true
-}
-
-func parseResetReplicaStatement(query string) (resetAll bool, channel string, valid bool) {
-	match := resetReplicaPattern.FindStringSubmatch(query)
-	if len(match) != 5 {
-		return false, "", false
-	}
-	resetAll = strings.EqualFold(strings.TrimSpace(match[1]), "all")
-	channel = match[2]
-	if channel == "" {
-		channel = match[3]
-	}
-	if channel == "" {
-		channel = match[4]
-	}
-	channel = strings.ReplaceAll(channel, `""`, `"`)
-	channel = strings.ReplaceAll(channel, "''", "'")
-	return resetAll, strings.TrimSpace(channel), true
-}
-
-var replicationFilterOptionPattern = regexp.MustCompile(`(?is)^\s*(replicate_do_db|replicate_ignore_db|replicate_do_table|replicate_ignore_table|replicate_wild_do_table|replicate_wild_ignore_table|replicate_rewrite_db)\s*=\s*\((.*)\)\s*$`)
-
-var replicationChannelSuffixPattern = regexp.MustCompile(`(?is)^(.+)\s+for\s+channel\s+(?:"((?:""|[^"])*)"|'((?:''|[^'])*)'|([^\s]+))\s*$`)
-
-func splitReplicationChannelSuffix(query string) (base, channel string, matched bool) {
-	trimmed := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(query), ";"))
-	match := replicationChannelSuffixPattern.FindStringSubmatch(trimmed)
-	if len(match) != 5 {
-		return trimmed, "", false
-	}
-	channel = match[2]
-	if channel == "" {
-		channel = match[3]
-	}
-	if channel == "" {
-		channel = match[4]
-	}
-	channel = strings.ReplaceAll(channel, `""`, `"`)
-	channel = strings.ReplaceAll(channel, "''", "'")
-	return strings.TrimSpace(match[1]), strings.TrimSpace(channel), true
+	return e.executeParsedReplicationAdmin(stmt)
 }
 
 func parseReplicationFilter(query string) (replication.ReplicationFilterConfig, error) {
-	var config replication.ReplicationFilterConfig
-	trimmed, _, _ := splitReplicationChannelSuffix(query)
-	prefix := "change replication filter"
-	if len(trimmed) <= len(prefix) || !strings.EqualFold(trimmed[:len(prefix)], prefix) {
-		return config, fmt.Errorf("invalid CHANGE REPLICATION FILTER syntax")
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return replication.ReplicationFilterConfig{}, err
 	}
-	options := strings.TrimSpace(trimmed[len(prefix):])
-	if options == "" {
-		return config, fmt.Errorf("CHANGE REPLICATION FILTER requires a filter option")
+	stmt, ok := parsed.AST.(*sqlparser.AdminStatement)
+	if !ok {
+		return replication.ReplicationFilterConfig{}, fmt.Errorf("invalid CHANGE REPLICATION FILTER syntax")
 	}
-	seen := make(map[string]struct{})
-	for _, rawOption := range splitTopLevelComma(options) {
-		match := replicationFilterOptionPattern.FindStringSubmatch(rawOption)
-		if len(match) != 3 {
-			return config, fmt.Errorf("unsupported CHANGE REPLICATION FILTER option %q", strings.TrimSpace(rawOption))
-		}
-		name := strings.ToLower(match[1])
-		if _, exists := seen[name]; exists {
-			return config, fmt.Errorf("CHANGE REPLICATION FILTER option %s specified more than once", strings.ToUpper(name))
-		}
-		seen[name] = struct{}{}
-		switch name {
-		case "replicate_do_db":
-			values, err := parseReplicationFilterValues(match[2])
-			if err != nil {
-				return config, fmt.Errorf("%s: %w", strings.ToUpper(name), err)
-			}
-			config.ReplicateDoDB = values
-		case "replicate_ignore_db":
-			values, err := parseReplicationFilterValues(match[2])
-			if err != nil {
-				return config, fmt.Errorf("%s: %w", strings.ToUpper(name), err)
-			}
-			config.ReplicateIgnoreDB = values
-		case "replicate_do_table":
-			values, err := parseReplicationFilterValues(match[2])
-			if err != nil {
-				return config, fmt.Errorf("%s: %w", strings.ToUpper(name), err)
-			}
-			config.ReplicateDoTable = values
-		case "replicate_ignore_table":
-			values, err := parseReplicationFilterValues(match[2])
-			if err != nil {
-				return config, fmt.Errorf("%s: %w", strings.ToUpper(name), err)
-			}
-			config.ReplicateIgnoreTable = values
-		case "replicate_wild_do_table":
-			values, err := parseReplicationFilterValues(match[2])
-			if err != nil {
-				return config, fmt.Errorf("%s: %w", strings.ToUpper(name), err)
-			}
-			config.ReplicateWildDoTable = values
-		case "replicate_wild_ignore_table":
-			values, err := parseReplicationFilterValues(match[2])
-			if err != nil {
-				return config, fmt.Errorf("%s: %w", strings.ToUpper(name), err)
-			}
-			config.ReplicateWildIgnoreTable = values
-		case "replicate_rewrite_db":
-			rewrites, err := parseReplicationRewriteDBValues(match[2])
-			if err != nil {
-				return config, fmt.Errorf("%s: %w", strings.ToUpper(name), err)
-			}
-			config.ReplicateRewriteDB = rewrites
-		}
-	}
-	return config, nil
+	return typedReplicationFilterConfig(stmt)
 }
-
-func parseReplicationRewriteDBValues(raw string) ([]replication.ReplicationDBRewrite, error) {
-	values := make([]replication.ReplicationDBRewrite, 0)
-	for _, token := range splitTopLevelComma(strings.TrimSpace(raw)) {
-		pair := strings.TrimSpace(token)
-		if len(pair) < 2 || pair[0] != '(' || pair[len(pair)-1] != ')' {
-			return nil, fmt.Errorf("rewrite rule must be a (from_db, to_db) pair")
-		}
-		parts := splitTopLevelComma(pair[1 : len(pair)-1])
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("rewrite rule must contain exactly two database names")
-		}
-		from := unquoteReplicationFilterValue(parts[0])
-		to := unquoteReplicationFilterValue(parts[1])
-		if from == "" || to == "" {
-			return nil, fmt.Errorf("rewrite database names cannot be empty")
-		}
-		values = append(values, replication.ReplicationDBRewrite{From: from, To: to})
-	}
-	if len(values) == 0 {
-		return nil, fmt.Errorf("rewrite rule list cannot be empty")
-	}
-	return values, nil
-}
-
-func unquoteReplicationFilterValue(raw string) string {
-	value := strings.TrimSpace(raw)
-	if len(value) >= 2 && ((value[0] == '\'' && value[len(value)-1] == '\'') || (value[0] == '"' && value[len(value)-1] == '"')) {
-		value = value[1 : len(value)-1]
-		value = strings.ReplaceAll(value, "''", "'")
-		value = strings.ReplaceAll(value, `""`, `"`)
-	}
-	return strings.TrimSpace(value)
-}
-
-func parseReplicationFilterValues(raw string) ([]string, error) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return []string{}, nil
-	}
-	values := make([]string, 0)
-	for _, token := range splitTopLevelComma(raw) {
-		value := strings.TrimSpace(token)
-		if len(value) >= 2 && ((value[0] == '\'' && value[len(value)-1] == '\'') || (value[0] == '"' && value[len(value)-1] == '"')) {
-			value = value[1 : len(value)-1]
-			value = strings.ReplaceAll(value, "''", "'")
-			value = strings.ReplaceAll(value, `""`, `"`)
-		}
-		if strings.TrimSpace(value) == "" {
-			return nil, fmt.Errorf("filter rule cannot be empty")
-		}
-		values = append(values, value)
-	}
-	return values, nil
-}
-
-var purgeBinaryLogsPattern = regexp.MustCompile(`(?is)^purge\s+(?:binary|master)\s+logs\s+to\s+['"]([^'"]+)['"]$`)
-var purgeBinaryLogsBeforePattern = regexp.MustCompile(`(?is)^purge\s+(?:binary|master)\s+logs\s+before\s+['"]([^'"]+)['"]$`)
-var resetBinaryLogsAndGTIDsPattern = regexp.MustCompile(`(?is)^reset\s+binary\s+logs\s+and\s+gtids(?:\s+to\s+([0-9]+))?$`)
 
 func parseBinlogPurgeTime(value string) (time.Time, error) {
 	for _, layout := range []string{"2006-01-02 15:04:05", "2006-01-02T15:04:05", time.RFC3339} {
@@ -1039,19 +748,7 @@ func parseBinlogPurgeTime(value string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("invalid PURGE BINARY LOGS timestamp %q", value)
 }
 
-var replicationSourceOptionPattern = regexp.MustCompile(`(?is)^\s*(source_host|master_host|source_port|master_port|source_user|master_user|source_password|master_password|source_log_file|master_log_file|source_log_pos|master_log_pos|source_auto_position|master_auto_position|source_ssl|master_ssl|source_ssl_verify_server_cert|master_ssl_verify_server_cert|source_ssl_ca|master_ssl_ca|source_ssl_cert|master_ssl_cert|source_ssl_key|master_ssl_key|source_connect_retry|master_connect_retry|source_retry_count|master_retry_count|source_heartbeat_period|master_heartbeat_period|source_compression_algorithms|master_compression_algorithms|source_zstd_compression_level|master_zstd_compression_level)\s*=\s*(?:'((?:''|[^'])*)'|"((?:""|[^"])*)"|([^\s]+))\s*$`)
-
-func parseReplicationSourceURL(query string) (string, error) {
-	query, _, _ = splitReplicationChannelSuffix(query)
-	lower := strings.ToLower(strings.TrimSpace(query))
-	prefix := "change replication source to"
-	if strings.HasPrefix(lower, "change master to") {
-		prefix = "change master to"
-	}
-	options := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(query)[len(prefix):], ";"))
-	if options == "" {
-		return "", fmt.Errorf("CHANGE REPLICATION SOURCE requires SOURCE_HOST")
-	}
+func replicationSourceURLFromOptions(options map[string]string) (string, error) {
 	host := ""
 	port := 0
 	user := ""
@@ -1070,21 +767,20 @@ func parseReplicationSourceURL(query string) (string, error) {
 	heartbeatPeriod := ""
 	compressionAlgorithms := ""
 	zstdCompressionLevel := ""
-	for _, rawOption := range splitTopLevelComma(options) {
-		match := replicationSourceOptionPattern.FindStringSubmatch(rawOption)
-		if len(match) == 0 {
-			return "", fmt.Errorf("unsupported CHANGE REPLICATION SOURCE option %q", strings.TrimSpace(rawOption))
+	keys := make([]string, 0, len(options))
+	for key := range options {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	seen := make(map[string]bool)
+	for _, key := range keys {
+		canonical := strings.TrimPrefix(strings.TrimPrefix(key, "source_"), "master_")
+		if seen[canonical] {
+			return "", fmt.Errorf("SOURCE_%s specified more than once", strings.ToUpper(canonical))
 		}
-		value := match[2]
-		if value == "" {
-			value = match[3]
-		}
-		if value == "" {
-			value = match[4]
-		}
-		value = strings.ReplaceAll(value, "''", "'")
-		value = strings.ReplaceAll(value, `""`, `"`)
-		switch strings.ToLower(match[1]) {
+		seen[canonical] = true
+		value := options[key]
+		switch key {
 		case "source_host", "master_host":
 			if host != "" {
 				return "", fmt.Errorf("SOURCE_HOST specified more than once")
@@ -1175,6 +871,8 @@ func parseReplicationSourceURL(query string) (string, error) {
 				return "", fmt.Errorf("SOURCE_ZSTD_COMPRESSION_LEVEL specified more than once")
 			}
 			zstdCompressionLevel = strings.TrimSpace(value)
+		default:
+			return "", fmt.Errorf("unsupported CHANGE REPLICATION SOURCE option %q", key)
 		}
 	}
 	if host == "" {
@@ -1295,13 +993,53 @@ func parseReplicationBool(value string) (bool, error) {
 	}
 }
 
-var tableMaintenancePattern = regexp.MustCompile(`(?is)^\s*(check|analyze|optimize)\s+(?:(?:no_write_to_binlog|local)\s+)?table\s+(.+?)\s*$`)
-var tableMaintenanceTargetPattern = regexp.MustCompile("(?is)^\\s*(`?[a-zA-Z0-9_$]+`?)(?:\\s*\\.\\s*(`?[a-zA-Z0-9_$]+`?))?\\s*$")
-var tableMaintenanceUpgradeSuffixPattern = regexp.MustCompile(`(?is)\s+for\s+upgrade\s*$`)
-var histogramMaintenancePattern = regexp.MustCompile(`(?is)^\s*analyze\s+(?:(?:no_write_to_binlog|local)\s+)?table\s+(.+?)\s+(update|drop)\s+histogram\s+on\s+(.+?)(?:\s+with\s+([0-9]+)\s+buckets?)?\s*;?\s*$`)
-
 func isTableMaintenanceStatement(query string) bool {
-	return tableMaintenancePattern.MatchString(strings.TrimSpace(query))
+	tokenizer := sqlparser.NewStringTokenizer(query)
+	_, text := tokenizer.Scan()
+	switch strings.ToLower(string(text)) {
+	case "check", "analyze", "optimize":
+		return true
+	default:
+		return false
+	}
+}
+
+func parsedTableMaintenance(query string) (*sqlparser.AdminStatement, error) {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return nil, err
+	}
+	stmt, ok := parsed.AST.(*sqlparser.AdminStatement)
+	if !ok || (stmt.Kind != "check" && stmt.Kind != "analyze" && stmt.Kind != "optimize") {
+		return nil, fmt.Errorf("invalid table maintenance statement")
+	}
+	return stmt, nil
+}
+
+func maintenanceTargetsFromAST(names []sqlparser.TableName, defaultSchema string) ([]tableMaintenanceTarget, error) {
+	targets := make([]tableMaintenanceTarget, 0, len(names))
+	for _, name := range names {
+		schema, table := name.Qualifier.String(), name.Name.String()
+		if schema == "" {
+			schema = strings.TrimSpace(defaultSchema)
+		}
+		if schema == "" || table == "" {
+			return nil, fmt.Errorf("no database selected")
+		}
+		targets = append(targets, tableMaintenanceTarget{schema: schema, table: table})
+	}
+	if len(targets) == 0 {
+		return nil, fmt.Errorf("table maintenance requires at least one table")
+	}
+	return targets, nil
+}
+
+func tableMaintenanceTargets(query, defaultSchema string) ([]tableMaintenanceTarget, error) {
+	stmt, err := parsedTableMaintenance(query)
+	if err != nil {
+		return nil, err
+	}
+	return maintenanceTargetsFromAST(stmt.Targets, defaultSchema)
 }
 
 func (e *XMySQLExecutor) executeTableMaintenance(ctx *ExecutionContext, query string) (*Result, error) {
@@ -1315,18 +1053,15 @@ func (e *XMySQLExecutor) executeTableMaintenance(ctx *ExecutionContext, query st
 		}
 		return e.executeHistogramMaintenance(ctx, histogram)
 	}
-	match := tableMaintenancePattern.FindStringSubmatch(query)
-	if len(match) != 3 {
-		return nil, fmt.Errorf("invalid table maintenance statement")
-	}
-	targets, err := parseTableMaintenanceTargets(match[2], defaultSchema)
+	stmt, err := parsedTableMaintenance(query)
 	if err != nil {
 		return nil, err
 	}
-	if len(targets) == 0 {
-		return nil, fmt.Errorf("table maintenance requires at least one table")
+	targets, err := maintenanceTargetsFromAST(stmt.Targets, defaultSchema)
+	if err != nil {
+		return nil, err
 	}
-	operation := strings.ToUpper(match[1])
+	operation := strings.ToUpper(stmt.Kind)
 	rows := make([][]interface{}, 0, len(targets))
 	for _, target := range targets {
 		if operation == "CHECK" {
@@ -1377,7 +1112,7 @@ func (e *XMySQLExecutor) executeTableMaintenance(ctx *ExecutionContext, query st
 				return nil, err
 			}
 		}
-		rows = append(rows, []interface{}{target.table, strings.ToLower(match[1]), "status", "OK"})
+		rows = append(rows, []interface{}{target.table, stmt.Kind, "status", "OK"})
 	}
 	return &Result{
 		ResultType: common.RESULT_TYPE_QUERY,
@@ -1397,52 +1132,32 @@ type histogramMaintenance struct {
 }
 
 func parseHistogramMaintenance(query, defaultSchema string) (*histogramMaintenance, bool, error) {
-	match := histogramMaintenancePattern.FindStringSubmatch(strings.TrimSpace(query))
-	if len(match) == 0 {
+	stmt, err := parsedTableMaintenance(query)
+	if err != nil {
+		return nil, isTableMaintenanceStatement(query), err
+	}
+	if stmt.Histogram == nil {
 		return nil, false, nil
 	}
-	targets, err := parseTableMaintenanceTargets(match[1], defaultSchema)
+	targets, err := maintenanceTargetsFromAST(stmt.Targets, defaultSchema)
 	if err != nil {
 		return nil, true, err
 	}
 	if len(targets) != 1 {
 		return nil, true, fmt.Errorf("histogram maintenance requires exactly one table")
 	}
-	operation := strings.ToUpper(strings.TrimSpace(match[2]))
-	if operation == "DROP" && strings.TrimSpace(match[4]) != "" {
-		return nil, true, fmt.Errorf("DROP HISTOGRAM does not accept a bucket count")
+	columns := make([]string, 0, len(stmt.Histogram.Columns))
+	for _, column := range stmt.Histogram.Columns {
+		columns = append(columns, column.String())
 	}
-	columns := make([]string, 0)
-	for _, rawColumn := range splitTopLevelComma(strings.TrimSpace(match[3])) {
-		column := strings.TrimSpace(rawColumn)
-		if column == "" {
-			return nil, true, fmt.Errorf("histogram column name cannot be empty")
-		}
-		if strings.HasPrefix(column, "`") && strings.HasSuffix(column, "`") {
-			column = strings.Trim(column, "`")
-			column = strings.ReplaceAll(column, "``", "`")
-		}
-		if !regexp.MustCompile(`^[a-zA-Z0-9_$]+$`).MatchString(column) {
-			return nil, true, fmt.Errorf("invalid histogram column %q", column)
-		}
-		columns = append(columns, column)
-	}
-	if len(columns) == 0 {
-		return nil, true, fmt.Errorf("histogram maintenance requires at least one column")
-	}
-	bucketCount := 100
-	if match[4] != "" {
-		bucketCount, err = strconv.Atoi(match[4])
-		if err != nil || bucketCount < 1 || bucketCount > 1024 {
+	count := 100
+	if stmt.Histogram.Buckets != "" {
+		count, err = strconv.Atoi(stmt.Histogram.Buckets)
+		if err != nil || count < 1 || count > 1024 {
 			return nil, true, fmt.Errorf("histogram bucket count must be between 1 and 1024")
 		}
 	}
-	return &histogramMaintenance{
-		target:      targets[0],
-		operation:   operation,
-		columns:     columns,
-		bucketCount: bucketCount,
-	}, true, nil
+	return &histogramMaintenance{target: targets[0], operation: strings.ToUpper(stmt.Histogram.Operation), columns: columns, bucketCount: count}, true, nil
 }
 
 func (e *XMySQLExecutor) executeHistogramMaintenance(ctx *ExecutionContext, maintenance *histogramMaintenance) (*Result, error) {
@@ -1627,33 +1342,6 @@ func maxInt(value, minimum int) int {
 type tableMaintenanceTarget struct {
 	schema string
 	table  string
-}
-
-func parseTableMaintenanceTargets(spec, defaultSchema string) ([]tableMaintenanceTarget, error) {
-	spec = tableMaintenanceUpgradeSuffixPattern.ReplaceAllString(strings.TrimSpace(spec), "")
-	parts := splitTopLevelComma(spec)
-	if len(parts) == 0 {
-		return nil, fmt.Errorf("table maintenance requires at least one table")
-	}
-	targets := make([]tableMaintenanceTarget, 0, len(parts))
-	for _, part := range parts {
-		match := tableMaintenanceTargetPattern.FindStringSubmatch(strings.TrimSpace(part))
-		if len(match) == 0 {
-			return nil, fmt.Errorf("invalid table maintenance target %q", strings.TrimSpace(part))
-		}
-		schema, table := strings.Trim(match[1], "`"), ""
-		if strings.TrimSpace(match[2]) == "" {
-			table = schema
-			schema = strings.TrimSpace(defaultSchema)
-		} else {
-			table = strings.Trim(match[2], "`")
-		}
-		if schema == "" || table == "" {
-			return nil, fmt.Errorf("no database selected")
-		}
-		targets = append(targets, tableMaintenanceTarget{schema: schema, table: table})
-	}
-	return targets, nil
 }
 
 func (e *XMySQLExecutor) collectTableStatistics(ctx *ExecutionContext, schemaName, tableName string, info *persistedTableInfo, rowCount int64) (*metadata.InfoTableStats, error) {
@@ -1928,13 +1616,4 @@ func checkSessionTableLock(session server.MySQLServerSession, query, databaseNam
 		}
 	}
 	return nil
-}
-
-func referencedTableForLockCheck(query string) string {
-	pattern := regexp.MustCompile("(?is)^\\s*(?:select\\s+.+?\\s+from|insert\\s+(?:ignore\\s+)?into|replace\\s+into|update|delete\\s+from|alter\\s+table|drop\\s+table|truncate\\s+table)\\s+((?:`?[a-zA-Z0-9_$]+`?\\s*\\.\\s*)?`?[a-zA-Z0-9_$]+`?)")
-	match := pattern.FindStringSubmatch(query)
-	if len(match) > 1 {
-		return match[1]
-	}
-	return ""
 }
