@@ -386,7 +386,7 @@
 ### 内部文档
 - `B+树核心功能设计文档` (本次输入)
 - `docs/planning/CAPABILITY_PRIORITY_INDEX_20260715.md`
-- `STORAGE_ENGINE_FINAL_REPORT.md`（`STORAGE_ENGINE_COMPLETION_SUMMARY.md` 已合并为跳转页）
+- `STORAGE_ENGINE_IMPLEMENTATION_SUMMARY.md`（历史实现说明）
 
 ### 外部资料
 - 《数据库系统内部原理》- B+树索引章节

@@ -23,7 +23,6 @@
 | 文档 | 说明 |
 |------|------|
 | [txn-gap-nextkey-locks.md](./txn-gap-nextkey-locks.md) | **主文档**：Gap / Next-Key / 插入意向锁等实现说明 |
-| [txn-gap-nextkey-locks-summary.md](./txn-gap-nextkey-locks-summary.md) | **→ 跳转** 至 `txn-gap-nextkey-locks.md` |
 | [LOCK_001_GAP_LOCK_FIX_REPORT.md](./LOCK_001_GAP_LOCK_FIX_REPORT.md) | LOCK-001：Gap 锁相关修复报告（与上互补） |
 
 ## ReadView 修复

@@ -6,7 +6,7 @@
 > **修复日期**: 2025-10-31  
 > **工作时间**: 实际用时 < 1天（比预估3-5天快）
 
-> **合并说明（2026-04）**：`EXECUTOR_REFACTOR_SUMMARY.md` 已改为跳转页，**执行器重构的权威叙述以本文为正文**；索引见 [EXECUTOR_DOCUMENTATION_INDEX.md](./EXECUTOR_DOCUMENTATION_INDEX.md)。
+> **合并说明（2026-04）**：`EXECUTOR_REFACTOR_SUMMARY.md` 已删除，**执行器重构的权威叙述以本文为正文**；索引见 [EXECUTOR_DOCUMENTATION_INDEX.md](./EXECUTOR_DOCUMENTATION_INDEX.md)。
 
 ---
 

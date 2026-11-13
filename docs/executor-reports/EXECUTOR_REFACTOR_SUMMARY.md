@@ -1,8 +1,0 @@
-# 执行器代码整合重构实施总结（已合并）
-
-> **2026-04**：本文与 [EXECUTOR_REFACTOR_COMPLETION_REPORT.md](./EXECUTOR_REFACTOR_COMPLETION_REPORT.md) 在「双轨整合为 Volcano、适配层、TableScan/IndexScan 增强」等叙述上**高度重复**。  
-> **请阅读**：[EXECUTOR_REFACTOR_COMPLETION_REPORT.md](./EXECUTOR_REFACTOR_COMPLETION_REPORT.md)
-
----
-
-**索引**：[EXECUTOR_DOCUMENTATION_INDEX.md](./EXECUTOR_DOCUMENTATION_INDEX.md) · **算子与清理**：[Volcano 文档索引](../volcano/VOLCANO_DOCUMENTATION_INDEX.md)

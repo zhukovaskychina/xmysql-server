@@ -87,7 +87,7 @@
 
 - [btree-reports/](btree-reports/)、[storage-reports/](storage-reports/)、[transaction-reports/](transaction-reports/)
 - [mvcc-reports/](mvcc-reports/)、[executor-reports/](executor-reports/)、[index-reports/](index-reports/)
-- [protocol-reports/](protocol-reports/)、[reports/](reports/)
+- [protocol-reports/](protocol-reports/)
 
 阅读历史报告时，优先对照第 1 节的当前权威文档；冲突时以权威文档和当前源码为准。
 

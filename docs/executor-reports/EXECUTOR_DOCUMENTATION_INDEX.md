@@ -11,7 +11,6 @@
 | ---------------------------------------------------------------------------------- | --------------------------------------------------------------- |
 | [EXECUTOR_ARCHITECTURE_REFACTOR_PLAN.md](./EXECUTOR_ARCHITECTURE_REFACTOR_PLAN.md) | EXEC-001：**历史计划归档**（文首 2026-04 重估说明；闭环见完成报告）                    |
 | [EXECUTOR_REFACTOR_COMPLETION_REPORT.md](./EXECUTOR_REFACTOR_COMPLETION_REPORT.md) | **权威**：重构完成报告（闭环、指标、与 `executor.go` / `volcano_executor.go` 关系） |
-| [EXECUTOR_REFACTOR_SUMMARY.md](./EXECUTOR_REFACTOR_SUMMARY.md)                     | **→ 跳转** 至完成报告（原「实施总结」与完成报告重复）                                  |
 
 
 ---
@@ -22,7 +21,6 @@
 | 位置                                                                                                       | 说明                         |
 | -------------------------------------------------------------------------------------------------------- | -------------------------- |
 | [../volcano/](../volcano/)                                                                               | `Operator` 接口、算子实现、清理与最终报告 |
-| [../implementation/OLD_INTERFACE_REMOVAL_SUMMARY.md](../implementation/OLD_INTERFACE_REMOVAL_SUMMARY.md) | 旧接口移除与迁移说明                 |
 
 
 ## 代码入口

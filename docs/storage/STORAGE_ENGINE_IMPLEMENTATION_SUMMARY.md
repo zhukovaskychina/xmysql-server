@@ -1,6 +1,6 @@
 # 存储引擎核心模块实现总结
 
-> **2026-04**：**完成度、任务矩阵、结论**以 [STORAGE_ENGINE_FINAL_REPORT.md](./STORAGE_ENGINE_FINAL_REPORT.md) 为准；本文为按任务（STG-xxx）的**实现拆解与代码说明**（长文）。导航见 [STORAGE_DOCUMENTATION_INDEX.md](./STORAGE_DOCUMENTATION_INDEX.md)。
+> **2026-04**：本文为按任务（STG-xxx）的**历史实现拆解与代码说明**（长文）；当前状态以 [../planning/CAPABILITY_PRIORITY_INDEX_20260715.md](../planning/CAPABILITY_PRIORITY_INDEX_20260715.md) 为准。导航见 [STORAGE_DOCUMENTATION_INDEX.md](./STORAGE_DOCUMENTATION_INDEX.md)。
 
 ## 概述
 

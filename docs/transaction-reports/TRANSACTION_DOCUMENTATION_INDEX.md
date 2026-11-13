@@ -20,13 +20,6 @@
 | [TXN-004_LONG_TRANSACTION_DETECTION_REPORT.md](./TXN-004_LONG_TRANSACTION_DETECTION_REPORT.md) | 长事务检测 |
 | [log-optimization-summary.md](./log-optimization-summary.md) | LOG-003/007/008 等日志优化总结 |
 
-## 已合并为跳转页（勿当权威正文）
-
-| 文档 | 说明 |
-|------|------|
-| [TXN_002_UNDO_LOG_FIX_REPORT.md](./TXN_002_UNDO_LOG_FIX_REPORT.md) | → **TXN_002_ROLLBACK_FIX_REPORT.md** |
-| [TXN_002_REAPPLY_COMPLETION_REPORT.md](./TXN_002_REAPPLY_COMPLETION_REPORT.md) | 历史重新应用记录 → 同上 |
-
 ---
 
 ## 其它入口
