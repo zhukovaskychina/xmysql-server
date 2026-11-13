@@ -1,6 +1,6 @@
 # 任务与阶段报告索引
 
-> **2026-04**：本目录文档量大、命名分散（`phases` / `stages` / `p0-tasks` 等）。全库文档总表见 [../DOCUMENTATION_INDEX.md](../DOCUMENTATION_INDEX.md)；存储专题见 [../storage/STORAGE_DOCUMENTATION_INDEX.md](../storage/STORAGE_DOCUMENTATION_INDEX.md)。
+> **2026-04**：本目录文档量大、命名分散（`phases` / `stages` / `p0-tasks` 等）。全库文档总表见 [../README.md](../README.md)；存储专题见 [../storage/STORAGE_DOCUMENTATION_INDEX.md](../storage/STORAGE_DOCUMENTATION_INDEX.md)。
 
 ---
 

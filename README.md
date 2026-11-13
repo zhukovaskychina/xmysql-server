@@ -70,15 +70,19 @@ XMySQL Server 是一个使用 Go 实现的、面向单机场景的 MySQL 兼容�
 
 ## 项目实施
 
-### 当前权威口径（2026-07-15）
+### 当前权威口径（2026-11-13）
 
-- 基础 CRUD 与 JDBC DML 专项测试当前可跑通。
-- 这只代表最小集成路径可用，不代表完整 MySQL/InnoDB 生产能力完成。
+- 基础 CRUD 与 JDBC DML 在聚焦路径可跑通；2026-07-22 JDBC 聚焦矩阵为 77 个用例、0 失败。
+- SQL 结构解析的正则迁移已基本完成：剩余 `regexp` 调用均为 LIKE/REGEXP 求值、值校验等值语义，
+  不再承担 SQL 结构识别。
+- 项目仍未通过生产发布评审；P1 的完整 I_S/P_S 运行时与权限语义、P2/P4 的复制/XA/GTID
+  统一提交与官方 MySQL 互操作、P3 的完整客户端矩阵仍在推进。
 - 当前缺口与优先级以以下文档为准：
   - `docs/planning/CAPABILITY_PRIORITY_INDEX_20260715.md`
   - `docs/planning/P0_CAPABILITY_BACKLOG_20260715.md`
   - `docs/planning/P1_CAPABILITY_BACKLOG_20260715.md`
   - `docs/planning/PX_CAPABILITY_BACKLOG_20260715.md`
+- 完整文档导航见 [`docs/README.md`](docs/README.md)。
 
 ### 当前实施方式
 
@@ -92,12 +96,13 @@ XMySQL Server 是一个使用 Go 实现的、面向单机场景的 MySQL 兼容�
 - P0 生产阻塞能力 backlog：`docs/planning/P0_CAPABILITY_BACKLOG_20260715.md`
 - P1 重要能力 backlog：`docs/planning/P1_CAPABILITY_BACKLOG_20260715.md`
 - P* 未来能力 backlog：`docs/planning/PX_CAPABILITY_BACKLOG_20260715.md`
+- MySQL 兼容性剩余边界：`docs/planning/COMPATIBILITY_REMAINING_BOUNDARIES_20260928.md`
+- SQL 正则 → AST 迁移进展：`docs/planning/2026-10-18-sql-regex-ast-migration-progress.md`
 - 开发路线图（导航 + 权威链接）：`docs/planning/DEVELOPMENT_ROADMAP.md`
-- 路线图任务版（可执行视角）：`docs/development/DEVELOPMENT_ROADMAP_TASKS.md`
+- 未实现功能梳理：`docs/未实现功能梳理.md`
 - P0 上线任务分解：`docs/planning/P0_PRODUCTION_TASKS.md`
 - P0 上线验收清单：`docs/planning/P0_PRODUCTION_CHECKLIST.md`
 - P0 生产部署计划：`docs/planning/P0_PRODUCTION_DEPLOYMENT_PLAN.md`
-- 剩余问题分析：`docs/analysis/REMAINING_ISSUES_ANALYSIS.md`
 
 ### 主要实施路径（建议顺序）
 
@@ -109,15 +114,16 @@ XMySQL Server 是一个使用 Go 实现的、面向单机场景的 MySQL 兼容�
 
 ---
 
-## 项目现状（2026-07）
+## 项目现状（2026-11）
 
-> 说明：本节以 2026-07-15 的 CRUD/JDBC 验证和能力缺口盘点为准；历史 P0 证据文档若与本节冲突，以 `CAPABILITY_PRIORITY_INDEX_20260715.md` 为准。
+> 说明：本节以 2026-11-13 的代码与兼容性文档为准；历史 P0 证据文档若与本节冲突，以 `CAPABILITY_PRIORITY_INDEX_20260715.md` 和 `COMPATIBILITY_REMAINING_BOUNDARIES_20260928.md` 为准。
 
 ### 状态结论
 
-- 项目已具备基础单机 CRUD + JDBC DML 能力。
-- 当前主要缺口不再是“能否执行简单增删改查”，而是“是否具备生产级 MySQL/InnoDB 正确性、恢复、索引、事务、协议和运维闭环”。
-- P0 上线清单需要按新的 P0 能力 backlog 重新验收，不能仅凭历史 evidence suite 或基础测试通过判断生产就绪。
+- 项目已具备基础单机 CRUD + JDBC DML 能力，聚焦事务、索引、DDL 元数据和预处理语句路径可跑通。
+- SQL 结构解析已基本 AST 化；剩余正则只处理已经解析出的值，不再解析 SQL 结构。
+- 当前主要缺口是生产级 MySQL/InnoDB 的完整兼容性、恢复与运维闭环，而不是简单增删改查。
+- 项目尚未通过生产发布评审；不能仅凭历史 evidence suite 或基础测试通过判断生产就绪。
 
 ### 已具备能力（与代码对齐的要点）
 
@@ -181,14 +187,14 @@ XMySQL Server 是一个使用 Go 实现的、面向单机场景的 MySQL 兼容�
 ### 编译与测试
 
 ```bash
-GO_BIN=${GO_BIN:-/Users/zhukovasky/sdk/go1.24.3/bin/go}
+GO_BIN=${GO_BIN:-go}
 
 $GO_BIN mod tidy
 $GO_BIN build ./...
 $GO_BIN test ./server/dispatcher ./server/innodb/engine
 ```
 
-- 默认未设置 `GO_BIN` 时，脚本与文档将使用 `/Users/zhukovasky/sdk/go1.24.3/bin/go`。
+- `GO_BIN` 未设置时使用 PATH 中的 `go`；本仓库要求的 Go 版本见 `go.mod`（1.24+）。
 
 ### JDBC 客户端集成测试（可选）
 

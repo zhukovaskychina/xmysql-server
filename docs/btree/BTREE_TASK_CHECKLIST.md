@@ -1,6 +1,6 @@
 # B+树核心功能任务清单
 
-> **文档导航（2026-04）**：总索引 [BTREE_DOCUMENTATION_INDEX.md](./BTREE_DOCUMENTATION_INDEX.md)；路线图 [../development/DEVELOPMENT_ROADMAP_TASKS.md](../development/DEVELOPMENT_ROADMAP_TASKS.md)。
+> **文档导航（2026-04）**：总索引 [BTREE_DOCUMENTATION_INDEX.md](./BTREE_DOCUMENTATION_INDEX.md)；能力优先级 [../planning/CAPABILITY_PRIORITY_INDEX_20260715.md](../planning/CAPABILITY_PRIORITY_INDEX_20260715.md)。
 
 > **项目进度**: 0% → 目标95%  
 > **开始日期**: 2025-10-28  

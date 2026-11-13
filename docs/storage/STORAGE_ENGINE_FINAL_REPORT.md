@@ -1,6 +1,11 @@
 # 存储引擎核心模块 - 最终完成报告
 
 > **文档导航（2026-04）**：存储相关多文档入口见 [STORAGE_DOCUMENTATION_INDEX.md](./STORAGE_DOCUMENTATION_INDEX.md)；各 STG **实现级长文拆解**见 [STORAGE_ENGINE_IMPLEMENTATION_SUMMARY.md](./STORAGE_ENGINE_IMPLEMENTATION_SUMMARY.md)。
+>
+> **状态说明（2026-11-13）**：本报告中的“98% 完成度”是 2025-10 存储模块自评快照，
+> 不代表项目整体完成度或生产就绪。当前状态以
+> [../planning/CAPABILITY_PRIORITY_INDEX_20260715.md](../planning/CAPABILITY_PRIORITY_INDEX_20260715.md)
+> 和 [../planning/COMPATIBILITY_REMAINING_BOUNDARIES_20260928.md](../planning/COMPATIBILITY_REMAINING_BOUNDARIES_20260928.md) 为准。
 
 ## 📊 完成状态总览
 

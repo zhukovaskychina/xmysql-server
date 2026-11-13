@@ -33,6 +33,17 @@ This does not mean the project is production-ready. The current boundary is:
 - not yet complete as a MySQL/InnoDB-compatible production database;
 - not approved for production release without P1 release-readiness evidence such as crash drill, concurrent workload, metrics drill, rollback drill, and owner sign-off.
 
+## 2026-11-13 Status Update
+
+- SQL 结构解析的正则迁移已完成：`server/` 剩余 35 个 `regexp` 调用点均为值语义
+  （LIKE/REGEXP 求值、账户主机通配、日期/时区/UUID/WKT 解析、标识符校验、digest 归一化）。
+  详见 `docs/planning/2026-10-18-sql-regex-ast-migration-progress.md`。
+- P0 聚焦路径（Go `engine`/`manager`/`plan` + 77 例 JDBC 矩阵）在 2026-07-22 为绿；此后
+  未再声明全量 engine/JDBC 通过。
+- P1 的完整 I_S/P_S 运行时与权限语义、P2/P4 的复制/XA/GTID 统一提交与官方互操作仍为
+  `partial`；FULLTEXT 延期，非 InnoDB 明确 out_of_scope。
+- 项目仍未通过生产发布评审；本索引的 P0 完成不等于生产就绪。
+
 ## Priority Definitions
 
 | Priority | Meaning | Release Rule |
@@ -67,3 +78,4 @@ This does not mean the project is production-ready. The current boundary is:
 3. Schedule P1 SQL compatibility breadth: `ON DUPLICATE KEY UPDATE`, `REPLACE`, full FK enforcement matrix, and CHECK expression semantics.
 4. Schedule P1/P* storage stress: large B+Tree split/merge/reuse workloads, corruption injection, and long-running purge/restart tests.
 5. Keep production readiness claims tied to `docs/planning/P0_EVIDENCE_RUN_20260722.md` or newer evidence documents.
+6. Treat structural regex→AST migration as complete; only revisit a remaining `regexp` site when a concrete value-semantics defect is found.

@@ -4,7 +4,7 @@
 >
 > **For agentic workers:** 使用 `superpowers:executing-plans` 或 `subagent-driven-development`；所有任务采用 checkbox（`- [ ]`）语法，建议 TDD、小步提交。
 >
-> **参考:** [CONVERGENCE.md](./CONVERGENCE.md)、[2026-03-16-xmysql-engine-buffer-pool-convergence-plan.md](./2026-03-16-xmysql-engine-buffer-pool-convergence-plan.md)、[2025-03-16-xmysql-phase4-implementation-plan.md](./2025-03-16-xmysql-phase4-implementation-plan.md)、[DEVELOPMENT_ROADMAP_TASKS.md](../development/DEVELOPMENT_ROADMAP_TASKS.md)
+> **参考:** [CONVERGENCE.md](./CONVERGENCE.md)、[2026-03-16-xmysql-engine-buffer-pool-convergence-plan.md](./2026-03-16-xmysql-engine-buffer-pool-convergence-plan.md)、[2025-03-16-xmysql-phase4-implementation-plan.md](./2025-03-16-xmysql-phase4-implementation-plan.md)、[能力优先级索引](../../planning/CAPABILITY_PRIORITY_INDEX_20260715.md)
 
 ---
 
@@ -145,4 +145,4 @@
 - [CONVERGENCE.md](./CONVERGENCE.md) — 包级结论、已跳过用例、已知失败、验收范围
 - [2026-03-16-xmysql-engine-buffer-pool-convergence-plan.md](./2026-03-16-xmysql-engine-buffer-pool-convergence-plan.md) — B1.2、C1.1、C1.2 原文
 - [2025-03-16-xmysql-phase4-implementation-plan.md](./2025-03-16-xmysql-phase4-implementation-plan.md) — Chunk 15～16
-- [DEVELOPMENT_ROADMAP_TASKS.md](../development/DEVELOPMENT_ROADMAP_TASKS.md) — 任务 ID 与模块映射
+- [能力优先级索引](../../planning/CAPABILITY_PRIORITY_INDEX_20260715.md) — 任务 ID 与模块映射

@@ -2,7 +2,7 @@
 
 本目录存放使用 **writing-plans** 技能生成的、可被 agent 或人工按步骤执行的实施计划。
 
-> **权威路线图（避免与仓库主文档重复）**：P0 core 当前状态以 [P0_CORE_STATUS_20260713.md](../../planning/P0_CORE_STATUS_20260713.md) 为准；广义生产 P0 以 [P0_PRODUCTION_TASKS.md](../../planning/P0_PRODUCTION_TASKS.md) 为准；模块完成度、任务 ID 与状态以 [DEVELOPMENT_ROADMAP_TASKS.md](../../development/DEVELOPMENT_ROADMAP_TASKS.md)、[未实现功能梳理.md](../../未实现功能梳理.md) 为准。本目录各 `phase*.md` 保留为**历史/分 Chunk 执行切片**。
+> **权威路线图（避免与仓库主文档重复）**：P0 core 当前状态以 [P0_CORE_STATUS_20260713.md](../../planning/P0_CORE_STATUS_20260713.md) 为准；广义生产 P0 以 [P0_PRODUCTION_TASKS.md](../../planning/P0_PRODUCTION_TASKS.md) 为准；模块完成度、任务 ID 与状态以 [能力优先级索引](../../planning/CAPABILITY_PRIORITY_INDEX_20260715.md)、[未实现功能梳理.md](../../未实现功能梳理.md) 为准。本目录各 `phase*.md` 保留为**历史/分 Chunk 执行切片**。
 
 ## 当前计划
 
@@ -19,7 +19,7 @@
 
 ## 与开发计划的关系
 
-- 高层阶段与周次见 [docs/development/开发计划.md](../development/开发计划.md)。
+- 高层阶段与周次见 [docs/development/开发计划.md](../../planning/CAPABILITY_PRIORITY_INDEX_20260715.md)。
 - 本目录下的计划将 16 周拆成可执行的 Chunk，每 Chunk 内为带 checkbox 的 bite-sized 任务与步骤（TDD、小步提交）。
 - Phase 2～4 的详细步骤可后续按同样格式追加到本目录（如 `2025-XX-XX-xmysql-phase2-p0-p1-plan.md`）。
 

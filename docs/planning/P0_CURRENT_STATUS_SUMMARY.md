@@ -31,11 +31,19 @@ Code changes made in this closure:
 - clustered record boolean encoding accepts JDBC numeric boolean values.
 - storage-integrated WHERE filtering now supports basic `IN (...)` and `LIKE` predicates.
 
-Still not green:
+Later closure (2026-07-22) and current boundary (2026-11-13):
 
-- `DDLOperationsTest`: `SHOW DATABASES LIKE ...` still returns a JDBC result set that Connector/J treats as not navigable; `DatabaseMetaData.getTables()` table visibility is still incomplete; foreign key DDL is still unsupported.
-- `TransactionTest`: command acceptance is fixed, but rollback/savepoint undo is not implemented, so row state remains changed after rollback.
-- `IndexAndConstraintTest`: basic PK/UNIQUE/NOT NULL/INDEX cases pass; FK/CHECK/FULLTEXT/cascade remain explicitly unsupported.
+- `DDLOperationsTest`: `SHOW DATABASES LIKE`, `DROP DATABASE IF EXISTS`, `SHOW FULL TABLES`,
+  `DatabaseMetaData.getTables()` and `ALTER TABLE ADD COLUMN` / `TRUNCATE TABLE` now pass the
+  focused JDBC matrix. Foreign-key DDL syntax smoke paths exist; full referential enforcement
+  remains P1.
+- `TransactionTest`: commit, rollback, savepoints, isolation-level setter, `BEGIN` and
+  `START TRANSACTION` now pass the focused JDBC matrix.
+- `IndexAndConstraintTest`: PK, composite PK, UNIQUE, NOT NULL, INDEX and composite index pass.
+  FK/CHECK/FULLTEXT/cascade complete semantics remain P1/P*.
+- The focused Go packages (`engine`, `manager`, `plan`) and the 77-case JDBC matrix were green
+  on 2026-07-22. This is still not production approval; external crash drill, concurrent
+  workload, live metrics, rollback drill and owner sign-off remain P1 release gates.
 
 ## Purpose
 

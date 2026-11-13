@@ -1,6 +1,6 @@
 # SQL 正则迁移进展（截至 2026-11-05）
 
-当前状态：继续实施，尚未全部完成。JSON_VALUE 结构和 mysql.user 的 user/host 条件已在本轮迁移。以下扫描、代码和测试证据更新了此前过于宽泛的“仅剩值语义”结论。
+当前状态（2026-11-05 扫描核实）：SQL 结构解析的正则迁移已完成。`server/` 中剩余 12 个文件、35 个 `regexp` 直接调用点均处理已经解析出的值，不再承担 SQL 结构识别。文末“残留与后续”列出了逐类保留原因；迁移过程中的历史结论保留在下方表格中。
 
 ## 当前扫描（最新）
 
@@ -123,13 +123,16 @@ LOCK TABLES 的会话写模式、多表锁和重置释放，以及 ANALYZE 等�
 
 历史完整 engine、JDBC 存储程序/事件及跨版本兼容性等验收仍需按原计划继续验证。
 
-## 下一步仍须实施
+## 残留与后续
 
-- executor.go 中的 ALTER、CTE/视图、表定义和 SQL 依赖改写。
-- account_compatibility.go 的账户语句和安全属性，而不仅是已经改完的账户元数据过滤。
-- stored_object_compatibility.go 中剩余存储程序体、DECLARE/HANDLER/SIGNAL/控制语句等解析。
-- 分区维护、相关子查询、窗口、部分一般表空间/独立索引/临时表等结构匹配。
-- executor.go 中 ALTER 兼容入口和存储程序体仍有结构正则；继续迁移时必须保持已修复的专用锁职责和旧 AST 缓存身份检查。
-- 逐条核对全部残留及保留原因、处理异步事件 Windows 文件竞争失败，并完成原计划最后的验收项。
+以下 35 个位置按用途保留，均不是 SQL 结构解析：
 
-尚未提交、推送或部署；既有工作区变更保留。
+- LIKE / REGEXP 运算符求值：`plan/expression.go`、`storage_integrated_dml_helper.go`、`select_join_executor.go`。
+- SHOW / 元数据 LIKE 过滤：`show_filter.go`。
+- 账户主机通配与权限名/数据库名格式校验：`account_compatibility.go`、`auth/engine_access.go`、`common/dynamic_privileges.go`、`manager/schema_manager.go`。
+- 字面量解析与校验：时区偏移、TIME、UUID、零日期、WKT 坐标（`plan/expression.go`、`dml_result_compatibility.go`、`fulltext_spatial_compatibility.go`）。
+- 非 SQL 文本处理：digest 占位符归一化、复制错误文本提取 errno（`observability/metrics/statement_digest.go`、`replication/runtime.go`）。
+
+仍需注意：部分兼容入口是“AST + 词法边界”的混合实现，例如 ALTER 顶层拆分和存储程序体；它们不使用正则，但也不是完全由 yacc AST 承载。若要进一步收敛为纯 AST，需要单独评估，不要把它与本次正则迁移混为一谈。
+
+异步事件测试在 Windows 上的文件竞争失败仍未解决，见上一节。本文档的历史代码变更未提交、未推送、未部署。

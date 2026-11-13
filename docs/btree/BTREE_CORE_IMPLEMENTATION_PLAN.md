@@ -1,6 +1,6 @@
 # B+树核心功能实施计划
 
-> **文档导航（2026-04）**：总索引 [BTREE_DOCUMENTATION_INDEX.md](./BTREE_DOCUMENTATION_INDEX.md)；路线图 [../development/DEVELOPMENT_ROADMAP_TASKS.md](../development/DEVELOPMENT_ROADMAP_TASKS.md)。
+> **文档导航（2026-04）**：总索引 [BTREE_DOCUMENTATION_INDEX.md](./BTREE_DOCUMENTATION_INDEX.md)；能力优先级 [../planning/CAPABILITY_PRIORITY_INDEX_20260715.md](../planning/CAPABILITY_PRIORITY_INDEX_20260715.md)。
 
 ## 执行摘要
 
@@ -385,7 +385,7 @@
 
 ### 内部文档
 - `B+树核心功能设计文档` (本次输入)
-- `PROJECT_STATUS_AND_NEXT_STEPS.md`
+- `docs/planning/CAPABILITY_PRIORITY_INDEX_20260715.md`
 - `STORAGE_ENGINE_FINAL_REPORT.md`（`STORAGE_ENGINE_COMPLETION_SUMMARY.md` 已合并为跳转页）
 
 ### 外部资料

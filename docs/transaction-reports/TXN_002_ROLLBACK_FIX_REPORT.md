@@ -628,7 +628,7 @@ for i := len(undoLogs) - 1; i >= 0; i-- {
 
 | 文档 | 位置 | 说明 |
 |------|------|------|
-| 剩余问题分析 | `docs/analysis/REMAINING_ISSUES_ANALYSIS.md` | 2025-10 问题快照；当前缺口矩阵见 `docs/planning/UNIMPLEMENTED_CAPABILITY_BASELINE_2026-04.md` |
+| 当前缺口与优先级 | `docs/planning/CAPABILITY_PRIORITY_INDEX_20260715.md` | 2026-11 当前口径；历史 2025-10 快照见 git 历史 |
 | 执行器重构报告 | `docs/executor-reports/EXECUTOR_REFACTOR_COMPLETION_REPORT.md` | EXEC-001 相关 |
 | 本修复报告 | `docs/transaction-reports/TXN_002_ROLLBACK_FIX_REPORT.md` | TXN-002 详细修复 |
 

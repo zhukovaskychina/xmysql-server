@@ -10,7 +10,7 @@
 |------|------|
 | [STORAGE_ENGINE_FINAL_REPORT.md](./STORAGE_ENGINE_FINAL_REPORT.md) | **权威**：完成度、P0/P1 任务矩阵、代码量与结论 |
 | [STORAGE_ENGINE_IMPLEMENTATION_SUMMARY.md](./STORAGE_ENGINE_IMPLEMENTATION_SUMMARY.md) | 各 STG 任务的**实现拆解**（长文）；文首注明总览以 FINAL 为准 |
-| [../development/PROJECT_STATUS_AND_NEXT_STEPS.md](../development/PROJECT_STATUS_AND_NEXT_STEPS.md) | 存储专项会话状态（与 FINAL 对齐时可对照） |
+| [../planning/CAPABILITY_PRIORITY_INDEX_20260715.md](../planning/CAPABILITY_PRIORITY_INDEX_20260715.md) | 存储专项会话状态（与 FINAL 对齐时可对照） |
 
 ### 已合并为跳转页
 

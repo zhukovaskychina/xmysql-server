@@ -1,8 +1,10 @@
 # 查询模块待实现清单（查询优化器 + 查询执行器）
 
 > **2026-07-15 当前口径**：查询模块的 P0/P1/P* 归类需要服从 `docs/planning/CAPABILITY_PRIORITY_INDEX_20260715.md`。查询优化能力重要，但当前更高优先级的 P0 阻塞项是存储页/B+Tree、二级索引、事务/MVCC/恢复和 JDBC 核心兼容。本文继续作为查询模块专项 backlog。
+>
+> **状态说明（2026-11-13）**：下文的完成度百分比是历史快照，不代表当前实现状态；当前优先级与兼容性边界以上述能力索引和 `docs/planning/COMPATIBILITY_REMAINING_BOUNDARIES_20260928.md` 为准。
 
-> 基于 `DEVELOPMENT_ROADMAP_TASKS.md`、`QUERY_ENGINE_ANALYSIS.md` 及 Phase 1～4 / CONVERGENCE 实施情况整理。  
+> 基于 `docs/planning/CAPABILITY_PRIORITY_INDEX_20260715.md`、`QUERY_ENGINE_ANALYSIS.md` 及 Phase 1～4 / CONVERGENCE 实施情况整理。
 > **目的**：只看「查询」这块还有多少要做的，便于排期与迭代。
 
 ---
@@ -147,7 +149,7 @@
 
 ## 六、参考文档
 
-- `docs/development/DEVELOPMENT_ROADMAP_TASKS.md` — 模块 1（查询优化器）、模块 7（查询执行器）。
+- `docs/planning/CAPABILITY_PRIORITY_INDEX_20260715.md` — 模块 1（查询优化器）、模块 7（查询执行器）。
 - `docs/query-optimizer/QUERY_ENGINE_ANALYSIS.md` — 现状与缺失功能分析。
 - `docs/superpowers/plans/CONVERGENCE.md` — 当前通过/跳过/已知失败。
 - `docs/superpowers/plans/2025-03-16-xmysql-phase4-implementation-plan.md` — Phase 4 验收范围。

@@ -33,5 +33,5 @@
 
 - MVCC / 锁：[../mvcc-reports/MVCC_DOCUMENTATION_INDEX.md](../mvcc-reports/MVCC_DOCUMENTATION_INDEX.md)  
 - 规划导航：[../planning/DEVELOPMENT_ROADMAP.md](../planning/DEVELOPMENT_ROADMAP.md)  
-- 路线图任务：[../development/DEVELOPMENT_ROADMAP_TASKS.md](../development/DEVELOPMENT_ROADMAP_TASKS.md)  
-- 全库文档表：[../DOCUMENTATION_INDEX.md](../DOCUMENTATION_INDEX.md)
+- 路线图任务：[../planning/CAPABILITY_PRIORITY_INDEX_20260715.md](../planning/CAPABILITY_PRIORITY_INDEX_20260715.md)
+- 全库文档表：[../README.md](../README.md)
