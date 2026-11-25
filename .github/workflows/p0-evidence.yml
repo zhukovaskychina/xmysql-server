@@ -16,15 +16,18 @@ on:
       recovery_runs:
         description: "Crash recovery replay runs for full mode"
         required: true
-        default: "3"
+        type: number
+        default: 3
       concurrency_runs:
         description: "Concurrency validation runs for full mode"
         required: true
-        default: "1"
+        type: number
+        default: 1
       rollback_window_seconds:
         description: "Rollback timing window for candidate mode"
         required: true
-        default: "300"
+        type: number
+        default: 300
       owner_signoff_json:
         description: "Optional owner signoff JSON path inside the repository workspace"
         required: false
@@ -34,6 +37,13 @@ on:
         required: false
         default: ""
 
+permissions:
+  contents: read
+
+concurrency:
+  group: p0-evidence-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   p0-evidence:
     runs-on: windows-latest
@@ -41,12 +51,13 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+          cache: true
 
       - name: Show Go version
         shell: pwsh
@@ -60,32 +71,56 @@ jobs:
       - name: Run full P0 evidence suite
         if: ${{ inputs.mode == 'full' }}
         shell: pwsh
+        env:
+          RECOVERY_RUNS: ${{ inputs.recovery_runs }}
+          CONCURRENCY_RUNS: ${{ inputs.concurrency_runs }}
         run: |
+          $recoveryRuns = [int]$env:RECOVERY_RUNS
+          $concurrencyRuns = [int]$env:CONCURRENCY_RUNS
           ./scripts/run_p0_evidence_suite.ps1 `
-            -RecoveryRuns ${{ inputs.recovery_runs }} `
-            -ConcurrencyRuns ${{ inputs.concurrency_runs }}
+            -RecoveryRuns $recoveryRuns `
+            -ConcurrencyRuns $concurrencyRuns
 
       - name: Run P0 delivery candidate
         if: ${{ inputs.mode == 'candidate' }}
         shell: pwsh
+        env:
+          RECOVERY_RUNS: ${{ inputs.recovery_runs }}
+          CONCURRENCY_RUNS: ${{ inputs.concurrency_runs }}
+          ROLLBACK_WINDOW_SECONDS: ${{ inputs.rollback_window_seconds }}
+          ACCEPTED_DEFERRALS_JSON: ${{ inputs.accepted_deferrals_json }}
+          OWNER_SIGNOFF_JSON: ${{ inputs.owner_signoff_json }}
         run: |
+          $recoveryRuns = [int]$env:RECOVERY_RUNS
+          $concurrencyRuns = [int]$env:CONCURRENCY_RUNS
+          $rollbackWindowSeconds = [int]$env:ROLLBACK_WINDOW_SECONDS
+          $candidateArgs = @(
+            "-RecoveryRuns", $recoveryRuns,
+            "-ConcurrencyRuns", $concurrencyRuns,
+            "-RollbackWindowSeconds", $rollbackWindowSeconds
+          )
+          if (-not [string]::IsNullOrWhiteSpace($env:ACCEPTED_DEFERRALS_JSON)) {
+            $candidateArgs += @("-AcceptedDeferralsJson", $env:ACCEPTED_DEFERRALS_JSON)
+          }
+          if (-not [string]::IsNullOrWhiteSpace($env:OWNER_SIGNOFF_JSON)) {
+            $candidateArgs += @("-OwnerSignoffJson", $env:OWNER_SIGNOFF_JSON)
+          }
           ./scripts/run_p0_delivery_candidate.ps1 `
-            -RecoveryRuns ${{ inputs.recovery_runs }} `
-            -ConcurrencyRuns ${{ inputs.concurrency_runs }} `
-            -RollbackWindowSeconds ${{ inputs.rollback_window_seconds }} `
-            -AcceptedDeferralsJson "${{ inputs.accepted_deferrals_json }}" `
-            -OwnerSignoffJson "${{ inputs.owner_signoff_json }}"
+            @candidateArgs
 
       - name: Run P0 governance gate
         if: ${{ inputs.mode == 'governance' }}
         shell: pwsh
+        env:
+          ACCEPTED_DEFERRALS_JSON: ${{ inputs.accepted_deferrals_json }}
+          OWNER_SIGNOFF_JSON: ${{ inputs.owner_signoff_json }}
         run: |
           $governanceArgs = @()
-          if ("${{ inputs.accepted_deferrals_json }}" -ne "") {
-            $governanceArgs += @("-AcceptedDeferralsJson", "${{ inputs.accepted_deferrals_json }}")
+          if (-not [string]::IsNullOrWhiteSpace($env:ACCEPTED_DEFERRALS_JSON)) {
+            $governanceArgs += @("-AcceptedDeferralsJson", $env:ACCEPTED_DEFERRALS_JSON)
           }
-          if ("${{ inputs.owner_signoff_json }}" -ne "") {
-            $governanceArgs += @("-OwnerSignoffJson", "${{ inputs.owner_signoff_json }}", "-RequireOwnerSignoff")
+          if (-not [string]::IsNullOrWhiteSpace($env:OWNER_SIGNOFF_JSON)) {
+            $governanceArgs += @("-OwnerSignoffJson", $env:OWNER_SIGNOFF_JSON, "-RequireOwnerSignoff")
           }
           ./scripts/verify_p0_governance_gate.ps1 @governanceArgs
 
