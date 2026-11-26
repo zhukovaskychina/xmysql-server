@@ -367,7 +367,7 @@ func explainSetOperationLeaves(node *explainSetOperationNode, inheritedType stri
 		*leaves = append(*leaves, node)
 		return
 	}
-	leftType := "PRIMARY"
+	leftType := inheritedType
 	rightType := node.operator
 	explainSetOperationLeaves(node.left, leftType, leaves)
 	explainSetOperationLeaves(node.right, rightType, leaves)
