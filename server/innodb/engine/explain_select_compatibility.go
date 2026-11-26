@@ -168,6 +168,10 @@ func (e *XMySQLExecutor) explainSelectPlanRows(ctx *ExecutionContext, statement 
 
 func (e *XMySQLExecutor) explainSelectPlanRowsAt(ctx *ExecutionContext, statement *sqlparser.Select, defaultSchema string, rootID int64, rootType string, rootSubqueries []*plan.SubqueryExpression, firstDerivedID int64) ([][]interface{}, error) {
 	nextID := firstDerivedID
+	return e.explainSelectPlanRowsWithNextID(ctx, statement, defaultSchema, rootID, rootType, rootSubqueries, &nextID)
+}
+
+func (e *XMySQLExecutor) explainSelectPlanRowsWithNextID(ctx *ExecutionContext, statement *sqlparser.Select, defaultSchema string, rootID int64, rootType string, rootSubqueries []*plan.SubqueryExpression, nextID *int64) ([][]interface{}, error) {
 	tasks := make([]explainDerivedTask, 0)
 	allSubqueries := make([]*plan.SubqueryExpression, 0, len(rootSubqueries))
 	seenSubqueries := make(map[*plan.SubqueryExpression]struct{}, len(rootSubqueries))
@@ -185,7 +189,7 @@ func (e *XMySQLExecutor) explainSelectPlanRowsAt(ctx *ExecutionContext, statemen
 	}
 	appendSubqueries(rootSubqueries)
 
-	rows, err := e.explainSelectBlockRows(ctx, statement, defaultSchema, rootID, rootType, &nextID, &tasks)
+	rows, err := e.explainSelectBlockRows(ctx, statement, defaultSchema, rootID, rootType, nextID, &tasks)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +198,7 @@ func (e *XMySQLExecutor) explainSelectPlanRowsAt(ctx *ExecutionContext, statemen
 		child := explainSelectStatementAsSelect(task.statement)
 		if child == nil {
 			if union, ok := explainSelectStatementAsUnion(task.statement); ok {
-				childRows, childErr := e.explainUnionPlanRowsAt(ctx, union, defaultSchema, task.id, &nextID)
+				childRows, childErr := e.explainUnionPlanRowsAt(ctx, union, defaultSchema, task.id, nextID)
 				if childErr != nil {
 					return nil, childErr
 				}
@@ -204,7 +208,7 @@ func (e *XMySQLExecutor) explainSelectPlanRowsAt(ctx *ExecutionContext, statemen
 		}
 		childSubqueries := explainSelectSubqueries(child)
 		appendSubqueries(childSubqueries)
-		childRows, childErr := e.explainSelectBlockRows(ctx, child, defaultSchema, task.id, "DERIVED", &nextID, &tasks)
+		childRows, childErr := e.explainSelectBlockRows(ctx, child, defaultSchema, task.id, "DERIVED", nextID, &tasks)
 		if childErr != nil {
 			return nil, childErr
 		}
@@ -216,12 +220,12 @@ func (e *XMySQLExecutor) explainSelectPlanRowsAt(ctx *ExecutionContext, statemen
 		rows = append(rows, childRows...)
 	}
 	if len(allSubqueries) > 0 {
-		subqueryRows, subqueryErr := e.explainSubqueryRows(ctx, allSubqueries, defaultSchema, nextID)
+		subqueryRows, subqueryErr := e.explainSubqueryRows(ctx, allSubqueries, defaultSchema, *nextID)
 		if subqueryErr != nil {
 			return nil, subqueryErr
 		}
 		rows = append(rows, subqueryRows...)
-		nextID += int64(len(subqueryRows))
+		*nextID += int64(len(subqueryRows))
 	}
 	return rows, nil
 }
@@ -346,7 +350,7 @@ func explainSetOperationPlanShapeSupported(statement sqlparser.SelectStatement) 
 }
 
 func explainSetOperationLeafPlanShapeSupported(statement *sqlparser.Select) bool {
-	if !explainSelectHasSupportedSources(statement) || explainSelectHasDerivedSource(statement) {
+	if !explainSelectHasSupportedSources(statement) {
 		return false
 	}
 	if !explainSelectContainsSubquery(statement) {
@@ -459,33 +463,24 @@ func (e *XMySQLExecutor) explainNestedSetOperationPlanRowsAt(ctx *ExecutionConte
 		*nextID++
 	}
 	for _, leaf := range leaves {
-		rows, err := e.explainSelectBlockRows(ctx, leaf.statement, defaultSchema, leaf.id, leaf.selectType, nextID, &[]explainDerivedTask{})
+		rows, err := e.explainSelectPlanRowsWithNextID(ctx, leaf.statement, defaultSchema, leaf.id, leaf.selectType, nil, nextID)
 		if err != nil {
 			return nil, err
 		}
 		leaf.rows = rows
 	}
-	allSubqueries := make([]*plan.SubqueryExpression, 0)
-	for _, leaf := range leaves {
-		allSubqueries = append(allSubqueries, explainSelectSubqueries(leaf.statement)...)
-	}
-	if len(allSubqueries) > 0 {
-		subqueryRows, err := e.explainSubqueryRows(ctx, allSubqueries, defaultSchema, *nextID)
-		if err != nil {
-			return nil, err
-		}
-		*nextID += int64(len(subqueryRows))
-		rows := make([][]interface{}, 0, len(leaves)*2+len(subqueryRows))
-		appendExplainSetOperationLeafRows(tree, &rows)
-		rows = append(rows, subqueryRows...)
-		assignExplainSetOperationResultIDs(tree, nextID)
-		appendExplainSetOperationResultRows(tree, &rows)
-		return rows, nil
-	}
 	assignExplainSetOperationResultIDs(tree, nextID)
 	rows := make([][]interface{}, 0, len(leaves)*2)
 	appendExplainSetOperationLeafRows(tree, &rows)
 	appendExplainSetOperationResultRows(tree, &rows)
+	sort.SliceStable(rows, func(left, right int) bool {
+		leftID, leftHasID := rows[left][0].(int64)
+		rightID, rightHasID := rows[right][0].(int64)
+		if leftHasID != rightHasID {
+			return leftHasID
+		}
+		return leftHasID && leftID < rightID
+	})
 	return rows, nil
 }
 
