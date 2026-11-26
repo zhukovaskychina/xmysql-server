@@ -160,7 +160,11 @@ type explainDerivedTask struct {
 }
 
 func (e *XMySQLExecutor) explainSelectPlanRows(ctx *ExecutionContext, statement *sqlparser.Select, defaultSchema string, rootSubqueries []*plan.SubqueryExpression) ([][]interface{}, error) {
-	nextID := int64(2)
+	return e.explainSelectPlanRowsAt(ctx, statement, defaultSchema, 1, "", rootSubqueries, 2)
+}
+
+func (e *XMySQLExecutor) explainSelectPlanRowsAt(ctx *ExecutionContext, statement *sqlparser.Select, defaultSchema string, rootID int64, rootType string, rootSubqueries []*plan.SubqueryExpression, firstDerivedID int64) ([][]interface{}, error) {
+	nextID := firstDerivedID
 	tasks := make([]explainDerivedTask, 0)
 	allSubqueries := make([]*plan.SubqueryExpression, 0, len(rootSubqueries))
 	seenSubqueries := make(map[*plan.SubqueryExpression]struct{}, len(rootSubqueries))
@@ -178,7 +182,7 @@ func (e *XMySQLExecutor) explainSelectPlanRows(ctx *ExecutionContext, statement 
 	}
 	appendSubqueries(rootSubqueries)
 
-	rows, err := e.explainSelectBlockRows(ctx, statement, defaultSchema, 1, "", &nextID, &tasks)
+	rows, err := e.explainSelectBlockRows(ctx, statement, defaultSchema, rootID, rootType, &nextID, &tasks)
 	if err != nil {
 		return nil, err
 	}
@@ -208,6 +212,121 @@ func (e *XMySQLExecutor) explainSelectPlanRows(ctx *ExecutionContext, statement 
 		}
 		rows = append(rows, subqueryRows...)
 	}
+	return rows, nil
+}
+
+func explainUnionBranches(statement sqlparser.SelectStatement) ([]*sqlparser.Select, bool) {
+	branches := make([]*sqlparser.Select, 0, 2)
+	var appendStatement func(sqlparser.SelectStatement) bool
+	appendStatement = func(statement sqlparser.SelectStatement) bool {
+		switch value := statement.(type) {
+		case *sqlparser.Union:
+			if value == nil || !strings.HasPrefix(strings.ToLower(strings.TrimSpace(value.Type)), "union") || len(value.OrderBy) > 0 || value.Limit != nil || value.Lock != "" {
+				return false
+			}
+			return appendStatement(value.Left) && appendStatement(value.Right)
+		case *sqlparser.Select:
+			if value == nil || !explainSelectHasSupportedSources(value) {
+				return false
+			}
+			branches = append(branches, value)
+			return true
+		case *sqlparser.ParenSelect:
+			if value == nil {
+				return false
+			}
+			return appendStatement(value.Select)
+		default:
+			return false
+		}
+	}
+	if !appendStatement(statement) || len(branches) < 2 {
+		return nil, false
+	}
+	return branches, true
+}
+
+func explainUnionRequiresDistinct(statement sqlparser.SelectStatement) bool {
+	switch value := statement.(type) {
+	case *sqlparser.Union:
+		if value == nil {
+			return false
+		}
+		return !strings.EqualFold(strings.TrimSpace(value.Type), sqlparser.UnionAllStr) || explainUnionRequiresDistinct(value.Left) || explainUnionRequiresDistinct(value.Right)
+	case *sqlparser.ParenSelect:
+		return value != nil && explainUnionRequiresDistinct(value.Select)
+	default:
+		return false
+	}
+}
+
+func (e *XMySQLExecutor) explainUnionPlanRows(ctx *ExecutionContext, statement *sqlparser.Union, defaultSchema string) ([][]interface{}, error) {
+	branches, ok := explainUnionBranches(statement)
+	if !ok {
+		return nil, fmt.Errorf("EXPLAIN supports UNION/UNION ALL with SELECT branches and no set-level ORDER BY or LIMIT")
+	}
+	rows := make([][]interface{}, 0, len(branches)+1)
+	tasks := make([]explainDerivedTask, 0)
+	nextID := int64(len(branches) + 1)
+	allSubqueries := make([]*plan.SubqueryExpression, 0)
+	seenSubqueries := make(map[*plan.SubqueryExpression]struct{})
+	appendSubqueries := func(subqueries []*plan.SubqueryExpression) {
+		for _, subquery := range subqueries {
+			if subquery == nil {
+				continue
+			}
+			if _, exists := seenSubqueries[subquery]; exists {
+				continue
+			}
+			seenSubqueries[subquery] = struct{}{}
+			allSubqueries = append(allSubqueries, subquery)
+		}
+	}
+	for index, branch := range branches {
+		id := int64(index + 1)
+		selectType := "UNION"
+		if index == 0 {
+			selectType = "PRIMARY"
+		}
+		subqueries := explainSelectSubqueries(branch)
+		appendSubqueries(subqueries)
+		branchRows, err := e.explainSelectBlockRows(ctx, branch, defaultSchema, id, selectType, &nextID, &tasks)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, branchRows...)
+	}
+	for taskIndex := 0; taskIndex < len(tasks); taskIndex++ {
+		task := tasks[taskIndex]
+		child := explainSelectStatementAsSelect(task.statement)
+		if child == nil {
+			continue
+		}
+		childSubqueries := explainSelectSubqueries(child)
+		appendSubqueries(childSubqueries)
+		childRows, err := e.explainSelectBlockRows(ctx, child, defaultSchema, task.id, "DERIVED", &nextID, &tasks)
+		if err != nil {
+			return nil, err
+		}
+		if task.parentRow != nil {
+			if estimate, known := explainDerivedRowsEstimate(child, childRows); known {
+				task.parentRow[9] = estimate
+			}
+		}
+		rows = append(rows, childRows...)
+	}
+	if len(allSubqueries) > 0 {
+		subqueryRows, err := e.explainSubqueryRows(ctx, allSubqueries, defaultSchema, nextID)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, subqueryRows...)
+	}
+	unionExtra := ""
+	if explainUnionRequiresDistinct(statement) {
+		unionExtra = "Using temporary"
+	}
+	rows = append(rows, []interface{}{nil, "UNION RESULT", fmt.Sprintf("<union1,%d>", len(branches)), nil, "ALL", nil, nil, nil, nil, nil, float64(100), unionExtra})
 	return rows, nil
 }
 

@@ -26808,6 +26808,7 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 
 	tableName, schemaName := "", databaseName
 	var explainedSelect *sqlparser.Select
+	var explainedUnion *sqlparser.Union
 	var explainPreparationErr error
 	if parsed, parseErr := sqlparser.ParseForExecution(query); parseErr == nil {
 		if explain, ok := parsed.AST.(*sqlparser.ExplainStatement); ok {
@@ -26819,6 +26820,7 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 			}
 			if explain.Statement != nil {
 				explainedSelect, _ = explain.Statement.(*sqlparser.Select)
+				explainedUnion, _ = explain.Statement.(*sqlparser.Union)
 				if with, ok := explain.Statement.(*sqlparser.With); ok && with != nil && !with.Recursive {
 					rewritten, rewriteErr := rewriteSimpleCTEFromAST(sqlparser.String(with))
 					if rewriteErr != nil {
@@ -26858,6 +26860,15 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 	if explainedSelect != nil && explainSelectHasSupportedSources(explainedSelect) {
 		subqueries := explainSelectSubqueries(explainedSelect)
 		rows, planErr := e.explainSelectPlanRows(ctx, explainedSelect, schemaName, subqueries)
+		if planErr != nil {
+			ctx.Results <- &Result{Err: planErr, ResultType: common.RESULT_TYPE_QUERY}
+			return
+		}
+		ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: map[string]interface{}{"columns": columns, "rows": rows}, Message: "EXPLAIN completed"}
+		return
+	}
+	if explainedUnion != nil {
+		rows, planErr := e.explainUnionPlanRows(ctx, explainedUnion, schemaName)
 		if planErr != nil {
 			ctx.Results <- &Result{Err: planErr, ResultType: common.RESULT_TYPE_QUERY}
 			return
