@@ -11,6 +11,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
@@ -38,6 +39,7 @@ type advancedIndexDefinition struct {
 
 type fullTextIndexState struct {
 	Version   int                 `json:"version"`
+	Fresh     bool                `json:"fresh"`
 	Tokenizer string              `json:"tokenizer"`
 	Stopwords []string            `json:"stopwords"`
 	Segments  map[string][]string `json:"segments"`
@@ -216,7 +218,7 @@ func (e *XMySQLExecutor) executeRawFullTextSpatialCreate(ctx *ExecutionContext, 
 		})
 		if definition.Kind == "FULLTEXT" {
 			info["fulltext_segments_"+definition.Name] = fullTextIndexState{
-				Version: 1, Tokenizer: "unicode-word-lowercase", Stopwords: sortedStopwords(defaultFullTextStopwords),
+				Version: 1, Fresh: true, Tokenizer: "unicode-word-lowercase", Stopwords: sortedStopwords(defaultFullTextStopwords),
 				Segments: map[string][]string{},
 			}
 		} else if definition.Kind == "SPATIAL" {
@@ -358,8 +360,16 @@ func (e *XMySQLExecutor) executeFullTextQuery(ctx *ExecutionContext, query, data
 	if !ok {
 		return true, fmt.Errorf("MATCH AGAINST is only supported in SELECT")
 	}
-	if schema, table, found := fullTextQueryTable(query, databaseName); found {
-		valid, err := e.fullTextIndexMatches(schema, table, columns)
+	e.fullTextIndexMu.RLock()
+	fullTextReadLockHeld := true
+	defer func() {
+		if fullTextReadLockHeld {
+			e.fullTextIndexMu.RUnlock()
+		}
+	}()
+	indexSchema, indexTable, hasSingleTable := fullTextQueryTable(query, databaseName)
+	if hasSingleTable {
+		valid, err := e.fullTextIndexMatches(indexSchema, indexTable, columns)
 		if err != nil {
 			return true, err
 		}
@@ -367,8 +377,45 @@ func (e *XMySQLExecutor) executeFullTextQuery(ctx *ExecutionContext, query, data
 			return true, fmt.Errorf("Can't find FULLTEXT index matching the column list")
 		}
 	}
+	executionQuery := rewritten
+	// The persisted postings are a candidate source only when their mapping to
+	// the SQL row key is unambiguous and the sidecar was refreshed after the
+	// latest committed write. Keep the exact MATCH evaluator below as the final
+	// predicate; unsupported shapes fall back to the ordinary SELECT path.
+	candidatePredicateAdded := false
+	if hasSingleTable && len(selectStmt.From) == 1 && fullTextMatchInWhere(query, matchStart) &&
+		!sessionHasQueuedFullTextRefresh(ctx.Session, indexSchema, indexTable) {
+		if candidates, supported := e.fullTextCandidateIDs(indexSchema, indexTable, columns, term, booleanMode); supported {
+			if primaryKeyColumn, primaryKeyOK := singlePrimaryKeyColumn(indexSchema, indexTable, "id", e); primaryKeyOK {
+				values := make(sqlparser.ValTuple, 0, len(candidates))
+				for _, candidate := range candidates {
+					values = append(values, sqlparser.NewStrVal([]byte(candidate)))
+				}
+				right := sqlparser.ValTuple(values)
+				if len(right) == 0 {
+					right = sqlparser.ValTuple{&sqlparser.NullVal{}}
+				}
+				candidatePredicate := &sqlparser.ComparisonExpr{
+					Operator: sqlparser.InStr,
+					Left:     &sqlparser.ColName{Name: sqlparser.NewColIdent(primaryKeyColumn)},
+					Right:    right,
+				}
+				if selectStmt.Where == nil {
+					selectStmt.Where = sqlparser.NewWhere(sqlparser.WhereStr, candidatePredicate)
+				} else {
+					selectStmt.Where.Expr = &sqlparser.AndExpr{Left: selectStmt.Where.Expr, Right: candidatePredicate}
+				}
+				executionQuery = sqlparser.String(selectStmt)
+				candidatePredicateAdded = true
+			}
+		}
+	}
+	if !candidatePredicateAdded {
+		e.fullTextIndexMu.RUnlock()
+		fullTextReadLockHeld = false
+	}
 	oldRaw := ctx.RawQuery
-	ctx.RawQuery = rewritten
+	ctx.RawQuery = executionQuery
 	result, err := e.executeSelectStatement(ctx, selectStmt, databaseName)
 	ctx.RawQuery = oldRaw
 	if err != nil {
@@ -406,6 +453,263 @@ func (e *XMySQLExecutor) executeFullTextQuery(ctx *ExecutionContext, query, data
 	}
 	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: result, Message: fmt.Sprintf("FULLTEXT query returned %d rows", len(filtered))}
 	return true, nil
+}
+
+func fullTextMatchInWhere(query string, matchStart int) bool {
+	whereAt := topLevelKeywordIndex(query, "where")
+	if whereAt < 0 || matchStart <= whereAt+len("where") {
+		return false
+	}
+	clauseEnd := len(query)
+	for _, keyword := range []string{"group", "having", "order", "limit", "union", "for"} {
+		if at := topLevelKeywordIndex(query, keyword); at > whereAt && at < clauseEnd {
+			clauseEnd = at
+		}
+	}
+	return matchStart < clauseEnd
+}
+
+func sessionHasQueuedFullTextRefresh(session server.MySQLServerSession, databaseName, tableName string) bool {
+	if session == nil {
+		return false
+	}
+	state, _ := session.GetParamByName("transaction_dml_state").(*sessionTransactionState)
+	if state == nil {
+		return false
+	}
+	key := strings.ToLower(strings.TrimSpace(databaseName) + "\x00" + strings.TrimSpace(tableName))
+	_, queued := state.FullTextTables[key]
+	return queued
+}
+
+func (e *XMySQLExecutor) markFullTextIndexStateStale(databaseName, tableName string) error {
+	info, err := readTableMetadataMap(filepathForTable(e, databaseName, tableName))
+	if err != nil {
+		return err
+	}
+	indexes, _ := info["indexes"].([]interface{})
+	changed := false
+	for _, raw := range indexes {
+		index, ok := raw.(map[string]interface{})
+		if !ok || !strings.EqualFold(strings.TrimSpace(fmt.Sprint(index["type"])), "FULLTEXT") {
+			continue
+		}
+		name := strings.TrimSpace(fmt.Sprint(index["name"]))
+		if name == "" {
+			continue
+		}
+		var state fullTextIndexState
+		encoded, marshalErr := json.Marshal(info["fulltext_segments_"+name])
+		if marshalErr == nil {
+			_ = json.Unmarshal(encoded, &state)
+		}
+		state.Fresh = false
+		info["fulltext_segments_"+name] = state
+		changed = true
+	}
+	if !changed {
+		return nil
+	}
+	return writeTableMetadataMapAtomic(filepathForTable(e, databaseName, tableName), info)
+}
+
+func (e *XMySQLExecutor) markQueuedFullTextIndexesStale(session server.MySQLServerSession) error {
+	if e == nil || session == nil {
+		return nil
+	}
+	state, _ := session.GetParamByName("transaction_dml_state").(*sessionTransactionState)
+	if state == nil || len(state.FullTextTables) == 0 {
+		return nil
+	}
+	e.fullTextIndexMu.Lock()
+	defer e.fullTextIndexMu.Unlock()
+	for _, target := range state.FullTextTables {
+		parts := strings.SplitN(target, "\x00", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		if err := e.markFullTextIndexStateStale(parts[0], parts[1]); err != nil {
+			return fmt.Errorf("mark FULLTEXT index state stale before commit for %s.%s: %w", parts[0], parts[1], err)
+		}
+	}
+	return nil
+}
+
+func (e *XMySQLExecutor) prepareFullTextIndexDML(session server.MySQLServerSession, databaseName, tableName string) error {
+	if e == nil || session == nil {
+		return nil
+	}
+	e.queueFullTextIndexRefresh(session, databaseName, tableName)
+	e.fullTextIndexMu.Lock()
+	defer e.fullTextIndexMu.Unlock()
+	if err := e.markFullTextIndexStateStale(databaseName, tableName); err != nil {
+		return fmt.Errorf("mark FULLTEXT index state stale before DML for %s.%s: %w", databaseName, tableName, err)
+	}
+	return nil
+}
+
+func (e *XMySQLExecutor) fullTextCandidateIDs(databaseName, tableName string, columns []string, query string, booleanMode bool) ([]string, bool) {
+	info, err := readTableMetadataMap(filepathForTable(e, databaseName, tableName))
+	if err != nil {
+		return nil, false
+	}
+	indexes, _ := info["indexes"].([]interface{})
+	var state fullTextIndexState
+	found := false
+	for _, raw := range indexes {
+		index, ok := raw.(map[string]interface{})
+		if !ok || !strings.EqualFold(strings.TrimSpace(fmt.Sprint(index["type"])), "FULLTEXT") {
+			continue
+		}
+		indexColumns, _ := index["columns"].([]interface{})
+		if len(indexColumns) != len(columns) {
+			continue
+		}
+		matches := true
+		for i, column := range columns {
+			if !strings.EqualFold(strings.Trim(strings.TrimSpace(fmt.Sprint(indexColumns[i])), "`"), column) {
+				matches = false
+				break
+			}
+		}
+		if !matches {
+			continue
+		}
+		encoded, err := json.Marshal(info["fulltext_segments_"+strings.TrimSpace(fmt.Sprint(index["name"]))])
+		if err != nil || json.Unmarshal(encoded, &state) != nil || state.Version != 1 || !state.Fresh ||
+			state.Tokenizer != "unicode-word-lowercase" || !equalFullTextStringSlice(state.Stopwords, sortedStopwords(defaultFullTextStopwords)) || state.Segments == nil {
+			return nil, false
+		}
+		found = true
+		break
+	}
+	if !found {
+		return nil, false
+	}
+	queryTerms := make([]fullTextQueryTerm, 0)
+	if booleanMode {
+		queryTerms = parseFullTextBooleanTerms(query)
+		if len(queryTerms) == 0 {
+			return nil, false
+		}
+	} else {
+		for _, term := range tokenizeFullText(query, defaultFullTextStopwords) {
+			queryTerms = append(queryTerms, fullTextQueryTerm{token: term})
+		}
+	}
+	if len(queryTerms) == 0 {
+		return []string{}, true
+	}
+	postingSet := func(term fullTextQueryTerm) map[string]struct{} {
+		matches := make(map[string]struct{})
+		for token, rowIDs := range state.Segments {
+			if token != term.token && !(term.prefix && strings.HasPrefix(token, term.token)) {
+				continue
+			}
+			for _, rowID := range rowIDs {
+				if rowID != "" {
+					matches[rowID] = struct{}{}
+				}
+			}
+		}
+		return matches
+	}
+	unionInto := func(target, source map[string]struct{}) {
+		for rowID := range source {
+			target[rowID] = struct{}{}
+		}
+	}
+	intersect := func(left, right map[string]struct{}) map[string]struct{} {
+		if left == nil {
+			copy := make(map[string]struct{}, len(right))
+			unionInto(copy, right)
+			return copy
+		}
+		for rowID := range left {
+			if _, exists := right[rowID]; !exists {
+				delete(left, rowID)
+			}
+		}
+		return left
+	}
+	var candidates map[string]struct{}
+	optional := make(map[string]struct{})
+	prohibited := make(map[string]struct{})
+	requiredCount := 0
+	for _, term := range queryTerms {
+		matches := postingSet(term)
+		if term.prohibited {
+			unionInto(prohibited, matches)
+		} else if term.required {
+			requiredCount++
+			candidates = intersect(candidates, matches)
+		} else {
+			unionInto(optional, matches)
+		}
+	}
+	if !booleanMode {
+		candidates = optional
+	} else if requiredCount == 0 {
+		candidates = optional
+	}
+	for rowID := range prohibited {
+		delete(candidates, rowID)
+	}
+	if len(candidates) > 100000 {
+		return nil, false
+	}
+	result := make([]string, 0, len(candidates))
+	resultBytes := 0
+	for rowID := range candidates {
+		if len(rowID) > (1<<20)-resultBytes {
+			return nil, false
+		}
+		resultBytes += len(rowID)
+		result = append(result, rowID)
+	}
+	sort.Strings(result)
+	return result, true
+}
+
+func singlePrimaryKeyColumn(databaseName, tableName, expected string, executor *XMySQLExecutor) (string, bool) {
+	info, err := readTableMetadataMap(filepathForTable(executor, databaseName, tableName))
+	if err != nil {
+		return "", false
+	}
+	indexes, _ := info["indexes"].([]interface{})
+	for _, raw := range indexes {
+		index, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		name := strings.TrimSpace(fmt.Sprint(index["name"]))
+		primary, _ := index["primary"].(bool)
+		if !primary && !strings.EqualFold(name, "PRIMARY") {
+			continue
+		}
+		columns, _ := index["columns"].([]interface{})
+		if len(columns) != 1 {
+			return "", false
+		}
+		column := strings.Trim(strings.TrimSpace(fmt.Sprint(columns[0])), "`")
+		if !strings.EqualFold(column, expected) {
+			return "", false
+		}
+		return column, true
+	}
+	return "", false
+}
+
+func equalFullTextStringSlice(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func fullTextScore(text, term string) int {
@@ -589,13 +893,28 @@ func rebuildFullTextSegments(info map[string]interface{}, indexName string, rows
 	for _, row := range rows {
 		rowID := fullTextRowID(row)
 		for _, column := range columns {
-			for _, token := range tokenizeFullText(fullTextValueString(row[column]), defaultFullTextStopwords) {
+			for _, token := range tokenizeFullText(fullTextValueString(fullTextRowColumnValue(row, column)), defaultFullTextStopwords) {
 				segments[token] = appendUniqueString(segments[token], rowID)
 			}
 		}
 	}
 	info["fulltext_segments_"+indexName] = fullTextIndexState{
-		Version: 1, Tokenizer: "unicode-word-lowercase", Stopwords: sortedStopwords(defaultFullTextStopwords), Segments: segments,
+		Version: 1, Fresh: true, Tokenizer: "unicode-word-lowercase", Stopwords: sortedStopwords(defaultFullTextStopwords), Segments: segments,
+	}
+	return nil
+}
+
+func fullTextRowColumnValue(row map[string]interface{}, column string) interface{} {
+	if row == nil {
+		return nil
+	}
+	if value, exists := row[column]; exists {
+		return value
+	}
+	for name, value := range row {
+		if strings.EqualFold(name, column) {
+			return value
+		}
 	}
 	return nil
 }
@@ -604,8 +923,10 @@ func fullTextRowID(row map[string]interface{}) string {
 	if row == nil {
 		return ""
 	}
-	if value, ok := row["id"]; ok && value != nil {
-		return fullTextValueString(value)
+	for column, value := range row {
+		if strings.EqualFold(column, "id") && value != nil {
+			return fullTextValueString(value)
+		}
 	}
 	if value, ok := row["_xmysql_row_key"]; ok && value != nil {
 		return fullTextValueString(value)
@@ -631,6 +952,8 @@ func (e *XMySQLExecutor) refreshFullTextIndexStateForTable(databaseName, tableNa
 	if e == nil || e.tableStorageManager == nil {
 		return nil
 	}
+	e.fullTextIndexMu.Lock()
+	defer e.fullTextIndexMu.Unlock()
 	frmPath := filepathForTable(e, databaseName, tableName)
 	info, err := readTableMetadataMap(frmPath)
 	if err != nil {

@@ -376,6 +376,7 @@ func (e *XMySQLExecutor) finishPreparedXATransaction(prepared *xaPreparedTransac
 			}
 		}
 	}
+	e.refreshQueuedFullTextIndexes(e.sessionTransactionState(session))
 	if sessionBoolParam(session, "in_transaction") {
 		state := "COMMITTED"
 		if rollback {

@@ -243,6 +243,9 @@ func (e *XMySQLExecutor) commitClientStorageTransaction(session server.MySQLServ
 	if state := e.sessionTransactionState(session); state != nil {
 		clientChanges = state.Changes
 	}
+	if err := e.markQueuedFullTextIndexesStale(session); err != nil {
+		return err
+	}
 	releaseVectorFence := e.acquireVectorCommitFence(clientChanges)
 	defer releaseVectorFence()
 	err = dml.commitStorageTransaction(commitContext, shared)

@@ -66,6 +66,7 @@ func jdbcTableCatIdentifierPresent(query string) bool {
 type XMySQLExecutor struct {
 	infosSchemaManager   metadata.InfoSchemaManager // 信息模式管理器
 	conf                 *conf.Cfg                  // 配置项
+	fullTextIndexMu      sync.RWMutex
 	embeddingRuntimeMu   sync.RWMutex
 	pdfPageParserMu      sync.RWMutex
 	pdfPageParser        content.PDFPageParser
@@ -1570,6 +1571,7 @@ func (e *XMySQLExecutor) executeTransactionCommand(ctx *ExecutionContext, cmd st
 					return
 				}
 				e.discardSessionAccountChanges(session)
+				e.refreshQueuedFullTextIndexes(e.sessionTransactionState(session))
 			} else if err := e.commitSessionAccountChanges(session); err != nil {
 				e.recordQueryError(ctx.DatabaseName, err)
 				ctx.Results <- &Result{Err: err, ResultType: innodbcommon.RESULT_TYPE_ERROR, Message: err.Error()}
@@ -1809,6 +1811,7 @@ func (e *XMySQLExecutor) finishAutocommitDMLBoundary(session server.MySQLServerS
 		if err := e.rollbackClientStorageTransactionAndChanges(session); err != nil {
 			return err
 		}
+		e.refreshQueuedFullTextIndexes(e.sessionTransactionState(session))
 		e.recordPerformanceSchemaTransactionHistory(session, "ROLLED BACK")
 		e.clearSessionTransactionState(session)
 		session.SetParamByName("transaction_journal_active", false)
@@ -20113,6 +20116,12 @@ func (e *XMySQLExecutor) executeInsertStatement(ctx *ExecutionContext, stmt *sql
 	})
 
 	autocommitBoundary := e.beginAutocommitDMLBoundary(session)
+	if err := e.prepareFullTextIndexDML(session, targetSchema, tableName); err != nil {
+		if autocommitBoundary {
+			_ = e.finishAutocommitDMLBoundary(session, false)
+		}
+		return nil, err
+	}
 	result, err := storageIntegratedExecutor.ExecuteInsert(transactionContextForSession(ctx.Context, session), stmt, targetSchema)
 	if err != nil {
 		if autocommitBoundary {
@@ -20254,6 +20263,12 @@ func (e *XMySQLExecutor) executeUpdateStatement(ctx *ExecutionContext, stmt *sql
 	})
 
 	autocommitBoundary := e.beginAutocommitDMLBoundary(session)
+	if err := e.prepareFullTextIndexDML(session, targetSchema, tableName); err != nil {
+		if autocommitBoundary {
+			_ = e.finishAutocommitDMLBoundary(session, false)
+		}
+		return nil, err
+	}
 	result, err := storageIntegratedExecutor.ExecuteUpdate(transactionContextForSession(ctx.Context, session), stmt, targetSchema)
 	if err != nil {
 		if autocommitBoundary {
@@ -20389,6 +20404,12 @@ func (e *XMySQLExecutor) executeDeleteStatement(ctx *ExecutionContext, stmt *sql
 	})
 
 	autocommitBoundary := e.beginAutocommitDMLBoundary(session)
+	if err := e.prepareFullTextIndexDML(session, targetSchema, tableName); err != nil {
+		if autocommitBoundary {
+			_ = e.finishAutocommitDMLBoundary(session, false)
+		}
+		return nil, err
+	}
 	result, err := storageIntegratedExecutor.ExecuteDelete(transactionContextForSession(ctx.Context, session), stmt, targetSchema)
 	if err != nil {
 		if autocommitBoundary {
