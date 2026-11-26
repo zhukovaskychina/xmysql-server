@@ -30,7 +30,7 @@ func modelProjectionResultType(expression sqlparser.Expr) (metadata.DataType, bo
 		return metadata.TypeVector, true
 	case "AI_EXTRACT", "AI_EXTRACT_RESULT":
 		return metadata.TypeJSON, true
-	case "AI_RAG_RESULT", "AI_NL_SQL":
+	case "AI_RAG_RESULT", "AI_NL_SQL", "AI_NL_SQL_EXECUTE":
 		return metadata.TypeJSON, true
 	case "AI_GENERATE", "AI_GENERATE_RESULT", "AI_SUMMARIZE", "AI_DESCRIBE_BLOCK", "AI_DESCRIBE_BLOCK_RESULT":
 		return metadata.TypeVarchar, true
@@ -55,7 +55,7 @@ func (e *XMySQLExecutor) executeConstantSelectWithModels(ctx *ExecutionContext, 
 	return executeConstantSelectWithEvaluator(stmt, func(expr sqlparser.Expr, row map[string]interface{}) (interface{}, error) {
 		if function, ok := expr.(*sqlparser.FuncExpr); ok {
 			switch strings.ToUpper(strings.Trim(function.Name.String(), "` ")) {
-			case "AI_EMBED", "AI_EXTRACT", "AI_EXTRACT_RESULT", "AI_GENERATE", "AI_GENERATE_RESULT", "AI_SUMMARIZE", "AI_RAG_RESULT", "AI_NL_SQL":
+			case "AI_EMBED", "AI_EXTRACT", "AI_EXTRACT_RESULT", "AI_GENERATE", "AI_GENERATE_RESULT", "AI_SUMMARIZE", "AI_RAG_RESULT", "AI_NL_SQL", "AI_NL_SQL_EXECUTE":
 				// The existing constant SELECT evaluator does not execute these
 				// clauses. Do not issue a model call under silently ignored filters.
 				if stmt.Where != nil || stmt.Having != nil || len(stmt.GroupBy) != 0 || len(stmt.OrderBy) != 0 || stmt.Limit != nil {
@@ -78,6 +78,11 @@ func (e *XMySQLExecutor) executeConstantSelectWithModels(ctx *ExecutionContext, 
 					return nil, fmt.Errorf("AI_NL_SQL must be used as a no-FROM SELECT expression")
 				}
 				return e.evaluateAINLSQL(ctx, function, row)
+			case "AI_NL_SQL_EXECUTE":
+				if stmt != nil && len(stmt.From) != 0 {
+					return nil, fmt.Errorf("AI_NL_SQL_EXECUTE must be used as a no-FROM SELECT expression")
+				}
+				return e.evaluateAINLSQLExecute(ctx, function, row)
 			}
 		}
 		return evaluateExpressionWithRow(expr, row)
