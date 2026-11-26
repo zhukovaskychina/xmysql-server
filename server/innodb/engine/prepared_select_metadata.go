@@ -336,6 +336,8 @@ func (d *preparedSelectDescriber) source(expression sqlparser.TableExpr, ctes ma
 				columns = fullTextTokensResultColumns()
 			case "fulltext_search":
 				columns = fullTextSearchResultColumns()
+			case "hybrid_search":
+				columns = hybridSearchResultColumns()
 			default:
 				return joinResultShape{}, fmt.Errorf("unsupported table-function metadata: %s", name)
 			}

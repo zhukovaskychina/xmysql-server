@@ -180,14 +180,15 @@ func (e *XMySQLExecutor) evaluateFullTextSearchTable(ctx *ExecutionContext, func
 		}
 		return ranks[left].primaryKey < ranks[right].primaryKey
 	})
-	if len(ranks) > limit {
+	mayHaveMore := len(ranks) > limit
+	if mayHaveMore {
 		ranks = ranks[:limit]
 	}
 	for index, ranked := range ranks {
 		result.rows = append(result.rows, derivedRow{values: map[string]interface{}{
 			"source_schema": schema, "source_table": table, "index_name": indexName,
 			"primary_key": []byte(ranked.primaryKey), "matched_terms": int64(ranked.matchedTerms),
-			"lexical_rank": int64(index + 1),
+			"lexical_rank": int64(index + 1), "may_have_more": mayHaveMore,
 		}})
 	}
 	return result, nil
@@ -272,5 +273,6 @@ func fullTextSearchResultColumns() []joinOutputColumn {
 		{name: "primary_key", typ: metadata.TypeLongBlob},
 		{name: "matched_terms", typ: metadata.TypeBigInt},
 		{name: "lexical_rank", typ: metadata.TypeBigInt},
+		{name: "may_have_more", typ: metadata.TypeTinyInt},
 	}
 }
