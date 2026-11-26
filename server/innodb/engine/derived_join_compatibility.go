@@ -390,7 +390,7 @@ func (e *XMySQLExecutor) executeDerivedJoinSelectWithMaterialized(ctx *Execution
 				}
 				value, err = modelExecutor.evaluateAIEmbedBlockSQL(function, row.values)
 			} else if function, ok := aliased.Expr.(*sqlparser.FuncExpr); ok &&
-				(strings.EqualFold(strings.Trim(function.Name.String(), "` "), "AI_EXTRACT") || strings.EqualFold(strings.Trim(function.Name.String(), "` "), "AI_GENERATE") || strings.EqualFold(strings.Trim(function.Name.String(), "` "), "AI_GENERATE_RESULT") || strings.EqualFold(strings.Trim(function.Name.String(), "` "), "AI_SUMMARIZE") || strings.EqualFold(strings.Trim(function.Name.String(), "` "), "AI_DESCRIBE_BLOCK") || strings.EqualFold(strings.Trim(function.Name.String(), "` "), "AI_DESCRIBE_BLOCK_RESULT")) {
+				(strings.EqualFold(strings.Trim(function.Name.String(), "` "), "AI_EXTRACT") || strings.EqualFold(strings.Trim(function.Name.String(), "` "), "AI_EXTRACT_RESULT") || strings.EqualFold(strings.Trim(function.Name.String(), "` "), "AI_GENERATE") || strings.EqualFold(strings.Trim(function.Name.String(), "` "), "AI_GENERATE_RESULT") || strings.EqualFold(strings.Trim(function.Name.String(), "` "), "AI_SUMMARIZE") || strings.EqualFold(strings.Trim(function.Name.String(), "` "), "AI_DESCRIBE_BLOCK") || strings.EqualFold(strings.Trim(function.Name.String(), "` "), "AI_DESCRIBE_BLOCK_RESULT")) {
 				var modelContext context.Context
 				if ctx != nil {
 					modelContext = ctx.Context
@@ -398,6 +398,8 @@ func (e *XMySQLExecutor) executeDerivedJoinSelectWithMaterialized(ctx *Execution
 				modelExecutor := &SelectExecutor{generationRuntime: e.generationRuntimeSnapshot(), modelContext: modelContext}
 				if strings.EqualFold(strings.Trim(function.Name.String(), "` "), "AI_EXTRACT") {
 					value, err = modelExecutor.evaluateAIExtractSQL(function, row.values)
+				} else if strings.EqualFold(strings.Trim(function.Name.String(), "` "), "AI_EXTRACT_RESULT") {
+					value, err = modelExecutor.evaluateAIExtractResultSQL(function, row.values)
 				} else if strings.EqualFold(strings.Trim(function.Name.String(), "` "), "AI_DESCRIBE_BLOCK") || strings.EqualFold(strings.Trim(function.Name.String(), "` "), "AI_DESCRIBE_BLOCK_RESULT") {
 					value, err = modelExecutor.evaluateAIDescribeBlockSQL(function, row.values)
 				} else {

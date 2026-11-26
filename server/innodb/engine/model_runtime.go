@@ -28,7 +28,7 @@ func modelProjectionResultType(expression sqlparser.Expr) (metadata.DataType, bo
 	switch strings.ToUpper(strings.Trim(function.Name.String(), "` ")) {
 	case "AI_EMBED", "AI_EMBED_BLOCK":
 		return metadata.TypeVector, true
-	case "AI_EXTRACT":
+	case "AI_EXTRACT", "AI_EXTRACT_RESULT":
 		return metadata.TypeJSON, true
 	case "AI_RAG_RESULT":
 		return metadata.TypeJSON, true
@@ -55,7 +55,7 @@ func (e *XMySQLExecutor) executeConstantSelectWithModels(ctx *ExecutionContext, 
 	return executeConstantSelectWithEvaluator(stmt, func(expr sqlparser.Expr, row map[string]interface{}) (interface{}, error) {
 		if function, ok := expr.(*sqlparser.FuncExpr); ok {
 			switch strings.ToUpper(strings.Trim(function.Name.String(), "` ")) {
-			case "AI_EMBED", "AI_EXTRACT", "AI_GENERATE", "AI_GENERATE_RESULT", "AI_SUMMARIZE", "AI_RAG_RESULT":
+			case "AI_EMBED", "AI_EXTRACT", "AI_EXTRACT_RESULT", "AI_GENERATE", "AI_GENERATE_RESULT", "AI_SUMMARIZE", "AI_RAG_RESULT":
 				// The existing constant SELECT evaluator does not execute these
 				// clauses. Do not issue a model call under silently ignored filters.
 				if stmt.Where != nil || stmt.Having != nil || len(stmt.GroupBy) != 0 || len(stmt.OrderBy) != 0 || stmt.Limit != nil {
@@ -67,6 +67,8 @@ func (e *XMySQLExecutor) executeConstantSelectWithModels(ctx *ExecutionContext, 
 				return evaluateAIEmbedSQL(se.embeddingRuntime, se.modelContext, function, row)
 			case "AI_EXTRACT":
 				return se.evaluateAIExtractSQL(function, row)
+			case "AI_EXTRACT_RESULT":
+				return se.evaluateAIExtractResultSQL(function, row)
 			case "AI_GENERATE", "AI_GENERATE_RESULT", "AI_SUMMARIZE":
 				return se.evaluateAIGenerateSQL(function, row)
 			case "AI_RAG_RESULT":

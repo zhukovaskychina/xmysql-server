@@ -959,6 +959,8 @@ func (se *SelectExecutor) valueForJoinProjection(row joinedMapRow, index int, ex
 			switch name {
 			case "AI_EXTRACT":
 				return se.evaluateAIExtractSQL(function, map[string]interface{}(row))
+			case "AI_EXTRACT_RESULT":
+				return se.evaluateAIExtractResultSQL(function, map[string]interface{}(row))
 			case "AI_EMBED":
 				return evaluateAIEmbedSQL(se.embeddingRuntime, se.modelContext, function, map[string]interface{}(row))
 			case "AI_EMBED_BLOCK":
