@@ -1,9 +1,13 @@
 package engine
 
 import (
+	"encoding/hex"
 	"fmt"
+	"math/big"
+	"strconv"
 	"strings"
 
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
@@ -100,6 +104,144 @@ func mergeSetOperationColumnTypes(left, right []string) ([]string, error) {
 		merged[index] = strings.ToLower(string(commonType))
 	}
 	return merged, nil
+}
+
+// setOperationRecordKey compares values using the common result type. This is
+// required for DISTINCT/INTERSECT/EXCEPT because the same SQL value may be
+// represented by different Go types in separate branches (for example, 1 and
+// "1" after MySQL resolves their common result column as VARCHAR).
+func setOperationRecordKey(record Record, columnTypes []string) string {
+	if record == nil {
+		return "<nil-record>"
+	}
+	values := record.GetValues()
+	var key strings.Builder
+	for index, value := range values {
+		part := "NULL"
+		if value != nil && !value.IsNull() {
+			typ := metadata.DataType("")
+			if index < len(columnTypes) {
+				typ = normalizeSetOperationType(metadata.DataType(columnTypes[index]))
+			}
+			part = setOperationCanonicalValue(typ, value)
+		}
+		fmt.Fprintf(&key, "%d:%s", len(part), part)
+	}
+	return key.String()
+}
+
+func coerceSetOperationRecords(records []Record, columnTypes []string) error {
+	for recordIndex, record := range records {
+		if record == nil {
+			continue
+		}
+		values := record.GetValues()
+		for columnIndex, value := range values {
+			if value == nil || value.IsNull() || columnIndex >= len(columnTypes) {
+				continue
+			}
+			typ := normalizeSetOperationType(metadata.DataType(columnTypes[columnIndex]))
+			var converted basic.Value
+			switch {
+			case isSetOperationString(typ):
+				converted = basic.NewStringValue(setOperationTextValue(value))
+			case isSetOperationBinary(typ):
+				converted = basic.NewBytes([]byte(setOperationTextValue(value)))
+			case typ == metadata.TypeDouble || typ == metadata.TypeFloat:
+				parsed, err := strconv.ParseFloat(setOperationTextValue(value), 64)
+				if err != nil {
+					return fmt.Errorf("set-operation row %d column %d cannot convert %q to %s", recordIndex+1, columnIndex+1, setOperationTextValue(value), typ)
+				}
+				converted = basic.NewFloat64(parsed)
+			default:
+				continue
+			}
+			if err := record.SetValueByIndex(columnIndex, converted); err != nil {
+				return fmt.Errorf("set-operation row %d column %d: %w", recordIndex+1, columnIndex+1, err)
+			}
+		}
+	}
+	return nil
+}
+
+func setOperationTextValue(value basic.Value) string {
+	switch value.Type() {
+	case basic.ValueTypeTinyInt, basic.ValueTypeSmallInt, basic.ValueTypeMediumInt, basic.ValueTypeInt, basic.ValueTypeBigInt, basic.ValueTypeYear:
+		return strconv.FormatInt(value.Int(), 10)
+	case basic.ValueTypeFloat, basic.ValueTypeDouble:
+		return strconv.FormatFloat(value.Float64(), 'g', -1, 64)
+	case basic.ValueTypeDecimal:
+		return value.ToString()
+	case basic.ValueTypeBool, basic.ValueTypeBoolean:
+		if value.Bool() {
+			return "1"
+		}
+		return "0"
+	case basic.ValueTypeBinary, basic.ValueTypeVarBinary, basic.ValueTypeTinyBlob, basic.ValueTypeBlob, basic.ValueTypeMediumBlob, basic.ValueTypeLongBlob:
+		return string(value.Bytes())
+	default:
+		return value.String()
+	}
+}
+
+func setOperationCanonicalValue(typ metadata.DataType, value basic.Value) string {
+	var raw interface{} = value.Raw()
+	switch value.Type() {
+	case basic.ValueTypeTinyInt, basic.ValueTypeSmallInt, basic.ValueTypeMediumInt, basic.ValueTypeInt, basic.ValueTypeBigInt, basic.ValueTypeYear, basic.ValueTypeBool, basic.ValueTypeBoolean:
+		raw = value.Int()
+	case basic.ValueTypeFloat, basic.ValueTypeDouble:
+		raw = value.Float64()
+	case basic.ValueTypeDecimal:
+		raw = value.ToString()
+	case basic.ValueTypeChar, basic.ValueTypeVarchar, basic.ValueTypeTinyText, basic.ValueTypeText, basic.ValueTypeMediumText, basic.ValueTypeLongText, basic.ValueTypeEnum, basic.ValueTypeSet, basic.ValueTypeJSON:
+		raw = value.String()
+	case basic.ValueTypeBinary, basic.ValueTypeVarBinary, basic.ValueTypeTinyBlob, basic.ValueTypeBlob, basic.ValueTypeMediumBlob, basic.ValueTypeLongBlob:
+		raw = value.Bytes()
+	}
+	if isSetOperationNumeric(typ) {
+		if canonical, ok := canonicalSetOperationNumber(raw, typ); ok {
+			return "N:" + canonical
+		}
+	}
+	if isSetOperationBinary(typ) {
+		switch typed := raw.(type) {
+		case []byte:
+			return "B:" + hex.EncodeToString(typed)
+		case string:
+			return "B:" + hex.EncodeToString([]byte(typed))
+		}
+	}
+	if isSetOperationString(typ) {
+		return "S:" + fmt.Sprint(raw)
+	}
+	return fmt.Sprintf("%T:%v", raw, raw)
+}
+
+func canonicalSetOperationNumber(value interface{}, typ metadata.DataType) (string, bool) {
+	var text string
+	switch typed := value.(type) {
+	case float32:
+		text = strconv.FormatFloat(float64(typed), 'g', -1, 32)
+	case float64:
+		if typ == metadata.TypeFloat || typ == metadata.TypeDouble {
+			return "F:" + strconv.FormatFloat(typed, 'g', -1, 64), true
+		}
+		text = strconv.FormatFloat(typed, 'g', -1, 64)
+	default:
+		text = strings.TrimSpace(fmt.Sprint(value))
+	}
+	if typ == metadata.TypeFloat || typ == metadata.TypeDouble {
+		parsed, err := strconv.ParseFloat(text, 64)
+		if err != nil {
+			return "", false
+		}
+		return "F:" + strconv.FormatFloat(parsed, 'g', -1, 64), true
+	}
+	rat, ok := new(big.Rat).SetString(text)
+	if !ok {
+		return "", false
+	}
+	return "R:" + rat.RatString(), true
 }
 
 func normalizeSetOperationType(typ metadata.DataType) metadata.DataType {

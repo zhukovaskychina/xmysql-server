@@ -7570,6 +7570,12 @@ func (e *XMySQLExecutor) executeUnionQuery(ctx *ExecutionContext, branches []str
 				return nil, err
 			}
 		}
+		if err := coerceSetOperationRecords(combined.Records, combined.ColumnTypes); err != nil {
+			return nil, err
+		}
+		if err := coerceSetOperationRecords(result.Records, combined.ColumnTypes); err != nil {
+			return nil, err
+		}
 		all := branchIndex > 0 && branchIndex-1 < len(unionAll) && unionAll[branchIndex-1]
 		if !all {
 			// UNION DISTINCT applies to the accumulated left side and the
@@ -7579,7 +7585,7 @@ func (e *XMySQLExecutor) executeUnionQuery(ctx *ExecutionContext, branches []str
 			seen := make(map[string]struct{}, len(combined.Records))
 			unique := make([]Record, 0, len(combined.Records)+len(result.Records))
 			for _, record := range combined.Records {
-				key := unionRecordKey(record)
+				key := setOperationRecordKey(record, combined.ColumnTypes)
 				if _, exists := seen[key]; exists {
 					continue
 				}
@@ -7587,7 +7593,7 @@ func (e *XMySQLExecutor) executeUnionQuery(ctx *ExecutionContext, branches []str
 				unique = append(unique, record)
 			}
 			for _, record := range result.Records {
-				key := unionRecordKey(record)
+				key := setOperationRecordKey(record, combined.ColumnTypes)
 				if _, exists := seen[key]; exists {
 					continue
 				}
@@ -7621,14 +7627,6 @@ func (e *XMySQLExecutor) executeUnionQuery(ctx *ExecutionContext, branches []str
 	return combined, nil
 }
 
-func unionRecordKey(record Record) string {
-	keyParts := make([]string, 0, len(record.GetValues()))
-	for _, value := range record.GetValues() {
-		keyParts = append(keyParts, fmt.Sprintf("%T:%v", value.Raw(), value.Raw()))
-	}
-	return strings.Join(keyParts, "|")
-}
-
 type intersectExceptOperator struct {
 	kind string
 	all  bool
@@ -7658,6 +7656,11 @@ func (e *XMySQLExecutor) executeIntersectExceptQuery(ctx *ExecutionContext, bran
 			return nil, err
 		}
 	}
+	for _, result := range results {
+		if err := coerceSetOperationRecords(result.Records, resultTypes); err != nil {
+			return nil, err
+		}
+	}
 	combined := &SelectResult{
 		Columns:     append([]string(nil), results[0].Columns...),
 		ColumnTypes: resultTypes,
@@ -7671,16 +7674,16 @@ func (e *XMySQLExecutor) executeIntersectExceptQuery(ctx *ExecutionContext, bran
 		}
 		rightCounts := make(map[string]int, len(right.Records))
 		for _, record := range right.Records {
-			rightCounts[unionRecordKey(record)]++
+			rightCounts[setOperationRecordKey(record, resultTypes)]++
 		}
 		leftCounts := make(map[string]int, len(combined.Records))
 		for _, record := range combined.Records {
-			leftCounts[unionRecordKey(record)]++
+			leftCounts[setOperationRecordKey(record, resultTypes)]++
 		}
 		out := make([]Record, 0, len(combined.Records))
 		seen := make(map[string]struct{}, len(leftCounts))
 		for _, record := range combined.Records {
-			key := unionRecordKey(record)
+			key := setOperationRecordKey(record, resultTypes)
 			if operator.kind == "INTERSECT" {
 				if rightCounts[key] == 0 {
 					continue
@@ -8074,19 +8077,29 @@ func combineSetOperationResults(left, right *SelectResult, operator intersectExc
 	if left == nil || right == nil || len(left.Columns) != len(right.Columns) {
 		return nil, fmt.Errorf("set operation branches have different column counts")
 	}
+	columnTypes, err := mergeSetOperationColumnTypes(left.ColumnTypes, right.ColumnTypes)
+	if err != nil {
+		return nil, err
+	}
+	if err := coerceSetOperationRecords(left.Records, columnTypes); err != nil {
+		return nil, err
+	}
+	if err := coerceSetOperationRecords(right.Records, columnTypes); err != nil {
+		return nil, err
+	}
 	combined := &SelectResult{
 		Columns:     append([]string(nil), left.Columns...),
-		ColumnTypes: append([]string(nil), left.ColumnTypes...),
+		ColumnTypes: columnTypes,
 		ResultType:  common.RESULT_TYPE_QUERY,
 		Records:     make([]Record, 0),
 	}
 	rightCounts := make(map[string]int, len(right.Records))
 	for _, record := range right.Records {
-		rightCounts[unionRecordKey(record)]++
+		rightCounts[setOperationRecordKey(record, columnTypes)]++
 	}
 	seen := make(map[string]struct{}, len(left.Records))
 	for _, record := range left.Records {
-		key := unionRecordKey(record)
+		key := setOperationRecordKey(record, columnTypes)
 		switch operator.kind {
 		case "UNION":
 			if operator.all {
@@ -8135,7 +8148,7 @@ func combineSetOperationResults(left, right *SelectResult, operator intersectExc
 		combined.Records = append(combined.Records, right.Records...)
 	} else if operator.kind == "UNION" {
 		for _, record := range right.Records {
-			key := unionRecordKey(record)
+			key := setOperationRecordKey(record, columnTypes)
 			if _, exists := seen[key]; exists {
 				continue
 			}
