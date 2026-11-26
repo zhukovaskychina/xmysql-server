@@ -38,11 +38,12 @@ type advancedIndexDefinition struct {
 }
 
 type fullTextIndexState struct {
-	Version   int                 `json:"version"`
-	Fresh     bool                `json:"fresh"`
-	Tokenizer string              `json:"tokenizer"`
-	Stopwords []string            `json:"stopwords"`
-	Segments  map[string][]string `json:"segments"`
+	Version          int                 `json:"version"`
+	Fresh            bool                `json:"fresh"`
+	Tokenizer        string              `json:"tokenizer"`
+	Stopwords        []string            `json:"stopwords"`
+	PrimaryKeyColumn string              `json:"primary_key_column,omitempty"`
+	Segments         map[string][]string `json:"segments"`
 }
 
 // spatialIndexState is the durable compatibility representation of a spatial
@@ -387,7 +388,7 @@ func (e *XMySQLExecutor) executeFullTextQuery(ctx *ExecutionContext, query, data
 	if hasSingleTable && len(selectStmt.From) == 1 && fullTextMatchInWhere(query, matchStart) &&
 		!sessionHasQueuedFullTextRefresh(ctx.Session, indexSchema, indexTable) {
 		if candidates, supported := e.fullTextCandidateIDs(indexSchema, indexTable, columns, term, booleanMode); supported {
-			if primaryKeyColumn, primaryKeyOK := singlePrimaryKeyColumn(indexSchema, indexTable, "id", e); primaryKeyOK {
+			if primaryKeyColumn, primaryKeyOK := singlePrimaryKeyColumn(indexSchema, indexTable, "", e); primaryKeyOK {
 				if tableMeta, metaErr := (&SelectExecutor{}).loadTableMetaFromFrm(e.getDataDir(), indexSchema, indexTable); metaErr == nil {
 					lookupKeys := make([]interface{}, 0, len(candidates))
 					lookupSupported := true
@@ -589,6 +590,10 @@ func (e *XMySQLExecutor) fullTextCandidateIDs(databaseName, tableName string, co
 		return nil, false
 	}
 	indexes, _ := info["indexes"].([]interface{})
+	primaryKeyColumn, singlePrimaryKey := singlePrimaryKeyColumnFromIndexMetadata(indexes)
+	if !singlePrimaryKey {
+		return nil, false
+	}
 	var state fullTextIndexState
 	found := false
 	for _, raw := range indexes {
@@ -611,7 +616,7 @@ func (e *XMySQLExecutor) fullTextCandidateIDs(databaseName, tableName string, co
 			continue
 		}
 		encoded, err := json.Marshal(info["fulltext_segments_"+strings.TrimSpace(fmt.Sprint(index["name"]))])
-		if err != nil || json.Unmarshal(encoded, &state) != nil || state.Version != 1 || !state.Fresh ||
+		if err != nil || json.Unmarshal(encoded, &state) != nil || !fullTextStatePrimaryKeyCompatible(state, primaryKeyColumn) || !state.Fresh ||
 			state.Tokenizer != "unicode-word-lowercase" || !equalFullTextStringSlice(state.Stopwords, sortedStopwords(defaultFullTextStopwords)) || state.Segments == nil {
 			return nil, false
 		}
@@ -714,6 +719,40 @@ func (e *XMySQLExecutor) fullTextCandidateIDs(databaseName, tableName string, co
 	return result, true
 }
 
+func fullTextStatePrimaryKeyCompatible(state fullTextIndexState, primaryKeyColumn string) bool {
+	switch state.Version {
+	case 1:
+		// Version 1 postings were keyed from a column named id. Keep them only
+		// for schemas where that column is still the single primary key.
+		return strings.EqualFold(strings.TrimSpace(primaryKeyColumn), "id")
+	case 2:
+		return strings.EqualFold(strings.TrimSpace(state.PrimaryKeyColumn), strings.TrimSpace(primaryKeyColumn))
+	default:
+		return false
+	}
+}
+
+func singlePrimaryKeyColumnFromIndexMetadata(indexes []interface{}) (string, bool) {
+	for _, raw := range indexes {
+		index, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		name := strings.TrimSpace(fmt.Sprint(index["name"]))
+		primary, _ := index["primary"].(bool)
+		if !primary && !strings.EqualFold(name, "PRIMARY") {
+			continue
+		}
+		columns, _ := index["columns"].([]interface{})
+		if len(columns) != 1 {
+			return "", false
+		}
+		column := strings.Trim(strings.TrimSpace(fmt.Sprint(columns[0])), "`")
+		return column, column != ""
+	}
+	return "", false
+}
+
 func singlePrimaryKeyColumn(databaseName, tableName, expected string, executor *XMySQLExecutor) (string, bool) {
 	info, err := readTableMetadataMap(filepathForTable(executor, databaseName, tableName))
 	if err != nil {
@@ -735,7 +774,7 @@ func singlePrimaryKeyColumn(databaseName, tableName, expected string, executor *
 			return "", false
 		}
 		column := strings.Trim(strings.TrimSpace(fmt.Sprint(columns[0])), "`")
-		if !strings.EqualFold(column, expected) {
+		if expected != "" && !strings.EqualFold(column, expected) {
 			return "", false
 		}
 		return column, true
@@ -932,9 +971,16 @@ func sortedStopwords(stopwords map[string]struct{}) []string {
 // for compatibility metadata. The SQL path may still scan rows, but restart
 // and DDL operations now have a durable index-maintenance contract.
 func rebuildFullTextSegments(info map[string]interface{}, indexName string, rows []map[string]interface{}, columns []string) error {
+	return rebuildFullTextSegmentsForPrimaryKey(info, indexName, rows, columns, "id")
+}
+
+func rebuildFullTextSegmentsForPrimaryKey(info map[string]interface{}, indexName string, rows []map[string]interface{}, columns []string, primaryKeyColumn string) error {
 	segments := make(map[string][]string)
 	for _, row := range rows {
-		rowID := fullTextRowID(row)
+		rowID := fullTextRowIDForPrimaryKey(row, primaryKeyColumn)
+		if rowID == "" {
+			continue
+		}
 		for _, column := range columns {
 			for _, token := range tokenizeFullText(fullTextValueString(fullTextRowColumnValue(row, column)), defaultFullTextStopwords) {
 				segments[token] = appendUniqueString(segments[token], rowID)
@@ -942,7 +988,8 @@ func rebuildFullTextSegments(info map[string]interface{}, indexName string, rows
 		}
 	}
 	info["fulltext_segments_"+indexName] = fullTextIndexState{
-		Version: 1, Fresh: true, Tokenizer: "unicode-word-lowercase", Stopwords: sortedStopwords(defaultFullTextStopwords), Segments: segments,
+		Version: 2, Fresh: true, Tokenizer: "unicode-word-lowercase", Stopwords: sortedStopwords(defaultFullTextStopwords),
+		PrimaryKeyColumn: strings.TrimSpace(primaryKeyColumn), Segments: segments,
 	}
 	return nil
 }
@@ -962,19 +1009,32 @@ func fullTextRowColumnValue(row map[string]interface{}, column string) interface
 	return nil
 }
 
-func fullTextRowID(row map[string]interface{}) string {
+func fullTextRowIDForPrimaryKey(row map[string]interface{}, primaryKeyColumn string) string {
 	if row == nil {
+		return ""
+	}
+	if strings.TrimSpace(primaryKeyColumn) != "" {
+		if value := fullTextRowColumnValue(row, primaryKeyColumn); value != nil {
+			return fullTextPrimaryKeyString(value)
+		}
 		return ""
 	}
 	for column, value := range row {
 		if strings.EqualFold(column, "id") && value != nil {
-			return fullTextValueString(value)
+			return fullTextPrimaryKeyString(value)
 		}
 	}
 	if value, ok := row["_xmysql_row_key"]; ok && value != nil {
-		return fullTextValueString(value)
+		return fullTextPrimaryKeyString(value)
 	}
 	return ""
+}
+
+func fullTextPrimaryKeyString(value interface{}) string {
+	if bytes, ok := value.([]byte); ok {
+		return string(bytes)
+	}
+	return fullTextValueString(value)
 }
 
 func fullTextValueString(value interface{}) string {
@@ -1064,7 +1124,12 @@ func (e *XMySQLExecutor) refreshFullTextIndexStateForTable(databaseName, tableNa
 		rowMaps = append(rowMaps, values)
 	}
 	for _, target := range targets {
-		if err := rebuildFullTextSegments(info, target.name, rowMaps, target.columns); err != nil {
+		primaryKeyColumns := effectivePrimaryKeyColumns(tableMeta)
+		primaryKeyColumn := ""
+		if len(primaryKeyColumns) == 1 {
+			primaryKeyColumn = primaryKeyColumns[0]
+		}
+		if err := rebuildFullTextSegmentsForPrimaryKey(info, target.name, rowMaps, target.columns, primaryKeyColumn); err != nil {
 			return err
 		}
 		state := info["fulltext_segments_"+target.name].(fullTextIndexState)
