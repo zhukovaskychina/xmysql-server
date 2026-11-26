@@ -318,8 +318,7 @@ func (e *XMySQLExecutor) executeAdminCompatibility(ctx *ExecutionContext, sessio
 	if requiredPrivilege != "" {
 		privilegeContext := &ExecutionContext{}
 		if ctx != nil {
-			contextCopy := *ctx
-			privilegeContext = &contextCopy
+			privilegeContext = ctx.Fork()
 		}
 		if session != nil {
 			privilegeContext.Session = session

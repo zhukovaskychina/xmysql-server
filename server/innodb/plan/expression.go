@@ -67,7 +67,47 @@ type EvalContext struct {
 	// compatibility functions. It is intentionally a plain map so the plan
 	// package does not depend on the wire/session implementation.
 	SessionValues map[string]interface{}
+	// SubqueryEvaluator is supplied by executors that can bind and evaluate a
+	// planned subquery in the current row/group scope.
+	SubqueryEvaluator func(*SubqueryExpression, *EvalContext) (interface{}, error)
 }
+
+// SubqueryExpression keeps a SQL subquery visible in the logical expression
+// tree. The generic plan package does not own SQL execution or correlation
+// binding; an executor may provide that behavior through EvalContext.
+type SubqueryExpression struct {
+	BaseExpression
+	SubqueryType string
+	SQL          string
+	Correlated   bool
+	OuterRefs    []string
+	Subplan      LogicalPlan
+}
+
+func (e *SubqueryExpression) Eval(ctx *EvalContext) (interface{}, error) {
+	if e == nil {
+		return nil, fmt.Errorf("subquery expression is nil")
+	}
+	if ctx == nil || ctx.SubqueryEvaluator == nil {
+		return nil, fmt.Errorf("subquery evaluation requires an executor binding")
+	}
+	return ctx.SubqueryEvaluator(e, ctx)
+}
+
+func (e *SubqueryExpression) GetType() DataType { return TypeUnknown }
+
+func (e *SubqueryExpression) String() string {
+	if e == nil {
+		return "Subquery(<nil>)"
+	}
+	correlated := "false"
+	if e.Correlated {
+		correlated = "true"
+	}
+	return fmt.Sprintf("Subquery(%s, correlated=%s, outer_refs=%v)", strings.ToUpper(e.SubqueryType), correlated, e.OuterRefs)
+}
+
+func (e *SubqueryExpression) Children() []Expression { return nil }
 
 // BaseExpression 基础表达式实现
 type BaseExpression struct {
@@ -297,6 +337,23 @@ func (b *BinaryOperation) String() string {
 		result = fmt.Sprintf("(%s %s %s ESCAPE %s)", b.Left.String(), b.convertOperatorToString(), b.Right.String(), b.Escape.String())
 	}
 	return result
+}
+
+func (b *BinaryOperation) Children() []Expression {
+	if b == nil {
+		return nil
+	}
+	children := make([]Expression, 0, 3)
+	if b.Left != nil {
+		children = append(children, b.Left)
+	}
+	if b.Right != nil {
+		children = append(children, b.Right)
+	}
+	if b.Escape != nil {
+		children = append(children, b.Escape)
+	}
+	return children
 }
 
 func (b *BinaryOperation) convertOperatorToString() string {
@@ -809,12 +866,18 @@ func (f *Function) Eval(ctx *EvalContext) (interface{}, error) {
 		if len(args) != 1 || args[0] == nil {
 			return nil, nil
 		}
-		return int64(len([]byte(fmt.Sprint(args[0])))), nil
+		if value, ok := args[0].([]byte); ok {
+			return int64(len(value)), nil
+		}
+		return int64(len([]byte(compatString(args[0])))), nil
 	case "CHAR_LENGTH", "CHARACTER_LENGTH":
 		if len(args) != 1 || args[0] == nil {
 			return nil, nil
 		}
-		return int64(len([]rune(fmt.Sprint(args[0])))), nil
+		if value, ok := args[0].([]byte); ok {
+			return int64(len(value)), nil
+		}
+		return int64(len([]rune(compatString(args[0])))), nil
 	case "TRIM":
 		if len(args) != 1 || args[0] == nil {
 			return nil, nil

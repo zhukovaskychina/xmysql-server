@@ -399,6 +399,36 @@ func TestDescribeAndExplainUsePersistedMetadata(t *testing.T) {
 	require.Equal(t, "PRIMARY", explainRows[0][5])
 }
 
+func TestExplainCorrelatedHavingShowsDependentSubquery(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+	mustExecSQL(t, executor, "app", "create table lhs (id int, k int)")
+	mustExecSQL(t, executor, "app", "create table rhs (k int)")
+	mustExecSQL(t, executor, "app", "insert into lhs values (1, 10), (2, 20)")
+	mustExecSQL(t, executor, "app", "insert into rhs values (10)")
+
+	result := <-executor.ExecuteQuery(nil, "EXPLAIN SELECT l.k, COUNT(*) FROM lhs l GROUP BY l.k HAVING EXISTS (SELECT 1 FROM rhs r WHERE r.k = l.k)", "app")
+	require.NoError(t, result.Err)
+	data, ok := result.Data.(map[string]interface{})
+	require.True(t, ok)
+	rows, ok := data["rows"].([][]interface{})
+	require.True(t, ok)
+	require.Len(t, rows, 2)
+	require.Equal(t, "PRIMARY", rows[0][1])
+	require.Equal(t, "l", rows[0][2])
+	require.Equal(t, "Using temporary", rows[0][11])
+	require.Equal(t, "DEPENDENT SUBQUERY", rows[1][1])
+	require.Equal(t, "r", rows[1][2])
+	require.Equal(t, "Using where", rows[1][11])
+
+	unrelated := <-executor.ExecuteQuery(nil, "EXPLAIN SELECT l.k FROM lhs l WHERE l.k IN (SELECT r.k FROM rhs r)", "app")
+	require.NoError(t, unrelated.Err)
+	unrelatedRows := unrelated.Data.(map[string]interface{})["rows"].([][]interface{})
+	require.Len(t, unrelatedRows, 2)
+	require.Equal(t, "PRIMARY", unrelatedRows[0][1])
+	require.Equal(t, "SUBQUERY", unrelatedRows[1][1])
+}
+
 func TestMaintenanceStatementsValidatePersistedTable(t *testing.T) {
 	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
 	mustExecSQL(t, executor, "", "create database app")

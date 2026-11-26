@@ -48,6 +48,18 @@ func (e *XMySQLExecutor) executeRawStandaloneIndexCompatibility(ctx *ExecutionCo
 	if !ok {
 		return false, nil
 	}
+	if statement.Vector {
+		if strings.EqualFold(statement.Action, "rebuild") {
+			return true, e.rebuildVectorIndex(ctx, statement, databaseName)
+		}
+		if strings.EqualFold(statement.Action, "drop") {
+			return true, e.dropVectorIndex(ctx, statement, databaseName)
+		}
+		if !strings.EqualFold(statement.Action, "create") {
+			return true, fmt.Errorf("unsupported VECTOR index action %s", statement.Action)
+		}
+		return true, e.createVectorIndex(ctx, statement, databaseName)
+	}
 	schema := trimIndexIdentifier(statement.Table.Qualifier.String())
 	if schema == "" {
 		schema = strings.TrimSpace(databaseName)

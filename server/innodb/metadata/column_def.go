@@ -52,6 +52,8 @@ const (
 	TypeBlob       DataType = "BLOB"
 	TypeMediumBlob DataType = "MEDIUMBLOB"
 	TypeLongBlob   DataType = "LONGBLOB"
+	TypeContent    DataType = "CONTENT"
+	TypeVector     DataType = "VECTOR"
 	TypeTinyText   DataType = "TINYTEXT"
 	TypeText       DataType = "TEXT"
 	TypeMediumText DataType = "MEDIUMTEXT"
@@ -76,10 +78,14 @@ func (c *Column) Validate() error {
 		if c.CharMaxLength <= 0 {
 			return fmt.Errorf("column %s: length must be positive for type %s", c.Name, c.DataType)
 		}
+	case TypeVector:
+		if c.CharMaxLength <= 0 || c.CharMaxLength > 65535 {
+			return fmt.Errorf("column %s: VECTOR dimension must be between 1 and 65535", c.Name)
+		}
 	case TypeTinyInt, TypeSmallInt, TypeMediumInt, TypeInt, TypeBigInt, TypeBit,
 		TypeFloat, TypeDouble, TypeDecimal, TypeDate, TypeTime,
 		TypeDateTime, TypeTimestamp, TypeYear, TypeJSON, TypeGeometry,
-		TypeTinyBlob, TypeBlob, TypeMediumBlob, TypeLongBlob,
+		TypeTinyBlob, TypeBlob, TypeMediumBlob, TypeLongBlob, TypeContent,
 		TypeTinyText, TypeText, TypeMediumText, TypeLongText,
 		TypeEnum, TypeSet:
 		// These types don't require additional validation here
@@ -98,6 +104,8 @@ func (c *Column) SQL() string {
 	// Add length for types that support it
 	switch c.DataType {
 	case TypeChar, TypeVarchar, TypeBinary, TypeVarBinary:
+		builder.WriteString(fmt.Sprintf("(%d)", c.CharMaxLength))
+	case TypeVector:
 		builder.WriteString(fmt.Sprintf("(%d)", c.CharMaxLength))
 	case TypeEnum, TypeSet:
 		values := make([]string, 0, len(c.EnumValues))
@@ -174,7 +182,7 @@ func (c *Column) IsString() bool {
 func (c *Column) IsBinary() bool {
 	switch c.DataType {
 	case TypeBinary, TypeVarBinary, TypeTinyBlob, TypeBlob,
-		TypeMediumBlob, TypeLongBlob:
+		TypeMediumBlob, TypeLongBlob, TypeContent, TypeVector:
 		return true
 	default:
 		return false

@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -27,15 +28,28 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/backup"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/content"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/ibd"
+	innodbvector "github.com/zhukovaskychina/xmysql-server/server/innodb/vector"
 	observabilitymetrics "github.com/zhukovaskychina/xmysql-server/server/observability/metrics"
 	"github.com/zhukovaskychina/xmysql-server/server/replication"
 )
 
 // XMySQLEngine is the unified SQL engine coordinating all submodules.
+type engineLifecycleState uint8
+
+const (
+	engineLifecycleNew engineLifecycleState = iota
+	engineLifecycleStarting
+	engineLifecycleRunning
+	engineLifecycleStopping
+	engineLifecycleStopped
+	engineLifecycleFailed
+)
+
 type XMySQLEngine struct {
 	conf *conf.Cfg
 
@@ -62,6 +76,8 @@ type XMySQLEngine struct {
 
 	// Reliability & Recovery
 	checkpointManager  *CheckpointManager
+	contentStore       *content.SegmentStore
+	vectorIndexCatalog *innodbvector.IndexCatalog
 	crashRecovery      *manager.CrashRecovery
 	replicationRuntime *replication.Runtime
 	replicaRegistry    *replication.ReplicaRegistry
@@ -69,6 +85,8 @@ type XMySQLEngine struct {
 	startupErr         error
 	doublewrite        *ibd.Doublewrite
 	doublewriteDir     string
+	lifecycleMu        sync.RWMutex
+	lifecycleState     engineLifecycleState
 }
 
 func NewXMySQLEngine(conf *conf.Cfg) *XMySQLEngine {
@@ -81,6 +99,31 @@ func NewXMySQLEngine(conf *conf.Cfg) *XMySQLEngine {
 	engine.initMetaLayer()
 	engine.initUtilityManagers()
 	engine.initQueryExecutor()
+	if engine.QueryExecutor != nil {
+		maxObjectBytes := uint64(0)
+		if conf != nil && conf.ContentMaxObjectBytes > 0 {
+			maxObjectBytes = uint64(conf.ContentMaxObjectBytes)
+		}
+		store, err := OpenContentSegmentStore(engine.QueryExecutor.getDataDir(), maxObjectBytes)
+		if err != nil && engine.startupErr == nil {
+			engine.startupErr = fmt.Errorf("initialize database CONTENT store: %w", err)
+		} else {
+			engine.contentStore = store
+			maintenanceQueue, queueErr := store.OpenMaintenanceQueue()
+			if queueErr != nil && engine.startupErr == nil {
+				engine.startupErr = fmt.Errorf("initialize database CONTENT maintenance queue: %w", queueErr)
+			} else if engine.QueryExecutor != nil {
+				engine.QueryExecutor.SetContentMaintenanceQueue(maintenanceQueue)
+			}
+		}
+		vectorCatalog, err := innodbvector.OpenIndexCatalog(filepath.Join(engine.QueryExecutor.getDataDir(), "vector"), 0)
+		if err != nil && engine.startupErr == nil {
+			engine.startupErr = fmt.Errorf("initialize database vector index catalog: %w", err)
+		} else {
+			engine.vectorIndexCatalog = vectorCatalog
+			engine.QueryExecutor.SetVectorIndexCatalog(vectorCatalog)
+		}
+	}
 	engine.initReplicationLayer()
 	engine.initSlowQueryLogger()
 
@@ -91,10 +134,23 @@ func NewXMySQLEngine(conf *conf.Cfg) *XMySQLEngine {
 }
 
 // Start 启动引擎，执行崩溃恢复并启动后台服务
-func (e *XMySQLEngine) Start(ctx context.Context) error {
+func (e *XMySQLEngine) Start(ctx context.Context) (startErr error) {
 	if e == nil {
 		return fmt.Errorf("engine is not initialized")
 	}
+	e.lifecycleMu.Lock()
+	defer e.lifecycleMu.Unlock()
+	if e.lifecycleState != engineLifecycleNew {
+		return fmt.Errorf("engine cannot start from lifecycle state %d", e.lifecycleState)
+	}
+	e.lifecycleState = engineLifecycleStarting
+	defer func() {
+		if startErr != nil {
+			e.lifecycleState = engineLifecycleFailed
+		} else {
+			e.lifecycleState = engineLifecycleRunning
+		}
+	}()
 	e.ready.Store(false)
 	if e.startupErr != nil {
 		return e.startupErr
@@ -126,8 +182,34 @@ func (e *XMySQLEngine) Start(ctx context.Context) error {
 		if err := e.QueryExecutor.RecoverOrphanedTransactions(); err != nil {
 			return fmt.Errorf("orphan transaction recovery failed: %v", err)
 		}
+		// Committed journals conservatively fence vector indexes during recovery.
+		// Rebuild recoverable indexes from the authoritative post-recovery rows
+		// before the server accepts SQL; failures leave only that index DIRTY.
+		e.QueryExecutor.RebuildDirtyVectorIndexes(&ExecutionContext{Context: ctx})
 		if err := e.QueryExecutor.CleanupOrphanedTemporaryTables(); err != nil {
 			return fmt.Errorf("orphan temporary table cleanup failed: %v", err)
+		}
+	}
+	if e.contentStore != nil {
+		removed, err := e.contentStore.CleanupStaging()
+		if err != nil {
+			return fmt.Errorf("cleanup abandoned CONTENT uploads: %w", err)
+		}
+		if removed > 0 {
+			logger.Infof("Removed %d abandoned CONTENT upload staging directories", removed)
+		}
+		if e.QueryExecutor != nil && e.crashRecovery != nil {
+			reclaimed, skipped, err := e.QueryExecutor.ReclaimOrphanedContentObjects(ctx, e.contentStore)
+			if err != nil {
+				return fmt.Errorf("reclaim orphaned CONTENT objects: %w", err)
+			}
+			if skipped {
+				logger.Warnf("Skipped CONTENT object reclamation because the durable reference inventory is not complete")
+			} else if reclaimed > 0 {
+				logger.Infof("Reclaimed %d unreferenced CONTENT objects", reclaimed)
+			}
+		} else if e.QueryExecutor != nil {
+			logger.Warnf("Skipped CONTENT object reclamation because crash recovery was unavailable")
 		}
 	}
 
@@ -183,6 +265,12 @@ func (e *XMySQLEngine) Close() error {
 	if e == nil {
 		return nil
 	}
+	e.lifecycleMu.Lock()
+	defer e.lifecycleMu.Unlock()
+	if e.lifecycleState == engineLifecycleStopped {
+		return nil
+	}
+	e.lifecycleState = engineLifecycleStopping
 	e.ready.Store(false)
 	logger.Info("🛑 Stopping XMySQL Engine...")
 	var closeErr error
@@ -243,7 +331,12 @@ func (e *XMySQLEngine) Close() error {
 		e.doublewrite = nil
 	}
 
-	return closeErr
+	if closeErr != nil {
+		e.lifecycleState = engineLifecycleFailed
+		return closeErr
+	}
+	e.lifecycleState = engineLifecycleStopped
+	return nil
 }
 
 // IsReady reports whether the engine completed its startup sequence and is
@@ -272,14 +365,21 @@ func (e *XMySQLEngine) CreatePhysicalBackup(ctx context.Context, archivePath str
 	if e == nil {
 		return backup.PhysicalBackupManifest{}, fmt.Errorf("engine is not initialized")
 	}
+	e.lifecycleMu.RLock()
+	defer e.lifecycleMu.RUnlock()
+	if e.lifecycleState != engineLifecycleNew && e.lifecycleState != engineLifecycleStopped {
+		return backup.PhysicalBackupManifest{}, fmt.Errorf("physical backup requires an engine that has not started or has stopped successfully")
+	}
+	if e.startupErr != nil {
+		return backup.PhysicalBackupManifest{}, fmt.Errorf("physical backup is unavailable because engine initialization failed: %w", e.startupErr)
+	}
 	dataDir := e.GetDataDir()
 	if dataDir == "" {
 		return backup.PhysicalBackupManifest{}, fmt.Errorf("engine data directory is not configured")
 	}
-	return backup.CreatePhysicalBackup(ctx, backup.PhysicalBackupOptions{
-		SourceDir:   dataDir,
-		ArchivePath: archivePath,
-		Sync: func() error {
+	var syncBeforeBackup func() error
+	if e.lifecycleState == engineLifecycleNew {
+		syncBeforeBackup = func() error {
 			if e.checkpointManager != nil {
 				stats := e.checkpointManager.GetStats()
 				if err := e.checkpointManager.WriteSharpCheckpoint(stats.LastCheckpointLSN); err != nil {
@@ -291,7 +391,12 @@ func (e *XMySQLEngine) CreatePhysicalBackup(ctx context.Context, archivePath str
 				return fmt.Errorf("storage manager is not initialized")
 			}
 			return e.storageMgr.Flush()
-		},
+		}
+	}
+	return backup.CreatePhysicalBackup(ctx, backup.PhysicalBackupOptions{
+		SourceDir:   dataDir,
+		ArchivePath: archivePath,
+		Sync:        syncBeforeBackup,
 	})
 }
 
@@ -1405,6 +1510,15 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 		}
 		if handled, err2 := e.QueryExecutor.executeCTECompatibility(ctx, query, databaseName); handled {
 			stage = "cte-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+			}
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeCorrelatedSetSubqueryCompatibility(ctx, query, databaseName); handled {
+			stage = "correlated-set-subquery-compatibility"
 			if err2 != nil {
 				execErr = err2
 				status = "failed"

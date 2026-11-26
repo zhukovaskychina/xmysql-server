@@ -445,6 +445,10 @@ func (e *XMySQLExecutor) evaluateMaterializedDerivedSelect(ctx *ExecutionContext
 		return buildDerivedAggregateResult(stmt, filtered, alias)
 	}
 
+	declaredColumns, describeErr := e.describeMaterializedProjection(ctx, stmt, alias, input, databaseName)
+	if len(filtered) == 0 && describeErr == nil {
+		return emptySelectResultFromShape(declaredColumns), nil
+	}
 	columns := make([]string, 0, len(stmt.SelectExprs))
 	metaColumns := make([]*metadata.ColumnMeta, 0, len(stmt.SelectExprs))
 	projected := make([]derivedRow, 0, len(filtered))
@@ -466,6 +470,9 @@ func (e *XMySQLExecutor) evaluateMaterializedDerivedSelect(ctx *ExecutionContext
 					}
 					outputMap[clean] = value
 					outputMap[strings.ToLower(clean)] = value
+					if collation := collationFromValueContext(row.values, clean); collation != "" {
+						outputMap[columnCollationContextKey(clean)] = collation
+					}
 				}
 			} else {
 				aliased, ok := stmt.SelectExprs[0].(*sqlparser.AliasedExpr)
@@ -483,9 +490,12 @@ func (e *XMySQLExecutor) evaluateMaterializedDerivedSelect(ctx *ExecutionContext
 				values = append(values, value)
 				outputMap[name] = value
 				outputMap[strings.ToLower(name)] = value
+				if collation := collationForExpression(aliased.Expr, row.values); collation != "" {
+					outputMap[columnCollationContextKey(name)] = collation
+				}
 				if len(projected) == 0 {
 					columns = append(columns, name)
-					metaColumns = append(metaColumns, &metadata.ColumnMeta{Name: name, Type: projectionValueType(value)})
+					metaColumns = append(metaColumns, &metadata.ColumnMeta{Name: name, Type: projectionValueType(value), Collation: collationForExpression(aliased.Expr, row.values)})
 				}
 			}
 		} else {
@@ -505,9 +515,12 @@ func (e *XMySQLExecutor) evaluateMaterializedDerivedSelect(ctx *ExecutionContext
 				values = append(values, value)
 				outputMap[name] = value
 				outputMap[strings.ToLower(name)] = value
+				if collation := collationForExpression(aliased.Expr, row.values); collation != "" {
+					outputMap[columnCollationContextKey(name)] = collation
+				}
 				if len(projected) == 0 {
 					columns = append(columns, name)
-					metaColumns = append(metaColumns, &metadata.ColumnMeta{Name: name, Type: projectionValueType(value)})
+					metaColumns = append(metaColumns, &metadata.ColumnMeta{Name: name, Type: projectionValueType(value), Collation: collationForExpression(aliased.Expr, row.values)})
 				}
 			}
 		}
@@ -517,7 +530,11 @@ func (e *XMySQLExecutor) evaluateMaterializedDerivedSelect(ctx *ExecutionContext
 		seen := make(map[string]struct{}, len(projected))
 		unique := make([]derivedRow, 0, len(projected))
 		for _, row := range projected {
-			key := derivedValuesKey(row.order)
+			collations := make([]string, len(columns))
+			for index, column := range columns {
+				collations[index] = collationFromValueContext(row.values, column)
+			}
+			key := aggregateGroupKeyWithCollations(row.order, collations)
 			if _, exists := seen[key]; exists {
 				continue
 			}
@@ -534,7 +551,15 @@ func (e *XMySQLExecutor) evaluateMaterializedDerivedSelect(ctx *ExecutionContext
 				if !leftOK || !rightOK {
 					continue
 				}
-				cmp := compareScalarValues(leftValue, rightValue)
+				collation := collationForExpression(order.Expr, projected[left].values)
+				if collation == "" {
+					if literal, ok := order.Expr.(*sqlparser.SQLVal); ok && literal.Type == sqlparser.IntVal {
+						if index, err := strconv.Atoi(string(literal.Val)); err == nil && index > 0 && index <= len(columns) {
+							collation = collationFromValueContext(projected[left].values, columns[index-1])
+						}
+					}
+				}
+				cmp := compareScalarValuesWithCollation(leftValue, rightValue, collation)
 				if cmp == 0 {
 					continue
 				}
@@ -549,6 +574,11 @@ func (e *XMySQLExecutor) evaluateMaterializedDerivedSelect(ctx *ExecutionContext
 	start, end := derivedLimitBounds(stmt.Limit, len(projected))
 	projected = projected[start:end]
 	records := make([]Record, 0, len(projected))
+	if describeErr == nil && len(declaredColumns) == len(metaColumns) {
+		for index, column := range declaredColumns {
+			metaColumns[index].Type = column.typ
+		}
+	}
 	for _, row := range projected {
 		records = append(records, NewExecutorRecordFromInterface(derivedOutputValues(row.order), &metadata.TableMeta{Name: alias + "_derived", Columns: metaColumns}))
 	}
@@ -600,6 +630,10 @@ func (e *XMySQLExecutor) executeDerivedTableSelect(ctx *ExecutionContext, stmt *
 			row[strings.ToLower(clean)] = raw
 			row[alias+"."+clean] = raw
 			row[strings.ToLower(alias+"."+clean)] = raw
+			if collation := recordColumnCollation(record, strconv.Itoa(index+1)); collation != "" {
+				row[columnCollationContextKey(clean)] = collation
+				row[columnCollationContextKey(alias+"."+clean)] = collation
+			}
 		}
 		e.addStoredFunctionEvaluationContext(row, ctx, databaseName)
 		rows = append(rows, derivedRow{values: row})
@@ -622,6 +656,10 @@ func (e *XMySQLExecutor) executeDerivedTableSelect(ctx *ExecutionContext, stmt *
 		return buildDerivedAggregateResult(stmt, filtered, alias)
 	}
 
+	declaredColumns, describeErr := e.describeMaterializedProjection(ctx, stmt, alias, innerResult, databaseName)
+	if len(filtered) == 0 && describeErr == nil {
+		return emptySelectResultFromShape(declaredColumns), nil
+	}
 	columns := make([]string, 0)
 	metaColumns := make([]*metadata.ColumnMeta, 0)
 	projected := make([]derivedRow, 0, len(filtered))
@@ -644,6 +682,9 @@ func (e *XMySQLExecutor) executeDerivedTableSelect(ctx *ExecutionContext, stmt *
 					}
 					outputMap[clean] = value
 					outputMap[strings.ToLower(clean)] = value
+					if collation := collationFromValueContext(row.values, clean); collation != "" {
+						outputMap[columnCollationContextKey(clean)] = collation
+					}
 				}
 			} else {
 				aliased, ok := stmt.SelectExprs[0].(*sqlparser.AliasedExpr)
@@ -661,9 +702,12 @@ func (e *XMySQLExecutor) executeDerivedTableSelect(ctx *ExecutionContext, stmt *
 				values = append(values, value)
 				outputMap[name] = value
 				outputMap[strings.ToLower(name)] = value
+				if collation := collationForExpression(aliased.Expr, row.values); collation != "" {
+					outputMap[columnCollationContextKey(name)] = collation
+				}
 				if len(projected) == 0 {
 					columns = append(columns, name)
-					metaColumns = append(metaColumns, &metadata.ColumnMeta{Name: name, Type: projectionValueType(value)})
+					metaColumns = append(metaColumns, &metadata.ColumnMeta{Name: name, Type: projectionValueType(value), Collation: collationForExpression(aliased.Expr, row.values)})
 				}
 			}
 		} else {
@@ -683,9 +727,12 @@ func (e *XMySQLExecutor) executeDerivedTableSelect(ctx *ExecutionContext, stmt *
 				values = append(values, value)
 				outputMap[name] = value
 				outputMap[strings.ToLower(name)] = value
+				if collation := collationForExpression(aliased.Expr, row.values); collation != "" {
+					outputMap[columnCollationContextKey(name)] = collation
+				}
 				if len(projected) == 0 {
 					columns = append(columns, name)
-					metaColumns = append(metaColumns, &metadata.ColumnMeta{Name: name, Type: projectionValueType(value)})
+					metaColumns = append(metaColumns, &metadata.ColumnMeta{Name: name, Type: projectionValueType(value), Collation: collationForExpression(aliased.Expr, row.values)})
 				}
 			}
 		}
@@ -704,7 +751,11 @@ func (e *XMySQLExecutor) executeDerivedTableSelect(ctx *ExecutionContext, stmt *
 		seen := make(map[string]struct{}, len(projected))
 		unique := make([]derivedRow, 0, len(projected))
 		for _, row := range projected {
-			key := derivedValuesKey(row.order)
+			collations := make([]string, len(columns))
+			for index, column := range columns {
+				collations[index] = collationFromValueContext(row.values, column)
+			}
+			key := aggregateGroupKeyWithCollations(row.order, collations)
 			if _, exists := seen[key]; exists {
 				continue
 			}
@@ -716,6 +767,11 @@ func (e *XMySQLExecutor) executeDerivedTableSelect(ctx *ExecutionContext, stmt *
 
 	start, end := derivedLimitBounds(stmt.Limit, len(projected))
 	projected = projected[start:end]
+	if describeErr == nil && len(declaredColumns) == len(metaColumns) {
+		for index, column := range declaredColumns {
+			metaColumns[index].Type = column.typ
+		}
+	}
 	tableMeta := &metadata.TableMeta{Name: alias + "_derived", Columns: metaColumns}
 	records := make([]Record, 0, len(projected))
 	for _, row := range projected {
@@ -727,7 +783,7 @@ func (e *XMySQLExecutor) executeDerivedTableSelect(ctx *ExecutionContext, stmt *
 	}
 	columnTypes := make([]string, 0, len(metaColumns))
 	for _, column := range metaColumns {
-		columnTypes = append(columnTypes, string(column.Type))
+		columnTypes = append(columnTypes, strings.ToLower(string(column.Type)))
 	}
 	return &SelectResult{Records: records, RowCount: len(records), Columns: columns, ColumnTypes: columnTypes, ResultType: common.RESULT_TYPE_QUERY}, nil
 }
@@ -736,6 +792,7 @@ func (e *XMySQLExecutor) addStoredFunctionEvaluationContext(values map[string]in
 	if values == nil {
 		return
 	}
+	values[storedFunctionContextKey] = executionContextBase(ctx)
 	if ctx != nil {
 		sessionValues := newSessionExpressionValues(ctx.Session)
 		if sessionValues["database"] == nil && strings.TrimSpace(databaseName) != "" {
@@ -788,7 +845,21 @@ func buildDerivedAggregateResult(stmt *sqlparser.Select, rows []derivedRow, alia
 			if !exists {
 				return nil, fmt.Errorf("unknown derived aggregate column %s", agg.column)
 			}
-			accumulator.add(value)
+			if collation := collationFromValueContext(row.values, agg.column); collation != "" {
+				accumulator.valueCollation = collation
+			}
+			orderValue := value
+			if agg.orderBy != "" {
+				var orderExists bool
+				orderValue, orderExists = derivedValueByName(row.values, agg.orderBy)
+				if !orderExists {
+					return nil, fmt.Errorf("unknown derived aggregate ORDER BY column %s", agg.orderBy)
+				}
+				if collation := collationFromValueContext(row.values, agg.orderBy); collation != "" {
+					accumulator.orderCollation = collation
+				}
+			}
+			accumulator.addWithOrder(value, orderValue)
 		}
 		value := accumulator.value()
 		name := derivedProjectionName(sqlparser.String(aliased.Expr))
@@ -893,7 +964,21 @@ func buildDerivedGroupedAggregateResult(stmt *sqlparser.Select, rows []derivedRo
 					if !exists {
 						return nil, fmt.Errorf("unknown derived aggregate column %s", agg.column)
 					}
-					accumulator.add(candidate)
+					if collation := collationFromValueContext(row.values, agg.column); collation != "" {
+						accumulator.valueCollation = collation
+					}
+					orderValue := candidate
+					if agg.orderBy != "" {
+						var orderExists bool
+						orderValue, orderExists = derivedValueByName(row.values, agg.orderBy)
+						if !orderExists {
+							return nil, fmt.Errorf("unknown derived aggregate ORDER BY column %s", agg.orderBy)
+						}
+						if collation := collationFromValueContext(row.values, agg.orderBy); collation != "" {
+							accumulator.orderCollation = collation
+						}
+					}
+					accumulator.addWithOrder(candidate, orderValue)
 				}
 				value = accumulator.value()
 				columnType = metadata.TypeDecimal
@@ -1032,6 +1117,9 @@ func (e *XMySQLExecutor) executeDerivedInnerSelect(ctx *ExecutionContext, statem
 		return e.executeDerivedInnerSelect(ctx, inner.Select, databaseName)
 	case *sqlparser.Union:
 		raw := sqlparser.String(inner)
+		if branches, operators, ok := splitSetOperationQuery(raw); ok && hasNonUnionSetOperator(operators) {
+			return e.executeMixedSetOperationQuery(ctx, branches, operators, databaseName)
+		}
 		if branches, unionAll, ok := splitUnionQuery(raw); ok {
 			return e.executeUnionQuery(ctx, branches, unionAll, databaseName)
 		}
@@ -1163,7 +1251,15 @@ func derivedRowsLess(left, right derivedRow, orders sqlparser.OrderBy, columns [
 		if !leftOK || !rightOK {
 			return false
 		}
-		cmp := compareScalarValues(leftValue, rightValue)
+		collation := collationForExpression(order.Expr, left.values)
+		if collation == "" {
+			if literal, ok := order.Expr.(*sqlparser.SQLVal); ok && literal.Type == sqlparser.IntVal {
+				if index, err := strconv.Atoi(string(literal.Val)); err == nil && index > 0 && index <= len(columns) {
+					collation = collationFromValueContext(left.values, columns[index-1])
+				}
+			}
+		}
+		cmp := compareScalarValuesWithCollation(leftValue, rightValue, collation)
 		if cmp == 0 {
 			continue
 		}

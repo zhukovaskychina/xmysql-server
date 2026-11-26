@@ -171,9 +171,13 @@ func TestSelectExecutorApplyWhereFilterEvaluatesPredicate(t *testing.T) {
 }
 
 func TestSelectExecutorDeterminesStorageProjectionWithPredicateDependencies(t *testing.T) {
-	se := &SelectExecutor{
-		selectExprs:     []string{"id"},
-		whereConditions: []string{"active = 1"},
+	se := &SelectExecutor{}
+	statement, err := sqlparser.Parse("select id from rows_for_projection where active = 1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := se.parseSelectStatement(statement.(*sqlparser.Select), "app"); err != nil {
+		t.Fatal(err)
 	}
 	tableMeta := &metadata.TableMeta{Columns: []*metadata.ColumnMeta{
 		{Name: "id", Type: metadata.TypeInt},

@@ -1092,3 +1092,10 @@ func (n *NotExpression) Eval(ctx *EvalContext) (interface{}, error) {
 func (n *NotExpression) String() string {
 	return fmt.Sprintf("NOT (%s)", n.Operand.String())
 }
+
+func (n *NotExpression) Children() []Expression {
+	if n == nil || n.Operand == nil {
+		return nil
+	}
+	return []Expression{n.Operand}
+}

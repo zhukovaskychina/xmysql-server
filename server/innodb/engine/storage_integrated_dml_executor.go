@@ -3,17 +3,20 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
+	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/content"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/vector"
 )
 
 // StorageIntegratedDMLExecutor 存储引擎集成的DML执行器
@@ -65,14 +68,16 @@ type StorageIntegratedDMLExecutor struct {
 }
 
 type transactionDMLChange struct {
-	tableName     string
-	kind          string
-	rowID         uint64
-	storageKey    interface{}
-	newStorageKey interface{}
-	before        map[string]interface{}
-	after         map[string]interface{}
-	columnTypes   map[string]string
+	tableName             string
+	kind                  string
+	rowID                 uint64
+	storageKey            interface{}
+	newStorageKey         interface{}
+	before                map[string]interface{}
+	after                 map[string]interface{}
+	columnTypes           map[string]string
+	createdContentObjects []content.ObjectRef
+	maintenanceRequests   []content.MaintenanceRequest
 }
 
 // DMLExecutorStats DML执行器统计信息
@@ -263,7 +268,30 @@ func cloneTransactionRow(values map[string]interface{}) map[string]interface{} {
 	}
 	cloned := make(map[string]interface{}, len(values))
 	for name, value := range values {
-		cloned[name] = value
+		switch typed := value.(type) {
+		case content.Value:
+			cloned[name] = typed.Clone()
+		case *content.Value:
+			if typed == nil {
+				cloned[name] = (*content.Value)(nil)
+				continue
+			}
+			copyValue := typed.Clone()
+			cloned[name] = &copyValue
+		case vector.Value:
+			cloned[name] = typed.Clone()
+		case *vector.Value:
+			if typed == nil {
+				cloned[name] = (*vector.Value)(nil)
+				continue
+			}
+			copyValue := typed.Clone()
+			cloned[name] = &copyValue
+		case []byte:
+			cloned[name] = append([]byte(nil), typed...)
+		default:
+			cloned[name] = value
+		}
 	}
 	return cloned
 }
@@ -400,6 +428,9 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 			return nil, err
 		}
 	}
+	if err := dml.resolvePendingInsertSourceExpressions(insertRows, tableMeta, resolvedSchema); err != nil {
+		return nil, err
+	}
 	if err := dml.applyStringLengthRules(insertRows, tableMeta); err != nil {
 		return nil, err
 	}
@@ -531,11 +562,18 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteInsert(ctx context.Context, stmt
 			dml.rollbackStorageTransaction(ctx, txn)
 			return nil, fmt.Errorf("更新索引失败: %v", err)
 		}
+		storageKey, err := dml.generatePrimaryKey(row, tableMeta)
+		if err != nil {
+			dml.rollbackStorageTransaction(ctx, txn)
+			return nil, fmt.Errorf("记录插入行的聚簇键失败: %w", err)
+		}
 		changes = append(changes, transactionDMLChange{
-			tableName:   dml.transactionTableName(),
-			kind:        "insert",
-			after:       cloneTransactionRow(row.ColumnValues),
-			columnTypes: cloneTransactionColumnTypes(tableMeta),
+			tableName:             dml.transactionTableName(),
+			kind:                  "insert",
+			storageKey:            storageKey,
+			after:                 cloneTransactionRow(row.ColumnValues),
+			columnTypes:           cloneTransactionColumnTypes(tableMeta),
+			createdContentObjects: append([]content.ObjectRef(nil), row.CreatedContentObjects...),
 		})
 	}
 
@@ -612,13 +650,26 @@ func (dml *StorageIntegratedDMLExecutor) executeReplaceRows(
 			dml.rollbackStorageTransaction(ctx, txn)
 			return nil, fmt.Errorf("REPLACE更新插入索引失败: %v", err)
 		}
+		storageKey, err := dml.generatePrimaryKey(row, tableMeta)
+		if err != nil {
+			dml.rollbackStorageTransaction(ctx, txn)
+			return nil, fmt.Errorf("记录 REPLACE 插入行的聚簇键失败: %w", err)
+		}
 		changes = append(changes, transactionDMLChange{
-			tableName:   dml.transactionTableName(),
-			kind:        "insert",
-			after:       cloneTransactionRow(row.ColumnValues),
-			columnTypes: cloneTransactionColumnTypes(tableMeta),
+			tableName:             dml.transactionTableName(),
+			kind:                  "insert",
+			storageKey:            storageKey,
+			after:                 cloneTransactionRow(row.ColumnValues),
+			columnTypes:           cloneTransactionColumnTypes(tableMeta),
+			createdContentObjects: append([]content.ObjectRef(nil), row.CreatedContentObjects...),
 		})
 	}
+	invalidations, err := dml.invalidateDerivedContentChanges(ctx, txn, changes)
+	if err != nil {
+		dml.rollbackStorageTransaction(ctx, txn)
+		return nil, err
+	}
+	changes = append(changes, invalidations...)
 
 	if err := dml.commitStorageTransaction(ctx, txn); err != nil {
 		return nil, fmt.Errorf("提交存储事务失败: %v", err)
@@ -695,11 +746,18 @@ func (dml *StorageIntegratedDMLExecutor) executeOnDuplicateKeyUpdate(
 				dml.rollbackStorageTransaction(ctx, txn)
 				return nil, fmt.Errorf("ON DUPLICATE KEY UPDATE更新插入索引失败: %v", err)
 			}
+			storageKey, err := dml.generatePrimaryKey(row, tableMeta)
+			if err != nil {
+				dml.rollbackStorageTransaction(ctx, txn)
+				return nil, fmt.Errorf("记录 ON DUPLICATE KEY UPDATE 插入行的聚簇键失败: %w", err)
+			}
 			changes = append(changes, transactionDMLChange{
-				tableName:   dml.transactionTableName(),
-				kind:        "insert",
-				after:       cloneTransactionRow(row.ColumnValues),
-				columnTypes: cloneTransactionColumnTypes(tableMeta),
+				tableName:             dml.transactionTableName(),
+				kind:                  "insert",
+				storageKey:            storageKey,
+				after:                 cloneTransactionRow(row.ColumnValues),
+				columnTypes:           cloneTransactionColumnTypes(tableMeta),
+				createdContentObjects: append([]content.ObjectRef(nil), row.CreatedContentObjects...),
 			})
 			continue
 		}
@@ -717,6 +775,11 @@ func (dml *StorageIntegratedDMLExecutor) executeOnDuplicateKeyUpdate(
 				dml.rollbackStorageTransaction(ctx, txn)
 				return nil, fmt.Errorf("ON DUPLICATE KEY UPDATE更新行失败: %v", err)
 			}
+			newStorageKey, err := dml.storageKeyForUpdatedRow(rowInfo, &InsertRowData{ColumnValues: rowInfo.NewValues}, tableMeta)
+			if err != nil {
+				dml.rollbackStorageTransaction(ctx, txn)
+				return nil, fmt.Errorf("记录 ON DUPLICATE KEY UPDATE 新聚簇键失败: %w", err)
+			}
 			if err := dml.updateIndexesForUpdate(ctx, txn, []*RowUpdateInfo{rowInfo}, updateExprs, tableMeta, tableStorageInfo, row.ColumnValues); err != nil {
 				dml.rollbackStorageTransaction(ctx, txn)
 				return nil, fmt.Errorf("ON DUPLICATE KEY UPDATE更新索引失败: %v", err)
@@ -724,13 +787,15 @@ func (dml *StorageIntegratedDMLExecutor) executeOnDuplicateKeyUpdate(
 			if changed {
 				affectedRows += 2
 				changes = append(changes, transactionDMLChange{
-					tableName:   dml.transactionTableName(),
-					kind:        "update",
-					rowID:       rowInfo.RowId,
-					storageKey:  rowInfo.StorageKey,
-					before:      cloneTransactionRow(rowInfo.OldValues),
-					after:       cloneTransactionRow(updatedRow.ColumnValues),
-					columnTypes: cloneTransactionColumnTypes(tableMeta),
+					tableName:             dml.transactionTableName(),
+					kind:                  "update",
+					rowID:                 rowInfo.RowId,
+					storageKey:            rowInfo.StorageKey,
+					newStorageKey:         newStorageKey,
+					before:                cloneTransactionRow(rowInfo.OldValues),
+					after:                 cloneTransactionRow(rowInfo.NewValues),
+					columnTypes:           cloneTransactionColumnTypes(tableMeta),
+					createdContentObjects: append([]content.ObjectRef(nil), rowInfo.CreatedContentObjects...),
 				})
 			} else if dml.foundRows {
 				affectedRows++
@@ -738,6 +803,12 @@ func (dml *StorageIntegratedDMLExecutor) executeOnDuplicateKeyUpdate(
 		}
 	}
 
+	invalidations, err := dml.invalidateDerivedContentChanges(ctx, txn, changes)
+	if err != nil {
+		dml.rollbackStorageTransaction(ctx, txn)
+		return nil, err
+	}
+	changes = append(changes, invalidations...)
 	if err := dml.commitStorageTransaction(ctx, txn); err != nil {
 		return nil, fmt.Errorf("提交存储事务失败: %v", err)
 	}
@@ -843,6 +914,13 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 		dml.rollbackStorageTransaction(ctx, txn)
 		return nil, fmt.Errorf("查找待更新行失败: %v", err)
 	}
+	// Constraint checks, cascade planning and the final write all evaluate SET.
+	// Bind execution-local parameters before any of those evaluations.
+	if session, ok := ctx.Value(storageTransactionSessionContextKey).(server.MySQLServerSession); ok && session != nil {
+		for _, row := range rowsToUpdate {
+			row.OldValues[sessionExpressionValuesKey] = newSessionExpressionValues(session)
+		}
+	}
 	if err := dml.validateUpdateConstraints(ctx, rowsToUpdate, updateExprs, tableMeta, tableStorageInfo, tableBtreeManager); err != nil {
 		dml.rollbackStorageTransaction(ctx, txn)
 		return nil, err
@@ -912,14 +990,15 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 			return nil, fmt.Errorf("生成更新后存储键失败: %v", err)
 		}
 		changes = append(changes, transactionDMLChange{
-			tableName:     dml.transactionTableName(),
-			kind:          "update",
-			rowID:         rowInfo.RowId,
-			storageKey:    rowInfo.StorageKey,
-			newStorageKey: newStorageKey,
-			before:        cloneTransactionRow(rowInfo.OldValues),
-			after:         cloneTransactionRow(updatedRow.ColumnValues),
-			columnTypes:   cloneTransactionColumnTypes(tableMeta),
+			tableName:             dml.transactionTableName(),
+			kind:                  "update",
+			rowID:                 rowInfo.RowId,
+			storageKey:            rowInfo.StorageKey,
+			newStorageKey:         newStorageKey,
+			before:                cloneTransactionRow(rowInfo.OldValues),
+			after:                 cloneTransactionRow(rowInfo.NewValues),
+			columnTypes:           cloneTransactionColumnTypes(tableMeta),
+			createdContentObjects: append([]content.ObjectRef(nil), rowInfo.CreatedContentObjects...),
 		})
 
 		if !rowMapsEqual(rowInfo.OldValues, updatedRow.ColumnValues) {
@@ -934,6 +1013,12 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteUpdate(ctx context.Context, stmt
 		return nil, err
 	}
 	changes = append(changes, cascadeChanges...)
+	invalidations, err := dml.invalidateDerivedContentChanges(ctx, txn, changes)
+	if err != nil {
+		dml.rollbackStorageTransaction(ctx, txn)
+		return nil, err
+	}
+	changes = append(changes, invalidations...)
 
 	// 9. 提交事务
 	if err := dml.commitStorageTransaction(ctx, txn); err != nil {
@@ -1057,6 +1142,12 @@ func (dml *StorageIntegratedDMLExecutor) ExecuteDelete(ctx context.Context, stmt
 
 		affectedRows++
 	}
+	invalidations, err := dml.invalidateDerivedContentChanges(ctx, txn, changes)
+	if err != nil {
+		dml.rollbackStorageTransaction(ctx, txn)
+		return nil, err
+	}
+	changes = append(changes, invalidations...)
 
 	// 9. 提交事务
 	if err := dml.commitStorageTransaction(ctx, txn); err != nil {
@@ -1097,20 +1188,37 @@ func extractTransactionIDFromStorageCtx(txn interface{}) uint64 {
 }
 
 func rollbackDMLChange(dml *StorageIntegratedDMLExecutor, change transactionDMLChange) error {
+	var err error
 	switch change.kind {
 	case "insert":
-		return dml.deleteRowByValues(change.tableName, change.after, change.storageKey)
+		err = dml.deleteRowByValues(change.tableName, change.after, change.storageKey)
 	case "update":
 		storageKey := change.newStorageKey
 		if storageKey == nil {
 			storageKey = change.storageKey
 		}
-		return dml.updateRowByValues(change.tableName, change.after, change.before, change.rowID, storageKey)
+		err = dml.updateRowByValues(change.tableName, change.after, change.before, change.rowID, storageKey)
 	case "delete":
-		return dml.insertRowByValues(change.tableName, change.before, change.storageKey)
+		err = dml.insertRowByValues(change.tableName, change.before, change.storageKey)
 	default:
 		return fmt.Errorf("unknown transaction DML change kind %s", change.kind)
 	}
+	if err != nil {
+		return err
+	}
+	if len(change.createdContentObjects) == 0 {
+		return nil
+	}
+	store, err := contentSegmentStoreForDataDir(dml.dataDir)
+	if err != nil {
+		return fmt.Errorf("open database CONTENT store while rolling back: %w", err)
+	}
+	for _, ref := range change.createdContentObjects {
+		if err := store.Delete(ref); err != nil && !errors.Is(err, content.ErrObjectNotFound) {
+			return fmt.Errorf("remove CONTENT object %s while rolling back: %w", ref.ID, err)
+		}
+	}
+	return nil
 }
 
 func (dml *StorageIntegratedDMLExecutor) setTransactionTable(tableName string) error {
@@ -1294,10 +1402,11 @@ func (dml *StorageIntegratedDMLExecutor) insertRowToStorage(
 	}
 
 	// 2. 序列化行数据
-	serializedRow, err := dml.serializeRowData(row, tableMeta)
+	serializedRow, err := dml.serializeRowDataWithContext(ctx, row, tableMeta)
 	if err != nil {
 		return 0, fmt.Errorf("序列化行数据失败: %v", err)
 	}
+	dml.registerTransactionContentObjects(txn, row.CreatedContentObjects)
 
 	// 3. 插入到B+树存储引擎
 	err = btreeManager.Insert(ctx, primaryKey, serializedRow)
@@ -1357,6 +1466,11 @@ func (dml *StorageIntegratedDMLExecutor) updateRowInStorage(
 	for columnName, value := range rowInfo.OldValues {
 		existingRowData.ColumnValues[columnName] = value
 	}
+	if ctx != nil {
+		if session, ok := ctx.Value(storageTransactionSessionContextKey).(server.MySQLServerSession); ok && session != nil {
+			existingRowData.ColumnValues[sessionExpressionValuesKey] = newSessionExpressionValues(session)
+		}
+	}
 
 	// 2. 应用更新表达式
 	updatedRowData, err := dml.applyUpdateExpressions(existingRowData, updateExprs, tableMeta, incomingValues...)
@@ -1368,10 +1482,11 @@ func (dml *StorageIntegratedDMLExecutor) updateRowInStorage(
 	}
 
 	// 3. 序列化更新后的行数据
-	serializedRow, err := dml.serializeRowData(updatedRowData, tableMeta)
+	serializedRow, err := dml.serializeRowDataWithContext(ctx, updatedRowData, tableMeta)
 	if err != nil {
 		return fmt.Errorf("序列化更新后的行数据失败: %v", err)
 	}
+	dml.registerTransactionContentObjects(txn, updatedRowData.CreatedContentObjects)
 
 	// 4. 在B+树中替换记录；主键变化时必须移动聚簇键
 	newPrimaryKey := primaryKey
@@ -1392,10 +1507,11 @@ func (dml *StorageIntegratedDMLExecutor) updateRowInStorage(
 			return fmt.Errorf("删除旧B+树记录失败: %v", err)
 		}
 	}
-	serializedOldRow, err := dml.serializeRowData(existingRowData, tableMeta)
+	serializedOldRow, err := dml.serializeRowDataWithContext(ctx, existingRowData, tableMeta)
 	if err != nil {
 		return fmt.Errorf("序列化旧记录失败: %v", err)
 	}
+	dml.registerTransactionContentObjects(txn, existingRowData.CreatedContentObjects)
 	err = btreeManager.Insert(ctx, newPrimaryKey, serializedRow)
 	if err != nil {
 		return fmt.Errorf("更新B+树记录失败: %v", err)
@@ -1409,6 +1525,8 @@ func (dml *StorageIntegratedDMLExecutor) updateRowInStorage(
 		}
 		return err
 	}
+	rowInfo.NewValues = cloneTransactionRow(updatedRowData.ColumnValues)
+	rowInfo.CreatedContentObjects = append(rowInfo.CreatedContentObjects[:0], updatedRowData.CreatedContentObjects...)
 
 	logger.Debugf(" 行成功在B+树中更新")
 	return nil
@@ -1477,7 +1595,7 @@ func (dml *StorageIntegratedDMLExecutor) deleteRowFromStorage(
 		ColumnValues: cloneTransactionRow(rowInfo.OldValues),
 		ColumnTypes:  make(map[string]metadata.DataType),
 	}
-	serializedOldRow, err := dml.serializeRowData(oldRowData, tableMeta)
+	serializedOldRow, err := dml.serializeRowDataWithContext(ctx, oldRowData, tableMeta)
 	if err != nil {
 		return fmt.Errorf("序列化待删除记录失败: %v", err)
 	}
@@ -1566,7 +1684,7 @@ func (dml *StorageIntegratedDMLExecutor) persistTableRootPage(tableInfo *manager
 		return nil
 	}
 	path := filepath.Join(dml.dataDir, dml.schemaName, dml.tableName+".frm")
-	raw, err := os.ReadFile(path)
+	raw, err := metadata.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read table metadata: %w", err)
 	}
@@ -1580,7 +1698,7 @@ func (dml *StorageIntegratedDMLExecutor) persistTableRootPage(tableInfo *manager
 	if err != nil {
 		return fmt.Errorf("encode table metadata: %w", err)
 	}
-	if err := os.WriteFile(path, encoded, 0644); err != nil {
+	if err := writeMetadataFileAtomic(path, encoded); err != nil {
 		return fmt.Errorf("persist table metadata: %w", err)
 	}
 	return nil

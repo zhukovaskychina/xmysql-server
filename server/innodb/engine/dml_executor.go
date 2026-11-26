@@ -12,9 +12,11 @@ import (
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/content"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/vector"
 )
 
 // SecondaryIndexSyncer 二级索引同步器接口
@@ -310,19 +312,28 @@ func extractTxnIDFromAny(txn interface{}) uint64 {
 
 // InsertRowData 插入行数据结构
 type InsertRowData struct {
-	ColumnValues map[string]interface{}
-	ColumnTypes  map[string]metadata.DataType
+	ColumnValues             map[string]interface{}
+	ColumnTypes              map[string]metadata.DataType
+	CreatedContentObjects    []content.ObjectRef
+	pendingSourceExpressions []pendingInsertSourceExpression
+}
+
+type pendingInsertSourceExpression struct {
+	column string
+	expr   sqlparser.Expr
 }
 
 // RowUpdateInfo 行更新信息
 type RowUpdateInfo struct {
-	RowId      uint64
-	StorageKey interface{}
-	PageNum    uint32
-	SlotIndex  int
-	SchemaName string
-	TableName  string
-	OldValues  map[string]interface{}
+	RowId                 uint64
+	StorageKey            interface{}
+	PageNum               uint32
+	SlotIndex             int
+	SchemaName            string
+	TableName             string
+	OldValues             map[string]interface{}
+	NewValues             map[string]interface{}
+	CreatedContentObjects []content.ObjectRef
 }
 
 // UpdateExpression 更新表达式
@@ -426,7 +437,7 @@ func (dml *DMLExecutor) parseSQLVal(val *sqlparser.SQLVal) (interface{}, error) 
 	case sqlparser.FloatVal:
 		return strconv.ParseFloat(string(val.Val), 64)
 	case sqlparser.HexVal:
-		return val.Val, nil
+		return decodeSQLHexLiteral(val.Val)
 	default:
 		return string(val.Val), nil
 	}
@@ -1015,7 +1026,11 @@ func (dml *DMLExecutor) parsePrimaryKeyValue(expr sqlparser.Expr) interface{} {
 		case sqlparser.StrVal:
 			return string(v.Val)
 		case sqlparser.HexVal:
-			return v.Val
+			decoded, err := decodeSQLHexLiteral(v.Val)
+			if err != nil {
+				return nil
+			}
+			return decoded
 		case sqlparser.FloatVal:
 			if val, err := strconv.ParseFloat(string(v.Val), 64); err == nil {
 				return val
@@ -1105,6 +1120,24 @@ func (dml *DMLExecutor) validateValueType(val interface{}, colType metadata.Data
 			return true
 		}
 		_, ok = val.([]byte)
+		return ok
+	case metadata.TypeContent:
+		switch typed := val.(type) {
+		case string, []byte:
+			return true
+		case content.Value:
+			return typed.Validate() == nil
+		case *content.Value:
+			return typed != nil && typed.Validate() == nil
+		default:
+			return false
+		}
+	case metadata.TypeVector:
+		_, ok := val.(vector.Value)
+		if ok {
+			return true
+		}
+		_, ok = val.(*vector.Value)
 		return ok
 	case metadata.TypeDate, metadata.TypeTime, metadata.TypeDateTime, metadata.TypeTimestamp, metadata.TypeYear:
 		_, ok := val.(string)

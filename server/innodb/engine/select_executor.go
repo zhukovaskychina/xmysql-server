@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"container/heap"
 	"context"
 	"crypto/sha1"
 	"encoding/json"
@@ -19,11 +20,13 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/content"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/page"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/vector"
 )
 
 // SelectExecutor SELECT查询执行器
@@ -40,19 +43,30 @@ type SelectExecutor struct {
 	// dataDir 用于在无 tableManager 时从 .frm 文件加载表定义（与 executor 写入的 CREATE TABLE 一致）
 	dataDir string
 
+	embeddingRuntime  EmbeddingRuntime
+	generationRuntime GenerationRuntime
+	modelContext      context.Context
+
+	columnSemanticCache         map[*metadata.TableMeta]map[string]metadata.ColumnSemanticDefinition
+	tableSemanticCache          map[tableSemanticCacheKey]*metadata.TableSemanticDefinition
+	semanticRelationshipAllowed func(string, string, metadata.SemanticRelationship) bool
+
 	// 查询相关
 	logicalPlan             plan.LogicalPlan
 	physicalPlan            *manager.PlanNode
 	tableName               string
+	tableAlias              string
 	schemaName              string
 	whereConditions         []string
 	whereExpression         sqlparser.Expr
+	havingExpression        sqlparser.Expr
 	predicatePruningAllowed bool
 	selectExprs             []string
 	selectExprASTs          []sqlparser.Expr
 	selectAliases           []string
 	distinct                bool
 	groupByColumns          []string
+	groupByExpressions      []sqlparser.Expr
 	havingCondition         string
 	orderByColumns          []string
 	joinOrderTypes          map[string]metadata.DataType
@@ -82,6 +96,21 @@ type SelectExecutor struct {
 type projectionExpressionCacheEntry struct {
 	ast      sqlparser.Expr
 	compiled plan.CompiledExpression
+}
+
+const contentSourceRowContextKey = "__xmysql_content_source_row"
+
+type contentSourceRowContext struct {
+	Schema          string
+	Table           string
+	PrimaryKey      []byte
+	ColumnSemantics map[string]metadata.ColumnSemanticDefinition
+	TableSemantics  *metadata.TableSemanticDefinition
+}
+
+type tableSemanticCacheKey struct {
+	TableMeta *metadata.TableMeta
+	Schema    string
 }
 
 func cloneStringSet(values map[string]struct{}) map[string]struct{} {
@@ -135,7 +164,9 @@ func (se *SelectExecutor) ExecuteSelect(ctx context.Context, stmt *sqlparser.Sel
 		return nil, fmt.Errorf("parse SELECT statement failed: %v", err)
 	}
 
-	// 2. 构建逻辑计划
+	// 2. Build the logical plan. SubqueryExpression preserves correlated
+	// HAVING predicates here; grouped-row execution still supplies their runtime
+	// binding through its existing SQL AST path.
 	if err := se.buildLogicalPlan(ctx, stmt); err != nil {
 		return nil, fmt.Errorf("build logical plan failed: %v", err)
 	}
@@ -152,7 +183,7 @@ func (se *SelectExecutor) ExecuteSelect(ctx context.Context, stmt *sqlparser.Sel
 
 	// 5. 执行查询
 	if err := se.executeQuery(ctx); err != nil {
-		return nil, fmt.Errorf("execute query failed: %v", err)
+		return nil, fmt.Errorf("execute query failed: %w", err)
 	}
 
 	// 6. 构建结果
@@ -166,15 +197,18 @@ func (se *SelectExecutor) ExecuteSelect(ctx context.Context, stmt *sqlparser.Sel
 func (se *SelectExecutor) resetExecutionState() {
 	se.schemaName = ""
 	se.tableName = ""
+	se.tableAlias = ""
 
 	se.whereConditions = nil
 	se.whereExpression = nil
+	se.havingExpression = nil
 	se.predicatePruningAllowed = false
 	se.selectExprs = nil
 	se.selectExprASTs = nil
 	se.selectAliases = nil
 	se.distinct = false
 	se.groupByColumns = nil
+	se.groupByExpressions = nil
 	se.havingCondition = ""
 	se.orderByColumns = nil
 	se.joinOrderTypes = nil
@@ -189,6 +223,8 @@ func (se *SelectExecutor) resetExecutionState() {
 	se.rowsExamined = 0
 	se.selectScan = 0
 	se.sortRows = 0
+	se.columnSemanticCache = nil
+	se.tableSemanticCache = nil
 }
 
 func (se *SelectExecutor) setStoredFunctionAuthorizer(authorizer func(persistedStoredObject) error) {
@@ -213,6 +249,7 @@ func (se *SelectExecutor) parseSelectStatement(stmt *sqlparser.Select, schemaNam
 			switch tableExpr := v.Expr.(type) {
 			case sqlparser.TableName:
 				se.tableName = tableExpr.Name.String()
+				se.tableAlias = v.As.String()
 				if qualifier := strings.TrimSpace(tableExpr.Qualifier.String()); qualifier != "" {
 					se.schemaName = qualifier
 				}
@@ -240,9 +277,11 @@ func (se *SelectExecutor) parseSelectStatement(stmt *sqlparser.Select, schemaNam
 
 	for _, expr := range stmt.GroupBy {
 		se.groupByColumns = append(se.groupByColumns, sqlparser.String(expr))
+		se.groupByExpressions = append(se.groupByExpressions, expr)
 	}
 	if stmt.Having != nil {
 		se.havingCondition = sqlparser.String(stmt.Having.Expr)
+		se.havingExpression = stmt.Having.Expr
 	}
 
 	// 解析ORDER BY
@@ -581,7 +620,7 @@ func (se *SelectExecutor) scanStorageRows(ctx context.Context, tableMeta *metada
 		rows, err = scanner.Scan(ctx, scanConditions)
 	}
 	if err != nil {
-		return fmt.Errorf("scan clustered index failed: %v", err)
+		return fmt.Errorf("scan clustered index failed: %w", err)
 	}
 	se.rowsExamined = scanner.RowsExamined()
 	rows = se.applyPartitionPruning(rows)
@@ -797,8 +836,7 @@ func partitionConstantPredicate(condition, expression string) (string, interface
 	if !ok {
 		return "", 0, false
 	}
-	column, ok := comparison.Left.(*sqlparser.ColName)
-	if !ok || !strings.EqualFold(column.Name.String(), strings.Trim(strings.TrimSpace(expression), "`")) {
+	if !partitionIdentifierMatches(comparison.Left, expression) {
 		return "", 0, false
 	}
 	literal, ok := comparison.Right.(*sqlparser.SQLVal)
@@ -2540,7 +2578,7 @@ func (se *SelectExecutor) ensureTableStorageMapping(ctx context.Context) error {
 	}
 	spaceName := fmt.Sprintf("%s/%s", se.schemaName, se.tableName)
 	ownsTablespace := true
-	if raw, readErr := os.ReadFile(filepath.Join(se.dataDir, se.schemaName, se.tableName+".frm")); readErr == nil {
+	if raw, readErr := metadata.ReadFile(filepath.Join(se.dataDir, se.schemaName, se.tableName+".frm")); readErr == nil {
 		var attachment struct {
 			TablespaceName string `json:"tablespace_name"`
 			OwnsTablespace *bool  `json:"owns_tablespace"`
@@ -2597,7 +2635,7 @@ func (se *SelectExecutor) ensureTableStorageMapping(ctx context.Context) error {
 
 func (se *SelectExecutor) loadPersistedTableRootPage() (uint32, error) {
 	path := filepath.Join(se.dataDir, se.schemaName, se.tableName+".frm")
-	raw, err := os.ReadFile(path)
+	raw, err := metadata.ReadFile(path)
 	if err != nil {
 		return 0, fmt.Errorf("read table metadata for storage recovery: %w", err)
 	}
@@ -2621,7 +2659,7 @@ func (se *SelectExecutor) loadPersistedTableRootPage() (uint32, error) {
 
 func (se *SelectExecutor) loadPersistedPartitioning() (map[string]interface{}, error) {
 	path := filepath.Join(se.dataDir, se.schemaName, se.tableName+".frm")
-	raw, err := os.ReadFile(path)
+	raw, err := metadata.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read table metadata for partition recovery: %w", err)
 	}
@@ -3136,6 +3174,7 @@ func (se *SelectExecutor) getTableMetadata() (*metadata.TableMeta, error) {
 type frmTableInfo struct {
 	TableName    string                   `json:"table_name"`
 	TableComment string                   `json:"table_comment"`
+	Options      map[string]interface{}   `json:"options"`
 	Columns      []map[string]interface{} `json:"columns"`
 	Indexes      []map[string]interface{} `json:"indexes"`
 }
@@ -3146,7 +3185,7 @@ func (se *SelectExecutor) loadTableMetaFromFrm(dataDir, schemaName, tableName st
 		return nil, fmt.Errorf("missing dataDir, schema or table name")
 	}
 	frmPath := filepath.Join(dataDir, schemaName, tableName+".frm")
-	data, err := os.ReadFile(frmPath)
+	data, err := metadata.ReadFile(frmPath)
 	if err != nil {
 		return nil, err
 	}
@@ -3157,10 +3196,14 @@ func (se *SelectExecutor) loadTableMetaFromFrm(dataDir, schemaName, tableName st
 	if len(info.Columns) == 0 {
 		return nil, fmt.Errorf("no columns in .frm")
 	}
+	tableCharset := persistedString(info.Options["charset"])
+	tableCollation := persistedString(info.Options["collation"])
 	meta := &metadata.TableMeta{
-		Name:    tableName,
-		Comment: info.TableComment,
-		Columns: make([]*metadata.ColumnMeta, 0, len(info.Columns)),
+		Name:      tableName,
+		Comment:   info.TableComment,
+		Charset:   tableCharset,
+		Collation: tableCollation,
+		Columns:   make([]*metadata.ColumnMeta, 0, len(info.Columns)),
 	}
 	for _, col := range info.Columns {
 		name, _ := col["name"].(string)
@@ -3192,6 +3235,17 @@ func (se *SelectExecutor) loadTableMetaFromFrm(dataDir, schemaName, tableName st
 		isAutoIncrement, _ := col["auto_increment"].(bool)
 		isGenerated, _ := col["generated"].(bool)
 		generatedExpression, _ := col["generated_expression"].(string)
+		charset := persistedString(col["charset"])
+		collation := persistedString(col["collate"])
+		if charset == "" {
+			charset = tableCharset
+		}
+		if collation == "" {
+			collation = tableCollation
+		}
+		if collation == "" && charset != "" && informationSchemaCharacterSet(typeStr) != nil {
+			collation = fmt.Sprint(informationSchemaCollationForCharacterSet(charset))
+		}
 		columnMeta := &metadata.ColumnMeta{
 			Name:                name,
 			Type:                metadata.DataType(typeStr),
@@ -3202,6 +3256,8 @@ func (se *SelectExecutor) loadTableMetaFromFrm(dataDir, schemaName, tableName st
 			IsUnique:            isUnique,
 			IsGenerated:         isGenerated,
 			GeneratedExpression: generatedExpression,
+			Charset:             charset,
+			Collation:           collation,
 		}
 		columnMeta.IsUnsigned = isUnsigned
 		if rawValues, ok := col["enum_values"].([]interface{}); ok {
@@ -3588,8 +3644,50 @@ func (se *SelectExecutor) buildProjectedRecord(tableMeta *metadata.TableMeta, so
 		Columns: projectedColumns,
 	}
 
-	// 创建记录
-	return NewExecutorRecord(projectedValues, projectedTableMeta), nil
+	// Restore typed metadata for rows read through the legacy page parser. The
+	// normal SQL projection still returns original CONTENT bytes and the
+	// checksummed VECTOR wire value.
+	contentValues := make(map[int]content.Value)
+	vectorValues := make(map[int]vector.Value)
+	for index, column := range projectedColumns {
+		if column == nil || index >= len(projectedValues) || projectedValues[index] == nil || projectedValues[index].IsNull() {
+			continue
+		}
+		raw, ok := projectedValues[index].Raw().([]byte)
+		if !ok {
+			continue
+		}
+		switch column.Type {
+		case metadata.TypeContent:
+			var typed content.Value
+			if content.IsEncoded(raw) {
+				if err := typed.UnmarshalBinary(raw); err != nil {
+					return nil, fmt.Errorf("decode projected CONTENT column %s: %w", column.Name, err)
+				}
+			} else {
+				var err error
+				typed, err = content.NewValue("application/octet-stream", 1, raw)
+				if err != nil {
+					return nil, err
+				}
+			}
+			contentValues[index] = typed
+			projectedValues[index] = basic.NewBytes(typed.Bytes)
+		case metadata.TypeVector:
+			var typed vector.Value
+			if err := typed.UnmarshalBinary(raw); err != nil {
+				return nil, fmt.Errorf("decode projected VECTOR column %s: %w", column.Name, err)
+			}
+			if column.Length > 0 && typed.Dimension() != column.Length {
+				return nil, fmt.Errorf("projected VECTOR column %s has dimension %d, want %d", column.Name, typed.Dimension(), column.Length)
+			}
+			vectorValues[index] = typed
+		}
+	}
+	record := NewExecutorRecord(projectedValues, projectedTableMeta).(*EngineExecutorRecord)
+	record.contentValues = contentValues
+	record.vectorValues = vectorValues
+	return record, nil
 }
 
 // parsePageRecordsFromSlot 从指定槽位解析记录
@@ -3654,13 +3752,30 @@ func (se *SelectExecutor) recordValuesForWhere(record Record) (map[string]interf
 		if column == nil {
 			continue
 		}
+		collation := strings.TrimSpace(column.Collation)
+		if collation == "" {
+			collation = strings.TrimSpace(tableMeta.Collation)
+		}
+		if collation != "" {
+			values[columnCollationContextKey(column.Name)] = collation
+		}
 		value := record.GetValueByIndex(idx)
 		if value == nil {
 			values[column.Name] = nil
 			continue
 		}
-		values[column.Name] = recordValueForPredicate(value, column.Type)
+		predicateValue := recordValueForPredicate(value, column.Type)
+		if typedRecord, ok := record.(*EngineExecutorRecord); ok {
+			if contentValue, exists := typedRecord.ContentValueByIndex(idx); exists {
+				predicateValue = contentValue
+			} else if vectorValue, exists := typedRecord.VectorValueByIndex(idx); exists {
+				predicateValue = vectorValue
+			}
+		}
+		values[column.Name] = predicateValue
 	}
+	se.addContentSourceRowContext(values, record, tableMeta)
+	values[storedFunctionContextKey] = ctxOrBackground(se.modelContext)
 	if se.dataDir != "" {
 		values[storedFunctionDataDirKey] = se.dataDir
 		values[storedFunctionSchemaKey] = se.schemaName
@@ -3672,6 +3787,131 @@ func (se *SelectExecutor) recordValuesForWhere(record Record) (map[string]interf
 		values[sessionExpressionValuesKey] = se.sessionValues
 	}
 	return values, nil
+}
+
+func (se *SelectExecutor) addContentSourceRowContext(values map[string]interface{}, record Record, tableMeta *metadata.TableMeta) {
+	if se == nil || values == nil || record == nil || tableMeta == nil || len(effectivePrimaryKeyColumns(tableMeta)) == 0 {
+		return
+	}
+	if !strings.EqualFold(strings.TrimSpace(tableMeta.Name), strings.TrimSpace(se.tableName)) {
+		return
+	}
+	primaryKey, ok := spatialRecordStorageKey(record, tableMeta)
+	if !ok || primaryKey == "" {
+		return
+	}
+	rowContext := contentSourceRowContext{
+		Schema: se.schemaName, Table: se.tableName, PrimaryKey: []byte(primaryKey),
+		ColumnSemantics: se.columnSemanticDefinitions(tableMeta),
+		TableSemantics:  se.tableSemanticDefinition(tableMeta, se.schemaName),
+	}
+	values[contentSourceRowContextKey] = rowContext
+	for _, qualifier := range []string{se.tableAlias, se.tableName, se.schemaName + "." + se.tableName} {
+		if strings.TrimSpace(qualifier) != "" {
+			values[contentSourceRowContextKeyForAlias(qualifier)] = rowContext
+		}
+	}
+}
+
+func (se *SelectExecutor) columnSemanticDefinitions(tableMeta *metadata.TableMeta) map[string]metadata.ColumnSemanticDefinition {
+	if se == nil || tableMeta == nil {
+		return nil
+	}
+	if definitions, exists := se.columnSemanticCache[tableMeta]; exists {
+		return definitions
+	}
+	definitions := confirmedColumnSemanticDefinitions(tableMeta)
+	if se.columnSemanticCache == nil {
+		se.columnSemanticCache = make(map[*metadata.TableMeta]map[string]metadata.ColumnSemanticDefinition)
+	}
+	se.columnSemanticCache[tableMeta] = definitions
+	return definitions
+}
+
+func (se *SelectExecutor) tableSemanticDefinition(tableMeta *metadata.TableMeta, sourceSchema string) *metadata.TableSemanticDefinition {
+	if se == nil || tableMeta == nil {
+		return nil
+	}
+	sourceSchema = strings.TrimSpace(sourceSchema)
+	if sourceSchema == "" {
+		sourceSchema = se.schemaName
+	}
+	cacheKey := tableSemanticCacheKey{TableMeta: tableMeta, Schema: strings.ToLower(sourceSchema)}
+	if definition, exists := se.tableSemanticCache[cacheKey]; exists {
+		return definition
+	}
+	definition, found, err := metadata.ParseTableSemanticComment(tableMeta.Comment)
+	if err != nil || !found || definition == nil || !strings.EqualFold(definition.Status, "CONFIRMED") {
+		if se.tableSemanticCache == nil {
+			se.tableSemanticCache = make(map[tableSemanticCacheKey]*metadata.TableSemanticDefinition)
+		}
+		se.tableSemanticCache[cacheKey] = nil
+		return nil
+	}
+	visibleRelationships := make([]metadata.SemanticRelationship, 0, len(definition.Relationships))
+	for _, relationship := range definition.Relationships {
+		if !strings.EqualFold(relationship.Status, "CONFIRMED") {
+			continue
+		}
+		if se.semanticRelationshipAllowed == nil || !se.semanticRelationshipAllowed(sourceSchema, tableMeta.Name, relationship) {
+			continue
+		}
+		visibleRelationships = append(visibleRelationships, relationship)
+	}
+	definition.Relationships = visibleRelationships
+	if se.tableSemanticCache == nil {
+		se.tableSemanticCache = make(map[tableSemanticCacheKey]*metadata.TableSemanticDefinition)
+	}
+	se.tableSemanticCache[cacheKey] = definition
+	return definition
+}
+
+func confirmedColumnSemanticDefinitions(tableMeta *metadata.TableMeta) map[string]metadata.ColumnSemanticDefinition {
+	if tableMeta == nil {
+		return nil
+	}
+	var definitions map[string]metadata.ColumnSemanticDefinition
+	for _, column := range tableMeta.Columns {
+		if !columnHasDataType(column, metadata.TypeContent) || strings.TrimSpace(column.Comment) == "" {
+			continue
+		}
+		definition, found, err := metadata.ParseColumnSemanticComment(column.Comment)
+		if err != nil || !found || definition == nil || !strings.EqualFold(definition.Status, "CONFIRMED") {
+			continue
+		}
+		if definitions == nil {
+			definitions = make(map[string]metadata.ColumnSemanticDefinition)
+		}
+		definitions[strings.ToLower(strings.TrimSpace(column.Name))] = *definition
+	}
+	return definitions
+}
+
+func contentSourceContextForColumn(values map[string]interface{}, column *sqlparser.ColName) (contentSourceRowContext, bool) {
+	if column == nil {
+		return contentSourceRowContext{}, false
+	}
+	qualifier := strings.Trim(strings.TrimSpace(sqlparser.String(column.Qualifier)), "` ")
+	if qualifier != "" {
+		if rowContext, ok := values[contentSourceRowContextKeyForColumn(qualifier, column.Name.String())].(contentSourceRowContext); ok && len(rowContext.PrimaryKey) > 0 {
+			return rowContext, true
+		}
+	}
+	if qualifier == "" {
+		rowContext, ok := values[contentSourceRowContextKey].(contentSourceRowContext)
+		return rowContext, ok && len(rowContext.PrimaryKey) > 0
+	}
+	if rowContext, ok := values[contentSourceRowContextKeyForAlias(qualifier)].(contentSourceRowContext); ok && len(rowContext.PrimaryKey) > 0 {
+		return rowContext, true
+	}
+	rowContext, ok := values[contentSourceRowContextKey].(contentSourceRowContext)
+	if !ok || len(rowContext.PrimaryKey) == 0 {
+		return contentSourceRowContext{}, false
+	}
+	if strings.EqualFold(qualifier, rowContext.Table) || strings.EqualFold(qualifier, rowContext.Schema+"."+rowContext.Table) {
+		return rowContext, true
+	}
+	return contentSourceRowContext{}, false
 }
 
 func recordValueForPredicate(value basic.Value, dataType metadata.DataType) interface{} {
@@ -3722,7 +3962,7 @@ func (se *SelectExecutor) buildSelectResult() *SelectResult {
 	}
 
 	// 应用排序
-	sortedRecords := se.applyOrderBy(projectedRecords)
+	sortedRecords := se.applyOrderBy(projectedRecords, se.resultSet)
 
 	// 应用DISTINCT
 	distinctRecords := se.applyDistinct(sortedRecords)
@@ -3756,7 +3996,7 @@ func (se *SelectExecutor) buildSelectResult() *SelectResult {
 		Records:     limitedRecords,
 		RowCount:    len(limitedRecords),
 		Columns:     columns,
-		ColumnTypes: se.getColumnTypes(columns),
+		ColumnTypes: se.getResultColumnTypes(columns, projectedRecords),
 		ResultType:  common.RESULT_TYPE_QUERY,
 		Message:     fmt.Sprintf("Query OK, %d rows in set", len(limitedRecords)),
 	}
@@ -3771,7 +4011,7 @@ func (se *SelectExecutor) buildSelectResult() *SelectResult {
 func (se *SelectExecutor) applyProjection(records []Record) []Record {
 	// 如果是 SELECT *，不需要投影
 	if len(se.selectExprs) == 1 && se.selectExprs[0] == "*" {
-		return records
+		return se.materializeExternalContentRecords(records)
 	}
 
 	// 对每条记录进行投影
@@ -3779,7 +4019,7 @@ func (se *SelectExecutor) applyProjection(records []Record) []Record {
 	for _, record := range records {
 		projectedRecord, err := se.projectRecord(record, se.selectExprs)
 		if err != nil {
-			if isStoredFunctionAuthorizationError(err) {
+			if isMySQLSemanticError(err) || isStoredFunctionAuthorizationError(err) {
 				se.expressionError = err
 			}
 			logger.Warnf(" [applyProjection] 投影记录失败: %v，跳过该记录", err)
@@ -3807,9 +4047,20 @@ func (se *SelectExecutor) projectRecord(record Record, selectExprs []string) (Re
 		if column == nil || index >= len(record.GetValues()) {
 			continue
 		}
-		rowValues[column.Name] = record.GetValues()[index].Raw()
-		rowValues[strings.ToLower(column.Name)] = record.GetValues()[index].Raw()
+		value := record.GetValues()[index].Raw()
+		if typedRecord, ok := record.(*EngineExecutorRecord); ok {
+			if contentValue, exists := typedRecord.ContentValueByIndex(index); exists {
+				value = contentValue
+			} else if vectorValue, exists := typedRecord.VectorValueByIndex(index); exists {
+				value = vectorValue
+			}
+		}
+		rowValues[column.Name] = value
+		rowValues[strings.ToLower(column.Name)] = value
 	}
+	addColumnCollationContext(rowValues, tableMeta)
+	se.addContentSourceRowContext(rowValues, record, tableMeta)
+	rowValues[storedFunctionContextKey] = ctxOrBackground(se.modelContext)
 	if se.dataDir != "" {
 		rowValues[storedFunctionDataDirKey] = se.dataDir
 		rowValues[storedFunctionSchemaKey] = se.schemaName
@@ -3824,6 +4075,18 @@ func (se *SelectExecutor) projectRecord(record Record, selectExprs []string) (Re
 	// 解析选择的列并获取对应的值
 	projectedValues := make([]basic.Value, 0, len(selectExprs))
 	projectedColumns := make([]*metadata.ColumnMeta, 0, len(selectExprs))
+	projectedContentValues := make(map[int]content.Value)
+	projectedVectorValues := make(map[int]vector.Value)
+	projectedSourceContexts := make(map[int]contentSourceRowContext)
+	trackSourceContext := func(outputIndex int, expression sqlparser.Expr) {
+		column, ok := expression.(*sqlparser.ColName)
+		if !ok {
+			return
+		}
+		if sourceContext, exists := contentSourceContextForColumn(rowValues, column); exists {
+			projectedSourceContexts[outputIndex] = sourceContext
+		}
+	}
 
 	for exprIdx, expr := range selectExprs {
 		// 清理表达式（移除空格、别名等）
@@ -3842,12 +4105,43 @@ func (se *SelectExecutor) projectRecord(record Record, selectExprs []string) (Re
 			if value, evalErr := se.evaluateProjectionExpression(expr, rowValues); evalErr == nil {
 				if value == nil {
 					projectedValues = append(projectedValues, basic.NewNull())
+				} else if bytesValue, ok := value.([]byte); ok {
+					projectedValues = append(projectedValues, basic.NewBytes(bytesValue))
+				} else if contentValue, ok := value.(content.Value); ok {
+					projectedContentValues[len(projectedValues)] = contentValue
+					projectedValues = append(projectedValues, basic.NewBytes(contentValue.Bytes))
+				} else if contentValue, ok := value.(*content.Value); ok {
+					if contentValue == nil {
+						projectedValues = append(projectedValues, basic.NewNull())
+					} else {
+						projectedContentValues[len(projectedValues)] = *contentValue
+						projectedValues = append(projectedValues, basic.NewBytes(contentValue.Bytes))
+					}
+				} else if vectorValue, ok := value.(vector.Value); ok {
+					encoded, encodeErr := vectorValue.MarshalBinary()
+					if encodeErr != nil {
+						return nil, encodeErr
+					}
+					projectedVectorValues[len(projectedValues)] = vectorValue.Clone()
+					projectedValues = append(projectedValues, basic.NewBytes(encoded))
+				} else if vectorValue, ok := value.(*vector.Value); ok {
+					if vectorValue == nil {
+						projectedValues = append(projectedValues, basic.NewNull())
+					} else {
+						encoded, encodeErr := vectorValue.MarshalBinary()
+						if encodeErr != nil {
+							return nil, encodeErr
+						}
+						projectedVectorValues[len(projectedValues)] = vectorValue.Clone()
+						projectedValues = append(projectedValues, basic.NewBytes(encoded))
+					}
 				} else {
 					projectedValues = append(projectedValues, basic.NewStringValue(projectionValueString(value)))
 				}
 				projectedColumns = append(projectedColumns, &metadata.ColumnMeta{Name: outputName, Type: projectionValueType(value)})
 				continue
-			} else if isStoredFunctionAuthorizationError(evalErr) {
+			} else if isMySQLSemanticError(evalErr) || isStoredFunctionAuthorizationError(evalErr) || isNativeTypedValueFunction(selectExpressionAST(se, exprIdx)) {
+				se.expressionError = evalErr
 				return nil, evalErr
 			}
 			projectedValues = append(projectedValues, basic.NewNull())
@@ -3857,7 +4151,22 @@ func (se *SelectExecutor) projectRecord(record Record, selectExprs []string) (Re
 
 		// 获取列值
 		value := record.GetValueByIndex(columnIndex)
+		if typedRecord, ok := record.(*EngineExecutorRecord); ok {
+			if contentValue, exists := typedRecord.ContentValueByIndex(columnIndex); exists {
+				if contentValue.ExternalRef != nil {
+					contentValue, err = se.materializeContentValue(contentValue)
+					if err != nil {
+						return nil, err
+					}
+					value = basic.NewBytes(contentValue.Bytes)
+				}
+				projectedContentValues[len(projectedValues)] = contentValue
+			} else if vectorValue, exists := typedRecord.VectorValueByIndex(columnIndex); exists {
+				projectedVectorValues[len(projectedValues)] = vectorValue
+			}
+		}
 		projectedValues = append(projectedValues, value)
+		trackSourceContext(len(projectedValues)-1, selectExpressionAST(se, exprIdx))
 
 		// 添加列元数据
 		if columnIndex < len(tableMeta.Columns) {
@@ -3879,9 +4188,106 @@ func (se *SelectExecutor) projectRecord(record Record, selectExprs []string) (Re
 	}
 
 	// 创建投影后的记录
-	projectedRecord := NewExecutorRecord(projectedValues, projectedTableMeta)
+	projectedRecord := NewExecutorRecord(projectedValues, projectedTableMeta).(*EngineExecutorRecord)
+	projectedRecord.contentValues = projectedContentValues
+	projectedRecord.vectorValues = projectedVectorValues
+	projectedRecord.contentSourceByColumn = projectedSourceContexts
+	for key, value := range rowValues {
+		if !strings.HasPrefix(key, contentSourceRowContextKey) {
+			continue
+		}
+		if sourceContext, ok := value.(contentSourceRowContext); ok {
+			if projectedRecord.contentSourceContexts == nil {
+				projectedRecord.contentSourceContexts = make(map[string]contentSourceRowContext)
+			}
+			sourceContext.PrimaryKey = append([]byte(nil), sourceContext.PrimaryKey...)
+			projectedRecord.contentSourceContexts[key] = sourceContext
+		}
+	}
 
 	return projectedRecord, nil
+}
+
+func (se *SelectExecutor) materializeExternalContentRecords(records []Record) []Record {
+	for index, record := range records {
+		typedRecord, ok := record.(*EngineExecutorRecord)
+		if !ok {
+			continue
+		}
+		rowValues := make(map[string]interface{})
+		se.addContentSourceRowContext(rowValues, typedRecord, typedRecord.GetTableMeta())
+		for key, value := range rowValues {
+			if strings.HasPrefix(key, contentSourceRowContextKey) {
+				if rowContext, ok := value.(contentSourceRowContext); ok {
+					if typedRecord.contentSourceContexts == nil {
+						typedRecord.contentSourceContexts = make(map[string]contentSourceRowContext)
+					}
+					rowContext.PrimaryKey = append([]byte(nil), rowContext.PrimaryKey...)
+					typedRecord.contentSourceContexts[key] = rowContext
+				}
+			}
+		}
+		if typedRecord.contentSourceByColumn == nil {
+			typedRecord.contentSourceByColumn = make(map[int]contentSourceRowContext)
+		}
+		if tableMeta := typedRecord.GetTableMeta(); tableMeta != nil {
+			for columnIndex := range record.GetValues() {
+				if _, isContent := typedRecord.ContentValueByIndex(columnIndex); !isContent || columnIndex >= len(tableMeta.Columns) || tableMeta.Columns[columnIndex] == nil {
+					continue
+				}
+				column := &sqlparser.ColName{Name: sqlparser.NewColIdent(tableMeta.Columns[columnIndex].Name)}
+				if rowContext, exists := contentSourceContextForColumn(rowValues, column); exists {
+					typedRecord.contentSourceByColumn[columnIndex] = rowContext
+				}
+			}
+		}
+		var values []basic.Value
+		contentValues := make(map[int]content.Value)
+		vectorValues := make(map[int]vector.Value)
+		changed := false
+		for columnIndex := range record.GetValues() {
+			if contentValue, exists := typedRecord.ContentValueByIndex(columnIndex); exists {
+				if contentValue.ExternalRef != nil {
+					inline, err := se.materializeContentValue(contentValue)
+					if err != nil {
+						se.expressionError = err
+						return records
+					}
+					contentValue = inline
+					if values == nil {
+						values = append([]basic.Value(nil), record.GetValues()...)
+					}
+					values[columnIndex] = basic.NewBytes(inline.Bytes)
+					changed = true
+				}
+				contentValues[columnIndex] = contentValue
+			}
+			if vectorValue, exists := typedRecord.VectorValueByIndex(columnIndex); exists {
+				vectorValues[columnIndex] = vectorValue
+			}
+		}
+		if changed {
+			materialized := NewExecutorRecord(values, typedRecord.GetTableMeta()).(*EngineExecutorRecord)
+			materialized.contentValues = contentValues
+			materialized.vectorValues = vectorValues
+			materialized.contentSourceContexts = typedRecord.ContentSourceContexts()
+			materialized.contentSourceByColumn = cloneContentSourceContextByColumn(typedRecord.contentSourceByColumn)
+			records[index] = materialized
+		}
+	}
+	return records
+}
+
+func (se *SelectExecutor) materializeContentValue(value content.Value) (content.Value, error) {
+	store, err := contentSegmentStoreForDataDir(se.dataDir)
+	if err != nil {
+		return content.Value{}, err
+	}
+	data, err := value.ReadAllFromStore(ctxOrBackground(se.modelContext), store, content.MaxReadRangeBytes)
+	if err != nil {
+		return content.Value{}, err
+	}
+	return content.NewValue(value.MIMEType, value.Revision, data)
 }
 
 func evaluateProjectionExpression(expression string, values map[string]interface{}) (interface{}, error) {
@@ -3898,6 +4304,11 @@ func evaluateProjectionExpression(expression string, values map[string]interface
 		return nil, fmt.Errorf("projection expression is not evaluable")
 	}
 	return evaluateExpressionWithRow(aliased.Expr, values)
+}
+
+func isMySQLSemanticError(err error) bool {
+	var sqlErr *common.SQLError
+	return errors.As(err, &sqlErr)
 }
 
 // evaluateProjectionExpression first resolves a persisted stored function,
@@ -3923,7 +4334,7 @@ func (se *SelectExecutor) evaluateProjectionExpression(expression string, values
 			return nil, fmt.Errorf("projection expression is not evaluable")
 		}
 		entry.ast = aliased.Expr
-		if built := plan.BuildExpression(entry.ast); built != nil {
+		if built := plan.BuildExpression(entry.ast); built != nil && !expressionUsesExplicitCollation(entry.ast) {
 			// The legacy executor applies additional SQL value coercions while
 			// materializing rowValues. Keep CASE on its established AST evaluator
 			// until those coercions are represented by the plan expression layer;
@@ -3935,14 +4346,86 @@ func (se *SelectExecutor) evaluateProjectionExpression(expression string, values
 		se.projectionExpressionCache[expression] = entry
 	}
 	if function, ok := entry.ast.(*sqlparser.FuncExpr); ok {
+		functionName := strings.ToUpper(strings.Trim(function.Name.String(), "` "))
+		switch functionName {
+		case "AI_GENERATE", "AI_GENERATE_RESULT", "AI_SUMMARIZE":
+			return se.evaluateAIGenerateSQL(function, values)
+		case "AI_DESCRIBE_BLOCK", "AI_DESCRIBE_BLOCK_RESULT":
+			return se.evaluateAIDescribeBlockSQL(function, values)
+		case "AI_EMBED_BLOCK":
+			return se.evaluateAIEmbedBlockSQL(function, values)
+		case "AI_EMBED":
+			return evaluateAIEmbedSQL(se.embeddingRuntime, se.modelContext, function, values)
+		case "CONTENT_BLOCK_FROM_JSON", "CONTENT_BLOCK_FROM_SOURCE", "CONTENT_BLOCK_MATCHES_SOURCE", "CONTENT_BLOCK_VERIFIED_TEXT", "CONTENT_BLOCK_CONTEXT", "CONTENT_BLOCK_SOURCE_SLICE", "CONTENT_PARSE_CSV", "CONTENT_PARSE_JSON_ARRAY", "CONTENT_PARSE_IMAGE", "CONTENT_PARSE_AUDIO", "CONTENT_PARSE_VIDEO", "CONTENT_BLOCK_RETRIEVAL_TEXT", "CONTENT_TEXT_BLOCK", "CONTENT_TEXT_CHUNK", "CONTENT_TEXT_CHUNK_COUNT", "CONTENT_FROM_BYTES", "CONTENT_SLICE", "CONTENT_TEXT", "CONTENT_BYTES", "CONTENT_MIME", "CONTENT_KIND", "CONTENT_REVISION", "CONTENT_SHA256", "CONTENT_LENGTH",
+			"CONTENT_BLOCK_ID", "CONTENT_BLOCK_IDENTITY_VERSION", "CONTENT_BLOCK_STATE", "CONTENT_BLOCK_KIND", "CONTENT_BLOCK_TEXT", "CONTENT_BLOCK_PAYLOAD", "CONTENT_BLOCK_PAYLOAD_SCHEMA", "CONTENT_BLOCK_PAYLOAD_VERSION", "CONTENT_BLOCK_PAYLOAD_MEDIA_TYPE", "CONTENT_BLOCK_PAYLOAD_SHA256", "CONTENT_BLOCK_ATTRIBUTES", "CONTENT_BLOCK_ORDINAL", "CONTENT_BLOCK_PARENT_ID", "CONTENT_BLOCK_RELATION",
+			"CONTENT_BLOCK_SOURCE_SCHEMA", "CONTENT_BLOCK_SOURCE_TABLE", "CONTENT_BLOCK_SOURCE_COLUMN",
+			"CONTENT_BLOCK_SOURCE_PRIMARY_KEY", "CONTENT_BLOCK_SOURCE_REVISION", "CONTENT_BLOCK_SOURCE_SHA256",
+			"CONTENT_BLOCK_PAGE", "CONTENT_BLOCK_BYTE_START", "CONTENT_BLOCK_BYTE_END",
+			"CONTENT_BLOCK_START_MS", "CONTENT_BLOCK_END_MS", "CONTENT_BLOCK_TRACK",
+			"CONTENT_BLOCK_REGION_X", "CONTENT_BLOCK_REGION_Y", "CONTENT_BLOCK_REGION_WIDTH", "CONTENT_BLOCK_REGION_HEIGHT",
+			"CONTENT_BLOCK_PROCESSOR_ID", "CONTENT_BLOCK_PROCESSOR_VERSION",
+			"CONTENT_BLOCK_MODEL_ID", "CONTENT_BLOCK_MODEL_VERSION":
+			return evaluateExpressionWithRow(function, values)
+		case "VECTOR_FROM_ARRAY", "VECTOR_FROM_SOURCE", "VECTOR_FROM_BLOCK", "VECTOR_DISTANCE", "VECTOR_MATCHES_SOURCE", "VECTOR_VERIFIED_DISTANCE", "VECTOR_MATCHES_BLOCK", "VECTOR_VERIFIED_BLOCK_DISTANCE",
+			"VECTOR_DIMENSION", "VECTOR_MODEL_ID", "VECTOR_MODEL_VERSION", "VECTOR_SPACE", "VECTOR_MODALITY", "VECTOR_STATE", "VECTOR_BLOCK_ID",
+			"VECTOR_SOURCE_SCHEMA", "VECTOR_SOURCE_TABLE", "VECTOR_SOURCE_COLUMN", "VECTOR_SOURCE_PRIMARY_KEY", "VECTOR_SOURCE_REVISION", "VECTOR_SOURCE_SHA256":
+			return evaluateExpressionWithRow(function, values)
+		case "FULLTEXT_SCORE", "FULLTEXT_TOKEN_COUNT", "BM25_TERM_SCORE", "RRF_SCORE":
+			return evaluateExpressionWithRow(function, values)
+		}
 		if value, handled, functionErr := se.evaluatePersistedFunctionProjection(function, values); handled {
 			return value, functionErr
 		}
 	}
-	if entry.compiled != nil {
+	if entry.compiled != nil && !expressionRequiresCollationSemantics(entry.ast, values) {
 		return entry.compiled(planEvalContextWithRow(values))
 	}
 	return evaluateExpressionWithRow(entry.ast, values)
+}
+
+func expressionRequiresCollationSemantics(expression sqlparser.Expr, values map[string]interface{}) bool {
+	found := false
+	hasCollation := func(left, right sqlparser.Expr) bool {
+		return collationOperandForExpression(left, values).name != "" || collationOperandForExpression(right, values).name != ""
+	}
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		switch typed := node.(type) {
+		case *sqlparser.CollateExpr:
+			found = true
+		case *sqlparser.ComparisonExpr:
+			if hasCollation(typed.Left, typed.Right) {
+				found = true
+			}
+		case *sqlparser.RangeCond:
+			if hasCollation(typed.Left, typed.From) || hasCollation(typed.Left, typed.To) {
+				found = true
+			}
+		case *sqlparser.CaseExpr:
+			for _, when := range typed.Whens {
+				if typed.Expr != nil && hasCollation(typed.Expr, when.Cond) {
+					found = true
+					break
+				}
+			}
+		}
+		return !found, nil
+	}, expression)
+	return found
+}
+
+// Collation expressions carry SQL coercibility rules that the generic plan
+// expression evaluator does not model. Keep those projections on the AST
+// evaluator so collation conflicts and the selected collation are preserved.
+func expressionUsesExplicitCollation(expression sqlparser.Expr) bool {
+	found := false
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		if _, ok := node.(*sqlparser.CollateExpr); ok {
+			found = true
+			return false, nil
+		}
+		return !found, nil
+	}, expression)
+	return found
 }
 
 func (se *SelectExecutor) evaluatePersistedFunctionProjection(function *sqlparser.FuncExpr, values map[string]interface{}) (interface{}, bool, error) {
@@ -3956,7 +4439,17 @@ const (
 	storedFunctionDataDirKey    = "__xmysql_stored_function_data_dir"
 	storedFunctionSchemaKey     = "__xmysql_stored_function_schema"
 	storedFunctionAuthorizerKey = "__xmysql_stored_function_authorizer"
+	storedFunctionContextKey    = "__xmysql_stored_function_context"
 )
+
+func storedFunctionContext(values map[string]interface{}) context.Context {
+	if values != nil {
+		if ctx, ok := values[storedFunctionContextKey].(context.Context); ok && ctx != nil {
+			return ctx
+		}
+	}
+	return context.Background()
+}
 
 type storedFunctionAuthorizationError struct{ err error }
 
@@ -4036,6 +4529,12 @@ func evaluateStoredRoutineScalarExpressionWithRow(expression string, values map[
 
 func projectionValueType(value interface{}) metadata.DataType {
 	switch value.(type) {
+	case content.Value, *content.Value:
+		return metadata.TypeContent
+	case vector.Value, *vector.Value:
+		return metadata.TypeVector
+	case []byte:
+		return metadata.TypeLongBlob
 	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
 		return metadata.TypeBigInt
 	case float32, float64:
@@ -4047,11 +4546,32 @@ func projectionValueType(value interface{}) metadata.DataType {
 	}
 }
 
+func selectExpressionAST(executor *SelectExecutor, index int) sqlparser.Expr {
+	if executor == nil || index < 0 || index >= len(executor.selectExprASTs) {
+		return nil
+	}
+	return executor.selectExprASTs[index]
+}
+
+func isNativeTypedValueFunction(expression sqlparser.Expr) bool {
+	function, ok := expression.(*sqlparser.FuncExpr)
+	if !ok {
+		return false
+	}
+	name := strings.ToUpper(strings.Trim(function.Name.String(), "` "))
+	return strings.HasPrefix(name, "CONTENT_") || strings.HasPrefix(name, "VECTOR_") || name == "AI_GENERATE" || name == "AI_GENERATE_RESULT" || name == "AI_SUMMARIZE" || name == "AI_DESCRIBE_BLOCK" || name == "AI_DESCRIBE_BLOCK_RESULT"
+}
+
 func projectionValueString(value interface{}) string {
 	if bytes, ok := value.([]byte); ok {
 		return string(bytes)
 	}
 	switch typed := value.(type) {
+	case bool:
+		if typed {
+			return "1"
+		}
+		return "0"
 	case float32:
 		return strconv.FormatFloat(float64(typed), 'f', -1, 32)
 	case float64:
@@ -4141,33 +4661,173 @@ func (se *SelectExecutor) getDefaultTableMeta() *metadata.TableMeta {
 }
 
 // applyOrderBy 应用排序
-func (se *SelectExecutor) applyOrderBy(records []Record) []Record {
+func (se *SelectExecutor) applyOrderBy(records []Record, sources ...[]Record) []Record {
 	if len(se.orderByColumns) == 0 {
 		return records
 	}
 	se.sortRows = int64(len(records))
 
-	sortedRecords := append([]Record(nil), records...)
-	sort.SliceStable(sortedRecords, func(i, j int) bool {
-		for _, orderSpec := range se.orderByColumns {
-			columnName, desc := parseOrderBySpec(orderSpec)
-			left, leftOK := se.recordValueByColumnName(sortedRecords[i], columnName)
-			right, rightOK := se.recordValueByColumnName(sortedRecords[j], columnName)
-			if !leftOK || !rightOK {
+	type orderTerm struct {
+		expression string
+		descending bool
+	}
+	type cachedValue struct {
+		value interface{}
+		valid bool
+	}
+	terms := make([]orderTerm, len(se.orderByColumns))
+	for index, specification := range se.orderByColumns {
+		expression, descending := parseOrderBySpec(specification)
+		terms[index] = orderTerm{expression: expression, descending: descending}
+	}
+	selectionSize := len(records)
+	if !se.distinct && se.limit > 0 && se.offset >= 0 && se.offset < len(records) {
+		available := len(records) - se.offset
+		if se.limit < available {
+			selectionSize = se.offset + se.limit
+		}
+	}
+
+	// Evaluate each computed sort expression once. The exact vector path still
+	// checks every candidate, but the bounded Top-K path retains keys only for
+	// the best OFFSET+LIMIT rows.
+	evaluateSortValues := func(index int) []cachedValue {
+		rowSortValues := make([]cachedValue, len(terms))
+		for termIndex, term := range terms {
+			if ordinal, err := strconv.Atoi(term.expression); err == nil && ordinal > 0 && ordinal <= len(records[index].GetValues()) {
+				meta, err := se.getRecordTableMeta(records[index])
+				if err == nil && ordinal <= len(meta.Columns) {
+					rowSortValues[termIndex] = cachedValue{
+						value: recordValueForPredicate(records[index].GetValueByIndex(ordinal-1), meta.Columns[ordinal-1].Type),
+						valid: true,
+					}
+					continue
+				}
+			}
+			if value, ok := se.recordValueByColumnName(records[index], term.expression); ok {
+				rowSortValues[termIndex] = cachedValue{value: value, valid: true}
 				continue
 			}
-			cmp := compareScalarValues(left, right)
+			if len(sources) == 0 || index >= len(sources[0]) {
+				continue
+			}
+			source := sources[0][index]
+			if value, ok := se.recordValueByColumnName(source, term.expression); ok {
+				rowSortValues[termIndex] = cachedValue{value: value, valid: true}
+				continue
+			}
+			rowValues, err := se.recordValuesForWhere(source)
+			if err != nil {
+				if se.expressionError == nil {
+					se.expressionError = err
+				}
+				continue
+			}
+			value, err := se.evaluateProjectionExpression(term.expression, rowValues)
+			if err != nil {
+				if se.expressionError == nil {
+					se.expressionError = err
+				}
+				continue
+			}
+			rowSortValues[termIndex] = cachedValue{value: value, valid: true}
+		}
+		return rowSortValues
+	}
+
+	isBetterValues := func(leftIndex, rightIndex int, leftValues, rightValues []cachedValue) bool {
+		for termIndex, term := range terms {
+			left := leftValues[termIndex]
+			right := rightValues[termIndex]
+			if !left.valid || !right.valid {
+				continue
+			}
+			collation := recordColumnCollation(records[leftIndex], term.expression)
+			if collation == "" && len(sources) > 0 && leftIndex < len(sources[0]) {
+				collation = recordColumnCollation(sources[0][leftIndex], term.expression)
+			}
+			cmp := compareScalarValuesWithCollation(left.value, right.value, collation)
 			if cmp == 0 {
 				continue
 			}
-			if desc {
+			if term.descending {
 				return cmp > 0
 			}
 			return cmp < 0
 		}
-		return false
-	})
+		// Preserve the original scan order for ties, matching stable full sort.
+		return leftIndex < rightIndex
+	}
+	indexes := make([]int, 0, selectionSize)
+	if selectionSize < len(records) {
+		// Exact ORDER BY ... LIMIT queries still inspect every row, but retain
+		// only OFFSET+LIMIT candidates, including their computed sort keys.
+		sortValues := make(map[int][]cachedValue, selectionSize)
+		candidates := &topKRecordIndices{isBetter: func(leftIndex, rightIndex int) bool {
+			return isBetterValues(leftIndex, rightIndex, sortValues[leftIndex], sortValues[rightIndex])
+		}}
+		for index := range records {
+			rowSortValues := evaluateSortValues(index)
+			if len(candidates.indices) < selectionSize {
+				sortValues[index] = rowSortValues
+				heap.Push(candidates, index)
+				continue
+			}
+			worstIndex := candidates.indices[0]
+			if isBetterValues(index, worstIndex, rowSortValues, sortValues[worstIndex]) {
+				heap.Pop(candidates)
+				delete(sortValues, worstIndex)
+				sortValues[index] = rowSortValues
+				heap.Push(candidates, index)
+			}
+		}
+		indexes = append(indexes, candidates.indices...)
+		sort.Slice(indexes, func(i, j int) bool {
+			return isBetterValues(indexes[i], indexes[j], sortValues[indexes[i]], sortValues[indexes[j]])
+		})
+	} else {
+		sortValues := make([][]cachedValue, len(records))
+		for index := range records {
+			sortValues[index] = evaluateSortValues(index)
+		}
+		indexes = make([]int, len(records))
+		for index := range indexes {
+			indexes[index] = index
+		}
+		sort.SliceStable(indexes, func(i, j int) bool {
+			return isBetterValues(indexes[i], indexes[j], sortValues[indexes[i]], sortValues[indexes[j]])
+		})
+	}
+	sortedRecords := make([]Record, len(indexes))
+	for index, sourceIndex := range indexes {
+		sortedRecords[index] = records[sourceIndex]
+	}
 	return sortedRecords
+}
+
+type topKRecordIndices struct {
+	indices  []int
+	isBetter func(int, int) bool
+}
+
+func (h *topKRecordIndices) Len() int { return len(h.indices) }
+
+// Less makes the heap root the worst currently selected row, so a better
+// incoming row can replace it in logarithmic time.
+func (h *topKRecordIndices) Less(i, j int) bool {
+	return h.isBetter(h.indices[j], h.indices[i])
+}
+
+func (h *topKRecordIndices) Swap(i, j int) { h.indices[i], h.indices[j] = h.indices[j], h.indices[i] }
+
+func (h *topKRecordIndices) Push(value interface{}) { h.indices = append(h.indices, value.(int)) }
+
+func (h *topKRecordIndices) Pop() interface{} {
+	last := len(h.indices) - 1
+	value := h.indices[last]
+	h.indices[last] = 0
+	h.indices = h.indices[:last]
+	return value
 }
 
 // usesSecondaryIndexRangeAccess reports only range predicates that reached a
@@ -4269,12 +4929,16 @@ func recordDistinctKey(record Record) string {
 	}
 	values := record.GetValues()
 	parts := make([]string, 0, len(values))
-	for _, value := range values {
+	for index, value := range values {
 		if value == nil || value.IsNull() {
 			parts = append(parts, "<null>")
 			continue
 		}
-		parts = append(parts, fmt.Sprintf("%s:%v", value.Type().String(), value.Raw()))
+		raw := value.Raw()
+		if text, ok := raw.(string); ok {
+			raw = normalizeTextForCollation(text, recordColumnCollation(record, strconv.Itoa(index+1)))
+		}
+		parts = append(parts, fmt.Sprintf("%s:%v", value.Type().String(), raw))
 	}
 	return strings.Join(parts, "\x00")
 }
@@ -4356,26 +5020,28 @@ func parseAggregateExpression(expr string) aggregateExpression {
 }
 
 type aggregateAccumulator struct {
-	fn         string
-	countStar  bool
-	count      int64
-	sum        float64
-	min        interface{}
-	max        interface{}
-	hasData    bool
-	values     []string
-	jsonValues []interface{}
-	jsonObject map[string]interface{}
-	anyValue   interface{}
-	anySet     bool
-	concatKeys []interface{}
-	separator  string
-	orderBy    string
-	orderDesc  bool
-	seen       map[string]struct{}
-	sumSq      float64
-	bits       uint64
-	bitInit    bool
+	fn             string
+	countStar      bool
+	count          int64
+	sum            float64
+	min            interface{}
+	max            interface{}
+	hasData        bool
+	values         []string
+	jsonValues     []interface{}
+	jsonObject     map[string]interface{}
+	anyValue       interface{}
+	anySet         bool
+	concatKeys     []interface{}
+	separator      string
+	orderBy        string
+	orderDesc      bool
+	orderCollation string
+	valueCollation string
+	seen           map[string]struct{}
+	sumSq          float64
+	bits           uint64
+	bitInit        bool
 }
 
 func (a *aggregateAccumulator) add(value interface{}) {
@@ -4388,6 +5054,11 @@ func (a *aggregateAccumulator) addWithOrder(value, orderValue interface{}) {
 			return
 		}
 		text := fmt.Sprint(value)
+		if valueText, ok := value.(string); ok && a.valueCollation != "" {
+			if _, found := common.CollationMetadataByName(a.valueCollation); found {
+				text = normalizeTextForCollation(valueText, a.valueCollation)
+			}
+		}
 		if _, exists := a.seen[text]; exists {
 			return
 		}
@@ -4459,12 +5130,12 @@ func (a *aggregateAccumulator) addWithOrder(value, orderValue interface{}) {
 			a.hasData = true
 		}
 	case "MIN":
-		if !a.hasData || compareScalarValues(value, a.min) < 0 {
+		if !a.hasData || compareScalarValuesWithCollation(value, a.min, a.valueCollation) < 0 {
 			a.min = value
 			a.hasData = true
 		}
 	case "MAX":
-		if !a.hasData || compareScalarValues(value, a.max) > 0 {
+		if !a.hasData || compareScalarValuesWithCollation(value, a.max, a.valueCollation) > 0 {
 			a.max = value
 			a.hasData = true
 		}
@@ -4510,7 +5181,7 @@ func (a *aggregateAccumulator) value() interface{} {
 				indices[index] = index
 			}
 			sort.SliceStable(indices, func(i, j int) bool {
-				comparison := compareScalarValues(a.concatKeys[indices[i]], a.concatKeys[indices[j]])
+				comparison := compareScalarValuesWithCollation(a.concatKeys[indices[i]], a.concatKeys[indices[j]], a.orderCollation)
 				if a.orderDesc {
 					return comparison > 0
 				}
@@ -4612,11 +5283,13 @@ func (se *SelectExecutor) buildAggregateSelectResult() *SelectResult {
 	groupOrder := make([]string, 0)
 	for _, record := range se.resultSet {
 		groupValues := make([]interface{}, 0, len(groupColumns))
+		groupCollations := make([]string, 0, len(groupColumns))
 		for _, groupColumn := range groupColumns {
 			value, _ := se.recordValueByColumnName(record, groupColumn)
 			groupValues = append(groupValues, value)
+			groupCollations = append(groupCollations, recordColumnCollation(record, groupColumn))
 		}
-		groupKey := aggregateGroupKey(groupValues)
+		groupKey := aggregateGroupKeyWithCollations(groupValues, groupCollations)
 		if len(groupColumns) == 0 {
 			groupKey = "__all__"
 		}
@@ -4651,10 +5324,16 @@ func (se *SelectExecutor) buildAggregateSelectResult() *SelectResult {
 			}
 			if agg.column != "*" {
 				value, _ = se.recordValueByColumnName(record, agg.column)
+				if collation := recordColumnCollation(record, agg.column); collation != "" {
+					state.accs[i].valueCollation = collation
+				}
 			}
 			orderValue := value
 			if agg.orderBy != "" {
 				orderValue, _ = se.recordValueByColumnName(record, agg.orderBy)
+				if collation := recordColumnCollation(record, agg.orderBy); collation != "" {
+					state.accs[i].orderCollation = collation
+				}
 			}
 			state.accs[i].addWithOrder(value, orderValue)
 		}
@@ -4707,22 +5386,53 @@ func (se *SelectExecutor) buildAggregateSelectResult() *SelectResult {
 			value := se.groupValueForExpression(expr, groupColumns, state.groupValues)
 			rowValues = append(rowValues, value)
 			colType := se.columnTypeForExpression(expr)
+			if i < len(se.selectExprASTs) && booleanSQLExpression(se.selectExprASTs[i]) {
+				colType = metadata.TypeBigInt
+			}
 			columnTypes[i] = strings.ToLower(string(colType))
 			projectedColumns = append(projectedColumns, &metadata.ColumnMeta{Name: columns[i], Type: colType})
 		}
 
 		rowMap := make(map[string]interface{}, len(columns)*2)
+		rowMap[storedFunctionContextKey] = ctxOrBackground(se.modelContext)
 		for i, col := range columns {
 			rowMap[col] = rowValues[i]
 			rowMap[strings.ToLower(col)] = rowValues[i]
 		}
+		addAggregateGroupBindings(rowMap, se.groupByExpressions, state.groupValues, se.tableName, se.tableAlias, se.schemaName)
 		for i, expr := range se.selectExprs {
 			rowMap[expr] = rowValues[i]
 			rowMap[strings.ToLower(expr)] = rowValues[i]
 		}
+		for index, expression := range se.selectExprASTs {
+			if index >= len(rowValues) || !expressionHasSubquery(expression) {
+				continue
+			}
+			if aggregateExpressionContainsAggregate(expression) {
+				if se.expressionError == nil {
+					se.expressionError = fmt.Errorf("aggregate expression mixed with a correlated subquery is not supported in grouped projection: %s", sqlparser.String(expression))
+				}
+				continue
+			}
+			value, err := se.evaluateGroupedProjectionWithSubqueries(expression, joinedMapRow(rowMap))
+			if err != nil {
+				if se.expressionError == nil {
+					se.expressionError = err
+				}
+				continue
+			}
+			rowValues[index] = value
+			rowMap[columns[index]] = value
+			rowMap[strings.ToLower(columns[index])] = value
+			rowMap[se.selectExprs[index]] = value
+			rowMap[strings.ToLower(se.selectExprs[index])] = value
+		}
 		if se.havingCondition != "" {
-			matches, err := rowMatchesWhereConditions(rowMap, []string{se.havingCondition})
+			matches, err := se.matchesHavingRow(joinedMapRow(rowMap))
 			if err != nil || !matches {
+				if err != nil && se.expressionError == nil {
+					se.expressionError = err
+				}
 				continue
 			}
 		}
@@ -4746,12 +5456,88 @@ func (se *SelectExecutor) buildAggregateSelectResult() *SelectResult {
 	}
 }
 
-func aggregateGroupKey(values []interface{}) string {
-	parts := make([]string, 0, len(values))
-	for _, value := range values {
-		parts = append(parts, fmt.Sprintf("%T:%v", value, value))
+func aggregateExpressionContainsAggregate(expression sqlparser.Expr) bool {
+	if expression == nil {
+		return false
 	}
-	return strings.Join(parts, "\x00")
+	aggregateFunctions := map[string]struct{}{
+		"AVG": {}, "BIT_AND": {}, "BIT_OR": {}, "BIT_XOR": {}, "COUNT": {}, "GROUP_CONCAT": {},
+		"JSON_ARRAYAGG": {}, "JSON_OBJECTAGG": {}, "MAX": {}, "MIN": {}, "STD": {}, "STDDEV": {},
+		"STDDEV_POP": {}, "STDDEV_SAMP": {}, "SUM": {}, "VARIANCE": {}, "VAR_POP": {}, "VAR_SAMP": {},
+		"ANY_VALUE": {},
+	}
+	found := false
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		if _, insideSubquery := node.(*sqlparser.Subquery); insideSubquery {
+			return false, nil
+		}
+		if function, ok := node.(*sqlparser.FuncExpr); ok {
+			if _, aggregate := aggregateFunctions[strings.ToUpper(function.Name.String())]; aggregate {
+				found = true
+				return false, nil
+			}
+		}
+		return !found, nil
+	}, expression)
+	return found
+}
+
+func (se *SelectExecutor) matchesHavingRow(row joinedMapRow) (bool, error) {
+	if se == nil || se.havingExpression == nil || !sqlNodeHasSubquery(se.havingExpression) {
+		return rowMatchesWhereConditions(map[string]interface{}(row), []string{se.havingCondition})
+	}
+	if se.joinSubqueryEvaluator == nil && se.joinSetSubqueryEvaluator == nil {
+		return false, fmt.Errorf("correlated subquery in HAVING has no row-binding evaluator")
+	}
+	return se.evalJoinPredicateWithError(se.havingExpression, row)
+}
+
+func addAggregateGroupBindings(row map[string]interface{}, expressions []sqlparser.Expr, values []interface{}, table, alias, schema string) {
+	if row == nil {
+		return
+	}
+	for index, expression := range expressions {
+		if index >= len(values) {
+			break
+		}
+		column, ok := expression.(*sqlparser.ColName)
+		if !ok {
+			continue
+		}
+		name := strings.Trim(column.Name.String(), "` ")
+		qualifier := strings.Trim(strings.TrimSpace(sqlparser.String(column.Qualifier)), "` ")
+		if qualifier == "" {
+			row[name] = values[index]
+			row[strings.ToLower(name)] = values[index]
+			for _, tableName := range []string{alias, table, schema + "." + table} {
+				if strings.TrimSpace(tableName) == "" {
+					continue
+				}
+				key := strings.Trim(tableName, "` ") + "." + name
+				row[key] = values[index]
+				row[strings.ToLower(key)] = values[index]
+			}
+			continue
+		}
+		key := qualifier + "." + name
+		row[key] = values[index]
+		row[strings.ToLower(key)] = values[index]
+		if strings.EqualFold(qualifier, table) || strings.EqualFold(qualifier, alias) {
+			row[name] = values[index]
+			row[strings.ToLower(name)] = values[index]
+		}
+	}
+}
+
+func aggregateGroupKey(values []interface{}) string {
+	var key strings.Builder
+	for _, value := range values {
+		part := fmt.Sprintf("%T:%v", value, value)
+		key.WriteString(strconv.Itoa(len(part)))
+		key.WriteByte(':')
+		key.WriteString(part)
+	}
+	return key.String()
 }
 
 func (se *SelectExecutor) cleanColumnNames(columns []string) []string {
@@ -4788,6 +5574,9 @@ func (se *SelectExecutor) columnTypeForExpression(expr string) metadata.DataType
 
 // applyLimitOffset 应用LIMIT和OFFSET
 func (se *SelectExecutor) applyLimitOffset(records []Record) []Record {
+	if se.limit == 0 {
+		return []Record{}
+	}
 	start := se.offset
 	if start >= len(records) {
 		return []Record{}
@@ -4849,11 +5638,70 @@ func (se *SelectExecutor) getColumnTypes(columns []string) []string {
 	types := make([]string, len(columns))
 	for i, column := range columns {
 		cleanName := strings.ToLower(se.cleanColumnExpression(column))
+		if i < len(se.selectExprASTs) {
+			if source, ok := se.selectExprASTs[i].(*sqlparser.ColName); ok {
+				cleanName = strings.ToLower(source.Name.String())
+			}
+		}
 		if typ := columnTypeByName[cleanName]; typ != "" {
 			types[i] = typ
 		}
 	}
 	return types
+}
+
+func (se *SelectExecutor) getResultColumnTypes(columns []string, records []Record) []string {
+	types := se.getColumnTypes(columns)
+	if len(types) != len(columns) {
+		types = make([]string, len(columns))
+	}
+	if len(records) > 0 {
+		if meta, err := se.getRecordTableMeta(records[0]); err == nil && meta != nil {
+			for index, column := range meta.Columns {
+				if index < len(types) && column != nil && column.Type != "UNKNOWN" {
+					types[index] = strings.ToLower(string(column.Type))
+				}
+			}
+		}
+	}
+	for index, expression := range se.selectExprASTs {
+		if index < len(types) && booleanSQLExpression(expression) {
+			types[index] = "bigint"
+			continue
+		}
+		if modelType, known := modelProjectionResultType(expression); known && index < len(types) {
+			types[index] = strings.ToLower(string(modelType))
+			continue
+		}
+		function, ok := expression.(*sqlparser.FuncExpr)
+		if !ok || index >= len(types) {
+			continue
+		}
+		functionName := strings.ToUpper(strings.Trim(function.Name.String(), "` "))
+		switch functionName {
+		case "CONTENT_BLOCK_FROM_JSON", "CONTENT_BLOCK_FROM_SOURCE", "CONTENT_TEXT_BLOCK", "CONTENT_TEXT_CHUNK", "CONTENT_PARSE_CSV", "CONTENT_PARSE_JSON_ARRAY", "CONTENT_PARSE_IMAGE", "CONTENT_PARSE_AUDIO", "CONTENT_PARSE_VIDEO":
+			types[index] = strings.ToLower(string(metadata.TypeContent))
+		case "CONTENT_BLOCK_RETRIEVAL_TEXT":
+			types[index] = strings.ToLower(string(metadata.TypeMediumText))
+		case "CONTENT_SLICE", "CONTENT_BLOCK_SOURCE_SLICE":
+			// Both functions return at most 4 MiB of uninterpreted bytes. Report
+			// a binary result type so clients do not decode media using a text
+			// character set.
+			types[index] = strings.ToLower(string(metadata.TypeMediumBlob))
+		}
+	}
+	return types
+}
+
+func booleanSQLExpression(expression sqlparser.Expr) bool {
+	switch node := expression.(type) {
+	case *sqlparser.ComparisonExpr, *sqlparser.IsExpr, *sqlparser.RangeCond, *sqlparser.AndExpr, *sqlparser.OrExpr, *sqlparser.NotExpr, *sqlparser.ExistsExpr, sqlparser.BoolVal:
+		return true
+	case *sqlparser.ParenExpr:
+		return booleanSQLExpression(node.Expr)
+	default:
+		return false
+	}
 }
 
 func (se *SelectExecutor) isCountStarQuery() bool {

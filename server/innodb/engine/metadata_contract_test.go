@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestMetadataViewsLegacyContract(t *testing.T) {
@@ -60,7 +62,5 @@ func TestMetadataViewsLegacyContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(want) != string(got) {
-		t.Fatal("legacy metadata view contract changed")
-	}
+	require.JSONEq(t, string(want), string(got), "legacy metadata view contract changed")
 }

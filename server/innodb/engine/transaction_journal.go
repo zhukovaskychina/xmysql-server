@@ -15,22 +15,24 @@ import (
 	"sync"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/content"
 	"github.com/zhukovaskychina/xmysql-server/server/replication"
 )
 
 type durableTransactionChange struct {
-	RecordType           string                  `json:"record_type,omitempty"`
-	TransactionID        string                  `json:"transaction_id,omitempty"`
-	StorageTransactionID int64                   `json:"storage_transaction_id,omitempty"`
-	TableName            string                  `json:"table_name"`
-	Kind                 string                  `json:"kind"`
-	RowID                uint64                  `json:"row_id"`
-	StorageKey           interface{}             `json:"storage_key"`
-	NewStorageKey        interface{}             `json:"new_storage_key,omitempty"`
-	ColumnTypes          map[string]string       `json:"column_types,omitempty"`
-	Before               map[string]interface{}  `json:"before"`
-	After                map[string]interface{}  `json:"after"`
-	Statements           []replication.Statement `json:"statements,omitempty"`
+	RecordType           string                       `json:"record_type,omitempty"`
+	TransactionID        string                       `json:"transaction_id,omitempty"`
+	StorageTransactionID int64                        `json:"storage_transaction_id,omitempty"`
+	TableName            string                       `json:"table_name"`
+	Kind                 string                       `json:"kind"`
+	RowID                uint64                       `json:"row_id"`
+	StorageKey           interface{}                  `json:"storage_key"`
+	NewStorageKey        interface{}                  `json:"new_storage_key,omitempty"`
+	ColumnTypes          map[string]string            `json:"column_types,omitempty"`
+	Before               map[string]interface{}       `json:"before"`
+	After                map[string]interface{}       `json:"after"`
+	MaintenanceRequests  []content.MaintenanceRequest `json:"maintenance_requests,omitempty"`
+	Statements           []replication.Statement      `json:"statements,omitempty"`
 }
 
 const replicationCommitJournalRecordType = "replication_commit"
@@ -159,6 +161,7 @@ func durableChanges(changes []transactionDMLChange) []durableTransactionChange {
 			StorageKey: change.storageKey, NewStorageKey: change.newStorageKey,
 			ColumnTypes: cloneStringMap(change.columnTypes),
 			Before:      cloneTransactionRow(change.before), After: cloneTransactionRow(change.after),
+			MaintenanceRequests: cloneMaintenanceRequests(change.maintenanceRequests),
 		})
 	}
 	return result
@@ -454,6 +457,13 @@ func (e *XMySQLExecutor) RecoverOrphanedTransactions() error {
 				return fmt.Errorf("check WAL commit for transaction journal %s: %w", path, commitErr)
 			}
 			if committed {
+				committedChanges := transactionDMLChangesFromDurable(changes)
+				if err := e.enqueueContentMaintenance(committedChanges); err != nil {
+					return fmt.Errorf("recover committed CONTENT maintenance jobs for journal %s: %w", path, err)
+				}
+				if err := e.markCommittedVectorIndexesDirty(committedChanges); err != nil {
+					return fmt.Errorf("recover vector index invalidation for committed journal %s: %w", path, err)
+				}
 				// The physical storage commit is authoritative even when the
 				// higher-level replication commit record was never appended.
 				// Reconstruct the native publication from the pre-commit journal
@@ -562,6 +572,17 @@ func (e *XMySQLExecutor) recoverPendingReplicationCommit(journalID, transactionI
 	if e == nil || strings.TrimSpace(transactionID) == "" {
 		return nil
 	}
+	durableChanges, err := decodeDurableJournal(raw)
+	if err != nil {
+		return err
+	}
+	committedChanges := transactionDMLChangesFromDurable(durableChanges)
+	if err := e.enqueueContentMaintenance(committedChanges); err != nil {
+		return fmt.Errorf("recover CONTENT maintenance jobs for journal %s: %w", journalID, err)
+	}
+	if err := e.markCommittedVectorIndexesDirty(committedChanges); err != nil {
+		return fmt.Errorf("recover vector index invalidation for committed journal %s: %w", journalID, err)
+	}
 	if strings.HasPrefix(journalID, "replication-") {
 		// Replication replay journals have no upstream publisher to invoke during
 		// local recovery. Their commit record is written after the storage commit,
@@ -590,21 +611,7 @@ func (e *XMySQLExecutor) recoverPendingReplicationCommit(journalID, transactionI
 		return err
 	}
 
-	durableChanges, err := decodeDurableJournal(raw)
-	if err != nil {
-		return err
-	}
-	changes := make([]transactionDMLChange, 0, len(durableChanges))
-	for _, durable := range durableChanges {
-		durable.Before = normalizeJournalRow(durable.Before)
-		durable.After = normalizeJournalRow(durable.After)
-		changes = append(changes, transactionDMLChange{
-			tableName: durable.TableName, kind: durable.Kind, rowID: durable.RowID,
-			storageKey: durable.StorageKey, newStorageKey: durable.NewStorageKey,
-			columnTypes: cloneStringMap(durable.ColumnTypes),
-			before:      durable.Before, after: durable.After,
-		})
-	}
+	changes := committedChanges
 	rows := replicationRowsFromTransactionChanges(changes)
 	if e.replicationCommitTransactionHookWithID != nil {
 		if err := e.replicationCommitTransactionHookWithID(transactionID, rows, statements); err != nil {
@@ -618,6 +625,22 @@ func (e *XMySQLExecutor) recoverPendingReplicationCommit(journalID, transactionI
 	}
 	e.clearTransactionJournalID(journalID)
 	return nil
+}
+
+func transactionDMLChangesFromDurable(durableChanges []durableTransactionChange) []transactionDMLChange {
+	changes := make([]transactionDMLChange, 0, len(durableChanges))
+	for _, durable := range durableChanges {
+		durable.Before = normalizeJournalRow(durable.Before)
+		durable.After = normalizeJournalRow(durable.After)
+		changes = append(changes, transactionDMLChange{
+			tableName: durable.TableName, kind: durable.Kind, rowID: durable.RowID,
+			storageKey: durable.StorageKey, newStorageKey: durable.NewStorageKey,
+			columnTypes: cloneStringMap(durable.ColumnTypes),
+			before:      durable.Before, after: durable.After,
+			maintenanceRequests: cloneMaintenanceRequests(durable.MaintenanceRequests),
+		})
+	}
+	return changes
 }
 
 func decodeDurableJournal(raw []byte) ([]durableTransactionChange, error) {

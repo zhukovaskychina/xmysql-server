@@ -302,8 +302,16 @@ func (im *InfoSchemaManager) GetAllTables(ctx context.Context, schemaName string
 		for _, table := range allTables {
 			tableSchemaName := "default"
 			tableName := table.Name
+			// The dictionary stores built-in system table identities as
+			// "mysql/user" while user tables use the SQL "schema.table" form.
+			// Treating that storage identity as a table named "mysql/user" in
+			// the default schema registers a false user-table mapping and causes
+			// database-wide maintenance scans to open a nonexistent default/mysql/user.frm.
+			if schema, name, qualified := splitBuiltinSchemaTableName(table.Name); qualified {
+				tableSchemaName, tableName = schema, name
+			}
 
-			if strings.Contains(table.Name, ".") {
+			if tableSchemaName == "default" && strings.Contains(table.Name, ".") {
 				parts := strings.Split(table.Name, ".")
 				if len(parts) >= 2 {
 					tableSchemaName = parts[0]
@@ -319,6 +327,20 @@ func (im *InfoSchemaManager) GetAllTables(ctx context.Context, schemaName string
 	}
 
 	return tables, nil
+}
+
+func splitBuiltinSchemaTableName(name string) (schema, table string, ok bool) {
+	separator := strings.IndexByte(name, '/')
+	if separator <= 0 || separator == len(name)-1 {
+		return "", "", false
+	}
+	schema = name[:separator]
+	switch strings.ToLower(schema) {
+	case "information_schema", "mysql", "performance_schema", "sys":
+		return schema, name[separator+1:], true
+	default:
+		return "", "", false
+	}
 }
 
 func (im *InfoSchemaManager) CreateTable(ctx context.Context, schemaName string, table *metadata.Table) error {
@@ -842,6 +864,10 @@ func (im *InfoSchemaManager) convertDataTypeToMySQLType(dataType metadata.DataTy
 		return common.COLUMN_TYPE_STRING
 	case metadata.TypeVarchar:
 		return common.COLUMN_TYPE_VARCHAR
+	case metadata.TypeContent:
+		return uint8(basic.ValueTypeContent)
+	case metadata.TypeVector:
+		return uint8(basic.ValueTypeVector)
 	case metadata.TypeText:
 		return common.COLUMN_TYPE_BLOB
 	case metadata.TypeJSON:
@@ -853,6 +879,12 @@ func (im *InfoSchemaManager) convertDataTypeToMySQLType(dataType metadata.DataTy
 
 // convertMySQLTypeToDataType 转换MySQL类型到DataType
 func (im *InfoSchemaManager) convertMySQLTypeToDataType(mysqlType uint8) metadata.DataType {
+	if basic.ValueType(mysqlType) == basic.ValueTypeContent {
+		return metadata.TypeContent
+	}
+	if basic.ValueType(mysqlType) == basic.ValueTypeVector {
+		return metadata.TypeVector
+	}
 	switch mysqlType {
 	case common.COLUMN_TYPE_TINY:
 		return metadata.TypeTinyInt

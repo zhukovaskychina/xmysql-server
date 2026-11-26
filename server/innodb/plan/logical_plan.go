@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -729,6 +730,10 @@ func (b *PlanBuilder) buildTableSource(tableExpr *sqlparser.AliasedTableExpr) (L
 // buildExpr 构建表达式
 func (b *PlanBuilder) buildExpr(expr sqlparser.Expr) Expression {
 	switch v := expr.(type) {
+	case *sqlparser.ExistsExpr:
+		return b.buildSubqueryExpression(v.Subquery, "EXISTS")
+	case *sqlparser.Subquery:
+		return b.buildSubqueryExpression(v, "SCALAR")
 	case *sqlparser.SQLVal:
 		switch v.Type {
 		case sqlparser.IntVal:
@@ -976,6 +981,63 @@ func (b *PlanBuilder) buildExpr(expr sqlparser.Expr) Expression {
 		return caseExpression
 	}
 	return nil
+}
+
+func (b *PlanBuilder) buildSubqueryExpression(subquery *sqlparser.Subquery, subqueryType string) *SubqueryExpression {
+	if subquery == nil {
+		return nil
+	}
+	expression := &SubqueryExpression{
+		SubqueryType: strings.ToUpper(subqueryType),
+		SQL:          sqlparser.String(subquery.Select),
+	}
+	localRelations := make(map[string]struct{})
+	outerReferences := make(map[string]struct{})
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		value, ok := node.(*sqlparser.AliasedTableExpr)
+		if !ok {
+			return true, nil
+		}
+		table, ok := value.Expr.(sqlparser.TableName)
+		if !ok {
+			return true, nil
+		}
+		name := table.Name.String()
+		if qualifier := table.Qualifier.String(); qualifier != "" {
+			name = qualifier + "." + name
+		}
+		localRelations[strings.ToLower(name)] = struct{}{}
+		if alias := value.As.String(); alias != "" {
+			localRelations[strings.ToLower(alias)] = struct{}{}
+		} else {
+			localRelations[strings.ToLower(table.Name.String())] = struct{}{}
+		}
+		return true, nil
+	}, subquery.Select)
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		value, ok := node.(*sqlparser.ColName)
+		if !ok {
+			return true, nil
+		}
+		qualifier := strings.TrimSpace(value.Qualifier.Name.String())
+		if qualifier == "" {
+			return true, nil
+		}
+		if _, local := localRelations[strings.ToLower(qualifier)]; !local {
+			outerReferences[strings.ToLower(sqlparser.String(value))] = struct{}{}
+		}
+		return true, nil
+	}, subquery.Select)
+	for reference := range outerReferences {
+		expression.OuterRefs = append(expression.OuterRefs, reference)
+	}
+	sort.Strings(expression.OuterRefs)
+	expression.Correlated = len(expression.OuterRefs) > 0
+	if selectStatement, ok := subquery.Select.(*sqlparser.Select); ok && b != nil && b.infoSchema != nil {
+		childBuilder := &PlanBuilder{infoSchema: b.infoSchema, cteSources: make(map[string]LogicalPlan)}
+		expression.Subplan, _ = childBuilder.buildSelect(selectStatement)
+	}
+	return expression
 }
 
 func convertTypeLength(convertType *sqlparser.ConvertType) (int64, bool) {

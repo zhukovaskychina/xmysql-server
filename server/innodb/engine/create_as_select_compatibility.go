@@ -55,7 +55,7 @@ func (e *XMySQLExecutor) executeRawCreateTableAsSelectCompatibility(ctx *Executi
 	}
 
 	sourceQuery := stmt.AsSelectSQL
-	sourceCtx := *ctx
+	sourceCtx := ctx.Fork()
 	var sourceResult *SelectResult
 	var err error
 	lowerSourceQuery := strings.ToLower(sourceQuery)
@@ -64,7 +64,7 @@ func (e *XMySQLExecutor) executeRawCreateTableAsSelectCompatibility(ctx *Executi
 		sourceCtx.Results = sourceResults
 		sourceCtx.DatabaseName = databaseName
 		sourceCtx.RawQuery = sourceQuery
-		handled, sourceErr := e.executeCTECompatibility(&sourceCtx, sourceQuery, databaseName)
+		handled, sourceErr := e.executeCTECompatibility(sourceCtx, sourceQuery, databaseName)
 		if sourceErr != nil {
 			return true, fmt.Errorf("execute CREATE TABLE AS SELECT recursive CTE source: %w", sourceErr)
 		}
@@ -96,7 +96,7 @@ func (e *XMySQLExecutor) executeRawCreateTableAsSelectCompatibility(ctx *Executi
 		}
 		sourceResults := make(chan *Result, 1)
 		sourceCtx.Results = sourceResults
-		derivedHandled, derivedErr := e.executeDerivedTableCompatibility(&sourceCtx, sourceQuery, databaseName)
+		derivedHandled, derivedErr := e.executeDerivedTableCompatibility(sourceCtx, sourceQuery, databaseName)
 		if derivedErr != nil {
 			return true, fmt.Errorf("execute CREATE TABLE AS SELECT derived source: %w", derivedErr)
 		}
@@ -120,16 +120,16 @@ func (e *XMySQLExecutor) executeRawCreateTableAsSelectCompatibility(ctx *Executi
 			}
 			switch statement := selectStmt.(type) {
 			case *sqlparser.Select:
-				sourceResult, err = e.executeSelectStatement(&sourceCtx, statement, databaseName)
+				sourceResult, err = e.executeSelectStatement(sourceCtx, statement, databaseName)
 			case *sqlparser.Union:
 				branches, unionAll, unionOK := splitUnionQuery(sourceQuery)
 				if !unionOK {
 					return true, fmt.Errorf("unsupported CREATE TABLE AS SELECT set operation")
 				}
-				sourceResult, err = e.executeUnionQuery(&sourceCtx, branches, unionAll, databaseName)
+				sourceResult, err = e.executeUnionQuery(sourceCtx, branches, unionAll, databaseName)
 			default:
 				if branches, operators, setOK := splitSetOperationQuery(sourceQuery); setOK && hasNonUnionSetOperator(operators) {
-					sourceResult, err = e.executeMixedSetOperationQuery(&sourceCtx, branches, operators, databaseName)
+					sourceResult, err = e.executeMixedSetOperationQuery(sourceCtx, branches, operators, databaseName)
 				} else {
 					return true, fmt.Errorf("CREATE TABLE AS SELECT source must be a SELECT")
 				}
@@ -195,11 +195,11 @@ func (e *XMySQLExecutor) executeRawCreateTableAsSelectCompatibility(ctx *Executi
 		return true, fmt.Errorf("generated CTAS definition did not produce CREATE TABLE AST")
 	}
 	createResults := make(chan *Result, 1)
-	createCtx := *ctx
+	createCtx := ctx.Fork()
 	createCtx.Results = createResults
 	createCtx.DatabaseName = targetDB
 	createCtx.RawQuery = createSQL
-	e.executeCreateTableStatement(&createCtx, targetDB, createDDL)
+	e.executeCreateTableStatement(createCtx, targetDB, createDDL)
 	createResult := <-createResults
 	if createResult.Err != nil {
 		return true, createResult.Err

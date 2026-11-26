@@ -679,7 +679,18 @@ func partitionInAST(condition string) (sqlparser.Expr, []sqlparser.Expr, string,
 func partitionIdentifierMatches(left sqlparser.Expr, expected string) bool {
 	name, ok := left.(*sqlparser.ColName)
 	if !ok {
-		return false
+		// Functions and arithmetic may prune only when the complete
+		// partition expression matches; sharing an input column is unsafe.
+		parsed, err := sqlparser.Parse("select " + expected)
+		if err != nil {
+			return false
+		}
+		selectStmt, ok := parsed.(*sqlparser.Select)
+		if !ok || len(selectStmt.SelectExprs) != 1 {
+			return false
+		}
+		projection, ok := selectStmt.SelectExprs[0].(*sqlparser.AliasedExpr)
+		return ok && sqlparser.String(left) == sqlparser.String(projection.Expr)
 	}
 	actual := strings.Trim(strings.TrimSpace(name.Name.String()), "`")
 	wanted := strings.Trim(strings.TrimSpace(expected), "`")
@@ -819,24 +830,57 @@ func (p *partitionedBTreeManager) RangeSearch(ctx context.Context, startKey, end
 // artificial key range that could exclude records in one partition.
 func (p *partitionedBTreeManager) FullScan(ctx context.Context) ([]basic.Row, error) {
 	rows := make([]basic.Row, 0)
+	if err := p.FullScanEach(ctx, func(row basic.Row) error {
+		rows = append(rows, row)
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+// FullScanEach streams rows from each physical partition to the visitor.
+func (p *partitionedBTreeManager) FullScanEach(ctx context.Context, visit func(basic.Row) error) error {
+	if p == nil || visit == nil {
+		return fmt.Errorf("partitioned full scan requires a visitor")
+	}
 	for _, partition := range p.partitions {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if scanner, ok := partition.btree.(interface {
+			FullScanEach(context.Context, func(basic.Row) error) error
+		}); ok {
+			if err := scanner.FullScanEach(ctx, visit); err != nil {
+				return err
+			}
+			continue
+		}
 		if scanner, ok := partition.btree.(interface {
 			FullScan(context.Context) ([]basic.Row, error)
 		}); ok {
-			partitionRows, err := scanner.FullScan(ctx)
+			rows, err := scanner.FullScan(ctx)
 			if err != nil {
-				return nil, err
+				return err
 			}
-			rows = append(rows, partitionRows...)
+			for _, row := range rows {
+				if err := visit(row); err != nil {
+					return err
+				}
+			}
 			continue
 		}
-		partitionRows, err := partition.btree.RangeSearch(ctx, partitionScanStart(p.tableMeta), partitionScanEnd(p.tableMeta))
+		rows, err := partition.btree.RangeSearch(ctx, partitionScanStart(p.tableMeta), partitionScanEnd(p.tableMeta))
 		if err != nil {
-			return nil, err
+			return err
 		}
-		rows = append(rows, partitionRows...)
+		for _, row := range rows {
+			if err := visit(row); err != nil {
+				return err
+			}
+		}
 	}
-	return rows, nil
+	return nil
 }
 
 func (p *partitionedBTreeManager) GetFirstLeafPage(ctx context.Context) (uint32, error) {

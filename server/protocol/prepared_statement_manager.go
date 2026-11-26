@@ -1,22 +1,27 @@
 package protocol
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/content"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 	"github.com/zhukovaskychina/xmysql-server/server/observability/compatibility"
 )
 
 // PreparedStatementManager 预编译语句管理器
 type PreparedStatementManager struct {
-	statements map[uint32]*PreparedStatement
-	mu         sync.RWMutex
-	nextID     uint32
+	statements   map[uint32]*PreparedStatement
+	mu           sync.RWMutex
+	nextID       uint32
+	contentStore *content.SegmentStore
 }
 
 // NewPreparedStatementManager 创建预编译语句管理器
@@ -29,28 +34,67 @@ func NewPreparedStatementManager() *PreparedStatementManager {
 
 // PreparedStatement 预编译语句
 type PreparedStatement struct {
-	ID               uint32            // 语句ID
-	SQL              string            // 原始SQL
-	ParamCount       uint16            // 参数数量
-	ColumnCount      uint16            // 列数量
-	Params           []*ParamMetadata  // 参数元数据
-	Columns          []*ColumnMetadata // 列元数据
-	LastParamTypes   []byte            // 最近一次 EXECUTE 的参数字节（每条 2 字节），供 new_params_bound_flag=0 复用
-	LongData         map[uint16][]byte
-	CreatedAt        time.Time // 创建时间
-	LastUsedAt       time.Time // 最后使用时间
-	ExecuteCount     uint64    // 执行次数
-	ExecuteTimeTotal time.Duration
-	ExecuteTimeMin   time.Duration
-	ExecuteTimeMax   time.Duration
-	ErrorCount       uint64
-	WarningCount     uint64
-	RowsAffected     uint64
-	RowsSent         uint64
-	RowsExamined     uint64
-	CPUTimeTotal     uint64
-	CursorResult     *MessageQueryResult
-	CursorOffset     int
+	ID                    uint32            // 语句ID
+	SQL                   string            // 原始SQL
+	ParamCount            uint16            // 参数数量
+	ColumnCount           uint16            // 列数量
+	Params                []*ParamMetadata  // 参数元数据
+	Columns               []*ColumnMetadata // 列元数据
+	LastParamTypes        []byte            // 最近一次 EXECUTE 的参数字节（每条 2 字节），供 new_params_bound_flag=0 复用
+	LongData              map[uint16][]byte
+	ContentLongData       map[uint16]*content.SegmentWriter
+	LongDataError         error
+	ContentParamMIMETypes map[uint16]string
+	CreatedAt             time.Time // 创建时间
+	LastUsedAt            time.Time // 最后使用时间
+	ExecuteCount          uint64    // 执行次数
+	ExecuteTimeTotal      time.Duration
+	ExecuteTimeMin        time.Duration
+	ExecuteTimeMax        time.Duration
+	ErrorCount            uint64
+	WarningCount          uint64
+	RowsAffected          uint64
+	RowsSent              uint64
+	RowsExamined          uint64
+	CPUTimeTotal          uint64
+	CursorResult          *MessageQueryResult
+	CursorOffset          int
+}
+
+// BindInlineContentParameters gives ordinary EXECUTE parameters the same
+// execution-local typed representation as streamed CONTENT parameters. Media
+// bytes must not be expanded into SQL literals and repeatedly lexed as SQL.
+func (stmt *PreparedStatement) BindInlineContentParameters(params []interface{}, values map[uint16]content.Value) (map[uint16]content.Value, error) {
+	if values == nil {
+		values = make(map[uint16]content.Value)
+	}
+	for index, mimeType := range stmt.ContentParamMIMETypes {
+		if int(index) >= len(params) {
+			return nil, fmt.Errorf("CONTENT parameter %d is out of range", index)
+		}
+		if _, streamed := values[index]; streamed {
+			continue
+		}
+		var source []byte
+		switch value := params[index].(type) {
+		case PreparedBinaryParam:
+			source = []byte(value)
+		case []byte:
+			source = value
+		case string:
+			source = []byte(value)
+		default:
+			// Preserve NULL and existing non-string type validation semantics.
+			continue
+		}
+		value, err := content.NewValue(mimeType, 1, source)
+		if err != nil {
+			return nil, fmt.Errorf("bind CONTENT parameter %d: %w", index, err)
+		}
+		values[index] = value
+		params[index] = PreparedContentParam(index)
+	}
+	return values, nil
 }
 
 // ParamMetadata 参数元数据
@@ -89,15 +133,17 @@ func (m *PreparedStatementManager) Prepare(sql string) (*PreparedStatement, erro
 
 	// 创建预编译语句
 	stmt := &PreparedStatement{
-		ID:          stmtID,
-		SQL:         sql,
-		ParamCount:  paramCount,
-		ColumnCount: 0, // 需要执行后才知道列数
-		Params:      make([]*ParamMetadata, paramCount),
-		LongData:    make(map[uint16][]byte),
-		Columns:     nil, // 稍后填充
-		CreatedAt:   time.Now(),
-		LastUsedAt:  time.Now(),
+		ID:                    stmtID,
+		SQL:                   sql,
+		ParamCount:            paramCount,
+		ColumnCount:           0, // 需要执行后才知道列数
+		Params:                make([]*ParamMetadata, paramCount),
+		LongData:              make(map[uint16][]byte),
+		ContentLongData:       make(map[uint16]*content.SegmentWriter),
+		ContentParamMIMETypes: preparedContentParamMIMETypes(sql),
+		Columns:               nil, // 稍后填充
+		CreatedAt:             time.Now(),
+		LastUsedAt:            time.Now(),
 	}
 
 	// 初始化参数元数据
@@ -116,6 +162,18 @@ func (m *PreparedStatementManager) Prepare(sql string) (*PreparedStatement, erro
 	return stmt, nil
 }
 
+// SetContentSegmentStore enables incremental COM_STMT_SEND_LONG_DATA writes
+// for parameters explicitly wrapped as CONTENT_FROM_BYTES(?, '<fixed MIME>')
+// in DML statements. Other parameter types retain the normal MySQL byte path.
+func (m *PreparedStatementManager) SetContentSegmentStore(store *content.SegmentStore) {
+	if m == nil || store == nil {
+		return
+	}
+	m.mu.Lock()
+	m.contentStore = store
+	m.mu.Unlock()
+}
+
 // AppendLongData appends one COM_STMT_SEND_LONG_DATA chunk to a parameter.
 func (m *PreparedStatementManager) AppendLongData(stmtID uint32, paramID uint16, data []byte) error {
 	m.mu.Lock()
@@ -124,14 +182,121 @@ func (m *PreparedStatementManager) AppendLongData(stmtID uint32, paramID uint16,
 	if !exists {
 		return fmt.Errorf("prepared statement %d not found", stmtID)
 	}
+	if stmt.LongDataError != nil {
+		return stmt.LongDataError
+	}
+	latchError := func(err error) error {
+		if err != nil && stmt.LongDataError == nil {
+			stmt.LongDataError = err
+		}
+		return err
+	}
 	if paramID >= stmt.ParamCount {
-		return fmt.Errorf("parameter %d out of range for prepared statement %d", paramID, stmtID)
+		return latchError(fmt.Errorf("parameter %d out of range for prepared statement %d", paramID, stmtID))
 	}
 	if stmt.LongData == nil {
 		stmt.LongData = make(map[uint16][]byte)
 	}
+	if mimeType, isContentParam := stmt.ContentParamMIMETypes[paramID]; isContentParam && m.contentStore != nil {
+		writer := stmt.ContentLongData[paramID]
+		if writer == nil {
+			var err error
+			writer, err = m.contentStore.NewWriter(context.Background(), mimeType, 1)
+			if err != nil {
+				return latchError(fmt.Errorf("open CONTENT parameter writer: %w", err))
+			}
+			stmt.ContentLongData[paramID] = writer
+		}
+		if _, err := writer.Write(data); err != nil {
+			_ = writer.Abort()
+			delete(stmt.ContentLongData, paramID)
+			return latchError(fmt.Errorf("write CONTENT parameter chunk: %w", err))
+		}
+		return nil
+	}
+	if _, isContentParam := stmt.ContentParamMIMETypes[paramID]; isContentParam {
+		return latchError(fmt.Errorf("CONTENT parameter %d requires the database-managed segment store", paramID))
+	}
 	stmt.LongData[paramID] = append(stmt.LongData[paramID], data...)
 	return nil
+}
+
+// LatchLongDataError retains a protocol-level transfer error for reporting on
+// the matching COM_STMT_EXECUTE response.
+func (m *PreparedStatementManager) LatchLongDataError(stmtID uint32, transferErr error) error {
+	if transferErr == nil {
+		return nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	stmt, exists := m.statements[stmtID]
+	if !exists {
+		return fmt.Errorf("prepared statement %d not found", stmtID)
+	}
+	if stmt.LongDataError == nil {
+		stmt.LongDataError = transferErr
+	}
+	return nil
+}
+
+// ConsumeLongDataForExecution transfers ordinary long-data buffers and
+// publishes eligible CONTENT parameters as immutable segmented values.
+// Returned object refs belong to this execution until a successful DML row
+// records them or the caller removes them after a failed statement.
+func (m *PreparedStatementManager) ConsumeLongDataForExecution(stmtID uint32) (map[uint16][]byte, map[uint16]content.Value, []content.ObjectRef, error) {
+	m.mu.Lock()
+	stmt, exists := m.statements[stmtID]
+	if !exists {
+		m.mu.Unlock()
+		return nil, nil, nil, fmt.Errorf("prepared statement %d not found", stmtID)
+	}
+	inline := stmt.LongData
+	writers := stmt.ContentLongData
+	store := m.contentStore
+	longDataErr := stmt.LongDataError
+	stmt.LongData = make(map[uint16][]byte)
+	stmt.ContentLongData = make(map[uint16]*content.SegmentWriter)
+	stmt.LongDataError = nil
+	m.mu.Unlock()
+	if longDataErr != nil {
+		for _, writer := range writers {
+			_ = writer.Abort()
+		}
+		return nil, nil, nil, fmt.Errorf("COM_STMT_SEND_LONG_DATA failed: %w", longDataErr)
+	}
+
+	values := make(map[uint16]content.Value, len(writers))
+	refs := make([]content.ObjectRef, 0, len(writers))
+	for paramID, writer := range writers {
+		ref, err := writer.Commit()
+		if err != nil {
+			for _, remaining := range writers {
+				_ = remaining.Abort()
+			}
+			if store != nil {
+				for _, published := range refs {
+					_ = store.Delete(published)
+				}
+			}
+			return nil, nil, nil, fmt.Errorf("publish CONTENT parameter %d: %w", paramID, err)
+		}
+		value, err := content.NewTransientSegmentedValue(ref)
+		if err != nil {
+			if store != nil {
+				_ = store.Delete(ref)
+				for _, published := range refs {
+					_ = store.Delete(published)
+				}
+			}
+			for _, remaining := range writers {
+				_ = remaining.Abort()
+			}
+			return nil, nil, nil, fmt.Errorf("bind CONTENT parameter %d: %w", paramID, err)
+		}
+		values[paramID] = value
+		refs = append(refs, ref)
+	}
+	return inline, values, refs, nil
 }
 
 // ConsumeLongData returns and clears all buffered long-data parameters.
@@ -142,11 +307,24 @@ func (m *PreparedStatementManager) ConsumeLongData(stmtID uint32) (map[uint16][]
 	if !exists {
 		return nil, fmt.Errorf("prepared statement %d not found", stmtID)
 	}
-	data := make(map[uint16][]byte, len(stmt.LongData))
-	for paramID, value := range stmt.LongData {
-		data[paramID] = append([]byte(nil), value...)
-	}
+	// Transfer ownership of the accumulated buffers to the execute path. The
+	// statement receives a fresh map immediately, so a second full-size copy
+	// would only double peak memory for large COM_STMT_SEND_LONG_DATA values.
+	data := stmt.LongData
+	writers := stmt.ContentLongData
+	longDataErr := stmt.LongDataError
 	stmt.LongData = make(map[uint16][]byte)
+	stmt.ContentLongData = make(map[uint16]*content.SegmentWriter)
+	stmt.LongDataError = nil
+	for _, writer := range writers {
+		_ = writer.Abort()
+	}
+	if longDataErr != nil {
+		return nil, fmt.Errorf("COM_STMT_SEND_LONG_DATA failed: %w", longDataErr)
+	}
+	if len(writers) != 0 {
+		return nil, fmt.Errorf("streamed CONTENT long data must be consumed by the database execution path")
+	}
 	return data, nil
 }
 
@@ -159,7 +337,12 @@ func (m *PreparedStatementManager) Reset(stmtID uint32) error {
 		return fmt.Errorf("prepared statement %d not found", stmtID)
 	}
 	stmt.LastParamTypes = nil
+	stmt.LongDataError = nil
+	for _, writer := range stmt.ContentLongData {
+		_ = writer.Abort()
+	}
 	stmt.LongData = make(map[uint16][]byte)
+	stmt.ContentLongData = make(map[uint16]*content.SegmentWriter)
 	stmt.CursorResult = nil
 	stmt.CursorOffset = 0
 	return nil
@@ -333,8 +516,29 @@ func (m *PreparedStatementManager) Close(stmtID uint32) error {
 		return fmt.Errorf("prepared statement %d not found", stmtID)
 	}
 
+	stmt := m.statements[stmtID]
+	for _, writer := range stmt.ContentLongData {
+		_ = writer.Abort()
+	}
 	delete(m.statements, stmtID)
 	return nil
+}
+
+// CloseAll releases all execution-bound resources owned by this connection.
+// In particular, pending streamed CONTENT writers must be aborted when a
+// connection is reset or closed so their staging directories do not linger.
+func (m *PreparedStatementManager) CloseAll() {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, stmt := range m.statements {
+		for _, writer := range stmt.ContentLongData {
+			_ = writer.Abort()
+		}
+	}
+	m.statements = make(map[uint32]*PreparedStatement)
 }
 
 // Count 返回当前缓存的语句数量
@@ -382,8 +586,72 @@ func (m *PreparedStatementManager) Snapshot() []compatibility.PreparedStatementS
 	return snapshots
 }
 
+func preparedContentParamMIMETypes(sql string) map[uint16]string {
+	statement, err := sqlparser.Parse(sql)
+	if err != nil {
+		return nil
+	}
+	switch typed := statement.(type) {
+	case *sqlparser.Insert:
+		if !strings.EqualFold(typed.Action, sqlparser.InsertStr) && !strings.EqualFold(typed.Action, sqlparser.ReplaceStr) {
+			return nil
+		}
+	case *sqlparser.Update:
+	default:
+		return nil
+	}
+
+	parameterIndexes := make(map[*sqlparser.SQLVal]uint16)
+	var next uint16
+	if err := sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		if value, ok := node.(*sqlparser.SQLVal); ok && value.Type == sqlparser.ValArg {
+			parameterIndexes[value] = next
+			next++
+		}
+		return true, nil
+	}, statement); err != nil {
+		return nil
+	}
+
+	contentParams := make(map[uint16]string)
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		function, ok := node.(*sqlparser.FuncExpr)
+		if !ok || !strings.EqualFold(strings.Trim(function.Name.String(), "` "), "CONTENT_FROM_BYTES") || len(function.Exprs) != 2 {
+			return true, nil
+		}
+		bytesArgument, ok := function.Exprs[0].(*sqlparser.AliasedExpr)
+		if !ok {
+			return true, nil
+		}
+		placeholder, ok := bytesArgument.Expr.(*sqlparser.SQLVal)
+		if !ok || placeholder.Type != sqlparser.ValArg {
+			return true, nil
+		}
+		mimeArgument, ok := function.Exprs[1].(*sqlparser.AliasedExpr)
+		if !ok {
+			return true, nil
+		}
+		mimeLiteral, ok := mimeArgument.Expr.(*sqlparser.SQLVal)
+		if !ok || mimeLiteral.Type != sqlparser.StrVal {
+			return true, nil
+		}
+		if index, exists := parameterIndexes[placeholder]; exists {
+			contentParams[index] = string(mimeLiteral.Val)
+		}
+		return true, nil
+	}, statement)
+	if len(contentParams) == 0 {
+		return nil
+	}
+	return contentParams
+}
+
 // EncodePrepareResponse 编码 COM_STMT_PREPARE 响应包
 func EncodePrepareResponse(stmt *PreparedStatement, seqID byte) [][]byte {
+	return EncodePrepareResponseWithCapabilities(stmt, seqID, 0)
+}
+
+func EncodePrepareResponseWithCapabilities(stmt *PreparedStatement, seqID byte, capabilities uint32) [][]byte {
 	packets := make([][]byte, 0)
 
 	// 1. 发送 OK 包（包含语句ID、列数、参数数）
@@ -407,11 +675,13 @@ func EncodePrepareResponse(stmt *PreparedStatement, seqID byte) [][]byte {
 			seqID++
 		}
 
-		// 发送 EOF 包（结束参数定义）
-		eofPacket := EncodeEOFPacket(0, common.SERVER_STATUS_AUTOCOMMIT)
-		eofPacket = addPacketHeader(eofPacket[4:], seqID) // 去掉原有的header，重新添加
-		packets = append(packets, eofPacket)
-		seqID++
+		// CLIENT_DEPRECATE_EOF omits both metadata terminators in PREPARE.
+		if capabilities&common.CLIENT_DEPRECATE_EOF == 0 {
+			eofPacket := EncodeEOFPacket(0, common.SERVER_STATUS_AUTOCOMMIT)
+			eofPacket = addPacketHeader(eofPacket[4:], seqID) // 去掉原有的header，重新添加
+			packets = append(packets, eofPacket)
+			seqID++
+		}
 	}
 
 	// 3. 如果有列，发送列元数据
@@ -422,10 +692,11 @@ func EncodePrepareResponse(stmt *PreparedStatement, seqID byte) [][]byte {
 			seqID++
 		}
 
-		// 发送 EOF 包（结束列定义）
-		eofPacket := EncodeEOFPacket(0, common.SERVER_STATUS_AUTOCOMMIT)
-		eofPacket = addPacketHeader(eofPacket[4:], seqID)
-		packets = append(packets, eofPacket)
+		if capabilities&common.CLIENT_DEPRECATE_EOF == 0 {
+			eofPacket := EncodeEOFPacket(0, common.SERVER_STATUS_AUTOCOMMIT)
+			eofPacket = addPacketHeader(eofPacket[4:], seqID)
+			packets = append(packets, eofPacket)
+		}
 	}
 
 	return packets

@@ -3,10 +3,10 @@ package engine
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
@@ -23,7 +23,7 @@ func (dml *StorageIntegratedDMLExecutor) validateCheckConstraints(rows []*Insert
 	if dml == nil || dml.dataDir == "" || schemaName == "" || tableName == "" {
 		return nil
 	}
-	raw, err := os.ReadFile(filepath.Join(dml.dataDir, schemaName, tableName+".frm"))
+	raw, err := metadata.ReadFile(filepath.Join(dml.dataDir, schemaName, tableName+".frm"))
 	if err != nil {
 		return err
 	}

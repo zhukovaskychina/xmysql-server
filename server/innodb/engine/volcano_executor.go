@@ -737,7 +737,7 @@ func decodeCoveringIndexValue(raw string, schema *metadata.QuerySchema, columnNa
 		if value, err := strconv.ParseFloat(raw, 64); err == nil {
 			return basic.NewFloat64(value)
 		}
-	case metadata.TypeBinary, metadata.TypeVarBinary, metadata.TypeBlob, metadata.TypeTinyBlob, metadata.TypeMediumBlob, metadata.TypeLongBlob:
+	case metadata.TypeBinary, metadata.TypeVarBinary, metadata.TypeBlob, metadata.TypeTinyBlob, metadata.TypeMediumBlob, metadata.TypeLongBlob, metadata.TypeContent, metadata.TypeVector:
 		return basic.NewBytes([]byte(raw))
 	}
 	return basic.NewString(raw)
@@ -984,6 +984,7 @@ func (p *ProjectionOperator) buildExprColumn(expr plan.Expression, childSchema *
 					SchemaName:      childCol.SchemaName,
 					OrdinalPosition: childCol.OrdinalPosition,
 					CharMaxLength:   childCol.CharMaxLength,
+					Collation:       childCol.Collation,
 					Comment:         childCol.Comment,
 				}
 			}
@@ -2670,6 +2671,7 @@ func (h *HashAggregateOperator) Open(ctx context.Context) error {
 					IsNullable: col.IsNullable,
 					TableName:  col.TableName,
 					SchemaName: col.SchemaName,
+					Collation:  col.Collation,
 				})
 			}
 		}

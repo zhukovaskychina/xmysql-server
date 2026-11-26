@@ -327,6 +327,19 @@ func legacyCollationNames() map[string]uint8 {
 	return result
 }
 
+// CollationMetadataByName returns a copy of the fixed MySQL collation record
+// for name. The catalog entry includes PAD_ATTRIBUTE, which query comparison
+// must use when deciding whether trailing spaces participate in comparison.
+func CollationMetadataByName(name string) (CollationMetadata, bool) {
+	name = strings.TrimSpace(name)
+	for _, collation := range collationCatalog {
+		if strings.EqualFold(collation.Name, name) {
+			return collation, true
+		}
+	}
+	return CollationMetadata{}, false
+}
+
 func collationByID(id uint8) CollationMetadata {
 	for _, collation := range collationCatalog {
 		if collation.ID == id {

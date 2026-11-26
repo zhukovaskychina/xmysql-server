@@ -14,9 +14,21 @@ import (
 // with an isolated inner execution for every outer row. This prevents the
 // common but incorrect optimization of materializing the inner query once.
 func (e *XMySQLExecutor) executeCorrelatedSubqueryCompatibility(ctx *ExecutionContext, query, databaseName string) (bool, error) {
+	if queryHasJoinedOuterSource(query) {
+		return false, nil
+	}
 	trimmed := strings.TrimSpace(strings.TrimSuffix(query, ";"))
 	if strings.HasPrefix(strings.ToLower(trimmed), "with ") {
 		return false, nil
+	}
+	if statement, parseErr := sqlparser.Parse(trimmed); parseErr == nil {
+		if selectStatement, ok := statement.(*sqlparser.Select); ok && selectStatement.Having != nil && sqlNodeHasSubquery(selectStatement.Having.Expr) {
+			// Grouped SELECT execution retains the HAVING AST and evaluates its
+			// correlated predicates against each completed group. The legacy
+			// text rewriter below only rebuilds a row-level outer SELECT, which
+			// would move HAVING ahead of ORDER BY and lose aggregate semantics.
+			return false, nil
+		}
 	}
 	existsAt, notExists, existsFound := findExistsCall(trimmed)
 	if !existsFound {
@@ -242,7 +254,7 @@ func (e *XMySQLExecutor) executeCorrelatedSubqueryCompatibility(ctx *ExecutionCo
 	}
 	records := make([]Record, 0, len(selectedValues))
 	for _, values := range selectedValues {
-		records = append(records, NewExecutorRecord(values, meta))
+		records = append(records, correlatedProjectionOutputRecord(values, selectedIndexes, outerResult.ColumnTypes, meta))
 	}
 	columns := make([]string, len(meta.Columns))
 	for i, column := range meta.Columns {

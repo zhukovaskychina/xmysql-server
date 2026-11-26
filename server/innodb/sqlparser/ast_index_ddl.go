@@ -12,6 +12,9 @@ type IndexDDLStatement struct {
 	Columns     []string
 	Unique      bool
 	FullText    bool
+	Vector      bool
+	Rebuild     bool
+	Using       string
 	IfExists    bool
 	IfNotExists bool
 	Visibility  string
@@ -37,12 +40,16 @@ func tryParseIndexDDLForExecution(query string) (*IndexDDLStatement, bool, error
 		return nil, false, err
 	}
 	action := strings.ToLower(tokens[0].text)
-	if action != "create" && action != "drop" {
+	if action != "create" && action != "drop" && action != "rebuild" {
 		return nil, false, nil
 	}
 	index := 1
 	statement := &IndexDDLStatement{Action: action, Raw: query}
 	if action == "create" {
+		if index < len(tokens) && strings.EqualFold(tokens[index].text, "vector") {
+			statement.Vector = true
+			index++
+		}
 		if index < len(tokens) && strings.EqualFold(tokens[index].text, "unique") {
 			statement.Unique = true
 			index++
@@ -59,7 +66,22 @@ func tryParseIndexDDLForExecution(query string) (*IndexDDLStatement, bool, error
 			statement.IfNotExists = true
 			index += 3
 		}
+	} else if action == "rebuild" {
+		if index >= len(tokens) || !strings.EqualFold(tokens[index].text, "vector") {
+			return nil, false, nil
+		}
+		statement.Vector = true
+		statement.Rebuild = true
+		index++
+		if index >= len(tokens) || !strings.EqualFold(tokens[index].text, "index") {
+			return nil, true, fmt.Errorf("REBUILD VECTOR INDEX requires INDEX")
+		}
+		index++
 	} else {
+		if index < len(tokens) && strings.EqualFold(tokens[index].text, "vector") {
+			statement.Vector = true
+			index++
+		}
 		if index >= len(tokens) || !strings.EqualFold(tokens[index].text, "index") {
 			return nil, false, nil
 		}
@@ -84,6 +106,12 @@ func tryParseIndexDDLForExecution(query string) (*IndexDDLStatement, bool, error
 	}
 	statement.Table = table
 	index = next
+	if action == "rebuild" {
+		if index != len(tokens) {
+			return nil, true, fmt.Errorf("unexpected token %q in REBUILD VECTOR INDEX", tokens[index].text)
+		}
+		return statement, true, nil
+	}
 	if action == "drop" {
 		return statement, true, nil
 	}
@@ -111,6 +139,22 @@ func tryParseIndexDDLForExecution(query string) (*IndexDDLStatement, bool, error
 	}
 	if index < len(tokens) && (strings.EqualFold(tokens[index].text, "visible") || strings.EqualFold(tokens[index].text, "invisible")) {
 		statement.Visibility = strings.ToLower(tokens[index].text)
+		index++
+	}
+	if index < len(tokens) && strings.EqualFold(tokens[index].text, "using") {
+		if index+1 >= len(tokens) {
+			return nil, true, fmt.Errorf("index USING algorithm missing")
+		}
+		statement.Using = strings.ToUpper(tokens[index+1].text)
+		index += 2
+	}
+	if statement.Vector {
+		if statement.Unique || statement.FullText || statement.Visibility != "" || statement.Using != "HNSW" {
+			return nil, true, fmt.Errorf("CREATE VECTOR INDEX currently requires USING HNSW and does not support UNIQUE, FULLTEXT or visibility options")
+		}
+	}
+	if statement.Vector && index != len(tokens) {
+		return nil, true, fmt.Errorf("unexpected token %q in CREATE INDEX", tokens[index].text)
 	}
 	return statement, true, nil
 }

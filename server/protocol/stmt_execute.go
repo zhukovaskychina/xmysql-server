@@ -2,16 +2,33 @@ package protocol
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"math"
 
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 )
 
+// PreparedBinaryParam preserves arbitrary bytes while binding a binary
+// protocol parameter through the SQL text executor.
+type PreparedBinaryParam []byte
+
+// PreparedContentParam is a connection-scoped reference to a CONTENT value
+// streamed by COM_STMT_SEND_LONG_DATA for the current execution.
+type PreparedContentParam uint16
+
 // ParseBinaryStmtExecuteParams 解析 COM_STMT_EXECUTE 中 null-bitmap 之后到包尾的二进制参数区。
 // prevParamTypeBlock 为上一帧绑定的参数类型块（每条参数 2 字节：type + unsigned flag），
 // 当 new_params_bound_flag==0 时复用；为 nil 时按 MYSQL_TYPE_VAR_STRING 推断。
 func ParseBinaryStmtExecuteParams(data []byte, paramCount uint16, prevParamTypeBlock []byte) (params []interface{}, newParamTypeBlock []byte, err error) {
+	return ParseBinaryStmtExecuteParamsWithOmittedParams(data, paramCount, prevParamTypeBlock, nil)
+}
+
+// ParseBinaryStmtExecuteParamsWithOmittedParams parses COM_STMT_EXECUTE values
+// while skipping parameters whose values were already sent through
+// COM_STMT_SEND_LONG_DATA. The protocol omits those parameter bytes from the
+// execute packet; the caller supplies the accumulated value after parsing.
+func ParseBinaryStmtExecuteParamsWithOmittedParams(data []byte, paramCount uint16, prevParamTypeBlock []byte, omittedParams map[uint16]struct{}) (params []interface{}, newParamTypeBlock []byte, err error) {
 	if paramCount == 0 {
 		return nil, prevParamTypeBlock, nil
 	}
@@ -55,6 +72,9 @@ func ParseBinaryStmtExecuteParams(data []byte, paramCount uint16, prevParamTypeB
 		bitPos := int(i) % 8
 		if nullBitmap[bytePos]&(1<<bitPos) != 0 {
 			params[i] = nil
+			continue
+		}
+		if _, omitted := omittedParams[i]; omitted {
 			continue
 		}
 
@@ -139,8 +159,19 @@ func parseBinaryParamValue(data []byte, paramType byte, unsigned bool) (interfac
 			uint64(data[4])<<32 | uint64(data[5])<<40 | uint64(data[6])<<48 | uint64(data[7])<<56
 		return math.Float64frombits(bits), 8, nil
 
-	case common.COLUMN_TYPE_VAR_STRING, common.COLUMN_TYPE_STRING, common.COLUMN_TYPE_VARCHAR,
-		common.COLUMN_TYPE_BLOB, common.COLUMN_TYPE_TINY_BLOB, common.COLUMN_TYPE_MEDIUM_BLOB, common.COLUMN_TYPE_LONG_BLOB:
+	case common.COLUMN_TYPE_BLOB, common.COLUMN_TYPE_TINY_BLOB, common.COLUMN_TYPE_MEDIUM_BLOB, common.COLUMN_TYPE_LONG_BLOB:
+		strLen, lenBytes := readLenEncIntForStmt(data)
+		if strLen < 0 {
+			return nil, 0, fmt.Errorf("invalid length-encoded binary value")
+		}
+		totalBytes := lenBytes + int(strLen)
+		if len(data) < totalBytes {
+			return nil, 0, fmt.Errorf("insufficient data for binary value")
+		}
+		value := append(PreparedBinaryParam(nil), data[lenBytes:totalBytes]...)
+		return value, totalBytes, nil
+
+	case common.COLUMN_TYPE_VAR_STRING, common.COLUMN_TYPE_STRING, common.COLUMN_TYPE_VARCHAR:
 		strLen, lenBytes := readLenEncIntForStmt(data)
 		if strLen < 0 {
 			return nil, 0, fmt.Errorf("invalid length-encoded string")
@@ -296,8 +327,12 @@ func formatPreparedParameter(param interface{}) string {
 		return "NULL"
 	}
 	switch v := param.(type) {
+	case PreparedContentParam:
+		return fmt.Sprintf("CONTENT_PARAM(%d)", uint16(v))
 	case []byte:
 		return "'" + escapePreparedString(v) + "'"
+	case PreparedBinaryParam:
+		return "X'" + hex.EncodeToString(v) + "'"
 	case string:
 		return "'" + escapePreparedString([]byte(v)) + "'"
 	case int8, int16, int32, int64, int:

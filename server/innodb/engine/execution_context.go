@@ -95,6 +95,70 @@ type ExecutionContext struct {
 	statementIndexNames   []string
 }
 
+// Fork creates an independent statement context without copying its mutex or
+// atomic fields. Immutable parse data, session state and observer callbacks
+// remain shared; mutable slices and maps are copied so child statement setup
+// cannot overwrite the parent's local bookkeeping.
+func (ctx *ExecutionContext) Fork() *ExecutionContext {
+	child := &ExecutionContext{}
+	if ctx == nil {
+		return child
+	}
+	child.Context = ctx.Context
+	child.statementId = ctx.statementId
+	child.QueryId = ctx.QueryId
+	child.Results = ctx.Results
+	ctx.mu.RLock()
+	child.done = ctx.done
+	child.err = ctx.err
+	ctx.mu.RUnlock()
+	child.DatabaseName = ctx.DatabaseName
+	child.RawQuery = ctx.RawQuery
+	child.Parsed = ctx.Parsed
+	child.Session = ctx.Session
+	child.Warnings = append([]Warning(nil), ctx.Warnings...)
+	child.AdminResult = ctx.AdminResult
+	child.ViewSecurityRequired = ctx.ViewSecurityRequired
+	child.triggerStack = append([]string(nil), ctx.triggerStack...)
+	if ctx.SpatialCandidateKeys != nil {
+		child.SpatialCandidateKeys = make(map[string]struct{}, len(ctx.SpatialCandidateKeys))
+		for key := range ctx.SpatialCandidateKeys {
+			child.SpatialCandidateKeys[key] = struct{}{}
+		}
+	}
+	if ctx.ddlWriteLocks != nil {
+		child.ddlWriteLocks = make(map[string]int, len(ctx.ddlWriteLocks))
+		for key, value := range ctx.ddlWriteLocks {
+			child.ddlWriteLocks[key] = value
+		}
+	}
+	child.Cfg = ctx.Cfg
+	copyAtomicInt64 := func(dst, src *atomic.Int64) { dst.Store(src.Load()) }
+	copyAtomicInt64(&child.statementRowsAffected, &ctx.statementRowsAffected)
+	copyAtomicInt64(&child.statementRowsSent, &ctx.statementRowsSent)
+	copyAtomicInt64(&child.statementRowsExamined, &ctx.statementRowsExamined)
+	copyAtomicInt64(&child.statementSelectScan, &ctx.statementSelectScan)
+	copyAtomicInt64(&child.statementSelectRange, &ctx.statementSelectRange)
+	copyAtomicInt64(&child.statementSelectFullJoin, &ctx.statementSelectFullJoin)
+	copyAtomicInt64(&child.statementSelectFullRangeJoin, &ctx.statementSelectFullRangeJoin)
+	copyAtomicInt64(&child.statementSelectRangeCheck, &ctx.statementSelectRangeCheck)
+	copyAtomicInt64(&child.statementNoIndexUsed, &ctx.statementNoIndexUsed)
+	copyAtomicInt64(&child.statementNoGoodIndexUsed, &ctx.statementNoGoodIndexUsed)
+	copyAtomicInt64(&child.statementSortRows, &ctx.statementSortRows)
+	copyAtomicInt64(&child.statementSortScan, &ctx.statementSortScan)
+	copyAtomicInt64(&child.statementSortRange, &ctx.statementSortRange)
+	copyAtomicInt64(&child.statementWarnings, &ctx.statementWarnings)
+	copyAtomicInt64(&child.statementCPUTime, &ctx.statementCPUTime)
+	child.statementCPUTimeCaptured.Store(ctx.statementCPUTimeCaptured.Load())
+	child.statementMetricsDeferred = ctx.statementMetricsDeferred
+	child.statementResultObserver = ctx.statementResultObserver
+	child.errorMetricsDeferred = ctx.errorMetricsDeferred
+	child.statementParseError = ctx.statementParseError
+	child.statementMetricStatus = ctx.statementMetricStatus
+	child.statementIndexNames = append([]string(nil), ctx.statementIndexNames...)
+	return child
+}
+
 func (ctx *ExecutionContext) recordIndexAccessPath(path string) {
 	if ctx == nil {
 		return

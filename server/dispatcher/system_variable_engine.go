@@ -947,7 +947,10 @@ func (e *SystemVariableEngine) evaluateSystemFunction(funcName string, session s
 		return "8.0.32"
 
 	case "CONNECTION_ID":
-		return sessionID
+		if sessionContext := session.SessionContext(); sessionContext != nil {
+			return uint64(sessionContext.GetConnectionID())
+		}
+		return uint64(0)
 
 	case "LAST_INSERT_ID":
 		if len(arguments) > 0 {

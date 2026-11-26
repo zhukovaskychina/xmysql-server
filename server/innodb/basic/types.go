@@ -41,6 +41,8 @@ const (
 	ValueTypeJSON
 	ValueTypeBool
 	ValueTypeBoolean
+	ValueTypeContent
+	ValueTypeVector
 )
 
 // String returns the string representation of ValueType
@@ -104,6 +106,10 @@ func (vt ValueType) String() string {
 		return "SET"
 	case ValueTypeJSON:
 		return "JSON"
+	case ValueTypeContent:
+		return "CONTENT"
+	case ValueTypeVector:
+		return "VECTOR"
 	case ValueTypeBool, ValueTypeBoolean:
 		return "BOOLEAN"
 	default:
@@ -137,7 +143,7 @@ func (vt ValueType) IsString() bool {
 func (vt ValueType) IsBinary() bool {
 	switch vt {
 	case ValueTypeBinary, ValueTypeVarBinary, ValueTypeTinyBlob, ValueTypeBlob,
-		ValueTypeMediumBlob, ValueTypeLongBlob:
+		ValueTypeMediumBlob, ValueTypeLongBlob, ValueTypeContent, ValueTypeVector:
 		return true
 	default:
 		return false

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
@@ -48,6 +50,8 @@ var informationSchemaTableRegistry = map[string][]string{
 	"st_geometry_columns":                      {"TABLE_CATALOG", "TABLE_SCHEMA", "TABLE_NAME", "COLUMN_NAME", "SRS_NAME", "SRS_ID", "GEOMETRY_TYPE_NAME"},
 	"st_spatial_reference_systems":             {"SRS_NAME", "SRS_ID", "ORGANIZATION", "ORGANIZATION_COORDSYS_ID", "DEFINITION", "DESCRIPTION"},
 	"st_units_of_measure":                      {"UNIT_NAME", "UNIT_TYPE", "CONVERSION_FACTOR", "DESCRIPTION"},
+	"xmysql_column_semantics":                  {"TABLE_SCHEMA", "TABLE_NAME", "COLUMN_NAME", "DEFINITION_REVISION", "STATUS", "SOURCE", "CONFIRMED_BY", "BUSINESS_NAME", "DESCRIPTION", "UNIT", "NULL_MEANING", "SCOPE", "ENUM_MEANINGS_JSON", "CONFIDENCE", "DEFINITION_JSON", "ERROR_MESSAGE"},
+	"xmysql_table_semantics":                   {"TABLE_SCHEMA", "TABLE_NAME", "DEFINITION_REVISION", "STATUS", "SOURCE", "CONFIRMED_BY", "BUSINESS_NAME", "DESCRIPTION", "RELATIONSHIPS_JSON", "RELATIONSHIPS_REDACTED", "DEFINITION_JSON", "ERROR_MESSAGE"},
 	"tables_extensions":                        {"TABLE_CATALOG", "TABLE_SCHEMA", "TABLE_NAME", "ENGINE_ATTRIBUTE", "SECONDARY_ENGINE_ATTRIBUTE"},
 	"tablespaces_extensions":                   {"TABLESPACE_NAME", "ENGINE_ATTRIBUTE"},
 	"table_constraints_extensions":             {"CONSTRAINT_CATALOG", "CONSTRAINT_SCHEMA", "CONSTRAINT_NAME", "TABLE_NAME", "ENGINE_ATTRIBUTE", "SECONDARY_ENGINE_ATTRIBUTE"},
@@ -196,6 +200,20 @@ func isInformationSchemaRegistryQuery(query string) bool {
 }
 
 func informationSchemaRegistryTableName(query string) string {
+	// Rendering an AST may quote names such as `optimizer_trace`. Read
+	// the table reference rather than treating its backtick as a delimiter.
+	if statement, err := sqlparser.Parse(query); err == nil {
+		name := ""
+		_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+			if table, ok := node.(sqlparser.TableName); ok && strings.EqualFold(table.Qualifier.String(), "information_schema") && name == "" {
+				name = strings.ToLower(table.Name.String())
+			}
+			return true, nil
+		}, statement)
+		if name != "" {
+			return name
+		}
+	}
 	lower := strings.ToLower(query)
 	marker := "information_schema"
 	index := strings.Index(lower, marker)
@@ -241,6 +259,10 @@ func (e *XMySQLExecutor) executeInformationSchemaRegistrySelect(query string, se
 		return e.executeInformationSchemaSTSpatialReferenceSystemsSelect(query)
 	case "st_units_of_measure":
 		return e.executeInformationSchemaSTUnitsOfMeasureSelect(query)
+	case "xmysql_column_semantics":
+		return e.executeInformationSchemaXMySQLColumnSemanticsSelect(query, session)
+	case "xmysql_table_semantics":
+		return e.executeInformationSchemaXMySQLTableSemanticsSelect(query, session)
 	case "tablespaces_extensions":
 		return e.executeInformationSchemaExtensionRows(query, session, "tablespaces_extensions", "tablespaces")
 	case "columns_extensions":
@@ -281,6 +303,144 @@ func (e *XMySQLExecutor) executeInformationSchemaRegistrySelect(query string, se
 		return e.executeInformationSchemaInnoDBVirtualSelect(query)
 	}
 	return newInformationSchemaSelectResult("information_schema."+name, columns, nil)
+}
+
+func (e *XMySQLExecutor) executeInformationSchemaXMySQLColumnSemanticsSelect(query string, session server.MySQLServerSession) *SelectResult {
+	const tableName = "xmysql_column_semantics"
+	columns := requestedInformationSchemaColumns(query, informationSchemaTableRegistry[tableName])
+	filters := informationSchemaMetadataFilters(query)
+	rows := make([][]interface{}, 0)
+	for _, table := range e.scanFrmTables() {
+		visibleTableName, visible := temporaryMetadataTableName(session, table.schemaName, table.tableName)
+		if !visible || !e.informationSchemaTableVisible(session, table.schemaName, table.tableName, e.isViewMetadataTable(table)) ||
+			!metadataPatternMatches(table.schemaName, filters["table_schema"]) || !metadataPatternMatches(visibleTableName, filters["table_name"]) {
+			continue
+		}
+		for _, column := range table.columns {
+			if !metadataPatternMatches(column.name, filters["column_name"]) || !strings.Contains(strings.ToLower(e.informationSchemaColumnPrivileges(session, table.schemaName, table.tableName, column.name)), "select") {
+				continue
+			}
+			definition, found, parseErr := metadata.ParseColumnSemanticComment(column.comment)
+			if !found {
+				continue
+			}
+			values := map[string]interface{}{
+				"TABLE_SCHEMA": table.schemaName, "TABLE_NAME": visibleTableName, "COLUMN_NAME": column.name,
+				"DEFINITION_REVISION": nil, "STATUS": "INVALID", "SOURCE": nil, "CONFIRMED_BY": nil,
+				"BUSINESS_NAME": nil, "DESCRIPTION": nil, "UNIT": nil, "NULL_MEANING": nil,
+				"SCOPE": nil, "ENUM_MEANINGS_JSON": nil, "CONFIDENCE": nil,
+				"DEFINITION_JSON": strings.TrimSpace(strings.TrimPrefix(column.comment, metadata.ColumnSemanticCommentPrefix)),
+				"ERROR_MESSAGE":   nil,
+			}
+			if parseErr != nil {
+				values["ERROR_MESSAGE"] = parseErr.Error()
+			} else if definition != nil {
+				definitionJSON, marshalErr := json.Marshal(definition)
+				if marshalErr != nil {
+					values["ERROR_MESSAGE"] = marshalErr.Error()
+				} else {
+					enumMeaningsJSON, _ := json.Marshal(definition.EnumMeanings)
+					values["DEFINITION_REVISION"] = int64(definition.Revision)
+					values["STATUS"] = definition.Status
+					values["SOURCE"] = definition.Source
+					values["CONFIRMED_BY"] = nullableSemanticString(definition.ConfirmedBy)
+					values["BUSINESS_NAME"] = nullableSemanticString(definition.BusinessName)
+					values["DESCRIPTION"] = nullableSemanticString(definition.Description)
+					values["UNIT"] = nullableSemanticString(definition.Unit)
+					values["NULL_MEANING"] = nullableSemanticString(definition.NullMeaning)
+					values["SCOPE"] = nullableSemanticString(definition.Scope)
+					values["ENUM_MEANINGS_JSON"] = nullableSemanticJSON(enumMeaningsJSON, definition.EnumMeanings != nil)
+					values["CONFIDENCE"] = definition.Confidence
+					values["DEFINITION_JSON"] = string(definitionJSON)
+					values["ERROR_MESSAGE"] = nil
+				}
+			}
+			if performanceSchemaLockValuesMatch(query, values) {
+				rows = append(rows, projectInformationSchemaRow(columns, values))
+			}
+		}
+	}
+	return newInformationSchemaSelectResult("information_schema."+tableName, columns, rows)
+}
+
+func nullableSemanticString(value string) interface{} {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	return value
+}
+
+func nullableSemanticJSON(value []byte, present bool) interface{} {
+	if !present {
+		return nil
+	}
+	return string(value)
+}
+
+func (e *XMySQLExecutor) executeInformationSchemaXMySQLTableSemanticsSelect(query string, session server.MySQLServerSession) *SelectResult {
+	const tableName = "xmysql_table_semantics"
+	columns := requestedInformationSchemaColumns(query, informationSchemaTableRegistry[tableName])
+	filters := informationSchemaMetadataFilters(query)
+	rows := make([][]interface{}, 0)
+	for _, table := range e.scanFrmTables() {
+		visibleTableName, visible := temporaryMetadataTableName(session, table.schemaName, table.tableName)
+		if !visible || !e.informationSchemaTableVisible(session, table.schemaName, table.tableName, e.isViewMetadataTable(table)) ||
+			!metadataPatternMatches(table.schemaName, filters["table_schema"]) || !metadataPatternMatches(visibleTableName, filters["table_name"]) {
+			continue
+		}
+		comment := persistedTableComment(e, table.schemaName, table.tableName)
+		definition, found, parseErr := metadata.ParseTableSemanticComment(comment)
+		if !found {
+			continue
+		}
+		values := map[string]interface{}{
+			"TABLE_SCHEMA": table.schemaName, "TABLE_NAME": visibleTableName, "DEFINITION_REVISION": nil,
+			"STATUS": "INVALID", "SOURCE": nil, "CONFIRMED_BY": nil, "BUSINESS_NAME": nil,
+			"DESCRIPTION": nil, "RELATIONSHIPS_JSON": nil, "RELATIONSHIPS_REDACTED": int64(0),
+			"DEFINITION_JSON": strings.TrimSpace(strings.TrimPrefix(comment, metadata.ColumnSemanticCommentPrefix)),
+			"ERROR_MESSAGE":   nil,
+		}
+		if parseErr != nil {
+			values["ERROR_MESSAGE"] = parseErr.Error()
+		} else if definition != nil {
+			visibleDefinition := *definition
+			visibleDefinition.Relationships = make([]metadata.SemanticRelationship, 0, len(definition.Relationships))
+			redacted := false
+			for _, relationship := range definition.Relationships {
+				targetSchema := relationship.TargetSchema
+				if strings.TrimSpace(targetSchema) == "" {
+					targetSchema = table.schemaName
+				}
+				if !e.informationSchemaTableVisible(session, targetSchema, relationship.TargetTable, false) {
+					redacted = true
+					continue
+				}
+				visibleDefinition.Relationships = append(visibleDefinition.Relationships, relationship)
+			}
+			definitionJSON, marshalErr := json.Marshal(visibleDefinition)
+			if marshalErr != nil {
+				values["ERROR_MESSAGE"] = marshalErr.Error()
+			} else {
+				relationshipsJSON, _ := json.Marshal(visibleDefinition.Relationships)
+				values["DEFINITION_REVISION"] = int64(definition.Revision)
+				values["STATUS"] = definition.Status
+				values["SOURCE"] = definition.Source
+				values["CONFIRMED_BY"] = nullableSemanticString(definition.ConfirmedBy)
+				values["BUSINESS_NAME"] = nullableSemanticString(definition.BusinessName)
+				values["DESCRIPTION"] = nullableSemanticString(definition.Description)
+				values["RELATIONSHIPS_JSON"] = nullableSemanticJSON(relationshipsJSON, len(visibleDefinition.Relationships) > 0)
+				if redacted {
+					values["RELATIONSHIPS_REDACTED"] = int64(1)
+				}
+				values["DEFINITION_JSON"] = string(definitionJSON)
+				values["ERROR_MESSAGE"] = nil
+			}
+		}
+		if performanceSchemaLockValuesMatch(query, values) {
+			rows = append(rows, projectInformationSchemaRow(columns, values))
+		}
+	}
+	return newInformationSchemaSelectResult("information_schema."+tableName, columns, rows)
 }
 
 func (e *XMySQLExecutor) executeInformationSchemaKeywordsSelect(query string) *SelectResult {
@@ -580,10 +740,19 @@ func informationSchemaVirtualTableDefinitions() map[string][]string {
 func informationSchemaVirtualColumnType(column string) (typeName string, length int, nullable bool) {
 	name := strings.ToUpper(strings.TrimSpace(column))
 	nullable = true
+	if strings.HasSuffix(name, "_JSON") || name == "DEFINITION_JSON" {
+		return "JSON", 0, nullable
+	}
+	if name == "CONFIDENCE" {
+		return "DOUBLE", 0, nullable
+	}
+	if strings.HasSuffix(name, "_REDACTED") {
+		return "TINYINT", 1, nullable
+	}
 	if strings.Contains(name, "TEXT") || name == "SQL_TEXT" || name == "TRACE" || name == "DEFINITION" {
 		return "LONGTEXT", 0, nullable
 	}
-	if strings.Contains(name, "ID") || strings.Contains(name, "COUNT") || strings.Contains(name, "NUMBER") || strings.Contains(name, "TIMER") || strings.Contains(name, "POSITION") || strings.Contains(name, "SIZE") || strings.Contains(name, "PORT") || strings.Contains(name, "ORDINAL") || name == "FREQUENCY" || strings.HasSuffix(name, "_LSN") {
+	if strings.Contains(name, "ID") || strings.Contains(name, "COUNT") || strings.Contains(name, "NUMBER") || strings.Contains(name, "TIMER") || strings.Contains(name, "POSITION") || strings.Contains(name, "SIZE") || strings.Contains(name, "PORT") || strings.Contains(name, "ORDINAL") || strings.HasSuffix(name, "_REVISION") || name == "FREQUENCY" || strings.HasSuffix(name, "_LSN") {
 		return "BIGINT", 0, nullable
 	}
 	if strings.HasPrefix(name, "IS_") || name == "ENABLED" || name == "TIMED" || name == "HISTORY" || name == "INSTRUMENTED" || name == "AUTOCOMMIT" {

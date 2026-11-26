@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"encoding/hex" // 临时注释 - 密码验证被跳过时不需要
+	"errors"
 	"fmt"
 	"net"
 	"runtime"
@@ -19,6 +20,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/dispatcher"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/content"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 	"github.com/zhukovaskychina/xmysql-server/server/observability/compatibility"
@@ -81,8 +83,11 @@ type DecoupledMySQLMessageHandler struct {
 	handshakeGenerator *protocol.HandshakeGenerator
 
 	// 认证服务
-	authService  auth.AuthService
-	xmysqlEngine *engine.XMySQLEngine
+	authService      auth.AuthService
+	xmysqlEngine     *engine.XMySQLEngine
+	contentStoreOnce sync.Once
+	contentStore     *content.SegmentStore
+	contentStoreErr  error
 
 	// ResultSet 编码器（复用实例，避免重复创建）
 	resultSetEncoder  *protocol.MySQLResultSetEncoder
@@ -360,7 +365,11 @@ func (h *DecoupledMySQLMessageHandler) sendErrorResponse(session Session, code u
 	logger.Debugf("发送错误响应: code=%d, state=%s, message=%s", code, state, message)
 
 	// 使用统一的协议编码函数生成 Error 包，序列号固定为 1
-	errorPacket := protocol.EncodeErrorPacketWithSeq(code, state, message, 1)
+	return h.sendErrorResponseWithSeq(session, code, state, message, 1)
+}
+
+func (h *DecoupledMySQLMessageHandler) sendErrorResponseWithSeq(session Session, code uint16, state, message string, seqID byte) error {
+	errorPacket := protocol.EncodeErrorPacketWithSeq(code, state, message, seqID)
 
 	return session.WriteBytes(errorPacket)
 }
@@ -1451,6 +1460,9 @@ func (h *DecoupledMySQLMessageHandler) handleQueryMessageDirect(session Session,
 		response, err = h.businessHandler.HandleMessage(message)
 	}
 	if err != nil {
+		if handled, sendErr := h.sendSelectExecutionErrorWithMetadata(session, *currentMysqlSession, query, database, 1, 1064, "42000", err.Error()); handled {
+			return sendErr
+		}
 		return h.sendErrorResponse(session, 1064, "42000", err.Error())
 	}
 
@@ -1477,11 +1489,40 @@ func (h *DecoupledMySQLMessageHandler) handleQueryMessageDirect(session Session,
 		}
 		return h.sendMySQLOKPacketWithStatus(session, 0, 0, 1, mysqlResponseStatusFlags(session, *currentMysqlSession))
 	case *protocol.ErrorMessage:
+		if handled, sendErr := h.sendSelectExecutionErrorWithMetadata(session, *currentMysqlSession, query, database, queryResponseSequence(session), resp.Code, resp.State, resp.Message); handled {
+			return sendErr
+		}
 		return h.sendErrorResponse(session, resp.Code, resp.State, resp.Message)
 	default:
 		clearExpiredPasswordRestriction(session, query, true)
 		return h.sendMySQLOKPacketWithStatus(session, 0, 0, 1, mysqlResponseStatusFlags(session, *currentMysqlSession))
 	}
+}
+
+func (h *DecoupledMySQLMessageHandler) sendSelectExecutionErrorWithMetadata(session Session, currentMysqlSession server.MySQLServerSession, query, database string, seqID byte, code uint16, state, message string) (bool, error) {
+	// MySQL exposes result metadata for scalar-subquery cardinality failures
+	// because they occur after row execution starts. Semantic resolution errors
+	// such as collation coercibility conflicts are returned before metadata,
+	// even when the SELECT list is statically describable. The protocol error
+	// message does not carry an execution phase, so preserve metadata only for
+	// this well-defined runtime error contract.
+	if !mysqlExecutionErrorReturnsResultMetadata(code, state) {
+		return false, nil
+	}
+	if enhanced, ok := h.businessHandler.(*dispatcher.EnhancedBusinessMessageHandler); ok {
+		if parsed, parseErr := sqlparser.ParseForExecution(query); parseErr == nil {
+			if _, isSelect := parsed.AST.(sqlparser.SelectStatement); isSelect {
+				if metadata, metadataErr := enhanced.DescribePreparedSelectWithRealSession(currentMysqlSession, query, database); metadataErr == nil && metadata != nil && len(metadata.Columns) > 0 {
+					return true, h.sendQueryResultSetError(session, metadata, seqID, code, state, message)
+				}
+			}
+		}
+	}
+	return false, nil
+}
+
+func mysqlExecutionErrorReturnsResultMetadata(code uint16, state string) bool {
+	return code == 1242 && state == "21000"
 }
 
 // syncReplicationSessionGTID exposes the runtime's durable applied GTID set to
@@ -2168,6 +2209,29 @@ func (h *DecoupledMySQLMessageHandler) preparedStmtMgrFromSession(session Sessio
 	return v.(*protocol.PreparedStatementManager)
 }
 
+func (h *DecoupledMySQLMessageHandler) configurePreparedContentStore(mgr *protocol.PreparedStatementManager) error {
+	if h == nil || mgr == nil || h.xmysqlEngine == nil {
+		return fmt.Errorf("database-managed CONTENT store is unavailable")
+	}
+	h.contentStoreOnce.Do(func() {
+		dataDir := strings.TrimSpace(h.xmysqlEngine.GetDataDir())
+		if dataDir == "" {
+			h.contentStoreErr = fmt.Errorf("database data directory is unavailable")
+			return
+		}
+		maxObjectBytes := content.DefaultMaxObjectBytes
+		if h.cfg != nil && h.cfg.ContentMaxObjectBytes > 0 {
+			maxObjectBytes = uint64(h.cfg.ContentMaxObjectBytes)
+		}
+		h.contentStore, h.contentStoreErr = engine.OpenContentSegmentStore(dataDir, maxObjectBytes)
+	})
+	if h.contentStoreErr != nil {
+		return h.contentStoreErr
+	}
+	mgr.SetContentSegmentStore(h.contentStore)
+	return nil
+}
+
 // bindPreparedStmtMgr exposes the protocol-owned prepared statement inventory
 // to the engine's Performance Schema views without making the network Session
 // implementation part of the engine package contract.
@@ -2195,13 +2259,20 @@ func (h *DecoupledMySQLMessageHandler) handleComStmtPrepare(session Session, cur
 	if err != nil {
 		return h.sendGoErrorResponse(session, err)
 	}
+	if len(stmt.ContentParamMIMETypes) > 0 {
+		if err := h.configurePreparedContentStore(mgr); err != nil {
+			_ = mgr.Close(stmt.ID)
+			return h.sendGoErrorResponse(session, err)
+		}
+	}
 	// Connector/J decides whether it can open a server-side cursor from the
 	// result metadata returned by COM_STMT_PREPARE.  Populate that metadata for
 	// read-only statements up front; otherwise it sends a normal execute and
 	// subsequently decodes our text rows as binary rows.
 	h.populatePreparedResultMetadata(session, currentMysqlSession, stmt)
 	seq := recMySQLPkg.Header.PacketId + 1
-	for _, pkt := range protocol.EncodePrepareResponse(stmt, seq) {
+	capabilities, _ := session.GetAttribute("client_capabilities").(uint32)
+	for _, pkt := range protocol.EncodePrepareResponseWithCapabilities(stmt, seq, capabilities) {
 		if werr := session.WriteBytes(pkt); werr != nil {
 			return werr
 		}
@@ -2215,7 +2286,21 @@ func (h *DecoupledMySQLMessageHandler) populatePreparedResultMetadata(session Se
 	}
 	params := make([]interface{}, strings.Count(stmt.SQL, "?"))
 	metadataSQL := protocol.BindPreparedSQL(stmt.SQL, params)
-	result, err := h.executePreparedQueryResult(session, currentMysqlSession, metadataSQL)
+	var result *protocol.MessageQueryResult
+	var err error
+	if preparedSelectNeedsStaticMetadata(metadataSQL) {
+		// PREPARE is not an execution. Never probe a SELECT to discover its
+		// columns: literals, derived sources and views can invoke models or
+		// other effectful functions even without bound parameters.
+		enhanced, ok := h.businessHandler.(*dispatcher.EnhancedBusinessMessageHandler)
+		if !ok || currentMysqlSession == nil || *currentMysqlSession == nil {
+			return
+		}
+		database, _ := (*currentMysqlSession).GetParamByName("database").(string)
+		result, err = enhanced.DescribePreparedSelectWithRealSession(*currentMysqlSession, metadataSQL, database)
+	} else {
+		result, err = h.executePreparedQueryResult(session, currentMysqlSession, metadataSQL)
+	}
 	if err != nil || result == nil || len(result.Columns) == 0 {
 		return
 	}
@@ -2237,6 +2322,19 @@ func (h *DecoupledMySQLMessageHandler) populatePreparedResultMetadata(session Se
 			Decimals: definition.Decimals,
 		})
 	}
+}
+
+func preparedSelectNeedsStaticMetadata(query string) bool {
+	if parsed, err := sqlparser.ParseForExecution(query); err == nil {
+		switch parsed.AST.(type) {
+		case sqlparser.SelectStatement:
+			return true
+		}
+	}
+	// A parse failure is never a reason to execute a SELECT as a metadata
+	// fallback. Preserve deferred execution-time errors for unsupported SQL.
+	trimmed := strings.ToLower(strings.TrimSpace(query))
+	return strings.HasPrefix(trimmed, "select") || strings.HasPrefix(trimmed, "with") || strings.HasPrefix(trimmed, "(")
 }
 
 func looksLikePreparedResultStatement(sqlText string) bool {
@@ -2318,24 +2416,56 @@ func (h *DecoupledMySQLMessageHandler) handleComStmtExecute(session Session, cur
 			return h.sendErrorResponse(session, common.ErrExecStmtWithOpenCursor, common.MySQLState[common.ErrExecStmtWithOpenCursor], "")
 		}
 	}
-	params, typeBlock, perr := protocol.ParseBinaryStmtExecuteParams(body[10:], stmt.ParamCount, stmt.LastParamTypes)
-	if perr != nil {
-		executionFailed = true
-		err = perr
-		return h.sendErrorResponse(session, 1210, "HY000", perr.Error())
-	}
-	longData, lerr := mgr.ConsumeLongData(stmtID)
+	longData, contentParams, contentRefs, lerr := mgr.ConsumeLongDataForExecution(stmtID)
 	if lerr != nil {
 		executionFailed = true
 		err = lerr
 		return h.sendErrorResponse(session, common.ErrUnknownStmtHandler, "HY000", lerr.Error())
 	}
+	adoptedContentRefs := make(map[string]bool, len(contentRefs))
+	defer func() {
+		if h.contentStore == nil {
+			return
+		}
+		for _, ref := range contentRefs {
+			if adoptedContentRefs[ref.ID] {
+				continue
+			}
+			if deleteErr := h.contentStore.Delete(ref); deleteErr != nil && !errors.Is(deleteErr, content.ErrObjectNotFound) && err == nil {
+				err = deleteErr
+			}
+		}
+	}()
+	omittedParams := make(map[uint16]struct{}, len(longData)+len(contentParams))
+	for paramID := range longData {
+		omittedParams[paramID] = struct{}{}
+	}
+	for paramID := range contentParams {
+		omittedParams[paramID] = struct{}{}
+	}
+	params, typeBlock, perr := protocol.ParseBinaryStmtExecuteParamsWithOmittedParams(body[10:], stmt.ParamCount, stmt.LastParamTypes, omittedParams)
+	if perr != nil {
+		executionFailed = true
+		err = perr
+		return h.sendErrorResponse(session, 1210, "HY000", perr.Error())
+	}
 	for paramID, value := range longData {
 		if int(paramID) < len(params) {
-			params[paramID] = value
+			params[paramID] = protocol.PreparedBinaryParam(value)
 		}
 	}
 	stmt.LastParamTypes = typeBlock
+	contentParams, perr = stmt.BindInlineContentParameters(params, contentParams)
+	if perr != nil {
+		executionFailed = true
+		err = perr
+		return h.sendErrorResponse(session, 1210, "HY000", perr.Error())
+	}
+	for paramID := range contentParams {
+		if int(paramID) < len(params) {
+			params[paramID] = protocol.PreparedContentParam(paramID)
+		}
+	}
 	boundSQL := protocol.BindPreparedSQL(stmt.SQL, params)
 	if restrictedErr := h.rejectExpiredPasswordQuery(session, boundSQL); restrictedErr != nil {
 		executionFailed = true
@@ -2346,10 +2476,13 @@ func (h *DecoupledMySQLMessageHandler) handleComStmtExecute(session Session, cur
 		return h.sendErrorResponse(session, common.ErrUserLimitReached, "42000", err.Error())
 	}
 	if body[5]&0x01 != 0 {
-		result, execErr := h.executePreparedQueryResult(session, currentMysqlSession, boundSQL)
+		result, execErr := h.executePreparedQueryResultWithContentParams(session, currentMysqlSession, boundSQL, contentParams, adoptedContentRefs)
 		if execErr != nil {
 			executionFailed = true
 			err = execErr
+			if len(stmt.Columns) > 0 {
+				return h.sendPreparedResultSetError(session, stmt, recMySQLPkg.Header.PacketId+1, execErr)
+			}
 			return h.sendGoErrorResponse(session, execErr)
 		}
 		executionResult = result
@@ -2367,10 +2500,13 @@ func (h *DecoupledMySQLMessageHandler) handleComStmtExecute(session Session, cur
 		}
 		return h.sendCursorMetadata(session, result, recMySQLPkg.Header.PacketId+1)
 	}
-	result, execErr := h.executePreparedQueryResult(session, currentMysqlSession, boundSQL)
+	result, execErr := h.executePreparedQueryResultWithContentParams(session, currentMysqlSession, boundSQL, contentParams, adoptedContentRefs)
 	if execErr != nil {
 		executionFailed = true
 		err = execErr
+		if len(stmt.Columns) > 0 {
+			return h.sendPreparedResultSetError(session, stmt, recMySQLPkg.Header.PacketId+1, execErr)
+		}
 		return h.sendGoErrorResponse(session, execErr)
 	}
 	executionResult = result
@@ -2392,6 +2528,22 @@ func startedAtSub(startedAt time.Time) time.Duration {
 		return 0
 	}
 	return duration
+}
+
+func (h *DecoupledMySQLMessageHandler) executePreparedQueryResultWithContentParams(session Session, currentMysqlSession *server.MySQLServerSession, query string, contentParams map[uint16]content.Value, adoptedRefs map[string]bool) (*protocol.MessageQueryResult, error) {
+	if len(contentParams) == 0 || currentMysqlSession == nil || *currentMysqlSession == nil {
+		return h.executePreparedQueryResult(session, currentMysqlSession, query)
+	}
+	previousParams := (*currentMysqlSession).GetParamByName(engine.PreparedContentParamsSessionParam)
+	previousAdopted := (*currentMysqlSession).GetParamByName(engine.PreparedContentAdoptedRefsSessionParam)
+	(*currentMysqlSession).SetParamByName(engine.PreparedContentParamsSessionParam, contentParams)
+	(*currentMysqlSession).SetParamByName(engine.PreparedContentAdoptedRefsSessionParam, adoptedRefs)
+	defer (*currentMysqlSession).SetParamByName(engine.PreparedContentParamsSessionParam, previousParams)
+	defer (*currentMysqlSession).SetParamByName(engine.PreparedContentAdoptedRefsSessionParam, previousAdopted)
+	// Transaction row snapshots may retain the session-values map. Execution
+	// parameters are not durable row state; release their payloads on completion.
+	defer clear(contentParams)
+	return h.executePreparedQueryResult(session, currentMysqlSession, query)
 }
 
 func (h *DecoupledMySQLMessageHandler) executePreparedQueryResult(session Session, currentMysqlSession *server.MySQLServerSession, query string) (*protocol.MessageQueryResult, error) {
@@ -2449,20 +2601,33 @@ func (h *DecoupledMySQLMessageHandler) handleComStmtFetch(session Session, recMy
 	return h.sendBinaryCursorRows(session, result, done, recMySQLPkg.Header.PacketId+1)
 }
 
-func (h *DecoupledMySQLMessageHandler) handleComStmtSendLongData(session Session, recMySQLPkg *MySQLPackage) (err error) {
+func (h *DecoupledMySQLMessageHandler) handleComStmtSendLongData(session Session, recMySQLPkg *MySQLPackage) error {
 	startedAt := time.Now()
+	var commandErr error
 	defer func() {
-		recordPreparedProtocolCommand(h.protocolMetricsExecutor(), session, "stmt_send_long_data", startedAt, err)
+		recordPreparedProtocolCommand(h.protocolMetricsExecutor(), session, "stmt_send_long_data", startedAt, commandErr)
 	}()
 	body := recMySQLPkg.Body
-	if len(body) < 7 {
-		return h.sendErrorResponse(session, 1064, "42000", "Invalid COM_STMT_SEND_LONG_DATA")
+	if len(body) < 5 {
+		commandErr = fmt.Errorf("invalid COM_STMT_SEND_LONG_DATA header")
+		logger.Warnf("discarding malformed COM_STMT_SEND_LONG_DATA: %v", commandErr)
+		return commandErr
 	}
 	stmtID := binary.LittleEndian.Uint32(body[1:5])
-	paramID := binary.LittleEndian.Uint16(body[5:7])
 	mgr := h.preparedStmtMgrFromSession(session)
-	if err = mgr.AppendLongData(stmtID, paramID, body[7:]); err != nil {
-		return h.sendErrorResponse(session, common.ErrUnknownStmtHandler, "HY000", err.Error())
+	if len(body) < 7 {
+		commandErr = fmt.Errorf("invalid COM_STMT_SEND_LONG_DATA parameter header")
+		if latchErr := mgr.LatchLongDataError(stmtID, commandErr); latchErr != nil {
+			commandErr = latchErr
+		}
+		logger.Warnf("COM_STMT_SEND_LONG_DATA deferred malformed packet to execute: %v", commandErr)
+		return nil
+	}
+	paramID := binary.LittleEndian.Uint16(body[5:7])
+	if commandErr = mgr.AppendLongData(stmtID, paramID, body[7:]); commandErr != nil {
+		// This command is one-way in the MySQL protocol. The statement manager
+		// latches the error and COM_STMT_EXECUTE reports it to the client.
+		logger.Warnf("COM_STMT_SEND_LONG_DATA deferred error to execute: %v", commandErr)
 	}
 	return nil
 }
@@ -2479,6 +2644,7 @@ func (h *DecoupledMySQLMessageHandler) handleComResetConnection(session Session,
 // and the successful COM_CHANGE_USER path. It intentionally preserves the
 // handshake capability flags while clearing command/session-local overrides.
 func (h *DecoupledMySQLMessageHandler) resetConnectionState(session Session, currentMysqlSession *server.MySQLServerSession) error {
+	closePreparedStatementManager(session)
 	resetPreparedStmtMgr := protocol.NewPreparedStatementManager()
 	session.SetAttribute("prepared_stmt_mgr", resetPreparedStmtMgr)
 	bindPreparedStmtMgr(currentMysqlSession, resetPreparedStmtMgr)
@@ -3031,10 +3197,12 @@ func (h *DecoupledMySQLMessageHandler) sendBinaryPreparedResultSet(session Sessi
 	}
 	capabilities, _ := session.GetAttribute("client_capabilities").(uint32)
 	statusFlags := uint16(common.SERVER_STATUS_AUTOCOMMIT | common.SERVER_STATUS_LAST_ROW_SENT)
-	if err := h.sendResultTerminator(session, seqID, capabilities, statusFlags, result.WarningCount); err != nil {
-		return err
+	if capabilities&common.CLIENT_DEPRECATE_EOF == 0 {
+		if err := h.sendResultTerminator(session, seqID, capabilities, statusFlags, result.WarningCount); err != nil {
+			return err
+		}
+		seqID++
 	}
-	seqID++
 	for _, row := range result.Rows {
 		if err := session.WriteBytes(h.resultSetEncoder.EncodeBinaryRowPacket(row, definitions, seqID)); err != nil {
 			return err
@@ -3042,6 +3210,70 @@ func (h *DecoupledMySQLMessageHandler) sendBinaryPreparedResultSet(session Sessi
 		seqID++
 	}
 	return h.sendResultTerminator(session, seqID, capabilities, statusFlags, result.WarningCount)
+}
+
+func (h *DecoupledMySQLMessageHandler) sendQueryResultSetError(session Session, result *protocol.MessageQueryResult, seqID byte, code uint16, state, message string) error {
+	if result == nil || len(result.Columns) == 0 {
+		return h.sendErrorResponseWithSeq(session, code, state, message, seqID)
+	}
+	capabilities, _ := session.GetAttribute("client_capabilities").(uint32)
+	columnCount := h.resultSetEncoder.WriteLenEncInt(uint64(len(result.Columns)))
+	if capabilities&common.CLIENT_OPTIONAL_RESULTSET_METADATA != 0 {
+		columnCount = append([]byte{1}, columnCount...)
+	}
+	if err := session.WriteBytes(h.createMySQLPacket(columnCount, seqID)); err != nil {
+		return err
+	}
+	seqID++
+	for _, definition := range h.resultColumnDefinitions(result) {
+		if err := session.WriteBytes(h.resultSetEncoder.EncodeColumnDefinitionPacket(definition, seqID)); err != nil {
+			return err
+		}
+		seqID++
+	}
+	if capabilities&common.CLIENT_DEPRECATE_EOF == 0 {
+		if err := h.sendResultTerminator(session, seqID, capabilities, common.SERVER_STATUS_AUTOCOMMIT, 0); err != nil {
+			return err
+		}
+		seqID++
+	}
+	return h.sendErrorResponseWithSeq(session, code, state, message, seqID)
+}
+
+func (h *DecoupledMySQLMessageHandler) sendPreparedResultSetError(session Session, stmt *protocol.PreparedStatement, seqID byte, executionErr error) error {
+	if stmt == nil || len(stmt.Columns) == 0 {
+		return h.sendGoErrorResponse(session, executionErr)
+	}
+	sqlErr := protocol.ClassifyGoError(executionErr)
+	if sqlErr == nil {
+		sqlErr = &common.SQLError{Code: common.ErrUnknown, State: common.DefaultMySQLState, Message: "unknown error"}
+	}
+	if !mysqlExecutionErrorReturnsResultMetadata(sqlErr.Code, sqlErr.State) {
+		return h.sendGoErrorResponse(session, executionErr)
+	}
+	capabilities, _ := session.GetAttribute("client_capabilities").(uint32)
+	if err := session.WriteBytes(h.createMySQLPacket(h.resultSetEncoder.WriteLenEncInt(uint64(len(stmt.Columns))), seqID)); err != nil {
+		return err
+	}
+	seqID++
+	for _, column := range stmt.Columns {
+		definition := &protocol.ColumnDefinition{
+			Catalog: column.Catalog, Schema: column.Database, Table: column.Table, OrgTable: column.OrgTable,
+			Name: column.Name, OrgName: column.OrgName, CharacterSet: column.Charset,
+			ColumnLength: column.Length, ColumnType: column.Type, Flags: column.Flags, Decimals: column.Decimals,
+		}
+		if err := session.WriteBytes(h.resultSetEncoder.EncodeColumnDefinitionPacket(definition, seqID)); err != nil {
+			return err
+		}
+		seqID++
+	}
+	if capabilities&common.CLIENT_DEPRECATE_EOF == 0 {
+		if err := h.sendResultTerminator(session, seqID, capabilities, common.SERVER_STATUS_AUTOCOMMIT, 0); err != nil {
+			return err
+		}
+		seqID++
+	}
+	return h.sendErrorResponseWithSeq(session, sqlErr.Code, sqlErr.State, sqlErr.Message, seqID)
 }
 
 func (h *DecoupledMySQLMessageHandler) sendResultTerminator(session Session, seqID byte, capabilities uint32, statusFlags uint16, warnings uint16) error {
@@ -3144,8 +3376,11 @@ func createColumnDefinitionForType(encoder *protocol.MySQLResultSetEncoder, name
 		return encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_YEAR, 0)
 	case "bool", "boolean":
 		return encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_TINY, 0)
-	case "binary", "varbinary", "blob", "tinyblob", "mediumblob", "longblob":
-		return encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_BLOB, 0)
+	case "binary", "varbinary", "blob", "tinyblob", "mediumblob", "longblob", "content", "vector":
+		mysqlType, length, flags, decimals := common.GetProtocolColumnTypeInfo(typeName)
+		definition := encoder.CreateColumnDefinition(name, mysqlType, flags|uint16(common.BinaryFlag))
+		definition.ColumnLength, definition.Decimals = length, decimals
+		return definition
 	default:
 		return encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_VAR_STRING, 0)
 	}

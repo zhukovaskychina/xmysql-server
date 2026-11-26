@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/content"
 	"github.com/zhukovaskychina/xmysql-server/server/replication"
 )
 
@@ -95,7 +96,11 @@ func (e *XMySQLExecutor) commitReplicationStorageTransaction(session server.MySQ
 		return fmt.Errorf("sync replication transaction journal before storage commit: %w", err)
 	}
 	postCommitBarrierCompleted := false
-	shared.AfterRealCommit = func(_ *StorageTransactionContext) error {
+	shared.AfterRealCommit = func(committed *StorageTransactionContext) error {
+		state := e.sessionTransactionState(session)
+		if state != nil {
+			e.invalidateCommittedVectorIndexes(state.Changes, committed.CommitSequence)
+		}
 		if transactionID == "" || transactionID == "<nil>" {
 			postCommitBarrierCompleted = true
 			return nil
@@ -116,6 +121,12 @@ func (e *XMySQLExecutor) commitReplicationStorageTransaction(session server.MySQ
 		postCommitBarrierCompleted = true
 		return nil
 	}
+	var replicationChanges []transactionDMLChange
+	if state := e.sessionTransactionState(session); state != nil {
+		replicationChanges = state.Changes
+	}
+	releaseVectorFence := e.acquireVectorCommitFence(replicationChanges)
+	defer releaseVectorFence()
 	if err := dml.commitStorageTransaction(commitContext, shared); err != nil {
 		if shared.Status == "COMMITTED" && !postCommitBarrierCompleted {
 			// TransactionManager.Commit has already made the storage change
@@ -161,6 +172,9 @@ func (e *XMySQLExecutor) commitClientStorageTransaction(session server.MySQLServ
 	if e == nil || session == nil {
 		return nil
 	}
+	if captureErr, ok := session.GetParamByName(contentMaintenanceCaptureErrorParam).(error); ok && captureErr != nil {
+		return fmt.Errorf("cannot commit CONTENT changes without durable maintenance identity: %w", captureErr)
+	}
 	shared, ok := session.GetParamByName(clientStorageTransactionContextKey).(*StorageTransactionContext)
 	if !ok || shared == nil {
 		return nil
@@ -190,7 +204,7 @@ func (e *XMySQLExecutor) commitClientStorageTransaction(session server.MySQLServ
 	if shared.RealTransaction != nil && commitIdentity != "" && commitIdentity != "<nil>" {
 		shared.RealTransaction.CommitMetadata = []byte(commitIdentity)
 	}
-	shared.AfterRealCommit = func(_ *StorageTransactionContext) error {
+	shared.AfterRealCommit = func(committed *StorageTransactionContext) error {
 		state := e.sessionTransactionState(session)
 		if state == nil || len(state.Changes) == 0 || strings.TrimSpace(state.CommitKey) == "" {
 			postCommitBarrierCompleted = true
@@ -202,6 +216,10 @@ func (e *XMySQLExecutor) commitClientStorageTransaction(session server.MySQLServ
 		if err := e.syncTransactionJournal(session); err != nil {
 			return err
 		}
+		if err := e.enqueueContentMaintenance(state.Changes); err != nil {
+			return err
+		}
+		e.invalidateCommittedVectorIndexes(state.Changes, committed.CommitSequence)
 		// XA has its own terminal publisher (including the XID-derived key).
 		// Do not publish the ordinary client transaction state here or XA COMMIT
 		// will append one native transaction in this barrier and another in its
@@ -221,6 +239,12 @@ func (e *XMySQLExecutor) commitClientStorageTransaction(session server.MySQLServ
 		postCommitBarrierCompleted = true
 		return nil
 	}
+	var clientChanges []transactionDMLChange
+	if state := e.sessionTransactionState(session); state != nil {
+		clientChanges = state.Changes
+	}
+	releaseVectorFence := e.acquireVectorCommitFence(clientChanges)
+	defer releaseVectorFence()
 	err = dml.commitStorageTransaction(commitContext, shared)
 	if shared.Status == "COMMITTED" {
 		if state := e.sessionTransactionState(session); state != nil {
@@ -273,6 +297,42 @@ func (e *XMySQLExecutor) rollbackClientStorageTransaction(session server.MySQLSe
 	}
 	clearPendingClientTransactionChanges(shared)
 	session.SetParamByName(clientStorageTransactionContextKey, nil)
+	return nil
+}
+
+// rollbackClientStorageTransactionAndChanges keeps transaction-created CONTENT
+// objects alive until the logical rollback has restored the row images. The
+// inverse DML path still needs the transaction's after-image to locate and
+// replace the row; deleting its external object before that step can turn the
+// restored row into an empty or unreadable CONTENT value.
+func (e *XMySQLExecutor) rollbackClientStorageTransactionAndChanges(session server.MySQLServerSession) error {
+	if e == nil || session == nil {
+		return nil
+	}
+	shared, ok := session.GetParamByName(clientStorageTransactionContextKey).(*StorageTransactionContext)
+	if !ok || shared == nil {
+		err := e.rollbackSessionTransaction(session, 0)
+		if err == nil {
+			session.SetParamByName(contentMaintenanceCaptureErrorParam, nil)
+		}
+		return err
+	}
+	createdObjects := append([]content.ObjectRef(nil), shared.CreatedContentObjects...)
+	shared.CreatedContentObjects = nil
+	if err := e.rollbackClientStorageTransaction(session); err != nil {
+		shared.CreatedContentObjects = createdObjects
+		return err
+	}
+	if err := e.rollbackSessionTransaction(session, 0); err != nil {
+		// Keep the unreferenced objects for recovery/GC if inverse DML fails.
+		return err
+	}
+	session.SetParamByName(contentMaintenanceCaptureErrorParam, nil)
+	dml, err := e.newStorageIntegratedDMLExecutor()
+	if err != nil {
+		return err
+	}
+	dml.deleteCreatedContentObjects(createdObjects)
 	return nil
 }
 

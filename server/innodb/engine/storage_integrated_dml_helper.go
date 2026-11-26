@@ -3,21 +3,27 @@ package engine
 import "github.com/zhukovaskychina/xmysql-server/server/common"
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/content"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/vector"
 )
 
 // ===== 数据序列化与反序列化方法 =====
@@ -142,11 +148,22 @@ func autoIncrementValueAsUint64(value interface{}) (uint64, bool) {
 
 // serializeRowData 序列化行数据
 func (dml *StorageIntegratedDMLExecutor) serializeRowData(row *InsertRowData, tableMeta *metadata.TableMeta) ([]byte, error) {
+	return dml.serializeRowDataWithContext(context.Background(), row, tableMeta)
+}
+
+func (dml *StorageIntegratedDMLExecutor) serializeRowDataWithContext(ctx context.Context, row *InsertRowData, tableMeta *metadata.TableMeta) ([]byte, error) {
 	if tableMeta != nil {
-		encoded, err := EncodeClusteredRecord(row, tableMeta)
+		storageRow, err := dml.externalizeLargeContentValues(ctx, row, tableMeta)
 		if err != nil {
 			return nil, err
 		}
+		encoded, err := EncodeClusteredRecord(storageRow, tableMeta)
+		if err != nil {
+			dml.deleteCreatedContentObjects(storageRow.CreatedContentObjects)
+			return nil, err
+		}
+		row.ColumnValues = storageRow.ColumnValues
+		row.CreatedContentObjects = append(row.CreatedContentObjects, storageRow.CreatedContentObjects...)
 		logger.Debugf(" 序列化行数据完成，大小: %d bytes", len(encoded))
 		return encoded, nil
 	}
@@ -185,6 +202,132 @@ func (dml *StorageIntegratedDMLExecutor) serializeRowData(row *InsertRowData, ta
 
 	logger.Debugf(" 序列化行数据完成，大小: %d bytes", len(buffer))
 	return buffer, nil
+}
+
+func (dml *StorageIntegratedDMLExecutor) externalizeLargeContentValues(ctx context.Context, row *InsertRowData, tableMeta *metadata.TableMeta) (result *InsertRowData, resultErr error) {
+	if row == nil || tableMeta == nil {
+		return row, nil
+	}
+	storageRow := &InsertRowData{ColumnValues: make(map[string]interface{}, len(row.ColumnValues)), ColumnTypes: make(map[string]metadata.DataType, len(row.ColumnTypes))}
+	defer func() {
+		if resultErr != nil {
+			dml.deleteCreatedContentObjects(storageRow.CreatedContentObjects)
+		}
+	}()
+	for name, value := range row.ColumnValues {
+		storageRow.ColumnValues[name] = value
+	}
+	for name, dataType := range row.ColumnTypes {
+		storageRow.ColumnTypes[name] = dataType
+	}
+	var store *content.SegmentStore
+	createdRefs := make(map[string]struct{})
+	for _, column := range tableMeta.Columns {
+		if !columnHasDataType(column, metadata.TypeContent) {
+			continue
+		}
+		value, ok := lookupDMLRowValue(storageRow.ColumnValues, column.Name)
+		if !ok || value == nil {
+			continue
+		}
+		var typed content.Value
+		switch current := value.(type) {
+		case content.Value:
+			typed = current
+		case *content.Value:
+			if current == nil {
+				continue
+			}
+			typed = *current
+		case []byte:
+			var err error
+			typed, err = content.NewValue("application/octet-stream", 1, current)
+			if err != nil {
+				return nil, fmt.Errorf("prepare CONTENT column %s: %w", column.Name, err)
+			}
+		case string:
+			var err error
+			typed, err = content.NewValue("application/octet-stream", 1, []byte(current))
+			if err != nil {
+				return nil, fmt.Errorf("prepare CONTENT column %s: %w", column.Name, err)
+			}
+		default:
+			return nil, fmt.Errorf("unsupported CONTENT value type %T for column %s", value, column.Name)
+		}
+		if err := typed.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid CONTENT column %s: %w", column.Name, err)
+		}
+		if typed.ExternalRef != nil {
+			stored := typed
+			if typed.TransientRef {
+				if _, exists := createdRefs[typed.ExternalRef.ID]; !exists {
+					storageRow.CreatedContentObjects = append(storageRow.CreatedContentObjects, *typed.ExternalRef)
+					createdRefs[typed.ExternalRef.ID] = struct{}{}
+				}
+				if sessionValues, ok := storageRow.ColumnValues[sessionExpressionValuesKey].(map[string]interface{}); ok {
+					if adoptedRefs, ok := sessionValues[PreparedContentAdoptedRefsSessionParam].(map[string]bool); ok {
+						adoptedRefs[typed.ExternalRef.ID] = true
+					}
+				}
+				var err error
+				stored, err = content.NewSegmentedValue(*typed.ExternalRef)
+				if err != nil {
+					return nil, fmt.Errorf("bind CONTENT column %s to stored object: %w", column.Name, err)
+				}
+				stored.Revision = typed.Revision
+			}
+			for existingName := range storageRow.ColumnValues {
+				if strings.EqualFold(existingName, column.Name) && existingName != column.Name {
+					delete(storageRow.ColumnValues, existingName)
+				}
+			}
+			storageRow.ColumnValues[column.Name] = stored
+			continue
+		}
+		if typed.Size() <= content.DefaultInlineThreshold || typed.MIMEType == content.BlockMIMEType {
+			continue
+		}
+		if store == nil {
+			var err error
+			store, err = contentSegmentStoreForDataDir(dml.dataDir)
+			if err != nil {
+				return nil, fmt.Errorf("open database CONTENT store: %w", err)
+			}
+		}
+		ref, err := store.Put(ctx, typed.MIMEType, typed.Revision, bytes.NewReader(typed.Bytes))
+		if err != nil {
+			return nil, fmt.Errorf("externalize CONTENT column %s: %w", column.Name, err)
+		}
+		stored, err := content.NewSegmentedValue(ref)
+		if err != nil {
+			_ = store.Delete(ref)
+			return nil, fmt.Errorf("bind CONTENT column %s to stored object: %w", column.Name, err)
+		}
+		storageRow.CreatedContentObjects = append(storageRow.CreatedContentObjects, ref)
+		for existingName := range storageRow.ColumnValues {
+			if strings.EqualFold(existingName, column.Name) && existingName != column.Name {
+				delete(storageRow.ColumnValues, existingName)
+			}
+		}
+		storageRow.ColumnValues[column.Name] = stored
+	}
+	return storageRow, nil
+}
+
+func (dml *StorageIntegratedDMLExecutor) deleteCreatedContentObjects(refs []content.ObjectRef) {
+	if len(refs) == 0 {
+		return
+	}
+	store, err := contentSegmentStoreForDataDir(dml.dataDir)
+	if err != nil {
+		logger.Warnf("open CONTENT store to clean failed DML objects: %v", err)
+		return
+	}
+	for _, ref := range refs {
+		if err := store.Delete(ref); err != nil && !errors.Is(err, content.ErrObjectNotFound) {
+			logger.Warnf("clean failed DML CONTENT object %s: %v", ref.ID, err)
+		}
+	}
 }
 
 // serializeValue 序列化单个值
@@ -468,6 +611,7 @@ func (dml *StorageIntegratedDMLExecutor) commitStorageTransaction(ctx context.Co
 		// uncommitted transaction during recovery.
 		txnCtx.Status = "COMMITTED"
 		txnCtx.EndTime = time.Now()
+		txnCtx.CommitSequence = txnCtx.RealTransaction.CommitLSN
 		postCommit := txnCtx.AfterRealCommit
 		txnCtx.AfterRealCommit = nil
 		if postCommit != nil {
@@ -505,6 +649,9 @@ func (dml *StorageIntegratedDMLExecutor) commitStorageTransaction(ctx context.Co
 		txnCtx.Status = "COMMITTED"
 		txnCtx.EndTime = time.Now()
 	}
+	// The row changes now own these immutable objects. Keep the on-disk values
+	// and drop only the transaction's temporary cleanup list.
+	txnCtx.CreatedContentObjects = nil
 
 	logger.Debugf(" 存储事务提交完成: TxnID=%d, ModifiedPages=%d, Duration=%v",
 		txnCtx.TransactionID, len(txnCtx.ModifiedPages), time.Since(txnCtx.StartTime))
@@ -572,6 +719,8 @@ func (dml *StorageIntegratedDMLExecutor) rollbackStorageTransaction(ctx context.
 		logger.Debugf(" 事务管理器回滚成功: TrxID=%d, Duration=%v",
 			txnCtx.RealTransaction.ID, time.Since(txnCtx.StartTime))
 	}
+	dml.deleteCreatedContentObjects(txnCtx.CreatedContentObjects)
+	txnCtx.CreatedContentObjects = nil
 
 	// 丢弃所有修改的页面（不刷新到磁盘）
 	for spacePageKey, pageNo := range txnCtx.ModifiedPages {
@@ -598,19 +747,29 @@ func (dml *StorageIntegratedDMLExecutor) rollbackStorageTransaction(ctx context.
 
 // StorageTransactionContext 存储事务上下文
 type StorageTransactionContext struct {
-	TransactionID   uint64
-	StartTime       time.Time
-	EndTime         time.Time
-	Status          string               // ACTIVE, COMMITTED, ROLLED_BACK
-	ModifiedPages   map[string]uint32    // "spaceID:pageNo" -> pageNo
-	RealTransaction *manager.Transaction // 真实的事务对象（如果使用事务管理器）
-	Session         server.MySQLServerSession
-	DataDir         string
+	TransactionID         uint64
+	CommitSequence        uint64 // durable WAL commit LSN, assigned only after the commit marker is flushed
+	StartTime             time.Time
+	EndTime               time.Time
+	Status                string               // ACTIVE, COMMITTED, ROLLED_BACK
+	ModifiedPages         map[string]uint32    // "spaceID:pageNo" -> pageNo
+	RealTransaction       *manager.Transaction // 真实的事务对象（如果使用事务管理器）
+	Session               server.MySQLServerSession
+	DataDir               string
+	CreatedContentObjects []content.ObjectRef
 	// AfterRealCommit runs immediately after the real transaction manager has
 	// accepted the commit, before dirty pages are flushed. It is the narrow
 	// durable publication barrier used by client and replication transactions.
 	AfterRealCommit func(*StorageTransactionContext) error
 	PostCommitError error
+}
+
+func (dml *StorageIntegratedDMLExecutor) registerTransactionContentObjects(txn interface{}, refs []content.ObjectRef) {
+	txnCtx, ok := txn.(*StorageTransactionContext)
+	if !ok || txnCtx == nil || len(refs) == 0 {
+		return
+	}
+	txnCtx.CreatedContentObjects = append(txnCtx.CreatedContentObjects, refs...)
 }
 
 func storageTransactionForceCommit(ctx context.Context) bool {
@@ -882,6 +1041,86 @@ func (dml *StorageIntegratedDMLExecutor) applyUpdateExpressions(
 		}
 		if column := findColumnMeta(tableMeta, expr.ColumnName); column != nil && newValue != nil {
 			switch metadata.DataType(strings.ToUpper(string(column.Type))) {
+			case metadata.TypeContent:
+				previous, _ := lookupDMLRowValue(updatedData.ColumnValues, expr.ColumnName)
+				mimeType := "application/octet-stream"
+				revision := uint64(1)
+				switch oldValue := previous.(type) {
+				case content.Value:
+					mimeType = oldValue.MIMEType
+					if oldValue.Revision >= revision {
+						revision = oldValue.Revision + 1
+					}
+				case *content.Value:
+					if oldValue != nil {
+						mimeType = oldValue.MIMEType
+						if oldValue.Revision >= revision {
+							revision = oldValue.Revision + 1
+						}
+					}
+				}
+				var source []byte
+				preservedExternalRef := false
+				switch typed := newValue.(type) {
+				case content.Value:
+					if typed.ExternalRef != nil {
+						// Preserve immutable object identity without copying bytes.
+						// SQL assignment advances the row revision; internal restore
+						// retains the saved revision.
+						newValue = typed.Clone()
+						if typed.TransientRef || expr.Expr != nil {
+							updated := newValue.(content.Value)
+							updated.Revision = revision
+							newValue = updated
+						}
+						preservedExternalRef = true
+						break
+					}
+					mimeType = typed.MIMEType
+					source = typed.Bytes
+				case *content.Value:
+					if typed != nil {
+						if typed.ExternalRef != nil {
+							newValue = typed.Clone()
+							if typed.TransientRef || expr.Expr != nil {
+								updated := newValue.(content.Value)
+								updated.Revision = revision
+								newValue = updated
+							}
+							preservedExternalRef = true
+							break
+						}
+						mimeType = typed.MIMEType
+						source = typed.Bytes
+					} else {
+						return nil, fmt.Errorf("CONTENT update for column '%s' is nil", expr.ColumnName)
+					}
+				case []byte:
+					source = typed
+				case string:
+					source = []byte(typed)
+				default:
+					return nil, fmt.Errorf("unsupported CONTENT value type %T for column '%s'", newValue, expr.ColumnName)
+				}
+				if !preservedExternalRef {
+					updatedContent, err := content.NewValue(mimeType, revision, source)
+					if err != nil {
+						return nil, fmt.Errorf("update CONTENT column '%s': %w", expr.ColumnName, err)
+					}
+					newValue = updatedContent
+				}
+			case metadata.TypeVector:
+				typed, ok := vectorArgument(newValue)
+				if !ok {
+					return nil, fmt.Errorf("VECTOR update for column '%s' requires a typed VECTOR value, got %T", expr.ColumnName, newValue)
+				}
+				if column.Length > 0 && typed.Dimension() != column.Length {
+					return nil, fmt.Errorf("VECTOR update for column '%s' has dimension %d, want %d", expr.ColumnName, typed.Dimension(), column.Length)
+				}
+				if err := typed.Validate(); err != nil {
+					return nil, err
+				}
+				newValue = typed
 			case metadata.TypeTinyInt, metadata.TypeSmallInt, metadata.TypeMediumInt, metadata.TypeInt, metadata.TypeBigInt:
 				parsed, ok, overflow := boundedIntegerColumnValue(newValue, metadata.DataType(strings.ToUpper(string(column.Type))), column.IsUnsigned)
 				if ok {
@@ -955,8 +1194,92 @@ func (dml *StorageIntegratedDMLExecutor) applyUpdateExpressions(
 	if err := applyGeneratedColumnsToRow(updatedData.ColumnValues, tableMeta); err != nil {
 		return nil, err
 	}
+	if err := dml.invalidateChangedSourceBlocks(existingData, updatedData, tableMeta); err != nil {
+		return nil, err
+	}
 
 	return updatedData, nil
+}
+
+// invalidateChangedSourceBlocks marks same-row derived blocks stale when the
+// exact CONTENT value they reference changes. The source binding must match
+// the old row identity first, so editing an unrelated block row cannot stale a
+// reference to a different table or primary key.
+func (dml *StorageIntegratedDMLExecutor) invalidateChangedSourceBlocks(existingData, updatedData *InsertRowData, tableMeta *metadata.TableMeta) error {
+	if dml == nil || existingData == nil || updatedData == nil || tableMeta == nil {
+		return nil
+	}
+	oldPrimaryKey, oldKeyExists, err := contentSourcePrimaryKey(existingData.ColumnValues, tableMeta)
+	if err != nil || !oldKeyExists {
+		return err
+	}
+	newPrimaryKey, newKeyExists, err := contentSourcePrimaryKey(updatedData.ColumnValues, tableMeta)
+	if err != nil {
+		return err
+	}
+	for _, blockColumn := range tableMeta.Columns {
+		if !columnHasDataType(blockColumn, metadata.TypeContent) {
+			continue
+		}
+		blockValue, ok := dmlContentValue(updatedData.ColumnValues, blockColumn.Name)
+		if !ok || blockValue.MIMEType != content.BlockMIMEType {
+			continue
+		}
+		block, err := content.BlockFromValue(blockValue)
+		if err != nil {
+			return fmt.Errorf("decode derived CONTENT block in column %s: %w", blockColumn.Name, err)
+		}
+		if block.State == content.BlockStateStale {
+			continue
+		}
+		oldSourceValue, ok := dmlContentValue(existingData.ColumnValues, block.Source.Column)
+		if !ok {
+			continue
+		}
+		oldSource, err := content.NewSourceRef(dml.schemaName, dml.tableName, block.Source.Column, oldPrimaryKey, oldSourceValue)
+		if err != nil || !block.Source.Matches(oldSource) {
+			continue
+		}
+		if newKeyExists {
+			if newSourceValue, exists := dmlContentValue(updatedData.ColumnValues, block.Source.Column); exists {
+				newSource, sourceErr := content.NewSourceRef(dml.schemaName, dml.tableName, block.Source.Column, newPrimaryKey, newSourceValue)
+				if sourceErr == nil && block.Source.Matches(newSource) {
+					continue
+				}
+			}
+		}
+
+		block.State = content.BlockStateStale
+		encodedBlock, err := block.MarshalBinary()
+		if err != nil {
+			return fmt.Errorf("encode stale derived CONTENT block in column %s: %w", blockColumn.Name, err)
+		}
+		if blockValue.Revision == ^uint64(0) {
+			return fmt.Errorf("derived CONTENT block revision overflow in column %s", blockColumn.Name)
+		}
+		staleValue, err := content.NewValue(content.BlockMIMEType, blockValue.Revision+1, encodedBlock)
+		if err != nil {
+			return fmt.Errorf("store stale derived CONTENT block in column %s: %w", blockColumn.Name, err)
+		}
+		updatedData.ColumnValues[blockColumn.Name] = staleValue
+	}
+	return nil
+}
+
+func dmlContentValue(row map[string]interface{}, column string) (content.Value, bool) {
+	value, exists := lookupDMLRowValue(row, column)
+	if !exists {
+		return content.Value{}, false
+	}
+	switch typed := value.(type) {
+	case content.Value:
+		return typed, true
+	case *content.Value:
+		if typed != nil {
+			return *typed, true
+		}
+	}
+	return content.Value{}, false
 }
 
 // ===== 统计信息更新方法 =====
@@ -1020,6 +1343,11 @@ func (dml *StorageIntegratedDMLExecutor) parseInsertData(ctx context.Context, st
 				ColumnValues: make(map[string]interface{}),
 				ColumnTypes:  make(map[string]metadata.DataType),
 			}
+			if ctx != nil {
+				if session, ok := ctx.Value(storageTransactionSessionContextKey).(server.MySQLServerSession); ok && session != nil {
+					rowData.ColumnValues[sessionExpressionValuesKey] = newSessionExpressionValues(session)
+				}
+			}
 
 			if len(valTuple) != len(columnNames) {
 				return nil, fmt.Errorf("列数量不匹配: 期望 %d，实际 %d", len(columnNames), len(valTuple))
@@ -1027,21 +1355,33 @@ func (dml *StorageIntegratedDMLExecutor) parseInsertData(ctx context.Context, st
 
 			for i, expr := range valTuple {
 				columnName := columnNames[i]
+				if insertExpressionNeedsSourceRowContext(expr) {
+					rowData.pendingSourceExpressions = append(rowData.pendingSourceExpressions, pendingInsertSourceExpression{column: columnName, expr: expr})
+					if column := findColumnMeta(tableMeta, columnName); column != nil {
+						rowData.ColumnTypes[columnName] = column.Type
+					} else {
+						rowData.ColumnTypes[columnName] = metadata.TypeVarchar
+					}
+					continue
+				}
 				var value interface{}
 				var err error
 				if _, isDefault := expr.(*sqlparser.Default); isDefault {
 					value, err = normalizedDefaultValueForColumn(tableMeta, columnName)
 				} else {
-					value, err = dml.evaluateExpression(expr)
+					value, err = evaluateExpressionWithRow(expr, rowData.ColumnValues)
 				}
 				if err != nil {
 					return nil, fmt.Errorf("计算表达式值失败: %v", err)
 				}
 
 				rowData.ColumnValues[columnName] = value
-				rowData.ColumnTypes[columnName] = metadata.TypeVarchar
+				if column := findColumnMeta(tableMeta, columnName); column != nil {
+					rowData.ColumnTypes[columnName] = column.Type
+				} else {
+					rowData.ColumnTypes[columnName] = metadata.TypeVarchar
+				}
 			}
-
 			insertRows = append(insertRows, rowData)
 		}
 	case *sqlparser.Select:
@@ -1062,6 +1402,107 @@ func (dml *StorageIntegratedDMLExecutor) parseInsertData(ctx context.Context, st
 	return insertRows, nil
 }
 
+func (dml *StorageIntegratedDMLExecutor) resolvePendingInsertSourceExpressions(rows []*InsertRowData, tableMeta *metadata.TableMeta, schemaName string) error {
+	for _, row := range rows {
+		if row == nil || len(row.pendingSourceExpressions) == 0 {
+			continue
+		}
+		if err := dml.assignPendingInsertAutoIncrementPrimaryKey(row, tableMeta); err != nil {
+			return err
+		}
+		if err := bindPendingInsertSourceContext(row, tableMeta, schemaName); err != nil {
+			return err
+		}
+		for _, pending := range row.pendingSourceExpressions {
+			value, err := evaluateExpressionWithRow(pending.expr, row.ColumnValues)
+			if err != nil {
+				delete(row.ColumnValues, contentSourceRowContextKey)
+				return fmt.Errorf("计算来源绑定表达式 %s 失败: %w", pending.column, err)
+			}
+			row.ColumnValues[pending.column] = value
+		}
+		delete(row.ColumnValues, contentSourceRowContextKey)
+		row.pendingSourceExpressions = nil
+	}
+	return nil
+}
+
+func (dml *StorageIntegratedDMLExecutor) assignPendingInsertAutoIncrementPrimaryKey(row *InsertRowData, tableMeta *metadata.TableMeta) error {
+	if row == nil || tableMeta == nil {
+		return fmt.Errorf("cannot assign source-bound INSERT primary key without row metadata")
+	}
+	for _, primaryKeyColumn := range effectivePrimaryKeyColumns(tableMeta) {
+		column := findColumnMeta(tableMeta, primaryKeyColumn)
+		if column == nil || !column.IsAutoIncrement {
+			continue
+		}
+		if value, exists := resolveExpressionRowValue(row.ColumnValues, primaryKeyColumn); exists && value != nil {
+			return nil
+		}
+		if _, err := dml.generatePrimaryKey(row, tableMeta); err != nil {
+			return fmt.Errorf("assign auto-increment primary key for source-bound INSERT: %w", err)
+		}
+		if value, exists := resolveExpressionRowValue(row.ColumnValues, primaryKeyColumn); !exists || value == nil {
+			return fmt.Errorf("auto-increment primary key %s was not assigned", primaryKeyColumn)
+		}
+		return nil
+	}
+	return nil
+}
+
+func insertExpressionNeedsSourceRowContext(expression sqlparser.Expr) bool {
+	needsContext := false
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		function, ok := node.(*sqlparser.FuncExpr)
+		if !ok {
+			return true, nil
+		}
+		switch strings.ToUpper(strings.Trim(function.Name.String(), "` ")) {
+		case "CONTENT_BLOCK_FROM_SOURCE", "VECTOR_FROM_SOURCE", "VECTOR_FROM_BLOCK":
+			needsContext = true
+			return false, nil
+		default:
+			return true, nil
+		}
+	}, expression)
+	return needsContext
+}
+
+func bindPendingInsertSourceContext(row *InsertRowData, tableMeta *metadata.TableMeta, schemaName string) error {
+	if row == nil || tableMeta == nil {
+		return fmt.Errorf("cannot bind insert source context without a row and table metadata")
+	}
+	primaryKeyColumns := effectivePrimaryKeyColumns(tableMeta)
+	if len(primaryKeyColumns) == 0 {
+		return fmt.Errorf("source-bound INSERT expressions require an explicit, complete primary key")
+	}
+	var primaryKey []byte
+	if len(primaryKeyColumns) == 1 {
+		value, exists := resolveExpressionRowValue(row.ColumnValues, primaryKeyColumns[0])
+		if !exists || value == nil {
+			return fmt.Errorf("source-bound INSERT expressions require an explicit, complete primary key")
+		}
+		var ok bool
+		primaryKey, ok = storageKeyToBytes(value)
+		if !ok {
+			return fmt.Errorf("source-bound INSERT primary key cannot be encoded")
+		}
+	} else {
+		var err error
+		primaryKey, err = buildCompositeKey(row.ColumnValues, primaryKeyColumns)
+		if err != nil {
+			return err
+		}
+	}
+	if strings.TrimSpace(schemaName) == "" || strings.TrimSpace(tableMeta.Name) == "" {
+		return fmt.Errorf("source-bound INSERT expressions require a resolved schema and table")
+	}
+	row.ColumnValues[contentSourceRowContextKey] = contentSourceRowContext{
+		Schema: strings.TrimSpace(schemaName), Table: strings.TrimSpace(tableMeta.Name), PrimaryKey: append([]byte(nil), primaryKey...),
+	}
+	return nil
+}
+
 func (dml *StorageIntegratedDMLExecutor) insertRowsFromSelectResult(result *SelectResult, targetMeta *metadata.TableMeta, targetColumnNames []string) ([]*InsertRowData, error) {
 	if result == nil {
 		return nil, nil
@@ -1078,6 +1519,13 @@ func (dml *StorageIntegratedDMLExecutor) insertRowsFromSelectResult(result *Sele
 		rowData := &InsertRowData{ColumnValues: make(map[string]interface{}, len(values)), ColumnTypes: make(map[string]metadata.DataType, len(values))}
 		for index, targetColumnName := range targetColumnNames {
 			value := basicValueToInterface(values[index])
+			if typedRecord, ok := record.(*EngineExecutorRecord); ok {
+				if contentValue, exists := typedRecord.ContentValueByIndex(index); exists {
+					value = contentValue
+				} else if vectorValue, exists := typedRecord.VectorValueByIndex(index); exists {
+					value = vectorValue
+				}
+			}
 			rowData.ColumnValues[targetColumnName] = value
 			if column := findColumnMeta(targetMeta, targetColumnName); column != nil {
 				rowData.ColumnTypes[targetColumnName] = column.Type
@@ -1174,6 +1622,23 @@ func (dml *StorageIntegratedDMLExecutor) parseInsertSelectData(
 
 func insertSelectNeedsGeneralExecutor(selectStmt *sqlparser.Select) bool {
 	if selectStmt == nil || len(selectStmt.From) != 1 {
+		return true
+	}
+	// Native content/model projections need the SELECT executor's source-row
+	// identity, segment-store context, authorization and statement budgets.
+	// The simple DML projection evaluator does not carry that context.
+	needsNativeContext := false
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		if function, ok := node.(*sqlparser.FuncExpr); ok {
+			name := strings.ToUpper(function.Name.String())
+			if strings.HasPrefix(name, "CONTENT_") || strings.HasPrefix(name, "VECTOR_") || strings.HasPrefix(name, "AI_") {
+				needsNativeContext = true
+				return false, nil
+			}
+		}
+		return true, nil
+	}, selectStmt)
+	if needsNativeContext {
 		return true
 	}
 	aliased, simpleSource := selectStmt.From[0].(*sqlparser.AliasedTableExpr)
@@ -1284,7 +1749,7 @@ func (dml *StorageIntegratedDMLExecutor) parseSQLVal(val *sqlparser.SQLVal) (int
 	case sqlparser.FloatVal:
 		return strconv.ParseFloat(string(val.Val), 64)
 	case sqlparser.HexVal:
-		return val.Val, nil
+		return decodeSQLHexLiteral(val.Val)
 	default:
 		return string(val.Val), nil
 	}
@@ -1350,10 +1815,14 @@ func (dml *StorageIntegratedDMLExecutor) parseUpdateExpressions(exprs sqlparser.
 			}
 		}
 
+		columnType := metadata.TypeVarchar
+		if column := findColumnMeta(tableMeta, columnName); column != nil {
+			columnType = column.Type
+		}
 		updateExpr := &UpdateExpression{
 			ColumnName: columnName,
 			NewValue:   value,
-			ColumnType: metadata.TypeVarchar,
+			ColumnType: columnType,
 			Expr:       expr.Expr,
 		}
 
@@ -2236,10 +2705,18 @@ func evalPredicateTruth(expr sqlparser.Expr, values map[string]interface{}) (int
 		if err != nil {
 			return sqlTruthFalse, err
 		}
+		lowerCollation, err := resolveComparisonCollation(v.Left, v.From, values, "BETWEEN")
+		if err != nil {
+			return sqlTruthFalse, err
+		}
+		upperCollation, err := resolveComparisonCollation(v.Left, v.To, values, "BETWEEN")
+		if err != nil {
+			return sqlTruthFalse, err
+		}
 		if left == nil || from == nil || to == nil {
 			return sqlTruthUnknown, nil
 		}
-		matched := compareScalarValues(left, from) >= 0 && compareScalarValues(left, to) <= 0
+		matched := compareScalarValuesWithCollation(left, from, lowerCollation) >= 0 && compareScalarValuesWithCollation(left, to, upperCollation) <= 0
 		if v.Operator == sqlparser.NotBetweenStr {
 			return truthValue(!matched), nil
 		}
@@ -2249,9 +2726,13 @@ func evalPredicateTruth(expr sqlparser.Expr, values map[string]interface{}) (int
 		if err != nil {
 			return sqlTruthFalse, err
 		}
+		collation, err := resolveComparisonCollation(v.Left, v.Right, values, v.Operator)
+		if err != nil {
+			return sqlTruthFalse, err
+		}
 		switch v.Operator {
 		case sqlparser.InStr, sqlparser.NotInStr:
-			matched, unknown, err := evalInPredicate(left, v.Right, values)
+			matched, unknown, err := evalInPredicateWithCollation(left, v.Right, values, collation)
 			if err != nil {
 				return sqlTruthFalse, err
 			}
@@ -2270,7 +2751,7 @@ func evalPredicateTruth(expr sqlparser.Expr, values map[string]interface{}) (int
 			if left == nil || right == nil {
 				return sqlTruthUnknown, nil
 			}
-			matched, err := sqlLikePatternMatchWithEscape(fmt.Sprintf("%v", left), fmt.Sprintf("%v", right), v.Escape, values)
+			matched, err := sqlLikePatternMatchWithEscapeAndCollation(fmt.Sprintf("%v", left), fmt.Sprintf("%v", right), v.Escape, values, collation)
 			if err != nil {
 				return sqlTruthFalse, err
 			}
@@ -2286,7 +2767,7 @@ func evalPredicateTruth(expr sqlparser.Expr, values map[string]interface{}) (int
 			if left == nil || right == nil {
 				return sqlTruthUnknown, nil
 			}
-			matched, err := regexp.MatchString(fmt.Sprint(right), fmt.Sprint(left))
+			matched, err := sqlRegexpMatchWithCollation(fmt.Sprint(right), fmt.Sprint(left), collation)
 			if err != nil {
 				return sqlTruthFalse, err
 			}
@@ -2303,7 +2784,7 @@ func evalPredicateTruth(expr sqlparser.Expr, values map[string]interface{}) (int
 			if left == nil || right == nil {
 				return truthValue(left == nil && right == nil), nil
 			}
-			return truthValue(compareScalarValues(left, right) == 0), nil
+			return truthValue(compareScalarValuesWithCollation(left, right, collation) == 0), nil
 		}
 		// A comparison involving NULL is UNKNOWN and therefore does not
 		// satisfy a WHERE/EXISTS predicate. Do not let compareScalarValues
@@ -2311,7 +2792,7 @@ func evalPredicateTruth(expr sqlparser.Expr, values map[string]interface{}) (int
 		if left == nil || right == nil {
 			return sqlTruthUnknown, nil
 		}
-		cmp := compareScalarValues(left, right)
+		cmp := compareScalarValuesWithCollation(left, right, collation)
 		switch v.Operator {
 		case sqlparser.EqualStr:
 			return truthValue(cmp == 0), nil
@@ -2345,6 +2826,10 @@ func truthValue(value bool) int {
 }
 
 func evalInPredicate(left interface{}, right sqlparser.Expr, values map[string]interface{}) (bool, bool, error) {
+	return evalInPredicateWithCollation(left, right, values, "")
+}
+
+func evalInPredicateWithCollation(left interface{}, right sqlparser.Expr, values map[string]interface{}, collation string) (bool, bool, error) {
 	if left == nil {
 		return false, true, nil
 	}
@@ -2357,7 +2842,7 @@ func evalInPredicate(left interface{}, right sqlparser.Expr, values map[string]i
 		if value == nil {
 			return false, true, nil
 		}
-		return compareScalarValues(left, value) == 0, false, nil
+		return compareScalarValuesWithCollation(left, value, collation) == 0, false, nil
 	}
 	hasNull := false
 	for _, expr := range tuple {
@@ -2369,7 +2854,7 @@ func evalInPredicate(left interface{}, right sqlparser.Expr, values map[string]i
 			hasNull = true
 			continue
 		}
-		if compareScalarValues(left, value) == 0 {
+		if compareScalarValuesWithCollation(left, value, collation) == 0 {
 			return true, false, nil
 		}
 	}
@@ -2400,6 +2885,10 @@ func sqlLikePatternMatch(value, pattern string) bool {
 }
 
 func sqlLikePatternMatchWithEscape(value, pattern string, escapeExpr sqlparser.Expr, values map[string]interface{}) (bool, error) {
+	return sqlLikePatternMatchWithEscapeAndCollation(value, pattern, escapeExpr, values, "")
+}
+
+func sqlLikePatternMatchWithEscapeAndCollation(value, pattern string, escapeExpr sqlparser.Expr, values map[string]interface{}, collationName string) (bool, error) {
 	escape := "\\"
 	if escapeExpr != nil {
 		escapeValue, err := evaluateExpressionWithRow(escapeExpr, values)
@@ -2417,12 +2906,30 @@ func sqlLikePatternMatchWithEscape(value, pattern string, escapeExpr sqlparser.E
 	}
 	escapeRune := escapeRunes[0]
 
+	caseInsensitive := true // Preserve the legacy fallback when no collation is available.
+	accentInsensitive := false
+	if collation, found := common.CollationMetadataByName(collationName); found {
+		lowerName := strings.ToLower(collation.Name)
+		caseInsensitive = !strings.EqualFold(collation.Charset, "binary") && strings.HasSuffix(lowerName, "_ci")
+		accentInsensitive = !strings.EqualFold(collation.Charset, "binary") && strings.Contains(lowerName, "_ai_")
+		if accentInsensitive {
+			value = removeCollationDiacritics(value)
+		}
+	}
 	var b strings.Builder
-	b.WriteString("(?i)^")
+	b.WriteString("(?s)") // SQL LIKE wildcards also match line terminators.
+	if caseInsensitive {
+		b.WriteString("(?i)")
+	}
+	b.WriteString("^")
 	escaped := false
 	for _, r := range pattern {
 		if escaped {
-			b.WriteString(regexp.QuoteMeta(string(r)))
+			literal := string(r)
+			if accentInsensitive {
+				literal = removeCollationDiacritics(literal)
+			}
+			b.WriteString(regexp.QuoteMeta(literal))
 			escaped = false
 			continue
 		}
@@ -2436,11 +2943,19 @@ func sqlLikePatternMatchWithEscape(value, pattern string, escapeExpr sqlparser.E
 		case '_':
 			b.WriteString(".")
 		default:
-			b.WriteString(regexp.QuoteMeta(string(r)))
+			literal := string(r)
+			if accentInsensitive {
+				literal = removeCollationDiacritics(literal)
+			}
+			b.WriteString(regexp.QuoteMeta(literal))
 		}
 	}
 	if escaped {
-		b.WriteString(regexp.QuoteMeta("\\"))
+		literal := string(escapeRune)
+		if accentInsensitive {
+			literal = removeCollationDiacritics(literal)
+		}
+		b.WriteString(regexp.QuoteMeta(literal))
 	}
 	b.WriteString("$")
 	re, err := regexp.Compile(b.String())
@@ -2448,6 +2963,42 @@ func sqlLikePatternMatchWithEscape(value, pattern string, escapeExpr sqlparser.E
 		return false, err
 	}
 	return re.MatchString(value), nil
+}
+
+func preparedContentParam(values map[string]interface{}, index interface{}) (content.Value, error) {
+	var paramID uint64
+	switch typed := index.(type) {
+	case int:
+		if typed < 0 {
+			return content.Value{}, fmt.Errorf("CONTENT_PARAM index must be non-negative")
+		}
+		paramID = uint64(typed)
+	case int64:
+		if typed < 0 {
+			return content.Value{}, fmt.Errorf("CONTENT_PARAM index must be non-negative")
+		}
+		paramID = uint64(typed)
+	case uint64:
+		paramID = typed
+	default:
+		return content.Value{}, fmt.Errorf("CONTENT_PARAM index must be an integer; got %T", index)
+	}
+	if paramID > uint64(^uint16(0)) {
+		return content.Value{}, fmt.Errorf("CONTENT_PARAM index is out of range")
+	}
+	sessionValues := values
+	if nested, ok := values[sessionExpressionValuesKey].(map[string]interface{}); ok {
+		sessionValues = nested
+	}
+	params, ok := sessionValues[PreparedContentParamsSessionParam].(map[uint16]content.Value)
+	if !ok {
+		return content.Value{}, fmt.Errorf("CONTENT_PARAM is only valid for the active prepared statement execution")
+	}
+	value, ok := params[uint16(paramID)]
+	if !ok {
+		return content.Value{}, fmt.Errorf("CONTENT_PARAM %d is not bound for this execution", paramID)
+	}
+	return value, nil
 }
 
 func evaluateExpressionWithRow(expr sqlparser.Expr, values map[string]interface{}) (interface{}, error) {
@@ -2489,6 +3040,944 @@ func evaluateExpressionWithRow(expr sqlparser.Expr, values map[string]interface{
 		}
 		return nil, fmt.Errorf("column %s not found in INSERT values", columnName)
 	case *sqlparser.FuncExpr:
+		functionName := strings.ToUpper(strings.Trim(v.Name.String(), "` "))
+		if functionName == "RRF_SCORE" {
+			return evaluateReciprocalRankFusion(v, values)
+		}
+		if functionName == "CONTENT_PARAM" {
+			if len(v.Exprs) != 1 {
+				return nil, fmt.Errorf("CONTENT_PARAM requires one parameter index")
+			}
+			argument, ok := v.Exprs[0].(*sqlparser.AliasedExpr)
+			if !ok {
+				return nil, fmt.Errorf("CONTENT_PARAM index must be a scalar expression")
+			}
+			index, err := evaluateExpressionWithRow(argument.Expr, values)
+			if err != nil {
+				return nil, err
+			}
+			value, err := preparedContentParam(values, index)
+			if err != nil {
+				return nil, err
+			}
+			return value, nil
+		}
+		if functionName == "CONTENT_BLOCK_CONTEXT" {
+			return evaluateContentBlockContext(v, values)
+		}
+		if functionName == "CONTENT_BLOCK_SOURCE_SLICE" {
+			return evaluateContentBlockSourceSlice(v, values)
+		}
+		if functionName == "CONTENT_PARSE_CSV" {
+			return evaluateContentParseCSV(v, values)
+		}
+		if functionName == "CONTENT_PARSE_JSON_ARRAY" {
+			return evaluateContentParseJSONArray(v, values)
+		}
+		if functionName == "CONTENT_PARSE_IMAGE" {
+			return evaluateContentParseImage(v, values)
+		}
+		if functionName == "CONTENT_PARSE_AUDIO" {
+			return evaluateContentParseAudio(v, values)
+		}
+		if functionName == "CONTENT_PARSE_VIDEO" {
+			return evaluateContentParseVideo(v, values)
+		}
+		if functionName == "CONTENT_BLOCK_RETRIEVAL_TEXT" {
+			if len(v.Exprs) != 1 {
+				return nil, fmt.Errorf("CONTENT_BLOCK_RETRIEVAL_TEXT requires exactly one CONTENT_BLOCK")
+			}
+			block, isNull, err := evaluateContentBlockArgument(v, values)
+			if err != nil || isNull {
+				return nil, err
+			}
+			text, available, err := content.BlockRetrievalText(block)
+			if err != nil || !available {
+				return nil, err
+			}
+			return text, nil
+		}
+		if functionName == "CONTENT_BLOCK_MATCHES_SOURCE" || functionName == "CONTENT_BLOCK_VERIFIED_TEXT" {
+			if len(v.Exprs) != 2 {
+				return nil, fmt.Errorf("%s requires a CONTENT_BLOCK and a source CONTENT column", functionName)
+			}
+			blockFunction := *v
+			blockFunction.Exprs = v.Exprs[:1]
+			block, isNull, err := evaluateContentBlockArgument(&blockFunction, values)
+			if err != nil {
+				return nil, err
+			}
+			if isNull {
+				return nil, nil
+			}
+			sourceColumnExpr, ok := v.Exprs[1].(*sqlparser.AliasedExpr)
+			if !ok {
+				return nil, fmt.Errorf("%s source must be a CONTENT column", functionName)
+			}
+			sourceColumn, ok := sourceColumnExpr.Expr.(*sqlparser.ColName)
+			if !ok {
+				return nil, fmt.Errorf("%s source must be a CONTENT column", functionName)
+			}
+			sourceValue, err := evaluateExpressionWithRow(sourceColumn, values)
+			if err != nil {
+				return nil, err
+			}
+			if sourceValue == nil {
+				if functionName == "CONTENT_BLOCK_VERIFIED_TEXT" {
+					return nil, nil
+				}
+				return false, nil
+			}
+			rowContext, ok := contentSourceContextForColumn(values, sourceColumn)
+			if !ok || len(rowContext.PrimaryKey) == 0 {
+				return nil, fmt.Errorf("%s requires stored-row context for the source column", functionName)
+			}
+			var typedSource content.Value
+			switch typed := sourceValue.(type) {
+			case content.Value:
+				typedSource = typed
+			case *content.Value:
+				if typed == nil {
+					return false, nil
+				}
+				typedSource = *typed
+			default:
+				return nil, fmt.Errorf("%s requires a typed CONTENT column; got %T", functionName, sourceValue)
+			}
+			actualSource, err := content.NewSourceRef(rowContext.Schema, rowContext.Table, sourceColumn.Name.String(), rowContext.PrimaryKey, typedSource)
+			if err != nil {
+				return nil, fmt.Errorf("%s current source is invalid: %w", functionName, err)
+			}
+			matches := block.State == content.BlockStateReady && block.Source.Matches(actualSource)
+			if functionName == "CONTENT_BLOCK_VERIFIED_TEXT" {
+				// Matching source identity/version alone does not prove that a
+				// caller-supplied block's text was extracted from that source.
+				// This prototype only releases text when its byte locator points
+				// to the exact same UTF-8 bytes in the current source value.
+				if !matches || block.Kind != content.BlockText || block.Locator.ByteStart == nil || block.Locator.ByteEnd == nil || !utf8.ValidString(block.Text) {
+					return nil, nil
+				}
+				if *block.Locator.ByteEnd < *block.Locator.ByteStart || *block.Locator.ByteEnd-*block.Locator.ByteStart > content.MaxReadRangeBytes {
+					return nil, nil
+				}
+				store, err := contentSegmentStoreForValue(values, typedSource)
+				if err != nil {
+					return nil, err
+				}
+				sourceRange, err := typedSource.ReadRangeFromStore(storedFunctionContext(values), store, *block.Locator.ByteStart, *block.Locator.ByteEnd-*block.Locator.ByteStart)
+				if err != nil {
+					return nil, fmt.Errorf("%s source range read failed: %w", functionName, err)
+				}
+				if string(sourceRange) != block.Text {
+					return nil, nil
+				}
+				return block.Text, nil
+			}
+			return matches, nil
+		}
+		if functionName == "CONTENT_BLOCK_FROM_SOURCE" {
+			if len(v.Exprs) != 2 {
+				return nil, fmt.Errorf("CONTENT_BLOCK_FROM_SOURCE requires a JSON definition and a source CONTENT column")
+			}
+			definition, ok := v.Exprs[0].(*sqlparser.AliasedExpr)
+			if !ok {
+				return nil, fmt.Errorf("CONTENT_BLOCK_FROM_SOURCE JSON definition must be a scalar expression")
+			}
+			rawDefinition, err := evaluateExpressionWithRow(definition.Expr, values)
+			if err != nil {
+				return nil, err
+			}
+			if rawDefinition == nil {
+				return nil, nil
+			}
+			var definitionBytes []byte
+			switch typed := rawDefinition.(type) {
+			case []byte:
+				definitionBytes = append([]byte(nil), typed...)
+			case string:
+				definitionBytes = []byte(typed)
+			default:
+				return nil, fmt.Errorf("CONTENT_BLOCK_FROM_SOURCE definition must be JSON text or bytes; got %T", rawDefinition)
+			}
+			sourceColumnExpr, ok := v.Exprs[1].(*sqlparser.AliasedExpr)
+			if !ok {
+				return nil, fmt.Errorf("CONTENT_BLOCK_FROM_SOURCE source must be a CONTENT column")
+			}
+			sourceColumn, ok := sourceColumnExpr.Expr.(*sqlparser.ColName)
+			if !ok {
+				return nil, fmt.Errorf("CONTENT_BLOCK_FROM_SOURCE source must be a CONTENT column")
+			}
+			sourceValue, err := evaluateExpressionWithRow(sourceColumn, values)
+			if err != nil {
+				return nil, err
+			}
+			if sourceValue == nil {
+				return nil, nil
+			}
+			rowContext, ok := contentSourceContextForColumn(values, sourceColumn)
+			if !ok || len(rowContext.PrimaryKey) == 0 {
+				return nil, fmt.Errorf("CONTENT_BLOCK_FROM_SOURCE requires stored-row context for the source column")
+			}
+			var typedSource content.Value
+			switch typed := sourceValue.(type) {
+			case content.Value:
+				typedSource = typed
+			case *content.Value:
+				if typed == nil {
+					return nil, nil
+				}
+				typedSource = *typed
+			default:
+				return nil, fmt.Errorf("CONTENT_BLOCK_FROM_SOURCE requires a typed CONTENT column; got %T", sourceValue)
+			}
+			source, err := content.NewSourceRef(rowContext.Schema, rowContext.Table, sourceColumn.Name.String(), rowContext.PrimaryKey, typedSource)
+			if err != nil {
+				return nil, fmt.Errorf("CONTENT_BLOCK_FROM_SOURCE source verification failed: %w", err)
+			}
+			block, err := content.BlockFromSourceJSON(definitionBytes, source)
+			if err != nil {
+				return nil, err
+			}
+			return content.BlockValue(block)
+		}
+		if functionName == "CONTENT_TEXT_BLOCK" {
+			return evaluateContentTextBlock(v, values)
+		}
+		if functionName == "CONTENT_TEXT_CHUNK" || functionName == "CONTENT_TEXT_CHUNK_COUNT" {
+			return evaluateContentTextChunkSQL(v, values, functionName == "CONTENT_TEXT_CHUNK_COUNT")
+		}
+		if functionName == "CONTENT_BLOCK_FROM_JSON" {
+			if len(v.Exprs) != 1 {
+				return nil, fmt.Errorf("CONTENT_BLOCK_FROM_JSON requires exactly one JSON argument")
+			}
+			argument, ok := v.Exprs[0].(*sqlparser.AliasedExpr)
+			if !ok {
+				return nil, fmt.Errorf("CONTENT_BLOCK_FROM_JSON argument must be a scalar expression")
+			}
+			value, err := evaluateExpressionWithRow(argument.Expr, values)
+			if err != nil {
+				return nil, err
+			}
+			if value == nil {
+				return nil, nil
+			}
+			var input []byte
+			switch typed := value.(type) {
+			case []byte:
+				input = append([]byte(nil), typed...)
+			case string:
+				input = []byte(typed)
+			default:
+				return nil, fmt.Errorf("CONTENT_BLOCK_FROM_JSON requires a JSON string or binary parameter; got %T", value)
+			}
+			block, err := content.BlockFromJSON(input)
+			if err != nil {
+				return nil, err
+			}
+			return content.BlockValue(block)
+		}
+		if functionName == "VECTOR_FROM_ARRAY" {
+			if len(v.Exprs) < 5 {
+				return nil, fmt.Errorf("VECTOR_FROM_ARRAY requires model ID, model version, shared space ID, source modality and at least one element")
+			}
+			arguments := make([]interface{}, 0, len(v.Exprs))
+			for _, rawArgument := range v.Exprs {
+				argument, ok := rawArgument.(*sqlparser.AliasedExpr)
+				if !ok {
+					return nil, fmt.Errorf("VECTOR_FROM_ARRAY arguments must be scalar expressions")
+				}
+				value, err := evaluateExpressionWithRow(argument.Expr, values)
+				if err != nil {
+					return nil, err
+				}
+				arguments = append(arguments, value)
+			}
+			for _, argument := range arguments {
+				if argument == nil {
+					return nil, nil
+				}
+			}
+			modelID, err := vectorStringArgument(arguments[0], "model ID")
+			if err != nil {
+				return nil, err
+			}
+			modelVersion, err := vectorStringArgument(arguments[1], "model version")
+			if err != nil {
+				return nil, err
+			}
+			spaceID, err := vectorStringArgument(arguments[2], "embedding space ID")
+			if err != nil {
+				return nil, err
+			}
+			modality, err := vectorStringArgument(arguments[3], "source modality")
+			if err != nil {
+				return nil, err
+			}
+			elements := make([]float32, 0, len(arguments)-4)
+			for index, raw := range arguments[4:] {
+				value, err := codecToFloat64(raw)
+				if err != nil {
+					return nil, fmt.Errorf("VECTOR_FROM_ARRAY element %d: %w", index, err)
+				}
+				elements = append(elements, float32(value))
+			}
+			return vector.NewValue(vector.Space{ModelID: modelID, ModelVersion: modelVersion, ID: spaceID}, modality, elements)
+		}
+		if functionName == "VECTOR_FROM_SOURCE" {
+			if len(v.Exprs) != 2 {
+				return nil, fmt.Errorf("VECTOR_FROM_SOURCE requires a vector JSON document and a source CONTENT column")
+			}
+			definition, ok := v.Exprs[0].(*sqlparser.AliasedExpr)
+			if !ok {
+				return nil, fmt.Errorf("VECTOR_FROM_SOURCE definition must be a scalar expression")
+			}
+			rawDefinition, err := evaluateExpressionWithRow(definition.Expr, values)
+			if err != nil || rawDefinition == nil {
+				return nil, err
+			}
+			var definitionBytes []byte
+			switch typed := rawDefinition.(type) {
+			case []byte:
+				definitionBytes = append([]byte(nil), typed...)
+			case string:
+				definitionBytes = []byte(typed)
+			default:
+				return nil, fmt.Errorf("VECTOR_FROM_SOURCE definition must be JSON text or bytes; got %T", rawDefinition)
+			}
+			sourceColumnExpr, ok := v.Exprs[1].(*sqlparser.AliasedExpr)
+			if !ok {
+				return nil, fmt.Errorf("VECTOR_FROM_SOURCE source must be a CONTENT column")
+			}
+			sourceColumn, ok := sourceColumnExpr.Expr.(*sqlparser.ColName)
+			if !ok {
+				return nil, fmt.Errorf("VECTOR_FROM_SOURCE source must be a CONTENT column")
+			}
+			sourceValue, err := evaluateExpressionWithRow(sourceColumn, values)
+			if err != nil || sourceValue == nil {
+				return nil, err
+			}
+			rowContext, ok := contentSourceContextForColumn(values, sourceColumn)
+			if !ok || len(rowContext.PrimaryKey) == 0 {
+				return nil, fmt.Errorf("VECTOR_FROM_SOURCE requires stored-row context for the source column")
+			}
+			var typedSource content.Value
+			switch typed := sourceValue.(type) {
+			case content.Value:
+				typedSource = typed
+			case *content.Value:
+				if typed == nil {
+					return nil, nil
+				}
+				typedSource = *typed
+			default:
+				return nil, fmt.Errorf("VECTOR_FROM_SOURCE requires a typed CONTENT column; got %T", sourceValue)
+			}
+			source, err := content.NewSourceRef(rowContext.Schema, rowContext.Table, sourceColumn.Name.String(), rowContext.PrimaryKey, typedSource)
+			if err != nil {
+				return nil, fmt.Errorf("VECTOR_FROM_SOURCE source verification failed: %w", err)
+			}
+			return vector.FromSourceJSON(definitionBytes, source)
+		}
+		if functionName == "VECTOR_FROM_BLOCK" {
+			if len(v.Exprs) != 3 {
+				return nil, fmt.Errorf("VECTOR_FROM_BLOCK requires vector JSON, a CONTENT_BLOCK column and its source CONTENT column")
+			}
+			definitionExpr, ok := v.Exprs[0].(*sqlparser.AliasedExpr)
+			if !ok {
+				return nil, fmt.Errorf("VECTOR_FROM_BLOCK definition must be a scalar expression")
+			}
+			rawDefinition, err := evaluateExpressionWithRow(definitionExpr.Expr, values)
+			if err != nil || rawDefinition == nil {
+				return nil, err
+			}
+			var definitionBytes []byte
+			switch typed := rawDefinition.(type) {
+			case []byte:
+				definitionBytes = append([]byte(nil), typed...)
+			case string:
+				definitionBytes = []byte(typed)
+			default:
+				return nil, fmt.Errorf("VECTOR_FROM_BLOCK definition must be JSON text or bytes; got %T", rawDefinition)
+			}
+			blockFunction, ok := v.Exprs[1].(*sqlparser.AliasedExpr)
+			if !ok {
+				return nil, fmt.Errorf("VECTOR_FROM_BLOCK block must be a CONTENT_BLOCK column")
+			}
+			blockColumn, ok := blockFunction.Expr.(*sqlparser.ColName)
+			if !ok {
+				return nil, fmt.Errorf("VECTOR_FROM_BLOCK block must be a CONTENT_BLOCK column")
+			}
+			block, isNull, err := evaluateContentBlockArgument(&sqlparser.FuncExpr{
+				Name: sqlparser.NewColIdent("CONTENT_BLOCK_FROM_JSON"), Exprs: sqlparser.SelectExprs{&sqlparser.AliasedExpr{Expr: blockColumn}},
+			}, values)
+			if err != nil {
+				return nil, err
+			}
+			if isNull || block.State != content.BlockStateReady {
+				return nil, nil
+			}
+			sourceExpr, ok := v.Exprs[2].(*sqlparser.AliasedExpr)
+			if !ok {
+				return nil, fmt.Errorf("VECTOR_FROM_BLOCK source must be a CONTENT column")
+			}
+			sourceColumn, ok := sourceExpr.Expr.(*sqlparser.ColName)
+			if !ok {
+				return nil, fmt.Errorf("VECTOR_FROM_BLOCK source must be a CONTENT column")
+			}
+			sourceValue, err := evaluateExpressionWithRow(sourceColumn, values)
+			if err != nil || sourceValue == nil {
+				return nil, err
+			}
+			var typedSource content.Value
+			switch typed := sourceValue.(type) {
+			case content.Value:
+				typedSource = typed
+			case *content.Value:
+				if typed == nil {
+					return nil, nil
+				}
+				typedSource = *typed
+			default:
+				return nil, fmt.Errorf("VECTOR_FROM_BLOCK source must be typed CONTENT; got %T", sourceValue)
+			}
+			rowContext, ok := contentSourceContextForColumn(values, sourceColumn)
+			if !ok || len(rowContext.PrimaryKey) == 0 {
+				return nil, fmt.Errorf("VECTOR_FROM_BLOCK requires stored-row context for the source column")
+			}
+			actualSource, err := content.NewSourceRef(rowContext.Schema, rowContext.Table, sourceColumn.Name.String(), rowContext.PrimaryKey, typedSource)
+			if err != nil {
+				return nil, fmt.Errorf("VECTOR_FROM_BLOCK source verification failed: %w", err)
+			}
+			return vector.FromBlockJSON(definitionBytes, actualSource, block)
+		}
+		if functionName == "VECTOR_MATCHES_BLOCK" {
+			return evaluateVectorBlockBinding(v, values, false)
+		}
+		if functionName == "VECTOR_VERIFIED_BLOCK_DISTANCE" {
+			return evaluateVectorBlockBinding(v, values, true)
+		}
+		if functionName == "VECTOR_MATCHES_SOURCE" || functionName == "VECTOR_VERIFIED_DISTANCE" {
+			minimum := 2
+			maximum := 2
+			if functionName == "VECTOR_VERIFIED_DISTANCE" {
+				minimum, maximum = 3, 4
+			}
+			if len(v.Exprs) < minimum || len(v.Exprs) > maximum {
+				return nil, fmt.Errorf("%s received an invalid argument count", functionName)
+			}
+			arguments := make([]interface{}, 0, len(v.Exprs))
+			for _, rawArgument := range v.Exprs {
+				argument, ok := rawArgument.(*sqlparser.AliasedExpr)
+				if !ok {
+					return nil, fmt.Errorf("%s arguments must be scalar expressions", functionName)
+				}
+				value, err := evaluateExpressionWithRow(argument.Expr, values)
+				if err != nil {
+					return nil, err
+				}
+				arguments = append(arguments, value)
+			}
+			if arguments[0] == nil || arguments[minimum-1] == nil {
+				if functionName == "VECTOR_MATCHES_SOURCE" {
+					return false, nil
+				}
+				return nil, nil
+			}
+			stored, ok := vectorArgument(arguments[0])
+			if !ok {
+				return nil, fmt.Errorf("%s first argument must be VECTOR; got %T", functionName, arguments[0])
+			}
+			sourceIndex := 1
+			var query vector.Value
+			if functionName == "VECTOR_VERIFIED_DISTANCE" {
+				query, ok = vectorArgument(arguments[1])
+				if !ok {
+					return nil, fmt.Errorf("VECTOR_VERIFIED_DISTANCE second argument must be VECTOR; got %T", arguments[1])
+				}
+				sourceIndex = 2
+			}
+			sourceColumnExpr, ok := v.Exprs[sourceIndex].(*sqlparser.AliasedExpr)
+			if !ok {
+				return nil, fmt.Errorf("%s source must be a CONTENT column", functionName)
+			}
+			sourceColumn, ok := sourceColumnExpr.Expr.(*sqlparser.ColName)
+			if !ok {
+				return nil, fmt.Errorf("%s source must be a CONTENT column", functionName)
+			}
+			sourceValue := arguments[sourceIndex]
+			var typedSource content.Value
+			switch typed := sourceValue.(type) {
+			case content.Value:
+				typedSource = typed
+			case *content.Value:
+				if typed == nil {
+					if functionName == "VECTOR_MATCHES_SOURCE" {
+						return false, nil
+					}
+					return nil, nil
+				}
+				typedSource = *typed
+			default:
+				return nil, fmt.Errorf("%s requires a typed CONTENT column; got %T", functionName, sourceValue)
+			}
+			rowContext, ok := contentSourceContextForColumn(values, sourceColumn)
+			if !ok || len(rowContext.PrimaryKey) == 0 {
+				return nil, fmt.Errorf("%s requires stored-row context for the source column", functionName)
+			}
+			actualSource, err := content.NewSourceRef(rowContext.Schema, rowContext.Table, sourceColumn.Name.String(), rowContext.PrimaryKey, typedSource)
+			if err != nil {
+				return nil, fmt.Errorf("%s current source is invalid: %w", functionName, err)
+			}
+			matches := stored.State == vector.StateReady && stored.Source != nil && stored.Source.Matches(actualSource)
+			if functionName == "VECTOR_MATCHES_SOURCE" {
+				return matches, nil
+			}
+			if !matches {
+				return nil, nil
+			}
+			metric := vector.MetricCosine
+			if len(arguments) == 4 {
+				metricName, err := vectorStringArgument(arguments[3], "metric")
+				if err != nil {
+					return nil, err
+				}
+				metric = vector.Metric(strings.ToUpper(strings.TrimSpace(metricName)))
+			}
+			return vector.Distance(stored, query, metric)
+		}
+		if functionName == "VECTOR_DISTANCE" {
+			if len(v.Exprs) < 2 || len(v.Exprs) > 3 {
+				return nil, fmt.Errorf("VECTOR_DISTANCE requires two vectors and an optional metric")
+			}
+			arguments := make([]interface{}, 0, len(v.Exprs))
+			for _, rawArgument := range v.Exprs {
+				argument, ok := rawArgument.(*sqlparser.AliasedExpr)
+				if !ok {
+					return nil, fmt.Errorf("VECTOR_DISTANCE arguments must be scalar expressions")
+				}
+				value, err := evaluateExpressionWithRow(argument.Expr, values)
+				if err != nil {
+					return nil, err
+				}
+				arguments = append(arguments, value)
+			}
+			if arguments[0] == nil || arguments[1] == nil {
+				return nil, nil
+			}
+			left, ok := vectorArgument(arguments[0])
+			if !ok {
+				return nil, fmt.Errorf("VECTOR_DISTANCE first argument must be VECTOR, got %T", arguments[0])
+			}
+			right, ok := vectorArgument(arguments[1])
+			if !ok {
+				return nil, fmt.Errorf("VECTOR_DISTANCE second argument must be VECTOR, got %T", arguments[1])
+			}
+			metric := vector.MetricCosine
+			if len(arguments) == 3 {
+				metricName, err := vectorStringArgument(arguments[2], "metric")
+				if err != nil {
+					return nil, err
+				}
+				metric = vector.Metric(strings.ToUpper(strings.TrimSpace(metricName)))
+			}
+			return vector.Distance(left, right, metric)
+		}
+		switch functionName {
+		case "VECTOR_DIMENSION", "VECTOR_MODEL_ID", "VECTOR_MODEL_VERSION", "VECTOR_SPACE", "VECTOR_MODALITY", "VECTOR_STATE", "VECTOR_BLOCK_ID",
+			"VECTOR_SOURCE_SCHEMA", "VECTOR_SOURCE_TABLE", "VECTOR_SOURCE_COLUMN", "VECTOR_SOURCE_PRIMARY_KEY", "VECTOR_SOURCE_REVISION", "VECTOR_SOURCE_SHA256":
+			if len(v.Exprs) != 1 {
+				return nil, fmt.Errorf("%s requires exactly one VECTOR argument", functionName)
+			}
+			argument, ok := v.Exprs[0].(*sqlparser.AliasedExpr)
+			if !ok {
+				return nil, fmt.Errorf("%s argument must be a scalar expression", functionName)
+			}
+			value, err := evaluateExpressionWithRow(argument.Expr, values)
+			if err != nil {
+				return nil, err
+			}
+			typed, ok := vectorArgument(value)
+			if !ok {
+				if value == nil {
+					return nil, nil
+				}
+				return nil, fmt.Errorf("%s requires a typed VECTOR value; got %T", functionName, value)
+			}
+			switch functionName {
+			case "VECTOR_DIMENSION":
+				return int64(typed.Dimension()), nil
+			case "VECTOR_MODEL_ID":
+				return typed.Space.ModelID, nil
+			case "VECTOR_MODEL_VERSION":
+				return typed.Space.ModelVersion, nil
+			case "VECTOR_SPACE":
+				return typed.Space.ID, nil
+			case "VECTOR_MODALITY":
+				return typed.SourceModality, nil
+			case "VECTOR_STATE":
+				return string(typed.State), nil
+			case "VECTOR_BLOCK_ID":
+				if typed.SourceBlockID != "" {
+					return typed.SourceBlockID, nil
+				}
+			case "VECTOR_SOURCE_SCHEMA":
+				if typed.Source != nil {
+					return typed.Source.Schema, nil
+				}
+			case "VECTOR_SOURCE_TABLE":
+				if typed.Source != nil {
+					return typed.Source.Table, nil
+				}
+			case "VECTOR_SOURCE_COLUMN":
+				if typed.Source != nil {
+					return typed.Source.Column, nil
+				}
+			case "VECTOR_SOURCE_PRIMARY_KEY":
+				if typed.Source != nil {
+					return append([]byte(nil), typed.Source.PrimaryKey...), nil
+				}
+			case "VECTOR_SOURCE_REVISION":
+				if typed.Source != nil {
+					return typed.Source.Revision, nil
+				}
+			case "VECTOR_SOURCE_SHA256":
+				if typed.Source != nil {
+					return fmt.Sprintf("%x", typed.Source.Digest[:]), nil
+				}
+			}
+		}
+		if functionName == "CONTENT_FROM_BYTES" {
+			if len(v.Exprs) != 2 {
+				return nil, fmt.Errorf("CONTENT_FROM_BYTES requires exactly two arguments: bytes and MIME type")
+			}
+			arguments := make([]interface{}, 0, 2)
+			for _, rawArgument := range v.Exprs {
+				argument, ok := rawArgument.(*sqlparser.AliasedExpr)
+				if !ok {
+					return nil, fmt.Errorf("CONTENT_FROM_BYTES arguments must be scalar expressions")
+				}
+				value, err := evaluateExpressionWithRow(argument.Expr, values)
+				if err != nil {
+					return nil, err
+				}
+				arguments = append(arguments, value)
+			}
+			mimeType, ok := arguments[1].(string)
+			if !ok {
+				if mimeBytes, bytesOK := arguments[1].([]byte); bytesOK {
+					mimeType = string(mimeBytes)
+				} else {
+					return nil, fmt.Errorf("CONTENT_FROM_BYTES MIME argument has unsupported type %T", arguments[1])
+				}
+			}
+			var source []byte
+			switch typed := arguments[0].(type) {
+			case content.Value:
+				if err := typed.Validate(); err != nil {
+					return nil, fmt.Errorf("CONTENT_FROM_BYTES received invalid CONTENT value: %w", err)
+				}
+				if !strings.EqualFold(typed.MIMEType, strings.TrimSpace(mimeType)) {
+					return nil, fmt.Errorf("CONTENT_FROM_BYTES MIME %q does not match streamed CONTENT MIME %q", mimeType, typed.MIMEType)
+				}
+				return typed, nil
+			case *content.Value:
+				if typed == nil {
+					return nil, nil
+				}
+				if err := typed.Validate(); err != nil {
+					return nil, fmt.Errorf("CONTENT_FROM_BYTES received invalid CONTENT value: %w", err)
+				}
+				if !strings.EqualFold(typed.MIMEType, strings.TrimSpace(mimeType)) {
+					return nil, fmt.Errorf("CONTENT_FROM_BYTES MIME %q does not match streamed CONTENT MIME %q", mimeType, typed.MIMEType)
+				}
+				return *typed, nil
+			case []byte:
+				source = append([]byte(nil), typed...)
+			case string:
+				source = []byte(typed)
+			default:
+				return nil, fmt.Errorf("CONTENT_FROM_BYTES bytes argument has unsupported type %T", arguments[0])
+			}
+			return content.NewValue(mimeType, 1, source)
+		}
+		if functionName == "CONTENT_SLICE" {
+			if len(v.Exprs) != 3 {
+				return nil, fmt.Errorf("CONTENT_SLICE requires exactly three arguments: CONTENT value, zero-based byte offset and length")
+			}
+			arguments := make([]interface{}, 0, 3)
+			for _, rawArgument := range v.Exprs {
+				argument, ok := rawArgument.(*sqlparser.AliasedExpr)
+				if !ok {
+					return nil, fmt.Errorf("CONTENT_SLICE arguments must be scalar expressions")
+				}
+				value, err := evaluateExpressionWithRow(argument.Expr, values)
+				if err != nil {
+					return nil, err
+				}
+				arguments = append(arguments, value)
+			}
+			if arguments[0] == nil || arguments[1] == nil || arguments[2] == nil {
+				return nil, nil
+			}
+			var typed content.Value
+			switch value := arguments[0].(type) {
+			case content.Value:
+				typed = value
+			case *content.Value:
+				if value == nil {
+					return nil, nil
+				}
+				typed = *value
+			default:
+				return nil, fmt.Errorf("CONTENT_SLICE requires a typed CONTENT value; got %T", arguments[0])
+			}
+			offset, err := contentRangeArgument(arguments[1], "offset")
+			if err != nil {
+				return nil, err
+			}
+			length, err := contentRangeArgument(arguments[2], "length")
+			if err != nil {
+				return nil, err
+			}
+			store, err := contentSegmentStoreForValue(values, typed)
+			if err != nil {
+				return nil, err
+			}
+			return typed.ReadRangeFromStore(storedFunctionContext(values), store, offset, length)
+		}
+		if functionName == "BM25_TERM_SCORE" {
+			return evaluateBM25TermScore(v, values)
+		}
+		if functionName == "FULLTEXT_TOKEN_COUNT" {
+			return evaluateFullTextTokenCount(v, values)
+		}
+		if functionName == "FULLTEXT_SCORE" {
+			if len(v.Exprs) < 2 || len(v.Exprs) > 3 {
+				return nil, fmt.Errorf("FULLTEXT_SCORE requires text, query text and an optional NATURAL or BOOLEAN mode")
+			}
+			arguments := make([]interface{}, 0, len(v.Exprs))
+			for _, rawArgument := range v.Exprs {
+				argument, ok := rawArgument.(*sqlparser.AliasedExpr)
+				if !ok {
+					return nil, fmt.Errorf("FULLTEXT_SCORE arguments must be scalar expressions")
+				}
+				value, err := evaluateExpressionWithRow(argument.Expr, values)
+				if err != nil {
+					return nil, err
+				}
+				arguments = append(arguments, value)
+			}
+			if arguments[0] == nil || arguments[1] == nil {
+				return nil, nil
+			}
+			text, err := fullTextStringArgument(arguments[0], "content", values)
+			if err != nil {
+				return nil, err
+			}
+			query, err := fullTextStringArgument(arguments[1], "query", values)
+			if err != nil {
+				return nil, err
+			}
+			booleanMode := false
+			if len(arguments) == 3 {
+				mode, err := fullTextStringArgument(arguments[2], "mode", values)
+				if err != nil {
+					return nil, err
+				}
+				switch strings.ToUpper(strings.TrimSpace(mode)) {
+				case "NATURAL", "NATURAL LANGUAGE":
+				case "BOOLEAN", "BOOLEAN MODE":
+					booleanMode = true
+				default:
+					return nil, fmt.Errorf("FULLTEXT_SCORE mode must be NATURAL or BOOLEAN; got %q", mode)
+				}
+			}
+			score, _ := fullTextMatches(text, query, booleanMode)
+			return int64(score), nil
+		}
+		switch functionName {
+		case "CONTENT_TEXT", "CONTENT_BYTES", "CONTENT_MIME", "CONTENT_KIND", "CONTENT_REVISION", "CONTENT_SHA256", "CONTENT_LENGTH":
+			if len(v.Exprs) != 1 {
+				return nil, fmt.Errorf("%s requires exactly one CONTENT argument", functionName)
+			}
+			argument, ok := v.Exprs[0].(*sqlparser.AliasedExpr)
+			if !ok {
+				return nil, fmt.Errorf("%s argument must be a scalar expression", functionName)
+			}
+			value, err := evaluateExpressionWithRow(argument.Expr, values)
+			if err != nil {
+				return nil, err
+			}
+			if value == nil {
+				return nil, nil
+			}
+			var typed content.Value
+			switch contentValue := value.(type) {
+			case content.Value:
+				typed = contentValue
+			case *content.Value:
+				if contentValue == nil {
+					return nil, nil
+				}
+				typed = *contentValue
+			default:
+				return nil, fmt.Errorf("%s requires a typed CONTENT column; got %T", functionName, value)
+			}
+			if err := typed.Validate(); err != nil {
+				return nil, fmt.Errorf("%s received invalid CONTENT metadata: %w", functionName, err)
+			}
+			switch functionName {
+			case "CONTENT_TEXT":
+				store, err := contentSegmentStoreForValue(values, typed)
+				if err != nil {
+					return nil, err
+				}
+				return content.ExtractTextFromStore(storedFunctionContext(values), store, typed)
+			case "CONTENT_BYTES":
+				store, err := contentSegmentStoreForValue(values, typed)
+				if err != nil {
+					return nil, err
+				}
+				return typed.ReadAllFromStore(storedFunctionContext(values), store, content.MaxReadRangeBytes)
+			case "CONTENT_MIME":
+				return typed.MIMEType, nil
+			case "CONTENT_KIND":
+				return string(typed.Kind), nil
+			case "CONTENT_REVISION":
+				return typed.Revision, nil
+			case "CONTENT_SHA256":
+				return typed.DigestHex(), nil
+			case "CONTENT_LENGTH":
+				return typed.Size(), nil
+			}
+		}
+		switch functionName {
+		case "CONTENT_BLOCK_ID", "CONTENT_BLOCK_IDENTITY_VERSION", "CONTENT_BLOCK_STATE", "CONTENT_BLOCK_KIND", "CONTENT_BLOCK_TEXT", "CONTENT_BLOCK_PAYLOAD", "CONTENT_BLOCK_PAYLOAD_SCHEMA", "CONTENT_BLOCK_PAYLOAD_VERSION", "CONTENT_BLOCK_PAYLOAD_MEDIA_TYPE", "CONTENT_BLOCK_PAYLOAD_SHA256", "CONTENT_BLOCK_ATTRIBUTES", "CONTENT_BLOCK_ORDINAL", "CONTENT_BLOCK_PARENT_ID", "CONTENT_BLOCK_RELATION",
+			"CONTENT_BLOCK_SOURCE_SCHEMA", "CONTENT_BLOCK_SOURCE_TABLE", "CONTENT_BLOCK_SOURCE_COLUMN",
+			"CONTENT_BLOCK_SOURCE_PRIMARY_KEY", "CONTENT_BLOCK_SOURCE_REVISION", "CONTENT_BLOCK_SOURCE_SHA256",
+			"CONTENT_BLOCK_PAGE", "CONTENT_BLOCK_BYTE_START", "CONTENT_BLOCK_BYTE_END",
+			"CONTENT_BLOCK_START_MS", "CONTENT_BLOCK_END_MS", "CONTENT_BLOCK_TRACK",
+			"CONTENT_BLOCK_REGION_X", "CONTENT_BLOCK_REGION_Y", "CONTENT_BLOCK_REGION_WIDTH", "CONTENT_BLOCK_REGION_HEIGHT",
+			"CONTENT_BLOCK_PROCESSOR_ID", "CONTENT_BLOCK_PROCESSOR_VERSION",
+			"CONTENT_BLOCK_MODEL_ID", "CONTENT_BLOCK_MODEL_VERSION":
+			block, isNull, err := evaluateContentBlockArgument(v, values)
+			if err != nil || isNull {
+				return nil, err
+			}
+			switch functionName {
+			case "CONTENT_BLOCK_ID":
+				return block.ID, nil
+			case "CONTENT_BLOCK_IDENTITY_VERSION":
+				return uint64(block.IdentityVersion), nil
+			case "CONTENT_BLOCK_STATE":
+				return string(block.State), nil
+			case "CONTENT_BLOCK_KIND":
+				return string(block.Kind), nil
+			case "CONTENT_BLOCK_TEXT":
+				return block.Text, nil
+			case "CONTENT_BLOCK_PAYLOAD":
+				if block.Payload != nil {
+					return string(block.Payload.JSON), nil
+				}
+			case "CONTENT_BLOCK_PAYLOAD_SCHEMA":
+				if block.Payload != nil {
+					return block.Payload.SchemaID, nil
+				}
+			case "CONTENT_BLOCK_PAYLOAD_VERSION":
+				if block.Payload != nil {
+					return uint64(block.Payload.SchemaVersion), nil
+				}
+			case "CONTENT_BLOCK_PAYLOAD_MEDIA_TYPE":
+				if block.Payload != nil {
+					return block.Payload.MediaType, nil
+				}
+			case "CONTENT_BLOCK_PAYLOAD_SHA256":
+				if block.Payload != nil {
+					return block.Payload.SHA256, nil
+				}
+			case "CONTENT_BLOCK_PARENT_ID":
+				if block.ParentID != "" {
+					return block.ParentID, nil
+				}
+			case "CONTENT_BLOCK_RELATION":
+				if block.Relation != "" {
+					return block.Relation, nil
+				}
+			case "CONTENT_BLOCK_ATTRIBUTES":
+				attributes, err := json.Marshal(block.Attributes)
+				if err != nil {
+					return nil, fmt.Errorf("encode CONTENT_BLOCK attributes: %w", err)
+				}
+				return string(attributes), nil
+			case "CONTENT_BLOCK_ORDINAL":
+				return uint64(block.Ordinal), nil
+			case "CONTENT_BLOCK_SOURCE_SCHEMA":
+				return block.Source.Schema, nil
+			case "CONTENT_BLOCK_SOURCE_TABLE":
+				return block.Source.Table, nil
+			case "CONTENT_BLOCK_SOURCE_COLUMN":
+				return block.Source.Column, nil
+			case "CONTENT_BLOCK_SOURCE_PRIMARY_KEY":
+				return append([]byte(nil), block.Source.PrimaryKey...), nil
+			case "CONTENT_BLOCK_SOURCE_REVISION":
+				return block.Source.Revision, nil
+			case "CONTENT_BLOCK_SOURCE_SHA256":
+				return fmt.Sprintf("%x", block.Source.Digest[:]), nil
+			case "CONTENT_BLOCK_PAGE":
+				if block.Locator.Page != nil {
+					return uint64(*block.Locator.Page), nil
+				}
+			case "CONTENT_BLOCK_BYTE_START":
+				if block.Locator.ByteStart != nil {
+					return *block.Locator.ByteStart, nil
+				}
+			case "CONTENT_BLOCK_BYTE_END":
+				if block.Locator.ByteEnd != nil {
+					return *block.Locator.ByteEnd, nil
+				}
+			case "CONTENT_BLOCK_START_MS":
+				if block.Locator.StartMS != nil {
+					return *block.Locator.StartMS, nil
+				}
+			case "CONTENT_BLOCK_END_MS":
+				if block.Locator.EndMS != nil {
+					return *block.Locator.EndMS, nil
+				}
+			case "CONTENT_BLOCK_TRACK":
+				if block.Locator.Track != "" {
+					return block.Locator.Track, nil
+				}
+			case "CONTENT_BLOCK_REGION_X":
+				if block.Locator.Region != nil {
+					return block.Locator.Region.X, nil
+				}
+			case "CONTENT_BLOCK_REGION_Y":
+				if block.Locator.Region != nil {
+					return block.Locator.Region.Y, nil
+				}
+			case "CONTENT_BLOCK_REGION_WIDTH":
+				if block.Locator.Region != nil {
+					return block.Locator.Region.Width, nil
+				}
+			case "CONTENT_BLOCK_REGION_HEIGHT":
+				if block.Locator.Region != nil {
+					return block.Locator.Region.Height, nil
+				}
+			case "CONTENT_BLOCK_PROCESSOR_ID":
+				return block.ProcessorID, nil
+			case "CONTENT_BLOCK_PROCESSOR_VERSION":
+				return block.ProcessorVersion, nil
+			case "CONTENT_BLOCK_MODEL_ID":
+				if block.ModelID != "" {
+					return block.ModelID, nil
+				}
+			case "CONTENT_BLOCK_MODEL_VERSION":
+				if block.ModelVersion != "" {
+					return block.ModelVersion, nil
+				}
+			}
+			return nil, nil
+		}
 		if dataDir, ok := values[storedFunctionDataDirKey].(string); ok && strings.TrimSpace(dataDir) != "" {
 			schemaName, _ := values[storedFunctionSchemaKey].(string)
 			if value, handled, err := evaluatePersistedFunctionProjectionWithContext(v, values, dataDir, schemaName); handled {
@@ -2503,7 +3992,7 @@ func evaluateExpressionWithRow(expr sqlparser.Expr, values map[string]interface{
 			return value, nil
 		}
 		args := make([]interface{}, 0, len(v.Exprs))
-		functionName := strings.ToUpper(v.Name.String())
+		functionName = strings.ToUpper(v.Name.String())
 		for index, selectExpr := range v.Exprs {
 			if functionName == "COUNT" {
 				if _, ok := selectExpr.(*sqlparser.StarExpr); ok {
@@ -2619,8 +4108,12 @@ func evaluateExpressionWithRow(expr sqlparser.Expr, values map[string]interface{
 				if conditionErr != nil {
 					return nil, conditionErr
 				}
+				collation, collationErr := resolveComparisonCollation(v.Expr, when.Cond, values, "CASE")
+				if collationErr != nil {
+					return nil, collationErr
+				}
 				if caseValue != nil && conditionValue != nil {
-					matched = compareScalarValues(caseValue, conditionValue) == 0
+					matched = compareScalarValuesWithCollation(caseValue, conditionValue, collation) == 0
 				}
 			}
 			if err != nil {
@@ -2710,6 +4203,115 @@ func evaluateExpressionWithRow(expr sqlparser.Expr, values map[string]interface{
 	}
 }
 
+func contentRangeArgument(value interface{}, name string) (uint64, error) {
+	if parsed, ok := autoIncrementValueAsUint64(value); ok {
+		return parsed, nil
+	}
+	var text string
+	switch typed := value.(type) {
+	case string:
+		text = typed
+	case []byte:
+		text = string(typed)
+	default:
+		return 0, fmt.Errorf("CONTENT_SLICE %s must be a non-negative integer; got %T", name, value)
+	}
+	parsed, err := strconv.ParseUint(strings.TrimSpace(text), 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("CONTENT_SLICE %s must be a non-negative integer: %w", name, err)
+	}
+	return parsed, nil
+}
+
+func fullTextStringArgument(value interface{}, name string, rowValues map[string]interface{}) (string, error) {
+	switch typed := value.(type) {
+	case string:
+		return typed, nil
+	case []byte:
+		return string(typed), nil
+	case basic.Value:
+		return typed.ToString(), nil
+	case content.Value:
+		store, err := contentSegmentStoreForValue(rowValues, typed)
+		if err != nil {
+			return "", fmt.Errorf("FULLTEXT_SCORE %s CONTENT store is unavailable: %w", name, err)
+		}
+		text, err := content.ExtractTextFromStore(storedFunctionContext(rowValues), store, typed)
+		if err != nil {
+			return "", fmt.Errorf("FULLTEXT_SCORE %s CONTENT cannot be decoded as text: %w", name, err)
+		}
+		return text, nil
+	case *content.Value:
+		if typed == nil {
+			return "", nil
+		}
+		return fullTextStringArgument(*typed, name, rowValues)
+	default:
+		return "", fmt.Errorf("FULLTEXT_SCORE %s must be text; got %T", name, value)
+	}
+}
+
+func evaluateContentBlockArgument(function *sqlparser.FuncExpr, values map[string]interface{}) (content.Block, bool, error) {
+	if function == nil || len(function.Exprs) != 1 {
+		name := "CONTENT_BLOCK accessor"
+		if function != nil {
+			name = function.Name.String()
+		}
+		return content.Block{}, false, fmt.Errorf("%s requires exactly one CONTENT_BLOCK value", name)
+	}
+	argument, ok := function.Exprs[0].(*sqlparser.AliasedExpr)
+	if !ok {
+		return content.Block{}, false, fmt.Errorf("%s argument must be a scalar expression", function.Name.String())
+	}
+	value, err := evaluateExpressionWithRow(argument.Expr, values)
+	if err != nil {
+		return content.Block{}, false, err
+	}
+	if value == nil {
+		return content.Block{}, true, nil
+	}
+	var typed content.Value
+	switch blockValue := value.(type) {
+	case content.Value:
+		typed = blockValue
+	case *content.Value:
+		if blockValue == nil {
+			return content.Block{}, true, nil
+		}
+		typed = *blockValue
+	default:
+		return content.Block{}, false, fmt.Errorf("%s requires a CONTENT value created with MIME type %s; got %T", function.Name.String(), content.BlockMIMEType, value)
+	}
+	block, err := content.BlockFromValue(typed)
+	if err != nil {
+		return content.Block{}, false, fmt.Errorf("%s: %w", function.Name.String(), err)
+	}
+	return block, false, nil
+}
+
+func vectorArgument(value interface{}) (vector.Value, bool) {
+	switch typed := value.(type) {
+	case vector.Value:
+		return typed, true
+	case *vector.Value:
+		if typed != nil {
+			return *typed, true
+		}
+	}
+	return vector.Value{}, false
+}
+
+func vectorStringArgument(value interface{}, name string) (string, error) {
+	switch typed := value.(type) {
+	case string:
+		return typed, nil
+	case []byte:
+		return string(typed), nil
+	default:
+		return "", fmt.Errorf("VECTOR argument %s must be text, got %T", name, value)
+	}
+}
+
 func planEvalContextWithRow(values map[string]interface{}) *plan.EvalContext {
 	ctx := &plan.EvalContext{Row: values}
 	if values != nil {
@@ -2755,6 +4357,16 @@ func normalizeNumericResult(v float64) interface{} {
 }
 
 func compareScalarValues(left, right interface{}) int {
+	// MySQL sorts NULL before every non-NULL value in ascending order.
+	if left == nil {
+		if right == nil {
+			return 0
+		}
+		return -1
+	}
+	if right == nil {
+		return 1
+	}
 	// MySQL compares a numeric column against a numeric string numerically,
 	// while two character operands retain collation/lexical comparison.
 	if _, leftString := left.(string); leftString {

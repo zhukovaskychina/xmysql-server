@@ -364,9 +364,20 @@ func (d *SimpleDatabase) buildTableFromDDL(stmt *sqlparser.DDL) (*metadata.Table
 			// 解析列类型
 			if colDef.Type.Type != "" {
 				col.DataType = metadata.DataType(colDef.Type.Type)
+				if col.DataType == metadata.TypeVector && colDef.Type.Length == nil {
+					return nil, fmt.Errorf("VECTOR column %s requires an explicit dimension", col.Name)
+				}
 				if colDef.Type.Length != nil {
-					// 简化处理，实际需要解析sqlparser.SQLVal
-					col.CharMaxLength = 255
+					if parsed, err := strconv.Atoi(strings.TrimSpace(sqlparser.String(colDef.Type.Length))); err == nil {
+						col.CharMaxLength = parsed
+						if col.DataType == metadata.TypeVector && (parsed <= 0 || parsed > 65535) {
+							return nil, fmt.Errorf("VECTOR column %s dimension must be between 1 and 65535", col.Name)
+						}
+					} else if col.DataType == metadata.TypeVector {
+						return nil, fmt.Errorf("VECTOR column %s has invalid dimension", col.Name)
+					} else {
+						col.CharMaxLength = 255
+					}
 				}
 				if colDef.Type.Scale != nil {
 					if parsed, err := strconv.Atoi(strings.TrimSpace(sqlparser.String(colDef.Type.Scale))); err == nil {

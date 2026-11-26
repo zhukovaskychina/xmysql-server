@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,10 +14,13 @@ import (
 )
 
 type joinTableSource struct {
-	tableName string
-	alias     string
-	meta      *metadata.TableMeta
-	rows      []map[string]interface{}
+	tableName       string
+	schemaName      string
+	alias           string
+	meta            *metadata.TableMeta
+	columnSemantics map[string]metadata.ColumnSemanticDefinition
+	tableSemantics  *metadata.TableSemanticDefinition
+	rows            []map[string]interface{}
 }
 
 type joinedMapRow map[string]interface{}
@@ -48,7 +50,11 @@ func (se *SelectExecutor) executeJoinSelect(ctx context.Context, stmt *sqlparser
 		se.selectScan = 1
 	}
 	se.distinct = strings.EqualFold(strings.TrimSpace(stmt.Distinct), strings.TrimSpace(sqlparser.DistinctStr))
-	if err := se.parseSelectExprs(stmt.SelectExprs); err != nil {
+	expressions, err := se.expandJoinSelectExpressions(stmt)
+	if err != nil {
+		return nil, err
+	}
+	if err := se.parseSelectExprs(expressions); err != nil {
 		return nil, err
 	}
 	if stmt.Where != nil {
@@ -56,9 +62,11 @@ func (se *SelectExecutor) executeJoinSelect(ctx context.Context, stmt *sqlparser
 	}
 	for _, expr := range stmt.GroupBy {
 		se.groupByColumns = append(se.groupByColumns, sqlparser.String(expr))
+		se.groupByExpressions = append(se.groupByExpressions, expr)
 	}
 	if stmt.Having != nil {
 		se.havingCondition = sqlparser.String(stmt.Having.Expr)
+		se.havingExpression = stmt.Having.Expr
 	}
 	if err := se.parseOrderBy(stmt.OrderBy); err != nil {
 		return nil, err
@@ -89,7 +97,13 @@ func (se *SelectExecutor) executeJoinSelect(ctx context.Context, stmt *sqlparser
 	if hasEffectiveWhereConditions(se.whereConditions) {
 		filtered := make([]joinedMapRow, 0, len(rows))
 		for _, row := range rows {
-			matched, err := rowMatchesWhereConditions(row, se.whereConditions)
+			var matched bool
+			var err error
+			if stmt.Where != nil && expressionHasSubquery(stmt.Where.Expr) {
+				matched, err = se.evalJoinPredicateWithError(stmt.Where.Expr, row)
+			} else {
+				matched, err = rowMatchesWhereConditions(row, se.whereConditions)
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -100,10 +114,17 @@ func (se *SelectExecutor) executeJoinSelect(ctx context.Context, stmt *sqlparser
 		rows = filtered
 	}
 	if se.hasAggregateQuery() || len(se.groupByColumns) > 0 {
-		return se.buildJoinAggregateResult(rows), nil
+		result := se.buildJoinAggregateResult(rows)
+		if se.expressionError != nil {
+			return nil, se.expressionError
+		}
+		return result, nil
 	}
 	se.sortJoinedRows(rows)
-	records, columns, columnTypes := se.projectJoinedRows(rows)
+	records, columns, columnTypes, err := se.projectJoinedRows(stmt, rows)
+	if err != nil {
+		return nil, err
+	}
 	records = se.applyDistinct(records)
 	records = se.applyLimitOffset(records)
 	return &SelectResult{
@@ -203,7 +224,11 @@ func (se *SelectExecutor) loadJoinTableSource(ctx context.Context, expr *sqlpars
 	// committed rows through JOIN even though a single-table scan hides them.
 	rowData = applyPendingClientTransactionVisibility(ctx, tableSchema, tableName.Name.String(), rowData, meta)
 	se.rowsExamined += scanner.RowsExamined()
-	source := &joinTableSource{tableName: tableName.Name.String(), alias: alias, meta: meta}
+	source := &joinTableSource{
+		tableName: tableName.Name.String(), schemaName: tableSchema, alias: alias, meta: meta,
+		columnSemantics: se.columnSemanticDefinitions(meta),
+		tableSemantics:  se.tableSemanticDefinition(meta, tableSchema),
+	}
 	if se.joinOrderTypes == nil {
 		se.joinOrderTypes = make(map[string]metadata.DataType)
 	}
@@ -219,7 +244,17 @@ func (se *SelectExecutor) loadJoinTableSource(ctx context.Context, expr *sqlpars
 		}
 	}
 	for _, row := range rowData {
-		source.rows = append(source.rows, qualifiedJoinRow(source, row.ColumnValues))
+		joinedRow := qualifiedJoinRow(source, row.ColumnValues)
+		joinedRow[storedFunctionContextKey] = ctxOrBackground(ctx)
+		joinedRow[storedFunctionDataDirKey] = se.dataDir
+		joinedRow[storedFunctionSchemaKey] = tableSchema
+		if se.sessionValues != nil {
+			joinedRow[sessionExpressionValuesKey] = se.sessionValues
+		}
+		if se.storedFunctionAuthorizer != nil {
+			joinedRow[storedFunctionAuthorizerKey] = se.storedFunctionAuthorizer
+		}
+		source.rows = append(source.rows, joinedRow)
 	}
 	return source, nil
 }
@@ -230,6 +265,15 @@ func qualifiedJoinRow(source *joinTableSource, values map[string]interface{}) ma
 		if col == nil {
 			continue
 		}
+		collation := strings.TrimSpace(col.Collation)
+		if collation == "" {
+			collation = strings.TrimSpace(source.meta.Collation)
+		}
+		if collation != "" {
+			row[columnCollationContextKey(col.Name)] = collation
+			row[columnCollationContextKey(source.alias+"."+col.Name)] = collation
+			row[columnCollationContextKey(source.tableName+"."+col.Name)] = collation
+		}
 		value := values[col.Name]
 		row[col.Name] = value
 		row[strings.ToLower(col.Name)] = value
@@ -238,7 +282,27 @@ func qualifiedJoinRow(source *joinTableSource, values map[string]interface{}) ma
 		row[source.tableName+"."+col.Name] = value
 		row[strings.ToLower(source.tableName+"."+col.Name)] = value
 	}
+	if primaryKey, exists, err := contentSourcePrimaryKey(values, source.meta); err == nil && exists {
+		context := contentSourceRowContext{
+			Schema: source.schemaName, Table: source.tableName, PrimaryKey: append([]byte(nil), primaryKey...),
+			ColumnSemantics: source.columnSemantics,
+			TableSemantics:  source.tableSemantics,
+		}
+		for _, qualifier := range []string{source.alias, source.tableName, source.schemaName + "." + source.tableName} {
+			if strings.TrimSpace(qualifier) != "" {
+				row[contentSourceRowContextKeyForAlias(qualifier)] = context
+			}
+		}
+	}
 	return row
+}
+
+func contentSourceRowContextKeyForAlias(alias string) string {
+	return contentSourceRowContextKey + ":" + strings.ToLower(strings.Trim(strings.TrimSpace(alias), "` "))
+}
+
+func contentSourceRowContextKeyForColumn(alias, column string) string {
+	return contentSourceRowContextKeyForAlias(alias) + ":" + strings.ToLower(strings.Trim(strings.TrimSpace(column), "` "))
 }
 
 func nullJoinRow(source *joinTableSource) map[string]interface{} {
@@ -268,7 +332,7 @@ func (se *SelectExecutor) joinRows(leftRows []joinedMapRow, right *joinTableSour
 	for _, left := range leftRows {
 		matched := false
 		for i, rightRow := range right.rows {
-			merged := mergeJoinedRows(left, joinedMapRow(rightRow))
+			merged := mergeJoinedRowsUsing(left, joinedMapRow(rightRow), condition.Using)
 			matchedRow := true
 			if condition.On != nil {
 				var err error
@@ -285,16 +349,23 @@ func (se *SelectExecutor) joinRows(leftRows []joinedMapRow, right *joinTableSour
 				matched = true
 			}
 		}
-		if !matched && strings.EqualFold(joinType, sqlparser.LeftJoinStr) {
-			joined = append(joined, mergeJoinedRows(left, joinedMapRow(nullJoinRow(right))))
+		if !matched && strings.Contains(strings.ToLower(joinType), "left") {
+			joined = append(joined, mergeJoinedRowsUsing(left, joinedMapRow(nullJoinRow(right)), condition.Using))
 		}
 	}
-	if strings.EqualFold(joinType, sqlparser.RightJoinStr) {
+	if strings.Contains(strings.ToLower(joinType), "right") {
 		for i, rightRow := range right.rows {
 			if rightMatched[i] {
 				continue
 			}
-			joined = append(joined, joinedMapRow(rightRow))
+			// Bind the absent side explicitly, including when its input is
+			// empty. Otherwise qualified references fall back to the other
+			// table's unqualified column of the same name.
+			leftNull := make(joinedMapRow, len(se.joinOrderTypes))
+			for name := range se.joinOrderTypes {
+				leftNull[name] = nil
+			}
+			joined = append(joined, mergeJoinedRowsUsing(leftNull, joinedMapRow(rightRow), condition.Using))
 		}
 	}
 	return joined, nil
@@ -305,7 +376,11 @@ func joinUsingRowsMatch(left, right joinedMapRow, columns sqlparser.Columns) boo
 		name := strings.Trim(column.String(), "` ")
 		leftValue, leftOK := resolveExpressionRowValue(map[string]interface{}(left), name)
 		rightValue, rightOK := resolveExpressionRowValue(map[string]interface{}(right), name)
-		if !leftOK || !rightOK || leftValue == nil || rightValue == nil || compareScalarValues(leftValue, rightValue) != 0 {
+		collation, _ := left[columnCollationContextKey(name)].(string)
+		if collation == "" {
+			collation, _ = right[columnCollationContextKey(name)].(string)
+		}
+		if !leftOK || !rightOK || leftValue == nil || rightValue == nil || compareScalarValuesWithCollation(leftValue, rightValue, collation) != 0 {
 			return false
 		}
 	}
@@ -323,6 +398,20 @@ func mergeJoinedRows(left, right joinedMapRow) joinedMapRow {
 	return merged
 }
 
+func mergeJoinedRowsUsing(left, right joinedMapRow, columns sqlparser.Columns) joinedMapRow {
+	merged := mergeJoinedRows(left, right)
+	for _, column := range columns {
+		name := strings.Trim(column.String(), "` ")
+		value, _ := resolveExpressionRowValue(map[string]interface{}(left), name)
+		if value == nil {
+			value, _ = resolveExpressionRowValue(map[string]interface{}(right), name)
+		}
+		merged[name] = value
+		merged[strings.ToLower(name)] = value
+	}
+	return merged
+}
+
 func evalJoinPredicate(expr sqlparser.Expr, row joinedMapRow) bool {
 	return evalJoinPredicateTruthWithEvaluator(expr, row, nil, nil) == sqlTruthTrue
 }
@@ -336,9 +425,11 @@ func (se *SelectExecutor) evalJoinPredicate(expr sqlparser.Expr, row joinedMapRo
 }
 
 func (se *SelectExecutor) evalJoinPredicateWithError(expr sqlparser.Expr, row joinedMapRow) (bool, error) {
-	if se.joinSubqueryEvaluator == nil && se.joinSetSubqueryEvaluator == nil {
-		return se.evalJoinPredicate(expr, row), nil
-	}
+	truth, err := se.evalJoinPredicateTruthWithError(expr, row)
+	return truth == sqlTruthTrue, err
+}
+
+func (se *SelectExecutor) evalJoinPredicateTruthWithError(expr sqlparser.Expr, row joinedMapRow) (int, error) {
 	var evaluationErr error
 	var evaluator joinSubqueryEvaluator
 	if se.joinSubqueryEvaluator != nil {
@@ -360,11 +451,50 @@ func (se *SelectExecutor) evalJoinPredicateWithError(expr sqlparser.Expr, row jo
 			return values, err
 		}
 	}
-	truth := evalJoinPredicateTruthWithEvaluator(expr, row, evaluator, setEvaluator)
+	truth := evalJoinPredicateTruthWithEvaluatorAndError(expr, row, evaluator, setEvaluator, &evaluationErr)
 	if evaluationErr != nil {
-		return false, evaluationErr
+		return sqlTruthFalse, evaluationErr
 	}
-	return truth == sqlTruthTrue, nil
+	return truth, nil
+}
+
+func (se *SelectExecutor) evaluateGroupedProjectionWithSubqueries(expression sqlparser.Expr, row joinedMapRow) (interface{}, error) {
+	if se == nil || expression == nil || !expressionHasSubquery(expression) {
+		return nil, fmt.Errorf("grouped subquery projection is not applicable")
+	}
+	if booleanSQLExpression(expression) {
+		truth, err := se.evalJoinPredicateTruthWithError(expression, row)
+		if err != nil {
+			return nil, err
+		}
+		switch truth {
+		case sqlTruthUnknown:
+			return nil, nil
+		case sqlTruthTrue:
+			return int64(1), nil
+		default:
+			return int64(0), nil
+		}
+	}
+	var evaluationErr error
+	var evaluator joinSubqueryEvaluator
+	if se.joinSubqueryEvaluator != nil {
+		evaluator = func(subquery *sqlparser.Subquery, candidate joinedMapRow) (interface{}, error) {
+			value, err := se.joinSubqueryEvaluator(subquery, candidate)
+			if err != nil && evaluationErr == nil {
+				evaluationErr = err
+			}
+			return value, err
+		}
+	}
+	value, ok := evalJoinValueWithEvaluator(expression, row, evaluator)
+	if evaluationErr != nil {
+		return nil, evaluationErr
+	}
+	if !ok {
+		return nil, fmt.Errorf("cannot evaluate grouped subquery projection %s", sqlparser.String(expression))
+	}
+	return value, nil
 }
 
 func (se *SelectExecutor) evalJoinPredicateTruth(expr sqlparser.Expr, row joinedMapRow) int {
@@ -375,16 +505,20 @@ type joinSubqueryEvaluator func(*sqlparser.Subquery, joinedMapRow) (interface{},
 type joinSetSubqueryEvaluator func(*sqlparser.Subquery, joinedMapRow) ([]interface{}, error)
 
 func evalJoinPredicateTruthWithEvaluator(expr sqlparser.Expr, row joinedMapRow, evaluator joinSubqueryEvaluator, setEvaluator joinSetSubqueryEvaluator) int {
+	return evalJoinPredicateTruthWithEvaluatorAndError(expr, row, evaluator, setEvaluator, nil)
+}
+
+func evalJoinPredicateTruthWithEvaluatorAndError(expr sqlparser.Expr, row joinedMapRow, evaluator joinSubqueryEvaluator, setEvaluator joinSetSubqueryEvaluator, evaluationErr *error) int {
 	if expr == nil {
 		return sqlTruthTrue
 	}
 	switch v := expr.(type) {
 	case *sqlparser.AndExpr:
-		left := evalJoinPredicateTruthWithEvaluator(v.Left, row, evaluator, setEvaluator)
+		left := evalJoinPredicateTruthWithEvaluatorAndError(v.Left, row, evaluator, setEvaluator, evaluationErr)
 		if left == sqlTruthFalse {
 			return sqlTruthFalse
 		}
-		right := evalJoinPredicateTruthWithEvaluator(v.Right, row, evaluator, setEvaluator)
+		right := evalJoinPredicateTruthWithEvaluatorAndError(v.Right, row, evaluator, setEvaluator, evaluationErr)
 		if right == sqlTruthFalse {
 			return sqlTruthFalse
 		}
@@ -393,11 +527,11 @@ func evalJoinPredicateTruthWithEvaluator(expr sqlparser.Expr, row joinedMapRow, 
 		}
 		return sqlTruthTrue
 	case *sqlparser.OrExpr:
-		left := evalJoinPredicateTruthWithEvaluator(v.Left, row, evaluator, setEvaluator)
+		left := evalJoinPredicateTruthWithEvaluatorAndError(v.Left, row, evaluator, setEvaluator, evaluationErr)
 		if left == sqlTruthTrue {
 			return sqlTruthTrue
 		}
-		right := evalJoinPredicateTruthWithEvaluator(v.Right, row, evaluator, setEvaluator)
+		right := evalJoinPredicateTruthWithEvaluatorAndError(v.Right, row, evaluator, setEvaluator, evaluationErr)
 		if right == sqlTruthTrue {
 			return sqlTruthTrue
 		}
@@ -406,7 +540,7 @@ func evalJoinPredicateTruthWithEvaluator(expr sqlparser.Expr, row joinedMapRow, 
 		}
 		return sqlTruthFalse
 	case *sqlparser.NotExpr:
-		truth := evalJoinPredicateTruthWithEvaluator(v.Expr, row, evaluator, setEvaluator)
+		truth := evalJoinPredicateTruthWithEvaluatorAndError(v.Expr, row, evaluator, setEvaluator, evaluationErr)
 		if truth == sqlTruthUnknown {
 			return sqlTruthUnknown
 		}
@@ -419,8 +553,15 @@ func evalJoinPredicateTruthWithEvaluator(expr sqlparser.Expr, row joinedMapRow, 
 		if !leftOK {
 			return sqlTruthFalse
 		}
+		collation, collationErr := resolveComparisonCollation(v.Left, v.Right, map[string]interface{}(row), v.Operator)
+		if collationErr != nil {
+			if evaluationErr != nil && *evaluationErr == nil {
+				*evaluationErr = collationErr
+			}
+			return sqlTruthFalse
+		}
 		if v.Operator == sqlparser.InStr || v.Operator == sqlparser.NotInStr {
-			matched, unknown, err := evalJoinInPredicate(left, v.Right, row, setEvaluator)
+			matched, unknown, err := evalJoinInPredicate(left, v.Right, row, setEvaluator, collation)
 			if err != nil {
 				return sqlTruthFalse
 			}
@@ -436,7 +577,33 @@ func evalJoinPredicateTruthWithEvaluator(expr sqlparser.Expr, row joinedMapRow, 
 		if !rightOK {
 			return sqlTruthFalse
 		}
-		return evalJoinComparisonTruth(v.Operator, left, right)
+		if (v.Operator == sqlparser.RegexpStr || v.Operator == sqlparser.NotRegexpStr) && left != nil && right != nil {
+			matched, err := sqlRegexpMatchWithCollation(fmt.Sprint(right), fmt.Sprint(left), collation)
+			if err != nil {
+				if evaluationErr != nil && *evaluationErr == nil {
+					*evaluationErr = err
+				}
+				return sqlTruthFalse
+			}
+			if v.Operator == sqlparser.NotRegexpStr {
+				matched = !matched
+			}
+			return truthValue(matched)
+		}
+		if (v.Operator == sqlparser.LikeStr || v.Operator == sqlparser.NotLikeStr) && v.Escape != nil && left != nil && right != nil {
+			matched, err := sqlLikePatternMatchWithEscapeAndCollation(fmt.Sprint(left), fmt.Sprint(right), v.Escape, map[string]interface{}(row), collation)
+			if err != nil {
+				if evaluationErr != nil && *evaluationErr == nil {
+					*evaluationErr = err
+				}
+				return sqlTruthFalse
+			}
+			if v.Operator == sqlparser.NotLikeStr {
+				matched = !matched
+			}
+			return truthValue(matched)
+		}
+		return evalJoinComparisonTruthWithEscapeAndCollation(v.Operator, left, right, v.Escape, map[string]interface{}(row), collation)
 	case *sqlparser.RangeCond:
 		left, leftOK := evalJoinValueWithEvaluator(v.Left, row, evaluator)
 		from, fromOK := evalJoinValueWithEvaluator(v.From, row, evaluator)
@@ -444,10 +611,24 @@ func evalJoinPredicateTruthWithEvaluator(expr sqlparser.Expr, row joinedMapRow, 
 		if !leftOK || !fromOK || !toOK {
 			return sqlTruthFalse
 		}
+		lowerCollation, err := resolveComparisonCollation(v.Left, v.From, map[string]interface{}(row), "BETWEEN")
+		if err != nil {
+			if evaluationErr != nil && *evaluationErr == nil {
+				*evaluationErr = err
+			}
+			return sqlTruthFalse
+		}
+		upperCollation, err := resolveComparisonCollation(v.Left, v.To, map[string]interface{}(row), "BETWEEN")
+		if err != nil {
+			if evaluationErr != nil && *evaluationErr == nil {
+				*evaluationErr = err
+			}
+			return sqlTruthFalse
+		}
 		if left == nil || from == nil || to == nil {
 			return sqlTruthUnknown
 		}
-		matched := compareScalarValues(left, from) >= 0 && compareScalarValues(left, to) <= 0
+		matched := compareScalarValuesWithCollation(left, from, lowerCollation) >= 0 && compareScalarValuesWithCollation(left, to, upperCollation) <= 0
 		if v.Operator == sqlparser.NotBetweenStr {
 			return truthValue(!matched)
 		}
@@ -462,6 +643,14 @@ func evalJoinPredicateTruthWithEvaluator(expr sqlparser.Expr, row joinedMapRow, 
 			return truthValue(value == nil)
 		case sqlparser.IsNotNullStr:
 			return truthValue(value != nil)
+		case sqlparser.IsTrueStr:
+			return truthValue(sqlTruthValue(value) == sqlTruthTrue)
+		case sqlparser.IsFalseStr:
+			return truthValue(sqlTruthValue(value) == sqlTruthFalse)
+		case sqlparser.IsNotTrueStr:
+			return truthValue(sqlTruthValue(value) != sqlTruthTrue)
+		case sqlparser.IsNotFalseStr:
+			return truthValue(sqlTruthValue(value) != sqlTruthFalse)
 		default:
 			return sqlTruthFalse
 		}
@@ -475,15 +664,19 @@ func evalJoinPredicateTruthWithEvaluator(expr sqlparser.Expr, row joinedMapRow, 
 		}
 		return truthValue(len(values) > 0)
 	case *sqlparser.ParenExpr:
-		return evalJoinPredicateTruthWithEvaluator(v.Expr, row, evaluator, setEvaluator)
+		return evalJoinPredicateTruthWithEvaluatorAndError(v.Expr, row, evaluator, setEvaluator, evaluationErr)
 	default:
-		return sqlTruthFalse
+		value, ok := evalJoinValueWithEvaluator(expr, row, evaluator)
+		if !ok {
+			return sqlTruthFalse
+		}
+		return sqlTruthValue(value)
 	}
 }
 
-func evalJoinInPredicate(left interface{}, right sqlparser.Expr, row joinedMapRow, setEvaluator joinSetSubqueryEvaluator) (bool, bool, error) {
+func evalJoinInPredicate(left interface{}, right sqlparser.Expr, row joinedMapRow, setEvaluator joinSetSubqueryEvaluator, collation string) (bool, bool, error) {
 	if paren, ok := right.(*sqlparser.ParenExpr); ok {
-		return evalJoinInPredicate(left, paren.Expr, row, setEvaluator)
+		return evalJoinInPredicate(left, paren.Expr, row, setEvaluator, collation)
 	}
 	if subquery, ok := right.(*sqlparser.Subquery); ok && setEvaluator != nil {
 		values, err := setEvaluator(subquery, row)
@@ -496,13 +689,13 @@ func evalJoinInPredicate(left interface{}, right sqlparser.Expr, row joinedMapRo
 				hasNull = true
 				continue
 			}
-			if compareScalarValues(left, value) == 0 {
+			if compareScalarValuesWithCollation(left, value, collation) == 0 {
 				return true, false, nil
 			}
 		}
 		return false, hasNull, nil
 	}
-	return evalInPredicate(left, right, map[string]interface{}(row))
+	return evalInPredicateWithCollation(left, right, map[string]interface{}(row), collation)
 }
 
 func evalJoinComparison(operator string, left, right interface{}) bool {
@@ -510,6 +703,14 @@ func evalJoinComparison(operator string, left, right interface{}) bool {
 }
 
 func evalJoinComparisonTruth(operator string, left, right interface{}) int {
+	return evalJoinComparisonTruthWithCollation(operator, left, right, "")
+}
+
+func evalJoinComparisonTruthWithCollation(operator string, left, right interface{}, collation string) int {
+	return evalJoinComparisonTruthWithEscapeAndCollation(operator, left, right, nil, nil, collation)
+}
+
+func evalJoinComparisonTruthWithEscapeAndCollation(operator string, left, right interface{}, escapeExpr sqlparser.Expr, values map[string]interface{}, collation string) int {
 	if operator == sqlparser.NullSafeEqualStr {
 		if left == nil || right == nil {
 			return truthValue(left == nil && right == nil)
@@ -519,7 +720,7 @@ func evalJoinComparisonTruth(operator string, left, right interface{}) int {
 		return sqlTruthUnknown
 	}
 	if operator == sqlparser.RegexpStr || operator == sqlparser.NotRegexpStr {
-		matched, err := regexp.MatchString(fmt.Sprint(right), fmt.Sprint(left))
+		matched, err := sqlRegexpMatchWithCollation(fmt.Sprint(right), fmt.Sprint(left), collation)
 		if err != nil {
 			return sqlTruthFalse
 		}
@@ -529,13 +730,13 @@ func evalJoinComparisonTruth(operator string, left, right interface{}) int {
 		return truthValue(matched)
 	}
 	if operator == sqlparser.LikeStr || operator == sqlparser.NotLikeStr {
-		matched := sqlLikePatternMatch(fmt.Sprint(left), fmt.Sprint(right))
+		matched, _ := sqlLikePatternMatchWithEscapeAndCollation(fmt.Sprint(left), fmt.Sprint(right), escapeExpr, values, collation)
 		if operator == sqlparser.NotLikeStr {
 			return truthValue(!matched)
 		}
 		return truthValue(matched)
 	}
-	cmp := compareScalarValues(left, right)
+	cmp := compareScalarValuesWithCollation(left, right, collation)
 	switch operator {
 	case sqlparser.EqualStr:
 		return truthValue(cmp == 0)
@@ -679,44 +880,179 @@ func joinColumnKey(col *sqlparser.ColName) string {
 	return col.Name.String()
 }
 
-func (se *SelectExecutor) projectJoinedRows(rows []joinedMapRow) ([]Record, []string, []string) {
+func (se *SelectExecutor) projectJoinedRows(stmt *sqlparser.Select, rows []joinedMapRow) ([]Record, []string, []string, error) {
 	columns := se.getColumnNames()
 	columnTypes := make([]string, len(columns))
 	projectedColumns := make([]*metadata.ColumnMeta, 0, len(columns))
 	for i, col := range columns {
-		columnTypes[i] = strings.ToLower(string(metadata.TypeVarchar))
-		projectedColumns = append(projectedColumns, &metadata.ColumnMeta{Name: col, Type: metadata.TypeVarchar})
+		typ := metadata.TypeVarchar
+		collation := ""
+		if i < len(se.selectExprASTs) {
+			if booleanSQLExpression(se.selectExprASTs[i]) {
+				typ = metadata.TypeBigInt
+			} else if modelType, known := modelProjectionResultType(se.selectExprASTs[i]); known {
+				typ = modelType
+			} else if name, ok := se.selectExprASTs[i].(*sqlparser.ColName); ok {
+				if len(rows) > 0 {
+					collation, _ = rows[0][columnCollationContextKey(joinColumnKey(name))].(string)
+				}
+				if resolved, found := se.joinOrderTypes[strings.ToLower(joinColumnKey(name))]; found {
+					typ = resolved
+				}
+			} else if len(rows) > 0 {
+				value, err := se.valueForJoinProjection(rows[0], i, se.selectExprs[i])
+				if err != nil {
+					return nil, nil, nil, err
+				}
+				typ = projectionValueType(value)
+			}
+			typ = mysqlSortedJoinMaterializationType(stmt, se.selectExprASTs[i], typ)
+		}
+		columnTypes[i] = strings.ToLower(string(typ))
+		projectedColumns = append(projectedColumns, &metadata.ColumnMeta{Name: col, Type: typ, Collation: collation})
 	}
 	records := make([]Record, 0, len(rows))
 	for _, row := range rows {
 		values := make([]interface{}, 0, len(se.selectExprs))
 		for index, expr := range se.selectExprs {
-			values = append(values, se.valueForJoinProjection(row, index, expr))
+			value, err := se.valueForJoinProjection(row, index, expr)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			values = append(values, value)
 		}
-		records = append(records, NewExecutorRecordFromInterface(values, &metadata.TableMeta{
+		record := NewExecutorRecordFromInterface(values, &metadata.TableMeta{
 			Name:    se.tableName + "_join",
 			Columns: projectedColumns,
-		}))
+		})
+		if typedRecord, ok := record.(*EngineExecutorRecord); ok {
+			for index, expression := range se.selectExprASTs {
+				column, isColumn := expression.(*sqlparser.ColName)
+				if !isColumn {
+					continue
+				}
+				if rowContext, exists := contentSourceContextForColumn(map[string]interface{}(row), column); exists {
+					if typedRecord.contentSourceByColumn == nil {
+						typedRecord.contentSourceByColumn = make(map[int]contentSourceRowContext)
+					}
+					typedRecord.contentSourceByColumn[index] = rowContext
+				}
+			}
+			for key, value := range row {
+				if rowContext, exists := value.(contentSourceRowContext); exists && strings.HasPrefix(key, contentSourceRowContextKey) {
+					if typedRecord.contentSourceContexts == nil {
+						typedRecord.contentSourceContexts = make(map[string]contentSourceRowContext)
+					}
+					typedRecord.contentSourceContexts[key] = rowContext
+				}
+			}
+		}
+		records = append(records, record)
 	}
-	return records, columns, columnTypes
+	return records, columns, columnTypes, nil
 }
 
-func (se *SelectExecutor) valueForJoinProjection(row joinedMapRow, index int, expr string) interface{} {
+func (se *SelectExecutor) valueForJoinProjection(row joinedMapRow, index int, expr string) (interface{}, error) {
 	if index < len(se.selectExprASTs) && se.selectExprASTs[index] != nil {
+		if function, ok := se.selectExprASTs[index].(*sqlparser.FuncExpr); ok {
+			name := strings.ToUpper(strings.Trim(function.Name.String(), "` "))
+			switch name {
+			case "AI_EMBED":
+				return evaluateAIEmbedSQL(se.embeddingRuntime, se.modelContext, function, map[string]interface{}(row))
+			case "AI_EMBED_BLOCK":
+				return se.evaluateAIEmbedBlockSQL(function, map[string]interface{}(row))
+			case "AI_DESCRIBE_BLOCK", "AI_DESCRIBE_BLOCK_RESULT":
+				return se.evaluateAIDescribeBlockSQL(function, map[string]interface{}(row))
+			case "AI_GENERATE", "AI_GENERATE_RESULT", "AI_SUMMARIZE":
+				return se.evaluateAIGenerateSQL(function, map[string]interface{}(row))
+			}
+			if strings.HasPrefix(name, "CONTENT_") || strings.HasPrefix(name, "VECTOR_") || strings.HasPrefix(name, "AI_") {
+				// Source read/validation errors must not become a successful NULL.
+				return evaluateExpressionWithRow(function, map[string]interface{}(row))
+			}
+		}
+		if booleanSQLExpression(se.selectExprASTs[index]) && expressionHasSubquery(se.selectExprASTs[index]) {
+			var evaluationErr error
+			evaluator := joinSubqueryEvaluator(nil)
+			if se.joinSubqueryEvaluator != nil {
+				evaluator = func(subquery *sqlparser.Subquery, candidate joinedMapRow) (interface{}, error) {
+					value, err := se.joinSubqueryEvaluator(subquery, candidate)
+					if err != nil && evaluationErr == nil {
+						evaluationErr = err
+					}
+					return value, err
+				}
+			}
+			setEvaluator := joinSetSubqueryEvaluator(nil)
+			if se.joinSetSubqueryEvaluator != nil {
+				setEvaluator = func(subquery *sqlparser.Subquery, candidate joinedMapRow) ([]interface{}, error) {
+					values, err := se.joinSetSubqueryEvaluator(subquery, candidate)
+					if err != nil && evaluationErr == nil {
+						evaluationErr = err
+					}
+					return values, err
+				}
+			}
+			truth := evalJoinPredicateTruthWithEvaluator(se.selectExprASTs[index], row, evaluator, setEvaluator)
+			if evaluationErr != nil {
+				return nil, evaluationErr
+			}
+			switch truth {
+			case sqlTruthUnknown:
+				return nil, nil
+			case sqlTruthTrue:
+				return int64(1), nil
+			default:
+				return int64(0), nil
+			}
+		}
+		if expressionHasSubquery(se.selectExprASTs[index]) {
+			var evaluationErr error
+			var evaluator joinSubqueryEvaluator
+			if se.joinSubqueryEvaluator != nil {
+				evaluator = func(subquery *sqlparser.Subquery, candidate joinedMapRow) (interface{}, error) {
+					value, err := se.joinSubqueryEvaluator(subquery, candidate)
+					if err != nil && evaluationErr == nil {
+						evaluationErr = err
+					}
+					return value, err
+				}
+			}
+			value, ok := evalJoinValueWithEvaluator(se.selectExprASTs[index], row, evaluator)
+			if evaluationErr != nil {
+				return nil, evaluationErr
+			}
+			if !ok {
+				return nil, fmt.Errorf("cannot evaluate JOIN subquery projection %s", se.selectExprASTs[index])
+			}
+			return value, nil
+		}
 		values := map[string]interface{}(row)
 		value, err := evaluateExpressionWithRow(se.selectExprASTs[index], values)
 		if err == nil {
-			return value
+			return value, nil
 		}
 		coerced := make(map[string]interface{}, len(row))
 		for key, raw := range row {
 			coerced[key] = coerceJoinNumericString(raw)
 		}
 		if value, err = evaluateExpressionWithRow(se.selectExprASTs[index], coerced); err == nil {
-			return value
+			return value, nil
 		}
 	}
-	return rowValueForSelectExpr(row, expr)
+	return rowValueForSelectExpr(row, expr), nil
+}
+
+func expressionHasSubquery(expression sqlparser.Expr) bool {
+	found := false
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		if _, ok := node.(*sqlparser.Subquery); ok {
+			found = true
+			return false, nil
+		}
+		return !found, nil
+	}, expression)
+	return found
 }
 
 func rowValueForSelectExpr(row joinedMapRow, expr string) interface{} {
@@ -739,9 +1075,20 @@ func (se *SelectExecutor) sortJoinedRows(rows []joinedMapRow) {
 	sort.SliceStable(rows, func(i, j int) bool {
 		for _, orderSpec := range se.orderByColumns {
 			columnName, desc := parseOrderBySpec(orderSpec)
-			left := rowValueForSelectExpr(rows[i], columnName)
-			right := rowValueForSelectExpr(rows[j], columnName)
-			cmp := se.compareJoinedOrderValues(columnName, left, right)
+			if ordinal, err := strconv.Atoi(columnName); err == nil && ordinal > 0 && ordinal <= len(se.selectExprs) {
+				columnName = se.selectExprs[ordinal-1]
+			} else {
+				for index, alias := range se.selectAliases {
+					if strings.EqualFold(alias, columnName) {
+						columnName = se.selectExprs[index]
+						break
+					}
+				}
+			}
+			left, _ := evaluateProjectionExpression(columnName, map[string]interface{}(rows[i]))
+			right, _ := evaluateProjectionExpression(columnName, map[string]interface{}(rows[j]))
+			collation, _ := rows[i][columnCollationContextKey(columnName)].(string)
+			cmp := se.compareJoinedOrderValues(columnName, left, right, collation)
 			if cmp == 0 {
 				continue
 			}
@@ -754,7 +1101,7 @@ func (se *SelectExecutor) sortJoinedRows(rows []joinedMapRow) {
 	})
 }
 
-func (se *SelectExecutor) compareJoinedOrderValues(columnName string, left, right interface{}) int {
+func (se *SelectExecutor) compareJoinedOrderValues(columnName string, left, right interface{}, collation string) int {
 	if left == nil {
 		if right == nil {
 			return 0
@@ -780,7 +1127,7 @@ func (se *SelectExecutor) compareJoinedOrderValues(columnName string, left, righ
 			}
 		}
 	}
-	return compareScalarValues(left, right)
+	return compareScalarValuesWithCollation(left, right, collation)
 }
 
 func (se *SelectExecutor) buildJoinAggregateResult(rows []joinedMapRow) *SelectResult {
@@ -793,10 +1140,13 @@ func (se *SelectExecutor) buildJoinAggregateResult(rows []joinedMapRow) *SelectR
 	groupOrder := make([]string, 0)
 	for _, row := range rows {
 		values := make([]interface{}, 0, len(groupColumns))
+		collations := make([]string, 0, len(groupColumns))
 		for _, column := range groupColumns {
 			values = append(values, rowValueForSelectExpr(row, column))
+			collation, _ := row[columnCollationContextKey(column)].(string)
+			collations = append(collations, collation)
 		}
-		key := aggregateGroupKey(values)
+		key := aggregateGroupKeyWithCollations(values, collations)
 		if len(groupColumns) == 0 {
 			key = "__all__"
 		}
@@ -810,7 +1160,9 @@ func (se *SelectExecutor) buildJoinAggregateResult(rows []joinedMapRow) *SelectR
 	columnTypes := make([]string, len(columns))
 	for i, column := range columns {
 		colType := metadata.TypeVarchar
-		if aggregateExprs[i].funcName == "COUNT" {
+		if i < len(se.selectExprASTs) && booleanSQLExpression(se.selectExprASTs[i]) {
+			colType = metadata.TypeBigInt
+		} else if aggregateExprs[i].funcName == "COUNT" {
 			colType = metadata.TypeBigInt
 		} else if aggregateExprs[i].funcName != "" {
 			colType = metadata.TypeDecimal
@@ -822,6 +1174,7 @@ func (se *SelectExecutor) buildJoinAggregateResult(rows []joinedMapRow) *SelectR
 	for _, key := range groupOrder {
 		groupRows := groups[key]
 		out := make(joinedMapRow)
+		out[storedFunctionContextKey] = ctxOrBackground(se.modelContext)
 		for i, expr := range se.selectExprs {
 			agg := aggregateExprs[i]
 			var value interface{}
@@ -835,9 +1188,51 @@ func (se *SelectExecutor) buildJoinAggregateResult(rows []joinedMapRow) *SelectR
 			out[expr] = value
 			out[strings.ToLower(expr)] = value
 		}
+		if len(groupRows) > 0 {
+			addJoinedAggregateGroupBindings(out, se.groupByExpressions, groupRows[0])
+			for index, expression := range se.selectExprASTs {
+				column, isColumn := expression.(*sqlparser.ColName)
+				if !isColumn || index >= len(columns) {
+					continue
+				}
+				if rowContext, exists := contentSourceContextForColumn(map[string]interface{}(groupRows[0]), column); exists {
+					out[derivedOutputSourceContextKey(columns[index])] = rowContext
+				}
+			}
+			for key, value := range groupRows[0] {
+				if rowContext, exists := value.(contentSourceRowContext); exists && strings.HasPrefix(key, contentSourceRowContextKey) {
+					out[key] = rowContext
+				}
+			}
+		}
+		for index, expression := range se.selectExprASTs {
+			if index >= len(columns) || !expressionHasSubquery(expression) {
+				continue
+			}
+			if aggregateExpressionContainsAggregate(expression) {
+				if se.expressionError == nil {
+					se.expressionError = fmt.Errorf("aggregate expression mixed with a correlated subquery is not supported in grouped projection: %s", sqlparser.String(expression))
+				}
+				continue
+			}
+			value, err := se.evaluateGroupedProjectionWithSubqueries(expression, out)
+			if err != nil {
+				if se.expressionError == nil {
+					se.expressionError = err
+				}
+				continue
+			}
+			out[columns[index]] = value
+			out[strings.ToLower(columns[index])] = value
+			out[se.selectExprs[index]] = value
+			out[strings.ToLower(se.selectExprs[index])] = value
+		}
 		if se.havingCondition != "" {
-			matched, err := rowMatchesWhereConditions(map[string]interface{}(out), []string{se.havingCondition})
+			matched, err := se.matchesHavingRow(out)
 			if err != nil || !matched {
+				if err != nil && se.expressionError == nil {
+					se.expressionError = err
+				}
 				continue
 			}
 		}
@@ -850,10 +1245,29 @@ func (se *SelectExecutor) buildJoinAggregateResult(rows []joinedMapRow) *SelectR
 		for _, column := range columns {
 			values = append(values, row[column])
 		}
-		records = append(records, NewExecutorRecordFromInterface(values, &metadata.TableMeta{
+		record := NewExecutorRecordFromInterface(values, &metadata.TableMeta{
 			Name:    se.tableName + "_join_aggregate",
 			Columns: projectedColumns,
-		}))
+		})
+		if typedRecord, ok := record.(*EngineExecutorRecord); ok {
+			for index, column := range columns {
+				if rowContext, exists := row[derivedOutputSourceContextKey(column)].(contentSourceRowContext); exists {
+					if typedRecord.contentSourceByColumn == nil {
+						typedRecord.contentSourceByColumn = make(map[int]contentSourceRowContext)
+					}
+					typedRecord.contentSourceByColumn[index] = rowContext
+				}
+			}
+			for key, value := range row {
+				if rowContext, exists := value.(contentSourceRowContext); exists && strings.HasPrefix(key, contentSourceRowContextKey) {
+					if typedRecord.contentSourceContexts == nil {
+						typedRecord.contentSourceContexts = make(map[string]contentSourceRowContext)
+					}
+					typedRecord.contentSourceContexts[key] = rowContext
+				}
+			}
+		}
+		records = append(records, record)
 	}
 	records = se.applyLimitOffset(records)
 	return &SelectResult{
@@ -863,6 +1277,29 @@ func (se *SelectExecutor) buildJoinAggregateResult(rows []joinedMapRow) *SelectR
 		ColumnTypes: columnTypes,
 		ResultType:  common.RESULT_TYPE_QUERY,
 		Message:     fmt.Sprintf("Query OK, %d rows in set", len(records)),
+	}
+}
+
+func addJoinedAggregateGroupBindings(target joinedMapRow, expressions []sqlparser.Expr, source joinedMapRow) {
+	if target == nil || source == nil {
+		return
+	}
+	for _, expression := range expressions {
+		column, ok := expression.(*sqlparser.ColName)
+		if !ok {
+			continue
+		}
+		value := rowValueForSelectExpr(source, sqlparser.String(column))
+		name := strings.Trim(column.Name.String(), "` ")
+		qualifier := strings.Trim(strings.TrimSpace(sqlparser.String(column.Qualifier)), "` ")
+		if qualifier != "" {
+			key := qualifier + "." + name
+			target[key] = value
+			target[strings.ToLower(key)] = value
+		} else {
+			target[name] = value
+			target[strings.ToLower(name)] = value
+		}
 	}
 }
 
@@ -884,14 +1321,24 @@ func aggregateJoinedRows(rows []joinedMapRow, agg aggregateExpression) interface
 		var value interface{}
 		if agg.column != "*" {
 			value = rowValueForSelectExpr(row, agg.column)
+			if collation := joinedRowColumnCollation(row, agg.column); collation != "" {
+				acc.valueCollation = collation
+			}
 		}
 		orderValue := value
 		if agg.orderBy != "" {
 			orderValue = rowValueForSelectExpr(row, agg.orderBy)
+			if collation := joinedRowColumnCollation(row, agg.orderBy); collation != "" {
+				acc.orderCollation = collation
+			}
 		}
 		acc.addWithOrder(value, orderValue)
 	}
 	return acc.value()
+}
+
+func joinedRowColumnCollation(row joinedMapRow, column string) string {
+	return collationFromValueContext(map[string]interface{}(row), column)
 }
 
 func basicValueToJoinInterface(value basic.Value) interface{} {

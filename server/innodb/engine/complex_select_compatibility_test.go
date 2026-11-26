@@ -35,8 +35,11 @@ func TestCorrelatedScalarProjectionPreservesOuterJoinSource(t *testing.T) {
 	mustExecSQL(t, executor, "app", "insert into groups (id, label) values (10, 'g10'), (20, 'g20')")
 	mustExecSQL(t, executor, "app", "insert into children (id, parent_id, score) values (101, 1, 7), (102, 1, 11), (201, 2, 5)")
 
-	rows := mustQuerySQL(t, executor, "app", "select p.id, g.label, (select max(c.score) from children c where c.parent_id = p.id) as max_score from parents p join groups g on g.id = p.group_id order by p.id")
-	require.Equal(t, [][]interface{}{{"1", "g10", "11"}, {"2", "g20", "5"}}, rows)
+	result := mustSelectResultSQL(t, executor, "app", "select p.id, g.label, (select max(c.score) from children c where c.parent_id = p.id) as max_score from parents p join groups g on g.id = p.group_id order by p.id")
+	require.Equal(t, []string{"int", "varchar", "bigint"}, result.ColumnTypes)
+	require.Len(t, result.Records, 2)
+	require.Equal(t, int64(11), result.Records[0].GetValues()[2].Int())
+	require.Equal(t, int64(5), result.Records[1].GetValues()[2].Int())
 }
 
 func TestIntersectAndExceptSetOperations(t *testing.T) {
@@ -982,8 +985,11 @@ func TestCorrelatedScalarSubquerySupportsOuterJoinSource(t *testing.T) {
 	mustExecSQL(t, executor, "app", "insert into parents (id) values (1), (2), (3)")
 	mustExecSQL(t, executor, "app", "insert into parent_meta (parent_id, enabled) values (1, 1), (2, 0), (3, 1)")
 	mustExecSQL(t, executor, "app", "insert into children (id, parent_id, score) values (10, 1, 7), (11, 1, 9), (30, 3, 4)")
-	rows := mustQuerySQL(t, executor, "app", "select p.id, (select max(c.score) from children c where c.parent_id = p.id) as max_score from parents p join parent_meta m on p.id = m.parent_id where m.enabled = 1 order by p.id")
-	require.Equal(t, [][]interface{}{{"1", "9"}, {"3", "4"}}, rows)
+	result := mustSelectResultSQL(t, executor, "app", "select p.id, (select max(c.score) from children c where c.parent_id = p.id) as max_score from parents p join parent_meta m on p.id = m.parent_id where m.enabled = 1 order by p.id")
+	require.Equal(t, []string{"int", "bigint"}, result.ColumnTypes)
+	require.Len(t, result.Records, 2)
+	require.Equal(t, int64(9), result.Records[0].GetValues()[1].Int())
+	require.Equal(t, int64(4), result.Records[1].GetValues()[1].Int())
 }
 
 func TestInSubqueryPreservesNullThreeValuedLogic(t *testing.T) {

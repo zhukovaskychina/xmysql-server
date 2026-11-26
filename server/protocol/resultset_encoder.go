@@ -679,6 +679,10 @@ func (e *MySQLResultSetEncoder) CreateColumnDefinition(
 	fieldType byte,
 	flags uint16,
 ) *ColumnDefinition {
+	charset := uint16(0x21)
+	if flags&uint16(common.BinaryFlag) != 0 {
+		charset = 0x3f
+	}
 	return &ColumnDefinition{
 		Catalog:      "def",
 		Schema:       "",
@@ -686,7 +690,7 @@ func (e *MySQLResultSetEncoder) CreateColumnDefinition(
 		OrgTable:     "",
 		Name:         name,
 		OrgName:      name,
-		CharacterSet: 0x21, // UTF-8
+		CharacterSet: charset,
 		ColumnLength: e.InferColumnLength(fieldType),
 		ColumnType:   fieldType,
 		Flags:        flags,

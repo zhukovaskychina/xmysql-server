@@ -1098,6 +1098,15 @@ func statementTableAccessesFromParsed(parsed *sqlparser.ParsedStatement, databas
 	// and dependency sets in their command handlers. Taking a generic statement
 	// lease first would make an explicit WRITE lock wait on its own read lease.
 	switch parsed.AST.(type) {
+	case *sqlparser.Show:
+		// SHOW INDEX/COLUMNS names a table whose metadata must remain
+		// stable until the statement finishes, just like a SELECT reader.
+		show := parsed.AST.(*sqlparser.Show)
+		switch strings.ToLower(show.Type) {
+		case "index", "indexes", "keys", "columns", "fields", "create table", "create view":
+		default:
+			return nil, false, true
+		}
 	case *sqlparser.Select, *sqlparser.Union, *sqlparser.ParenSelect, *sqlparser.With,
 		*sqlparser.Insert, *sqlparser.Update, *sqlparser.Delete:
 	default:

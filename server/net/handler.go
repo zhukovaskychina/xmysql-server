@@ -250,24 +250,31 @@ func (m *MySQLMessageHandler) handleQuery(session Session, currentMysqlSession *
 }
 
 func (m *MySQLMessageHandler) handleStmtSendLongData(session Session, recMySQLPkg *MySQLPackage) error {
-	if len(recMySQLPkg.Body) < 7 {
-		return session.WriteBytes(protocol.EncodeErrorPacket(common.ErrParse, "42000", "Invalid COM_STMT_SEND_LONG_DATA"))
+	if len(recMySQLPkg.Body) < 5 {
+		return fmt.Errorf("invalid COM_STMT_SEND_LONG_DATA header")
 	}
 	stmtID := binary.LittleEndian.Uint32(recMySQLPkg.Body[1:5])
-	paramID := binary.LittleEndian.Uint16(recMySQLPkg.Body[5:7])
 	mgr, ok := session.GetAttribute("prepared_stmt_mgr").(*protocol.PreparedStatementManager)
 	if !ok || mgr == nil {
 		mgr = protocol.NewPreparedStatementManager()
 		session.SetAttribute("prepared_stmt_mgr", mgr)
 	}
+	if len(recMySQLPkg.Body) < 7 {
+		_ = mgr.LatchLongDataError(stmtID, fmt.Errorf("invalid COM_STMT_SEND_LONG_DATA parameter header"))
+		return nil
+	}
+	paramID := binary.LittleEndian.Uint16(recMySQLPkg.Body[5:7])
 	if err := mgr.AppendLongData(stmtID, paramID, recMySQLPkg.Body[7:]); err != nil {
-		return session.WriteBytes(protocol.EncodeErrorPacket(common.ErrUnknownStmtHandler, "HY000", err.Error()))
+		// COM_STMT_SEND_LONG_DATA has no response packet. The statement manager
+		// retains this error so the matching execute command can report it.
+		return nil
 	}
 	// COM_STMT_SEND_LONG_DATA has no server response on success.
 	return nil
 }
 
 func (m *MySQLMessageHandler) handleResetConnection(session Session, currentMysqlSession *server.MySQLServerSession, recMySQLPkg *MySQLPackage) error {
+	closePreparedStatementManager(session)
 	session.SetAttribute("prepared_stmt_mgr", protocol.NewPreparedStatementManager())
 	if currentMysqlSession != nil && *currentMysqlSession != nil {
 		(*currentMysqlSession).SetParamByName("sql_prepared_stmt_mgr", nil)

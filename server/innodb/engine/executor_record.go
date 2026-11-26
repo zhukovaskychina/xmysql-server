@@ -6,13 +6,19 @@ import (
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/content"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/vector"
 )
 
 // EngineExecutorRecord engine 包中 ExecutorRecord 接口的实现
 type EngineExecutorRecord struct {
-	values []basic.Value       // 字段值，使用 basic.Value
-	schema *metadata.TableMeta // 表结构定义
+	values                []basic.Value       // 字段值，使用 basic.Value
+	schema                *metadata.TableMeta // 表结构定义
+	contentValues         map[int]content.Value
+	vectorValues          map[int]vector.Value
+	contentSourceContexts map[string]contentSourceRowContext
+	contentSourceByColumn map[int]contentSourceRowContext
 }
 
 // NewExecutorRecord 创建执行器记录
@@ -26,6 +32,8 @@ func NewExecutorRecord(values []basic.Value, schema *metadata.TableMeta) basic.E
 // NewExecutorRecordFromInterface 从 interface{} 数组创建执行器记录（兼容性方法）
 func NewExecutorRecordFromInterface(values []interface{}, schema *metadata.TableMeta) basic.ExecutorRecord {
 	basicValues := make([]basic.Value, len(values))
+	contentValues := make(map[int]content.Value)
+	vectorValues := make(map[int]vector.Value)
 	for i, v := range values {
 		switch val := v.(type) {
 		case string:
@@ -34,8 +42,36 @@ func NewExecutorRecordFromInterface(values []interface{}, schema *metadata.Table
 			basicValues[i] = basic.NewInt64Value(int64(val))
 		case int64:
 			basicValues[i] = basic.NewInt64Value(val)
+		case bool:
+			basicValues[i] = basic.NewStringValue(projectionValueString(val))
 		case []byte:
 			basicValues[i] = basic.NewValue(val)
+		case content.Value:
+			basicValues[i] = basic.NewBytes(val.Bytes)
+			contentValues[i] = val
+		case *content.Value:
+			if val == nil {
+				basicValues[i] = basic.NewNull()
+			} else {
+				basicValues[i] = basic.NewBytes(val.Bytes)
+				contentValues[i] = *val
+			}
+		case vector.Value:
+			if encoded, err := val.MarshalBinary(); err == nil {
+				basicValues[i] = basic.NewBytes(encoded)
+				vectorValues[i] = val.Clone()
+			} else {
+				basicValues[i] = basic.NewNull()
+			}
+		case *vector.Value:
+			if val == nil {
+				basicValues[i] = basic.NewNull()
+			} else if encoded, err := val.MarshalBinary(); err == nil {
+				basicValues[i] = basic.NewBytes(encoded)
+				vectorValues[i] = val.Clone()
+			} else {
+				basicValues[i] = basic.NewNull()
+			}
 		case time.Time:
 			basicValues[i] = basic.NewTime(val)
 		case nil:
@@ -44,7 +80,65 @@ func NewExecutorRecordFromInterface(values []interface{}, schema *metadata.Table
 			basicValues[i] = basic.NewStringValue(fmt.Sprintf("%v", val))
 		}
 	}
-	return NewExecutorRecord(basicValues, schema)
+	record := NewExecutorRecord(basicValues, schema).(*EngineExecutorRecord)
+	if len(contentValues) > 0 {
+		record.contentValues = contentValues
+	}
+	if len(vectorValues) > 0 {
+		record.vectorValues = vectorValues
+	}
+	return record
+}
+
+// ContentValueByIndex returns the typed CONTENT metadata retained for SQL
+// expressions while the ordinary result value remains the original bytes.
+func (r *EngineExecutorRecord) ContentValueByIndex(index int) (content.Value, bool) {
+	if r == nil {
+		return content.Value{}, false
+	}
+	value, ok := r.contentValues[index]
+	return value, ok
+}
+
+func (r *EngineExecutorRecord) VectorValueByIndex(index int) (vector.Value, bool) {
+	if r == nil {
+		return vector.Value{}, false
+	}
+	value, ok := r.vectorValues[index]
+	return value.Clone(), ok
+}
+
+func (r *EngineExecutorRecord) ContentSourceContexts() map[string]contentSourceRowContext {
+	if r == nil || len(r.contentSourceContexts) == 0 {
+		return nil
+	}
+	contexts := make(map[string]contentSourceRowContext, len(r.contentSourceContexts))
+	for key, value := range r.contentSourceContexts {
+		value.PrimaryKey = append([]byte(nil), value.PrimaryKey...)
+		contexts[key] = value
+	}
+	return contexts
+}
+
+func (r *EngineExecutorRecord) ContentSourceContextByIndex(index int) (contentSourceRowContext, bool) {
+	if r == nil || r.contentSourceByColumn == nil {
+		return contentSourceRowContext{}, false
+	}
+	value, ok := r.contentSourceByColumn[index]
+	value.PrimaryKey = append([]byte(nil), value.PrimaryKey...)
+	return value, ok
+}
+
+func cloneContentSourceContextByColumn(values map[int]contentSourceRowContext) map[int]contentSourceRowContext {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make(map[int]contentSourceRowContext, len(values))
+	for index, value := range values {
+		value.PrimaryKey = append([]byte(nil), value.PrimaryKey...)
+		cloned[index] = value
+	}
+	return cloned
 }
 
 // 实现 ExecutorRecord 接口
@@ -85,6 +179,9 @@ func (r *EngineExecutorRecord) GetValues() []basic.Value {
 
 func (r *EngineExecutorRecord) SetValues(values []basic.Value) {
 	r.values = values
+	r.contentValues = nil
+	r.vectorValues = nil
+	r.contentSourceByColumn = nil
 }
 
 func (r *EngineExecutorRecord) GetColumnCount() int {
@@ -103,6 +200,9 @@ func (r *EngineExecutorRecord) SetValueByIndex(index int, value basic.Value) err
 		return fmt.Errorf("index out of range: %d", index)
 	}
 	r.values[index] = value
+	delete(r.contentValues, index)
+	delete(r.vectorValues, index)
+	delete(r.contentSourceByColumn, index)
 	return nil
 }
 

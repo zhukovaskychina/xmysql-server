@@ -235,7 +235,7 @@ func (tsm *TableStorageManager) SyncFromInfoSchema(infoSchemaManager metadata.In
 			spaceName := fmt.Sprintf("%s/%s", schemaName, table.Name)
 			rootPageNo := uint32(3)
 			ownsTablespace := true
-			if raw, readErr := os.ReadFile(filepath.Join(tsm.storageManager.configDataDir(), schemaName, table.Name+".frm")); readErr == nil {
+			if raw, readErr := metadata.ReadFile(filepath.Join(tsm.storageManager.configDataDir(), schemaName, table.Name+".frm")); readErr == nil {
 				var persisted struct {
 					StorageRootPage uint32 `json:"storage_root_page"`
 					TablespaceName  string `json:"tablespace_name"`
@@ -313,7 +313,9 @@ func (tsm *TableStorageManager) syncPersistedFilesystemMappings() error {
 		return fmt.Errorf("scan persisted table mappings: %w", err)
 	}
 	for _, schemaEntry := range schemas {
-		if !schemaEntry.IsDir() || strings.EqualFold(schemaEntry.Name(), "information_schema") ||
+		if !schemaEntry.IsDir() || strings.HasPrefix(schemaEntry.Name(), ".") ||
+			strings.HasPrefix(schemaEntry.Name(), "#") || strings.HasPrefix(schemaEntry.Name(), "@") ||
+			strings.EqualFold(schemaEntry.Name(), "information_schema") ||
 			strings.EqualFold(schemaEntry.Name(), "performance_schema") || strings.EqualFold(schemaEntry.Name(), "mysql") ||
 			strings.EqualFold(schemaEntry.Name(), "sys") {
 			continue
@@ -349,7 +351,7 @@ func (tsm *TableStorageManager) syncPersistedFilesystemMappings() error {
 			spaceName := fmt.Sprintf("%s/%s", schemaName, tableName)
 			rootPageNo := uint32(3)
 			ownsTablespace := true
-			if raw, readErr := os.ReadFile(definitionPath); readErr == nil {
+			if raw, readErr := metadata.ReadFile(definitionPath); readErr == nil {
 				var persisted struct {
 					StorageRootPage uint32 `json:"storage_root_page"`
 					TablespaceName  string `json:"tablespace_name"`
@@ -432,7 +434,7 @@ func (tsm *TableStorageManager) EnsureTableStorage(ctx context.Context, infoSche
 	rootPageNo := uint32(3)
 	if dataDir := tsm.storageManager.configDataDir(); dataDir != "" {
 		frmPath := filepath.Join(dataDir, schemaName, tableName+".frm")
-		if raw, readErr := os.ReadFile(frmPath); readErr == nil {
+		if raw, readErr := metadata.ReadFile(frmPath); readErr == nil {
 			var identity struct {
 				StorageRootPage uint32 `json:"storage_root_page"`
 				StorageSpaceID  uint32 `json:"storage_space_id"`

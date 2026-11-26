@@ -21,6 +21,9 @@ import (
 // inner WHERE is rebound for every outer row and SQL NULL semantics are not
 // lost during that materialization.
 func (e *XMySQLExecutor) executeCorrelatedPredicateSubqueryCompatibility(ctx *ExecutionContext, query, databaseName string) (bool, error) {
+	if queryHasJoinedOuterSource(query) {
+		return false, nil
+	}
 	if handled, err := e.executeMultipleCorrelatedPredicateSubqueriesCompatibility(ctx, query, databaseName); handled {
 		return handled, err
 	}
@@ -111,7 +114,7 @@ func (e *XMySQLExecutor) executeCorrelatedPredicateSubqueryCompatibility(ctx *Ex
 	}
 
 	outerConditionText := strings.Join(outerConditions, " and ")
-	outerDependencies := strings.TrimSpace(strings.Join([]string{outerConditionText, outerOrCondition, outerTrailingOrCondition}, " "))
+	outerDependencies := strings.TrimSpace(strings.Join([]string{predicateMatch.left, outerConditionText, outerOrCondition, outerTrailingOrCondition}, " "))
 	outerSQL := correlatedOuterSourceSQL(projectionText, outerDependencies, innerSQL, outerSource)
 	if len(outerConditions) > 0 && outerOrCondition == "" && outerTrailingOrCondition == "" {
 		outerSQL += " where " + strings.Join(outerConditions, " and ")
@@ -238,7 +241,7 @@ func (e *XMySQLExecutor) executeCorrelatedPredicateSubqueryCompatibility(ctx *Ex
 				innerValues = append(innerValues, record.GetValues()[0].Raw())
 			}
 		}
-		if !correlatedPredicateMatches(leftValue, operator, innerValues) {
+		if !correlatedPredicateMatches(leftValue, operator, innerValues, collationFromValueContext(rowValues, leftText)) {
 			continue
 		}
 		values := make([]basic.Value, 0, len(selectedIndexes))
@@ -250,7 +253,7 @@ func (e *XMySQLExecutor) executeCorrelatedPredicateSubqueryCompatibility(ctx *Ex
 
 	records := make([]Record, 0, len(selectedValues))
 	for _, values := range selectedValues {
-		records = append(records, NewExecutorRecord(values, meta))
+		records = append(records, correlatedProjectionOutputRecord(values, selectedIndexes, outerResult.ColumnTypes, meta))
 	}
 	columns := make([]string, 0, len(meta.Columns))
 	for _, column := range meta.Columns {
@@ -327,9 +330,12 @@ func correlatedPredicateValue(expression string, values map[string]interface{}, 
 	return evaluateProjectionExpression(expression, values)
 }
 
-func correlatedPredicateMatches(left interface{}, operator string, values []interface{}) bool {
+func correlatedPredicateMatches(left interface{}, operator string, values []interface{}, collation string) bool {
 	upper := strings.ToUpper(strings.TrimSpace(operator))
 	if upper == "IN" || upper == "NOT IN" {
+		if len(values) == 0 {
+			return upper == "NOT IN"
+		}
 		if left == nil {
 			return false
 		}
@@ -339,7 +345,7 @@ func correlatedPredicateMatches(left interface{}, operator string, values []inte
 				hasNull = true
 				continue
 			}
-			if compareScalarValues(left, right) == 0 {
+			if compareScalarValuesWithCollation(left, right, collation) == 0 {
 				matched = true
 				break
 			}
@@ -353,6 +359,6 @@ func correlatedPredicateMatches(left interface{}, operator string, values []inte
 	if len(parts) != 2 {
 		return false
 	}
-	truth, _ := evaluateQuantifiedPredicate(left, parts[0], parts[1], values)
+	truth, _ := evaluateQuantifiedPredicateWithCollation(left, parts[0], parts[1], values, collation)
 	return truth
 }

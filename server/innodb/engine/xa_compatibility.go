@@ -343,10 +343,7 @@ func (e *XMySQLExecutor) finishPreparedXATransaction(prepared *xaPreparedTransac
 	}
 	if rollback {
 		if _, hasClientStorageTransaction := session.GetParamByName(clientStorageTransactionContextKey).(*StorageTransactionContext); hasClientStorageTransaction {
-			if err := e.rollbackClientStorageTransaction(session); err != nil {
-				return err
-			}
-			if err := e.rollbackSessionTransaction(session, 0); err != nil {
+			if err := e.rollbackClientStorageTransactionAndChanges(session); err != nil {
 				return err
 			}
 		} else if err := e.rollbackSessionTransaction(session, 0); err != nil {

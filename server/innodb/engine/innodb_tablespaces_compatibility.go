@@ -388,7 +388,7 @@ func innodbColumnMainType(column frmMetadataColumn) interface{} {
 		return int64(10)
 	case "DECIMAL", "NUMERIC":
 		return int64(11)
-	case "TINYTEXT", "TEXT", "MEDIUMTEXT", "LONGTEXT", "BLOB", "TINYBLOB", "MEDIUMBLOB", "LONGBLOB":
+	case "TINYTEXT", "TEXT", "MEDIUMTEXT", "LONGTEXT", "BLOB", "TINYBLOB", "MEDIUMBLOB", "LONGBLOB", "CONTENT", "VECTOR":
 		return int64(5)
 	case "GEOMETRY", "POINT", "LINESTRING", "POLYGON", "MULTIPOINT", "MULTILINESTRING", "MULTIPOLYGON", "GEOMETRYCOLLECTION":
 		return int64(14)
@@ -447,7 +447,7 @@ func innodbInstantDefaultValue(column frmMetadataColumn) interface{} {
 	}
 	base := strings.ToUpper(strings.TrimSpace(strings.SplitN(column.typeName, "(", 2)[0]))
 	if bytes, ok := innodbInstantDefaultBytes(text); ok {
-		if base == "BINARY" || base == "VARBINARY" || base == "TINYBLOB" || base == "BLOB" || base == "MEDIUMBLOB" || base == "LONGBLOB" {
+		if base == "BINARY" || base == "VARBINARY" || base == "TINYBLOB" || base == "BLOB" || base == "MEDIUMBLOB" || base == "LONGBLOB" || base == "CONTENT" || base == "VECTOR" {
 			return bytes
 		}
 	}
@@ -546,7 +546,7 @@ func innodbMySQLFieldTypeCode(base string) (int64, bool) {
 		return 16, true
 	case "CHAR", "BINARY":
 		return 254, true
-	case "TINYTEXT", "TEXT", "MEDIUMTEXT", "LONGTEXT", "TINYBLOB", "BLOB", "MEDIUMBLOB", "LONGBLOB":
+	case "TINYTEXT", "TEXT", "MEDIUMTEXT", "LONGTEXT", "TINYBLOB", "BLOB", "MEDIUMBLOB", "LONGBLOB", "CONTENT", "VECTOR":
 		return 252, true
 	case "DECIMAL", "NUMERIC":
 		return 246, true
@@ -563,7 +563,7 @@ func innodbMySQLFieldTypeCode(base string) (int64, bool) {
 
 func innodbColumnUsesBinaryStorage(base string) bool {
 	switch base {
-	case "TINYINT", "SMALLINT", "INT", "INTEGER", "MEDIUMINT", "BIGINT", "FLOAT", "DOUBLE", "REAL", "TIMESTAMP", "DATE", "TIME", "DATETIME", "YEAR", "BIT", "VARBINARY", "BINARY", "TINYBLOB", "BLOB", "MEDIUMBLOB", "LONGBLOB":
+	case "TINYINT", "SMALLINT", "INT", "INTEGER", "MEDIUMINT", "BIGINT", "FLOAT", "DOUBLE", "REAL", "TIMESTAMP", "DATE", "TIME", "DATETIME", "YEAR", "BIT", "VARBINARY", "BINARY", "TINYBLOB", "BLOB", "MEDIUMBLOB", "LONGBLOB", "CONTENT", "VECTOR":
 		return true
 	default:
 		return false

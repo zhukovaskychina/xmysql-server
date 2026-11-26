@@ -330,6 +330,27 @@ func TestCompileExpressionSupportsOctetLength(t *testing.T) {
 	}
 }
 
+func TestCompileStringLengthFunctionsCountBinaryBytes(t *testing.T) {
+	for _, functionName := range []string{"LENGTH", "OCTET_LENGTH", "CHAR_LENGTH", "CHARACTER_LENGTH"} {
+		t.Run(functionName, func(t *testing.T) {
+			compiled, ok := CompileExpression(&Function{
+				FuncName: functionName,
+				FuncArgs: []Expression{&Constant{Value: []byte{0x89, 0x50, 0x4e, 0x47}}},
+			})
+			if !ok || compiled == nil {
+				t.Fatalf("CompileExpression should support %s", functionName)
+			}
+			got, err := compiled(&EvalContext{})
+			if err != nil {
+				t.Fatalf("compiled %s evaluation failed: %v", functionName, err)
+			}
+			if got != int64(4) {
+				t.Fatalf("compiled %s value = %#v, want 4", functionName, got)
+			}
+		})
+	}
+}
+
 func TestBuildExpressionSupportsJSONExtractionOperators(t *testing.T) {
 	cases := []struct {
 		name     string

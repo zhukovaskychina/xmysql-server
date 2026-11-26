@@ -17,9 +17,10 @@ func TestFullTextCompatibilityPersistsIndexAndFiltersRows(t *testing.T) {
 	mustExecSQL(t, executor, "", "create database app")
 	mustExecSQL(t, executor, "app", "create table docs (id int primary key, content text, fulltext index idx_content (content))")
 	mustExecSQL(t, executor, "app", "insert into docs values (1, 'mysql compatibility'), (2, 'unrelated text')")
-	rows := mustQuerySQL(t, executor, "app", "select id, content from docs where match(content) against('mysql')")
-	require.Len(t, rows, 1)
-	require.Equal(t, "1", fmt.Sprint(rows[0][0]))
+	result := mustSelectResultSQL(t, executor, "app", "select id, content from docs where match(content) against('mysql')")
+	require.Len(t, result.Records, 1)
+	require.Equal(t, "INT", strings.ToUpper(result.ColumnTypes[0]))
+	require.Equal(t, int64(1), result.Records[0].GetValues()[0].Int())
 
 	info, err := readTableMetadataMap(executor.GetDataDir() + "/app/docs.frm")
 	require.NoError(t, err)
@@ -121,11 +122,16 @@ func TestFullTextBooleanModeAndIndexValidation(t *testing.T) {
 	require.True(t, matched)
 	require.Positive(t, score)
 
-	rows := mustQuerySQL(t, executor, "app", "select id from docs where match(content) against('+mysql -legacy' in boolean mode) order by id")
-	require.Equal(t, [][]interface{}{{"2"}}, rows)
+	result := mustSelectResultSQL(t, executor, "app", "select id from docs where match(content) against('+mysql -legacy' in boolean mode) order by id")
+	require.Len(t, result.Records, 1)
+	require.Equal(t, int64(2), result.Records[0].GetValues()[0].Int())
 
-	rows = mustQuerySQL(t, executor, "app", "select id from docs where match(content) against('mysql legacy' in natural language mode) order by id")
-	require.Equal(t, [][]interface{}{{"1"}, {"2"}, {"3"}}, rows)
+	result = mustSelectResultSQL(t, executor, "app", "select id from docs where match(content) against('mysql legacy' in natural language mode) order by id")
+	gotIDs := make([]int64, 0, len(result.Records))
+	for _, record := range result.Records {
+		gotIDs = append(gotIDs, record.GetValues()[0].Int())
+	}
+	require.Equal(t, []int64{1, 2, 3}, gotIDs)
 
 	err := execSQLExpectError(t, executor, "app", "select id from docs where match(content) against('mysql' with query expansion)")
 	require.Error(t, err)

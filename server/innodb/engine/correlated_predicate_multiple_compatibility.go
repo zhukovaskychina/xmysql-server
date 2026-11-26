@@ -128,7 +128,14 @@ func (e *XMySQLExecutor) executeMultipleCorrelatedPredicateSubqueriesCompatibili
 			kind:     clauseKind,
 		})
 	}
-	if len(clauses) < 2 {
+	hasSubquery := false
+	for _, clause := range clauses {
+		if clause.innerSQL != "" {
+			hasSubquery = true
+			break
+		}
+	}
+	if len(clauses) < 2 || !hasSubquery {
 		return false, nil
 	}
 
@@ -237,7 +244,7 @@ func (e *XMySQLExecutor) executeMultipleCorrelatedPredicateSubqueriesCompatibili
 						innerValues = append(innerValues, record.GetValues()[0].Raw())
 					}
 				}
-				matched = correlatedPredicateMatches(leftValue, clause.operator, innerValues)
+				matched = correlatedPredicateMatches(leftValue, clause.operator, innerValues, collationFromValueContext(rowValues, clause.leftText))
 			}
 			if booleanOperator == "AND" {
 				if !matched {
@@ -261,7 +268,7 @@ func (e *XMySQLExecutor) executeMultipleCorrelatedPredicateSubqueriesCompatibili
 
 	records := make([]Record, 0, len(selectedValues))
 	for _, values := range selectedValues {
-		records = append(records, NewExecutorRecord(values, meta))
+		records = append(records, correlatedProjectionOutputRecord(values, selectedIndexes, outerResult.ColumnTypes, meta))
 	}
 	columns := make([]string, 0, len(meta.Columns))
 	for _, column := range meta.Columns {

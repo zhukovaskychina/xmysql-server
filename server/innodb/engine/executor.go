@@ -26,11 +26,13 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	innodbcommon "github.com/zhukovaskychina/xmysql-server/server/innodb/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/content"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 	querypb "github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/querypb"
+	innodbvector "github.com/zhukovaskychina/xmysql-server/server/innodb/vector"
 	observabilitymetrics "github.com/zhukovaskychina/xmysql-server/server/observability/metrics"
 	"github.com/zhukovaskychina/xmysql-server/server/replication"
 )
@@ -62,11 +64,15 @@ func jdbcTableCatIdentifierPresent(query string) bool {
 
 // XMySQLExecutor SQL执行器结构体
 type XMySQLExecutor struct {
-	infosSchemaManager metadata.InfoSchemaManager // 信息模式管理器
-	conf               *conf.Cfg                  // 配置项
-	serverStartedAt    time.Time                  // runtime start time used by status/observability views
-	ctx                *ExecutionContext          // 执行上下文
-	results            chan *Result               // 结果通道
+	infosSchemaManager   metadata.InfoSchemaManager // 信息模式管理器
+	conf                 *conf.Cfg                  // 配置项
+	embeddingRuntimeMu   sync.RWMutex
+	embeddingRuntime     EmbeddingRuntime
+	generationRuntime    GenerationRuntime
+	modelExecutionPolicy ModelExecutionPolicy
+	serverStartedAt      time.Time         // runtime start time used by status/observability views
+	ctx                  *ExecutionContext // 执行上下文
+	results              chan *Result      // 结果通道
 
 	// 管理器组件 - 添加这些字段来访问各个管理器
 	optimizerManager            interface{} // 查询优化器管理器
@@ -78,8 +84,11 @@ type XMySQLExecutor struct {
 	optimizerCostSnapshotLoaded bool
 
 	// 存储引擎相关管理器 - 新增字段
-	indexManager                                                      *manager.IndexManager        // 索引管理器
-	storageManager                                                    *manager.StorageManager      // 存储管理器
+	indexManager                                                      *manager.IndexManager   // 索引管理器
+	storageManager                                                    *manager.StorageManager // 存储管理器
+	vectorIndexCatalog                                                *innodbvector.IndexCatalog
+	contentMaintenanceQueue                                           *content.MaintenanceQueue
+	vectorIndexCatalogUsable                                          atomic.Bool
 	tableStorageManager                                               *manager.TableStorageManager // 表存储映射管理器
 	txManager                                                         *manager.TransactionManager  // 事务管理器
 	lockManager                                                       *manager.LockManager         // 锁等待诊断
@@ -360,6 +369,7 @@ func NewXMySQLExecutor(infosSchemaManager metadata.InfoSchemaManager, conf *conf
 	return &XMySQLExecutor{
 		infosSchemaManager:                                 infosSchemaManager,
 		conf:                                               conf,
+		modelExecutionPolicy:                               modelExecutionPolicyFromConfig(conf),
 		serverStartedAt:                                    serverStartedAt,
 		metricsRecorder:                                    observabilitymetrics.DefaultRuntimeRecorder(),
 		eventScheduler:                                     NewEventScheduler(false),
@@ -1123,6 +1133,7 @@ func (e *XMySQLExecutor) activeStatementEvents() []observabilitymetrics.Statemen
 
 func (e *XMySQLExecutor) beginActiveQuery(session server.MySQLServerSession) (context.Context, func()) {
 	queryContext, cancel := context.WithCancel(context.Background())
+	queryContext = e.withModelQueryBudget(queryContext)
 	if e == nil || session == nil {
 		return queryContext, cancel
 	}
@@ -1537,10 +1548,7 @@ func (e *XMySQLExecutor) executeTransactionCommand(ctx *ExecutionContext, cmd st
 			if cmd == "rollback" {
 				var err error
 				if hasClientStorageTransaction {
-					err = e.rollbackClientStorageTransaction(session)
-					if err == nil {
-						err = e.rollbackSessionTransaction(session, 0)
-					}
+					err = e.rollbackClientStorageTransactionAndChanges(session)
 				} else if hasReplicationStorageTransaction {
 					err = e.rollbackReplicationStorageTransaction(session)
 				} else {
@@ -1788,10 +1796,7 @@ func (e *XMySQLExecutor) finishAutocommitDMLBoundary(session server.MySQLServerS
 		return nil
 	}
 	if !success {
-		if err := e.rollbackClientStorageTransaction(session); err != nil {
-			return err
-		}
-		if err := e.rollbackSessionTransaction(session, 0); err != nil {
+		if err := e.rollbackClientStorageTransactionAndChanges(session); err != nil {
 			return err
 		}
 		e.recordPerformanceSchemaTransactionHistory(session, "ROLLED BACK")
@@ -2210,6 +2215,7 @@ func (e *XMySQLExecutor) clearSessionTransactionState(session server.MySQLServer
 	e.releaseSessionTransactionTableLocks(session)
 	if session != nil {
 		clearTransactionSnapshot(session)
+		session.SetParamByName(contentMaintenanceCaptureErrorParam, nil)
 	}
 	state := e.sessionTransactionState(session)
 	if state == nil {
@@ -2280,10 +2286,7 @@ func (e *XMySQLExecutor) ResetSession(session server.MySQLServerSession) error {
 	}
 	wasInTransaction, _ := session.GetParamByName("in_transaction").(bool)
 	if _, hasClientStorageTransaction := session.GetParamByName(clientStorageTransactionContextKey).(*StorageTransactionContext); hasClientStorageTransaction {
-		if err := e.rollbackClientStorageTransaction(session); err != nil {
-			return err
-		}
-		if err := e.rollbackSessionTransaction(session, 0); err != nil {
+		if err := e.rollbackClientStorageTransactionAndChanges(session); err != nil {
 			return err
 		}
 	} else if err := e.rollbackSessionTransaction(session, 0); err != nil {
@@ -2328,6 +2331,9 @@ func (e *XMySQLExecutor) recordTransactionDMLChanges(session server.MySQLServerS
 	if session == nil || len(changes) == 0 {
 		return
 	}
+	if err := e.attachContentMaintenanceRequests(changes); err != nil {
+		session.SetParamByName(contentMaintenanceCaptureErrorParam, err)
+	}
 	e.beginImplicitTransactionIfNeeded(session)
 	journalActive, _ := session.GetParamByName("transaction_journal_active").(bool)
 	replaying, _ := session.GetParamByName("replication_replay").(bool)
@@ -2336,6 +2342,9 @@ func (e *XMySQLExecutor) recordTransactionDMLChanges(session server.MySQLServerS
 	if !sessionTransactionActive(session) && !journalActive && e.replicationCommitHook == nil && e.replicationCommitTransactionHook == nil && e.replicationCommitTransactionHookWithID == nil {
 		if !replaying && !hasClientStorageTransaction && !hasReplicationStorageTransaction {
 			recordAutocommitClientTransactionChanges(e.getDataDir(), changes)
+			if err := e.enqueueContentMaintenance(changes); err != nil {
+				logger.Errorf("enqueue autocommit CONTENT maintenance failed: %v", err)
+			}
 		}
 		return
 	}
@@ -2577,11 +2586,13 @@ func replicationRowsFromTransactionChanges(changes []transactionDMLChange) []rep
 	}
 	rows := make([]replication.RowChange, 0, len(changes))
 	for _, change := range changes {
-		columns := make(map[string]struct{}, len(change.before)+len(change.after))
-		for column := range change.before {
+		before := transactionRowForReplication(change.before, change.columnTypes)
+		after := transactionRowForReplication(change.after, change.columnTypes)
+		columns := make(map[string]struct{}, len(before)+len(after))
+		for column := range before {
 			columns[column] = struct{}{}
 		}
-		for column := range change.after {
+		for column := range after {
 			columns[column] = struct{}{}
 		}
 		orderedColumns := make([]string, 0, len(columns))
@@ -2594,11 +2605,40 @@ func replicationRowsFromTransactionChanges(changes []transactionDMLChange) []rep
 			Action:      change.kind,
 			Columns:     orderedColumns,
 			ColumnTypes: cloneStringMap(change.columnTypes),
-			Before:      cloneTransactionRow(change.before),
-			After:       cloneTransactionRow(change.after),
+			Before:      before,
+			After:       after,
 		})
 	}
 	return rows
+}
+
+func transactionRowForReplication(values map[string]interface{}, columnTypes map[string]string) map[string]interface{} {
+	if values == nil {
+		return nil
+	}
+	cloned := cloneTransactionRow(values)
+	for name := range cloned {
+		if strings.HasPrefix(strings.ToLower(name), "__xmysql_") {
+			delete(cloned, name)
+			continue
+		}
+		if len(columnTypes) > 0 {
+			if _, exists := columnTypes[name]; !exists {
+				found := false
+				for column := range columnTypes {
+					if strings.EqualFold(column, name) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					delete(cloned, name)
+					continue
+				}
+			}
+		}
+	}
+	return cloned
 }
 
 func cloneStringMap(values map[string]string) map[string]string {
@@ -3240,6 +3280,13 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		}
 		return
 	}
+	if handled, err := e.executeCorrelatedSetSubqueryCompatibility(ctx, query, databaseName); handled {
+		if err != nil {
+			metricStatus = "error"
+			results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY, Message: err.Error()}
+		}
+		return
+	}
 	if handled, err := e.executeCorrelatedScalarSubqueryCompatibility(ctx, query, databaseName); handled {
 		if err != nil {
 			metricStatus = "error"
@@ -3398,15 +3445,15 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 			return
 		}
 	}
-	if rewritten, err := e.rewriteSimpleInSubquery(ctx, query, databaseName); err != nil {
-		results <- &Result{Err: newExecutorErrorf("execute-subquery", ExecutionErrorCodeUnknown, databaseName, "", query, err, "execute subquery failed"), ResultType: common.RESULT_TYPE_QUERY, Message: "subquery failed"}
+	if rewritten, err := e.rewriteSimpleQuantifiedSubqueries(ctx, query, databaseName); err != nil {
+		results <- &Result{Err: newExecutorErrorf("execute-quantified-subquery", ExecutionErrorCodeUnknown, databaseName, "", query, err, "execute quantified subquery failed"), ResultType: common.RESULT_TYPE_QUERY, Message: "quantified subquery failed"}
 		return
 	} else if rewritten != "" {
 		query = rewritten
 		ctx.RawQuery = rewritten
 	}
-	if rewritten, err := e.rewriteSimpleQuantifiedSubqueries(ctx, query, databaseName); err != nil {
-		results <- &Result{Err: newExecutorErrorf("execute-quantified-subquery", ExecutionErrorCodeUnknown, databaseName, "", query, err, "execute quantified subquery failed"), ResultType: common.RESULT_TYPE_QUERY, Message: "quantified subquery failed"}
+	if rewritten, err := e.rewriteSimpleInSubquery(ctx, query, databaseName); err != nil {
+		results <- &Result{Err: newExecutorErrorf("execute-subquery", ExecutionErrorCodeUnknown, databaseName, "", query, err, "execute subquery failed"), ResultType: common.RESULT_TYPE_QUERY, Message: "subquery failed"}
 		return
 	} else if rewritten != "" {
 		query = rewritten
@@ -3918,7 +3965,7 @@ func (e *XMySQLExecutor) executeCompoundAlterCompatibility(ctx *ExecutionContext
 		return true, fmt.Errorf("no database selected")
 	}
 	frmPath := filepath.Join(e.getDataDir(), targetDB, targetTable+".frm")
-	original, err := os.ReadFile(frmPath)
+	original, err := metadata.ReadFile(frmPath)
 	if err != nil {
 		return true, err
 	}
@@ -4470,7 +4517,7 @@ func isForeignKeyDecimalType(typeName string) bool {
 
 func isForeignKeyStringType(typeName string) bool {
 	switch typeName {
-	case "CHAR", "VARCHAR", "TINYTEXT", "TEXT", "MEDIUMTEXT", "LONGTEXT", "BINARY", "VARBINARY", "TINYBLOB", "BLOB", "MEDIUMBLOB", "LONGBLOB":
+	case "CHAR", "VARCHAR", "TINYTEXT", "TEXT", "MEDIUMTEXT", "LONGTEXT", "BINARY", "VARBINARY", "TINYBLOB", "BLOB", "MEDIUMBLOB", "LONGBLOB", "CONTENT":
 		return true
 	default:
 		return false
@@ -5957,7 +6004,7 @@ func (e *XMySQLExecutor) alterTableIndexDDL(dbName, tableName, query string, for
 		return false, nil
 	}
 	frmPath := filepath.Join(e.getDataDir(), dbName, tableName+".frm")
-	raw, err := os.ReadFile(frmPath)
+	raw, err := metadata.ReadFile(frmPath)
 	if err != nil {
 		return true, fmt.Errorf("read table metadata failed: %v", err)
 	}
@@ -6152,7 +6199,7 @@ func (e *XMySQLExecutor) alterTableColumnDDL(dbName, tableName, query string, fo
 	}
 	if len(rename) == 3 {
 		frmPath := filepath.Join(e.getDataDir(), dbName, tableName+".frm")
-		raw, err := os.ReadFile(frmPath)
+		raw, err := metadata.ReadFile(frmPath)
 		if err != nil {
 			return true, fmt.Errorf("read table metadata failed: %v", err)
 		}
@@ -6206,7 +6253,7 @@ func (e *XMySQLExecutor) alterTableColumnDDL(dbName, tableName, query string, fo
 	}
 	if defaultColumn != "" {
 		frmPath := filepath.Join(e.getDataDir(), dbName, tableName+".frm")
-		raw, err := os.ReadFile(frmPath)
+		raw, err := metadata.ReadFile(frmPath)
 		if err != nil {
 			return true, fmt.Errorf("read table metadata failed: %v", err)
 		}
@@ -6246,7 +6293,7 @@ func (e *XMySQLExecutor) alterTableColumnDDL(dbName, tableName, query string, fo
 	}
 	columnName := drop[1]
 	frmPath := filepath.Join(e.getDataDir(), dbName, tableName+".frm")
-	raw, err := os.ReadFile(frmPath)
+	raw, err := metadata.ReadFile(frmPath)
 	if err != nil {
 		return true, fmt.Errorf("read table metadata failed: %v", err)
 	}
@@ -6328,7 +6375,7 @@ func (e *XMySQLExecutor) alterTableColumnDDL(dbName, tableName, query string, fo
 
 func (e *XMySQLExecutor) alterTableAddColumns(dbName, tableName string, cols []*sqlparser.ColumnDefinition) error {
 	frmPath := filepath.Join(e.getDataDir(), dbName, tableName+".frm")
-	raw, err := os.ReadFile(frmPath)
+	raw, err := metadata.ReadFile(frmPath)
 	if err != nil {
 		return fmt.Errorf("read table metadata failed: %v", err)
 	}
@@ -6393,6 +6440,8 @@ func (e *XMySQLExecutor) alterTableAddColumns(dbName, tableName string, cols []*
 }
 
 func writeMetadataFileAtomic(path string, data []byte) error {
+	unlock := metadata.LockFilePublication(path)
+	defer unlock()
 	dir := filepath.Dir(path)
 	tmp, err := os.CreateTemp(dir, ".frm-*.tmp")
 	if err != nil {
@@ -6948,6 +6997,10 @@ func (e *XMySQLExecutor) buildExecutorTree(ctx context.Context, physicalPlan pla
 
 // executeSelectStatement 执行 SELECT 查询
 func (e *XMySQLExecutor) executeSelectStatement(ctx *ExecutionContext, stmt *sqlparser.Select, databaseName string) (*SelectResult, error) {
+	if ctx == nil {
+		ctx = &ExecutionContext{}
+	}
+	ctx.Context = e.withModelQueryBudget(ctx.Context)
 	sessionValues := newSessionExpressionValues(nil)
 	if ctx != nil {
 		sessionValues = newSessionExpressionValues(ctx.Session)
@@ -6957,12 +7010,13 @@ func (e *XMySQLExecutor) executeSelectStatement(ctx *ExecutionContext, stmt *sql
 		}
 	}
 	if ctx != nil {
-		if result, handled, err := e.executeInformationSchemaMetadataSelect(ctx.RawQuery, ctx.Session); handled {
-			return normalizeInformationSchemaAggregate(ctx.RawQuery, result), err
+		statementSQL := sqlparser.String(stmt)
+		if result, handled, err := e.executeInformationSchemaMetadataSelect(statementSQL, ctx.Session); handled {
+			return normalizeInformationSchemaAggregate(statementSQL, result), err
 		}
 	}
 	if stmt != nil && selectHasNoFrom(stmt) {
-		result, err := executeConstantSelectStatement(stmt, sessionValues)
+		result, err := e.executeConstantSelectWithModels(ctx, stmt, sessionValues)
 		if err == nil && ctx != nil {
 			sessionValues["row_count"] = int64(-1)
 			syncSessionExpressionValues(ctx.Session, sessionValues)
@@ -7021,6 +7075,31 @@ func (e *XMySQLExecutor) executeSelectStatement(ctx *ExecutionContext, stmt *sql
 		dataDir,
 	)
 	selectExecutor.sessionValues = sessionValues
+	if ctx != nil && ctx.Session != nil {
+		selectExecutor.semanticRelationshipAllowed = func(sourceSchema, sourceTable string, relationship metadata.SemanticRelationship) bool {
+			privilegeContext := &ExecutionContext{Session: ctx.Session}
+			canReadColumns := func(schema, table string, columns []string) bool {
+				if err := e.checkTablePrivilege(privilegeContext, schema, table, "SELECT"); err == nil {
+					return true
+				}
+				if len(columns) == 0 {
+					return false
+				}
+				for _, column := range columns {
+					if err := e.checkColumnPrivilege(privilegeContext, schema, table, column, "SELECT"); err != nil {
+						return false
+					}
+				}
+				return true
+			}
+			targetSchema := strings.TrimSpace(relationship.TargetSchema)
+			if targetSchema == "" {
+				targetSchema = sourceSchema
+			}
+			return canReadColumns(sourceSchema, sourceTable, relationship.SourceColumns) &&
+				canReadColumns(targetSchema, relationship.TargetTable, relationship.TargetColumns)
+		}
+	}
 	if ctx != nil && ctx.SpatialCandidateKeys != nil {
 		selectExecutor.candidateStorageKeys = cloneStringSet(ctx.SpatialCandidateKeys)
 	}
@@ -7049,6 +7128,9 @@ func (e *XMySQLExecutor) executeSelectStatement(ctx *ExecutionContext, stmt *sql
 		selectContext = context.WithValue(selectContext, storageTransactionSessionContextKey, ctx.Session)
 	}
 	selectContext = context.WithValue(selectContext, storageTransactionDataDirContextKey, e.getDataDir())
+	selectExecutor.embeddingRuntime = e.embeddingRuntimeSnapshot()
+	selectExecutor.generationRuntime = e.generationRuntimeSnapshot()
+	selectExecutor.modelContext = selectContext
 	result, err := selectExecutor.ExecuteSelect(selectContext, stmt, databaseName)
 	if ctx != nil {
 		ctx.recordIndexAccessPath(selectExecutor.lastAccessPath)
@@ -7103,7 +7185,7 @@ func (e *XMySQLExecutor) evaluateJoinScalarSubquery(ctx *ExecutionContext, subqu
 		return nil, nil
 	}
 	if len(values) > 1 {
-		return nil, fmt.Errorf("subquery returns more than 1 row")
+		return nil, common.NewErr(common.ErrSubqueryNo1Row)
 	}
 	return values[0], nil
 }
@@ -7134,10 +7216,10 @@ func (e *XMySQLExecutor) evaluateJoinSubqueryValues(ctx *ExecutionContext, subqu
 	if err != nil {
 		return nil, query, err
 	}
-	values := make([]interface{}, 0, len(result.Records))
 	if result == nil {
-		return values, query, nil
+		return []interface{}{}, query, nil
 	}
+	values := make([]interface{}, 0, len(result.Records))
 	for _, record := range result.Records {
 		cells := record.GetValues()
 		if len(cells) == 0 {
@@ -7149,7 +7231,7 @@ func (e *XMySQLExecutor) evaluateJoinSubqueryValues(ctx *ExecutionContext, subqu
 			values = append(values, nil)
 			continue
 		}
-		values = append(values, basicValueToInterface(cell))
+		values = append(values, correlatedBasicValueInterface(cell, 0, result.ColumnTypes))
 	}
 	return values, query, nil
 }
@@ -7196,6 +7278,10 @@ func selectHasNoFrom(stmt *sqlparser.Select) bool {
 }
 
 func executeConstantSelectStatement(stmt *sqlparser.Select, sessionValues ...map[string]interface{}) (*SelectResult, error) {
+	return executeConstantSelectWithEvaluator(stmt, evaluateExpressionWithRow, sessionValues...)
+}
+
+func executeConstantSelectWithEvaluator(stmt *sqlparser.Select, evaluate func(sqlparser.Expr, map[string]interface{}) (interface{}, error), sessionValues ...map[string]interface{}) (*SelectResult, error) {
 	if stmt == nil || len(stmt.SelectExprs) == 0 {
 		return nil, fmt.Errorf("SELECT requires at least one expression")
 	}
@@ -7212,7 +7298,7 @@ func executeConstantSelectStatement(stmt *sqlparser.Select, sessionValues ...map
 		if len(sessionValues) > 0 && sessionValues[0] != nil {
 			row[sessionExpressionValuesKey] = sessionValues[0]
 		}
-		value, err := evaluateExpressionWithRow(aliased.Expr, row)
+		value, err := evaluate(aliased.Expr, row)
 		if err != nil {
 			return nil, err
 		}
@@ -7222,6 +7308,9 @@ func executeConstantSelectStatement(stmt *sqlparser.Select, sessionValues ...map
 		} else {
 			values = append(values, basic.NewStringValue(projectionValueString(value)))
 			types = append(types, string(projectionValueType(value)))
+		}
+		if booleanSQLExpression(aliased.Expr) {
+			types[len(types)-1] = strings.ToLower(string(metadata.TypeBigInt))
 		}
 		name := sqlparser.String(aliased.Expr)
 		if !aliased.As.IsEmpty() {
@@ -7827,8 +7916,9 @@ func sortSetOperationRecords(result *SelectResult, orderSpec, label string) erro
 		indexes[termIndex] = columnIndex
 	}
 	type orderedSetRecord struct {
-		record Record
-		order  []interface{}
+		record          Record
+		order           []interface{}
+		orderCollations []string
 	}
 	ordered := make([]orderedSetRecord, len(result.Records))
 	for rowIndex, record := range result.Records {
@@ -7841,14 +7931,20 @@ func sortSetOperationRecords(result *SelectResult, orderSpec, label string) erro
 			value := setOrderValue(values[columnIndex].Raw())
 			row[column] = value
 			row[strings.ToLower(strings.Trim(column, "`"))] = value
+			if collation := recordColumnCollation(record, strconv.Itoa(columnIndex+1)); collation != "" {
+				row[columnCollationContextKey(column)] = collation
+			}
 		}
-		ordered[rowIndex] = orderedSetRecord{record: record, order: make([]interface{}, len(terms))}
+		ordered[rowIndex] = orderedSetRecord{
+			record: record, order: make([]interface{}, len(terms)), orderCollations: make([]string, len(terms)),
+		}
 		for termIndex, term := range terms {
 			if indexes[termIndex] >= 0 {
 				if indexes[termIndex] >= len(values) {
 					return fmt.Errorf("%s ORDER BY column %q is not present in result", label, term.column)
 				}
 				ordered[rowIndex].order[termIndex] = setOrderValue(values[indexes[termIndex]].Raw())
+				ordered[rowIndex].orderCollations[termIndex] = collationFromValueContext(row, result.Columns[indexes[termIndex]])
 				continue
 			}
 			value, err := evaluateExpressionWithRow(term.expr, row)
@@ -7856,11 +7952,12 @@ func sortSetOperationRecords(result *SelectResult, orderSpec, label string) erro
 				return fmt.Errorf("evaluate %s ORDER BY expression %q: %v", label, term.column, err)
 			}
 			ordered[rowIndex].order[termIndex] = setOrderValue(value)
+			ordered[rowIndex].orderCollations[termIndex] = collationForExpression(term.expr, row)
 		}
 	}
 	sort.SliceStable(ordered, func(i, j int) bool {
 		for termIndex := range terms {
-			cmp := compareScalarValues(ordered[i].order[termIndex], ordered[j].order[termIndex])
+			cmp := compareScalarValuesWithCollation(ordered[i].order[termIndex], ordered[j].order[termIndex], ordered[i].orderCollations[termIndex])
 			if cmp == 0 {
 				continue
 			}
@@ -7996,70 +8093,7 @@ func combineSetOperationResults(left, right *SelectResult, operator intersectExc
 }
 
 func (e *XMySQLExecutor) rewriteSimpleInSubquery(ctx *ExecutionContext, query, databaseName string) (string, error) {
-	call, found := findPredicateCall(query, false)
-	normalizedOperator := strings.ToLower(strings.Join(strings.Fields(call.operator), " "))
-	if !found || (normalizedOperator != "in" && normalizedOperator != "not in") {
-		return "", nil
-	}
-	open := strings.Index(query[call.start:call.end], "(")
-	if open < 0 {
-		return "", nil
-	}
-	open += call.start
-	close := matchingParenIndex(query, open)
-	if close < 0 {
-		return "", nil
-	}
-	innerText := strings.TrimSpace(query[open+1 : close])
-	if !strings.HasPrefix(strings.ToLower(innerText), "select") || strings.ContainsAny(innerText, "()") {
-		return "", nil
-	}
-	matchedText := query[call.start : close+1]
-	notIn := normalizedOperator == "not in"
-	matchStart := call.start
-	if matchStart >= 0 && scalarSubqueryAppearsInJoinOn(query, matchStart) {
-		// JOIN ... ON subqueries need the current candidate row. Leave both
-		// correlated and uncorrelated IN subqueries for the JOIN evaluator,
-		// which can preserve NULL-aware set semantics per candidate row.
-		return "", nil
-	}
-	innerStmt, err := sqlparser.Parse(innerText)
-	if err != nil {
-		return "", err
-	}
-	innerSelect, ok := innerStmt.(*sqlparser.Select)
-	if !ok {
-		return "", fmt.Errorf("IN subquery must be SELECT")
-	}
-	innerResult, err := e.executeSelectStatement(ctx, innerSelect, databaseName)
-	if err != nil {
-		return "", err
-	}
-	if len(innerResult.Columns) != 1 {
-		return "", fmt.Errorf("subquery returns more than one column")
-	}
-	literals := make([]string, 0, len(innerResult.Records))
-	hasNull := false
-	for _, record := range innerResult.Records {
-		values := record.GetValues()
-		if len(values) == 0 || values[0].IsNull() {
-			hasNull = true
-			continue
-		}
-		literals = append(literals, basicValueSQLLiteral(values[0]))
-	}
-	if notIn && hasNull {
-		return strings.Replace(query, matchedText, "1 = 0", 1), nil
-	}
-	if len(literals) == 0 {
-		literals = append(literals, "NULL")
-	}
-	operator := "IN"
-	if notIn {
-		operator = "NOT IN"
-	}
-	replacement := fmt.Sprintf("%s %s (%s)", call.left, operator, strings.Join(literals, ", "))
-	return strings.Replace(query, matchedText, replacement, 1), nil
+	return e.materializeInSubqueryAST(ctx, query, databaseName)
 }
 
 // rewriteSimpleQuantifiedSubqueries evaluates uncorrelated ANY/SOME/ALL
@@ -8158,12 +8192,16 @@ func splitQuantifiedOperator(operator string) (op, quantifier string, ok bool) {
 }
 
 func evaluateQuantifiedPredicate(left interface{}, operator, quantifier string, values []interface{}) (truth bool, unknown bool) {
+	return evaluateQuantifiedPredicateWithCollation(left, operator, quantifier, values, "")
+}
+
+func evaluateQuantifiedPredicateWithCollation(left interface{}, operator, quantifier string, values []interface{}, collation string) (truth bool, unknown bool) {
 	if quantifier == "ANY" || quantifier == "SOME" {
 		if len(values) == 0 {
 			return false, false
 		}
 		for _, right := range values {
-			matched, indeterminate := evaluateScalarComparison(left, operator, right)
+			matched, indeterminate := evaluateScalarComparisonWithCollation(left, operator, right, collation)
 			if matched {
 				return true, false
 			}
@@ -8177,7 +8215,7 @@ func evaluateQuantifiedPredicate(left interface{}, operator, quantifier string, 
 		return true, false
 	}
 	for _, right := range values {
-		matched, indeterminate := evaluateScalarComparison(left, operator, right)
+		matched, indeterminate := evaluateScalarComparisonWithCollation(left, operator, right, collation)
 		if !matched && !indeterminate {
 			return false, false
 		}
@@ -8189,16 +8227,20 @@ func evaluateQuantifiedPredicate(left interface{}, operator, quantifier string, 
 }
 
 func evaluateScalarComparison(left interface{}, operator string, right interface{}) (bool, bool) {
+	return evaluateScalarComparisonWithCollation(left, operator, right, "")
+}
+
+func evaluateScalarComparisonWithCollation(left interface{}, operator string, right interface{}, collation string) (bool, bool) {
 	if operator == "<=>" {
 		if left == nil || right == nil {
 			return left == nil && right == nil, false
 		}
-		return compareScalarValues(left, right) == 0, false
+		return compareScalarValuesWithCollation(left, right, collation) == 0, false
 	}
 	if left == nil || right == nil {
 		return false, true
 	}
-	comparison := compareScalarValues(left, right)
+	comparison := compareScalarValuesWithCollation(left, right, collation)
 	switch operator {
 	case "=":
 		return comparison == 0, false
@@ -8224,15 +8266,27 @@ func evaluateScalarComparison(left interface{}, operator string, right interface
 // Correlated subqueries are handled by executeCorrelatedSubqueryCompatibility
 // and are deliberately left untouched here.
 func (e *XMySQLExecutor) rewriteSimpleScalarSubqueries(ctx *ExecutionContext, query, databaseName string) (string, error) {
+	// The structured JOIN executor evaluates both correlated and uncorrelated
+	// scalar subqueries against each candidate row. Rewriting them before the
+	// join would execute without the candidate's bindings and can turn valid
+	// expressions into NULL (or invalid EXISTS NULL syntax).
+	if queryHasJoinedOuterSource(query) {
+		return "", nil
+	}
 	result := query
 	searchFrom := 0
 	for {
 		lower := strings.ToLower(result)
+		code := sqlCodePositions(result)
 		openRelative := strings.Index(lower[searchFrom:], "(")
 		if openRelative < 0 {
 			return resultIfChanged(query, result), nil
 		}
 		open := searchFrom + openRelative
+		if !code[open] {
+			searchFrom = open + 1
+			continue
+		}
 		probe := open + 1
 		for probe < len(lower) && (lower[probe] == ' ' || lower[probe] == '\t' || lower[probe] == '\r' || lower[probe] == '\n') {
 			probe++
@@ -8259,6 +8313,13 @@ func (e *XMySQLExecutor) rewriteSimpleScalarSubqueries(ctx *ExecutionContext, qu
 			searchFrom = close + 1
 			continue
 		}
+		if scalarSubqueryAppearsInSetPredicate(result, open) {
+			// IN/NOT IN and EXISTS subqueries have predicate semantics and may
+			// depend on the current outer row. They must be handled by the
+			// predicate-subquery path, never materialized as scalar values.
+			searchFrom = close + 1
+			continue
+		}
 		innerSQL := strings.TrimSpace(result[probe:close])
 		innerStmt, err := sqlparser.Parse(innerSQL)
 		if err != nil {
@@ -8276,7 +8337,7 @@ func (e *XMySQLExecutor) rewriteSimpleScalarSubqueries(ctx *ExecutionContext, qu
 			return "", fmt.Errorf("scalar subquery returns %d columns", len(innerResult.Columns))
 		}
 		if len(innerResult.Records) > 1 {
-			return "", fmt.Errorf("subquery returns more than 1 row")
+			return "", common.NewErr(common.ErrSubqueryNo1Row)
 		}
 		replacement := "NULL"
 		if len(innerResult.Records) == 1 && len(innerResult.Records[0].GetValues()) > 0 && !innerResult.Records[0].GetValues()[0].IsNull() {
@@ -8284,6 +8345,31 @@ func (e *XMySQLExecutor) rewriteSimpleScalarSubqueries(ctx *ExecutionContext, qu
 		}
 		result = result[:open] + replacement + result[close+1:]
 		searchFrom = open + len(replacement)
+	}
+}
+
+func scalarSubqueryAppearsInSetPredicate(query string, open int) bool {
+	if open <= 0 || open > len(query) {
+		return false
+	}
+	code := sqlCodePositions(query)
+	end := open - 1
+	for end >= 0 && (!code[end] || isSQLSpaceByte(query[end])) {
+		end--
+	}
+	if end < 0 {
+		return false
+	}
+	start := end
+	for start >= 0 && code[start] && isSQLIdentifierPart(query[start]) {
+		start--
+	}
+	word := strings.ToUpper(query[start+1 : end+1])
+	switch word {
+	case "IN", "EXISTS", "ANY", "SOME", "ALL":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -8493,6 +8579,12 @@ func sessionUserVariableSQLLiteral(value interface{}) string {
 }
 
 func basicValueSQLLiteral(value basic.Value) string {
+	if value == nil || value.IsNull() {
+		return "NULL"
+	}
+	if value.Type().IsNumeric() {
+		return correlatedValueSQLLiteral(value)
+	}
 	text := value.ToString()
 	if _, err := strconv.ParseInt(text, 10, 64); err == nil {
 		return text
@@ -10999,9 +11091,7 @@ func isTemporaryTableDDL(session server.MySQLServerSession, query, databaseName 
 	case *sqlparser.TableDDLStatement:
 		targets = append(targets, statement.Targets...)
 	case *sqlparser.AlterTable:
-		// ALTER on a temporary table is rewritten to its physical binding
-		// before dispatch; it does not need the read-only DDL exemption here.
-		return false
+		targets = append(targets, statement.Table)
 	default:
 		return false
 	}
@@ -17970,6 +18060,11 @@ func (e *XMySQLExecutor) viewColumnMetadata(schemaName, viewName string) ([]*met
 	} else if strings.TrimSpace(rewritten) != "" {
 		definition = rewritten
 	}
+	if rewritten, rewriteErr := e.rewriteSimpleCTEQuery(definition); rewriteErr != nil {
+		return nil, fmt.Errorf("rewrite view CTE failed: %w", rewriteErr)
+	} else if strings.TrimSpace(rewritten) != "" {
+		definition = rewritten
+	}
 	statement, parseErr := sqlparser.Parse(definition)
 	if parseErr != nil {
 		return nil, fmt.Errorf("parse view '%s.%s' definition failed: %w", schemaName, viewName, parseErr)
@@ -18057,41 +18152,53 @@ func viewSourceColumns(e *XMySQLExecutor, schemaName string, stmt *sqlparser.Sel
 	if !ok {
 		return nil
 	}
-	tableName, ok := tableExpr.Expr.(sqlparser.TableName)
-	if !ok {
+	var normalizedSourceColumns []*metadata.ColumnMeta
+	switch source := tableExpr.Expr.(type) {
+	case sqlparser.TableName:
+		sourceSchema := source.Qualifier.String()
+		if sourceSchema == "" {
+			sourceSchema = schemaName
+		}
+		sourceMeta, err := e.getShowColumnsTableMetadata(sourceSchema, source.Name.String())
+		if err != nil || sourceMeta == nil {
+			return nil
+		}
+		sourceCharset, sourceCollation := sourceMeta.Charset, sourceMeta.Collation
+		if persistedCharset, persistedCollation := readFrmMetadataCharacterSet(filepath.Join(e.getDataDir(), sourceSchema, source.Name.String()+".frm")); persistedCharset != "" {
+			sourceCharset = persistedCharset
+			if persistedCollation != "" {
+				sourceCollation = persistedCollation
+			}
+		}
+		normalizedSourceColumns = make([]*metadata.ColumnMeta, 0, len(sourceMeta.Columns))
+		for _, column := range sourceMeta.Columns {
+			if column == nil {
+				continue
+			}
+			normalized := *column
+			if strings.TrimSpace(normalized.Charset) == "" && informationSchemaCharacterSet(string(normalized.Type)) != nil {
+				normalized.Charset = sourceCharset
+			}
+			if strings.TrimSpace(normalized.Collation) == "" && informationSchemaCharacterSet(string(normalized.Type)) != nil {
+				normalized.Collation = sourceCollation
+			}
+			normalizedSourceColumns = append(normalizedSourceColumns, &normalized)
+		}
+	case *sqlparser.Subquery:
+		if inner, ok := source.Select.(*sqlparser.Select); ok {
+			normalizedSourceColumns = viewSourceColumns(e, schemaName, inner)
+		}
+	default:
 		return nil
 	}
-	sourceSchema := tableName.Qualifier.String()
-	if sourceSchema == "" {
-		sourceSchema = schemaName
-	}
-	sourceName := tableName.Name.String()
-	sourceMeta, err := e.getShowColumnsTableMetadata(sourceSchema, sourceName)
-	if err != nil || sourceMeta == nil {
+	if len(normalizedSourceColumns) == 0 {
 		return nil
 	}
-	sourceCharset, sourceCollation := sourceMeta.Charset, sourceMeta.Collation
-	if persistedCharset, persistedCollation := readFrmMetadataCharacterSet(filepath.Join(e.getDataDir(), sourceSchema, sourceName+".frm")); persistedCharset != "" {
-		sourceCharset = persistedCharset
-		if persistedCollation != "" {
-			sourceCollation = persistedCollation
+	sourceByName := make(map[string]*metadata.ColumnMeta, len(normalizedSourceColumns))
+	for _, column := range normalizedSourceColumns {
+		if column != nil {
+			sourceByName[strings.ToLower(column.Name)] = column
 		}
-	}
-	sourceByName := make(map[string]*metadata.ColumnMeta, len(sourceMeta.Columns))
-	normalizedSourceColumns := make([]*metadata.ColumnMeta, 0, len(sourceMeta.Columns))
-	for _, column := range sourceMeta.Columns {
-		if column == nil {
-			continue
-		}
-		normalized := *column
-		if strings.TrimSpace(normalized.Charset) == "" && informationSchemaCharacterSet(string(normalized.Type)) != nil {
-			normalized.Charset = sourceCharset
-		}
-		if strings.TrimSpace(normalized.Collation) == "" && informationSchemaCharacterSet(string(normalized.Type)) != nil {
-			normalized.Collation = sourceCollation
-		}
-		normalizedSourceColumns = append(normalizedSourceColumns, &normalized)
-		sourceByName[strings.ToLower(normalized.Name)] = &normalized
 	}
 	if len(stmt.SelectExprs) == 1 {
 		if _, star := stmt.SelectExprs[0].(*sqlparser.StarExpr); star {
@@ -19054,7 +19161,7 @@ func storedRoutineParameterDataType(typeName string) int64 {
 		return 93
 	case "TIME":
 		return 92
-	case "BINARY", "VARBINARY", "BLOB":
+	case "BINARY", "VARBINARY", "BLOB", "TINYBLOB", "MEDIUMBLOB", "LONGBLOB", "CONTENT", "VECTOR":
 		return -3
 	default:
 		return 12
@@ -22439,7 +22546,7 @@ func persistTableStorageIdentity(dataDir string, info *manager.TableStorageInfo)
 		return nil
 	}
 	path := filepath.Join(dataDir, info.SchemaName, info.TableName+".frm")
-	raw, err := os.ReadFile(path)
+	raw, err := metadata.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read table metadata: %w", err)
 	}
@@ -22624,6 +22731,31 @@ func (e *XMySQLExecutor) SetAdditionalManagers(
 
 	logger.Debugf(" Additional managers set: IndexManager=%v, StorageManager=%v, TableStorageManager=%v",
 		indexManager != nil, storageManager != nil, tableStorageManager != nil)
+}
+
+// SetVectorIndexCatalog binds the database-local durable catalog used by the
+// native SQL vector-index path. It is installed during engine construction,
+// before the executor becomes available to client sessions.
+func (e *XMySQLExecutor) SetVectorIndexCatalog(catalog *innodbvector.IndexCatalog) {
+	if e != nil {
+		e.vectorIndexCatalog = catalog
+		e.vectorIndexCatalogUsable.Store(catalog != nil)
+	}
+}
+
+// SetContentMaintenanceQueue binds the database-local durable queue used to
+// publish source-version-bound derivation work after storage commit.
+func (e *XMySQLExecutor) SetContentMaintenanceQueue(queue *content.MaintenanceQueue) {
+	if e != nil {
+		e.contentMaintenanceQueue = queue
+	}
+}
+
+// VectorIndexCatalogUsable reports whether vector-index reads may rely on the
+// catalog. A committed DML invalidation failure disables indexed reads for the
+// process; startup recovery must reconcile its durable journal before serving.
+func (e *XMySQLExecutor) VectorIndexCatalogUsable() bool {
+	return e != nil && e.vectorIndexCatalog != nil && e.vectorIndexCatalogUsable.Load()
 }
 
 func (e *XMySQLExecutor) getTransactionManager() (*manager.TransactionManager, error) {
@@ -23439,7 +23571,7 @@ func (e *XMySQLExecutor) parseTableColumns(spec *sqlparser.TableSpec) []map[stri
 
 		// 解析注释
 		if col.Type.Comment != nil {
-			column["comment"] = persistedString(sqlparser.String(col.Type.Comment))
+			column["comment"] = string(col.Type.Comment.Val)
 		}
 
 		// 解析键选项
@@ -23579,7 +23711,7 @@ func validateForeignKeyReferentialActions(definition string) error {
 				continue
 			}
 			if cascadeActionFromTail(lower[at:], action) == "" {
-				return fmt.Errorf("unsupported foreign key ON %s action", strings.ToUpper(action))
+				return fmt.Errorf("unsupported foreign key ON %s action %q", strings.ToUpper(action), strings.TrimSpace(definition[after:]))
 			}
 			start = after
 		}
@@ -24279,7 +24411,7 @@ func (e *XMySQLExecutor) executeShowIndex(ctx *ExecutionContext, rawQuery string
 		return
 	}
 	frmPath := filepath.Join(e.getDataDir(), databaseName, physicalTableName+".frm")
-	raw, err := os.ReadFile(frmPath)
+	raw, err := metadata.ReadFile(frmPath)
 	if err != nil {
 		ctx.Results <- &Result{Err: fmt.Errorf("read table metadata failed: %v", err), ResultType: common.RESULT_TYPE_QUERY}
 		return
@@ -24341,7 +24473,7 @@ func (e *XMySQLExecutor) tableIndexCardinalities(ctx *ExecutionContext, database
 		return result, err
 	}
 	frmPath := filepath.Join(e.getDataDir(), databaseName, tableName+".frm")
-	raw, err := os.ReadFile(frmPath)
+	raw, err := metadata.ReadFile(frmPath)
 	if err != nil {
 		return result, err
 	}
@@ -26535,7 +26667,7 @@ func (e *XMySQLExecutor) executeSimpleWindowQuery(ctx *ExecutionContext, query, 
 	orderColumn := orderExpr.Name.String()
 	tableName := table.Name.String()
 	if table.Qualifier.String() != "" {
-		databaseName, tableName = table.Qualifier.String(), tableName
+		databaseName = table.Qualifier.String()
 	}
 	stmt, err := sqlparser.Parse(fmt.Sprintf("select %s from %s", columnName, tableName))
 	if err != nil {
@@ -26622,6 +26754,7 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 	}
 
 	tableName, schemaName := "", databaseName
+	var explainedSelect *sqlparser.Select
 	if parsed, parseErr := sqlparser.ParseForExecution(query); parseErr == nil {
 		if explain, ok := parsed.AST.(*sqlparser.ExplainStatement); ok {
 			if !explain.Table.IsEmpty() {
@@ -26631,10 +26764,17 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 				}
 			}
 			if explain.Statement != nil {
+				explainedSelect, _ = explain.Statement.(*sqlparser.Select)
 				if refs, refErr := sqlparser.CollectObjectReferences(explain.Statement, databaseName); refErr == nil && len(refs) > 0 {
 					schemaName, tableName = refs[0].Schema, refs[0].Name
 				}
 			}
+		}
+	}
+	if tableReferences := explainTableReferences(explainedSelect); len(tableReferences) > 0 {
+		tableName = tableReferences[0].name
+		if tableReferences[0].schema != "" {
+			schemaName = tableReferences[0].schema
 		}
 	}
 	columns := []string{"id", "select_type", "table", "partitions", "type", "possible_keys", "key", "key_len", "ref", "rows", "filtered", "Extra"}
@@ -26682,6 +26822,9 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 			rowCount = 1
 		}
 	}
+	if rowCount == 0 {
+		rowCount = 1
+	}
 	var partitions interface{}
 	if partitionRows := e.partitionRowsForTable(schemaName, tableName); len(partitionRows) > 0 {
 		names := make([]string, 0, len(partitionRows))
@@ -26698,8 +26841,220 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 	if selectedKey != nil {
 		extra = "Using index condition"
 	}
-	rows := [][]interface{}{{int64(1), "SIMPLE", tableName, partitions, accessType, nullIfEmpty(possibleKeys), selectedKey, keyLength, nil, rowCount, float64(100), extra}}
+	var subqueries []*plan.SubqueryExpression
+	if explainedSelect != nil {
+		if logical, planErr := plan.BuildLogicalPlan(explainedSelect, &InfoSchemaAdapter{}); planErr == nil {
+			subqueries = logicalPlanSubqueryExpressions(logical)
+		}
+	}
+	selectType := "SIMPLE"
+	if len(subqueries) > 0 {
+		selectType = "PRIMARY"
+	}
+	primaryTableLabel := tableName
+	if tableReferences := explainTableReferences(explainedSelect); len(tableReferences) > 0 {
+		primaryTableLabel = tableReferences[0].label
+	}
+	if explainedSelect != nil && len(explainedSelect.GroupBy) > 0 {
+		extra = appendExplainExtra(extra, "Using temporary")
+	}
+	if explainedSelect != nil && len(explainedSelect.OrderBy) > 0 {
+		extra = appendExplainExtra(extra, "Using filesort")
+	}
+	rows := [][]interface{}{{int64(1), selectType, primaryTableLabel, partitions, accessType, nullIfEmpty(possibleKeys), selectedKey, keyLength, nil, rowCount, float64(100), extra}}
+	if explainedSelect != nil {
+		subqueryRows, subqueryErr := e.explainSubqueryRows(ctx, subqueries, schemaName, 2)
+		if subqueryErr != nil {
+			ctx.Results <- &Result{Err: subqueryErr, ResultType: common.RESULT_TYPE_QUERY}
+			return
+		}
+		rows = append(rows, subqueryRows...)
+	}
 	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: map[string]interface{}{"columns": columns, "rows": rows}, Message: "EXPLAIN completed"}
+}
+
+func appendExplainExtra(current, extra string) string {
+	if strings.TrimSpace(extra) == "" {
+		return current
+	}
+	if strings.TrimSpace(current) == "" {
+		return extra
+	}
+	return current + "; " + extra
+}
+
+func logicalPlanSubqueryExpressions(root plan.LogicalPlan) []*plan.SubqueryExpression {
+	var result []*plan.SubqueryExpression
+	seen := make(map[*plan.SubqueryExpression]struct{})
+	var visitPlan func(plan.LogicalPlan)
+	var visitExpression func(plan.Expression)
+	visitExpression = func(expression plan.Expression) {
+		if expression == nil {
+			return
+		}
+		if subquery, ok := expression.(*plan.SubqueryExpression); ok {
+			if _, exists := seen[subquery]; !exists {
+				seen[subquery] = struct{}{}
+				result = append(result, subquery)
+				visitPlan(subquery.Subplan)
+			}
+			return
+		}
+		for _, child := range expression.Children() {
+			visitExpression(child)
+		}
+	}
+	visitPlan = func(node plan.LogicalPlan) {
+		if node == nil {
+			return
+		}
+		switch value := node.(type) {
+		case *plan.LogicalSelection:
+			for _, condition := range value.Conditions {
+				visitExpression(condition)
+			}
+		case *plan.LogicalProjection:
+			for _, expression := range value.Exprs {
+				visitExpression(expression)
+			}
+		case *plan.LogicalJoin:
+			for _, condition := range value.Conditions {
+				visitExpression(condition)
+			}
+		case *plan.LogicalAggregation:
+			for _, expression := range value.GroupByItems {
+				visitExpression(expression)
+			}
+			for _, aggregate := range value.AggFuncs {
+				for _, argument := range aggregate.Args() {
+					visitExpression(argument)
+				}
+			}
+		}
+		for _, child := range node.Children() {
+			visitPlan(child)
+		}
+	}
+	visitPlan(root)
+	return result
+}
+
+type explainTableReference struct {
+	schema string
+	name   string
+	label  string
+}
+
+func explainTableReferences(statement *sqlparser.Select) []explainTableReference {
+	var references []explainTableReference
+	var visit func(sqlparser.TableExpr)
+	visit = func(expression sqlparser.TableExpr) {
+		switch value := expression.(type) {
+		case *sqlparser.AliasedTableExpr:
+			table, ok := value.Expr.(sqlparser.TableName)
+			if !ok {
+				return
+			}
+			name := table.Name.String()
+			label := name
+			if alias := value.As.String(); alias != "" {
+				label = alias
+			}
+			references = append(references, explainTableReference{schema: table.Qualifier.String(), name: name, label: label})
+		case *sqlparser.JoinTableExpr:
+			visit(value.LeftExpr)
+			visit(value.RightExpr)
+		case *sqlparser.ParenTableExpr:
+			for _, child := range value.Exprs {
+				visit(child)
+			}
+		}
+	}
+	if statement != nil {
+		for _, expression := range statement.From {
+			visit(expression)
+		}
+	}
+	return references
+}
+
+func (e *XMySQLExecutor) explainSubqueryRows(ctx *ExecutionContext, subqueries []*plan.SubqueryExpression, defaultSchema string, firstID int64) ([][]interface{}, error) {
+	rows := make([][]interface{}, 0)
+	for _, subquery := range subqueries {
+		if subquery == nil {
+			continue
+		}
+		statement, err := parseSelectSQL(subquery.SQL)
+		if err != nil {
+			return nil, err
+		}
+		selectType := "SUBQUERY"
+		if subquery.Correlated {
+			selectType = "DEPENDENT SUBQUERY"
+		}
+		for _, reference := range explainTableReferences(statement) {
+			schemaName := reference.schema
+			if schemaName == "" {
+				schemaName = defaultSchema
+			}
+			info, err := e.readPersistedTableInfo(schemaName, reference.name)
+			if err != nil {
+				return nil, err
+			}
+			possibleKeys, accessType := "", "ALL"
+			var selectedKey interface{}
+			where := ""
+			if statement.Where != nil {
+				where = strings.ToLower(sqlparser.String(statement.Where.Expr))
+			}
+			for _, index := range info.Indexes {
+				name, _ := index["name"].(string)
+				indexColumns, _ := index["columns"].([]interface{})
+				if name == "" || len(indexColumns) == 0 {
+					continue
+				}
+				columnName, _ := indexColumns[0].(string)
+				if strings.Contains(where, strings.ToLower(columnName)+" =") {
+					if possibleKeys != "" {
+						possibleKeys += ","
+					}
+					possibleKeys += name
+					if selectedKey == nil {
+						selectedKey = name
+						accessType = "ref"
+					}
+				}
+			}
+			rowCount := int64(0)
+			if info.Stats != nil {
+				rowCount = int64(info.Stats.RowCount)
+			} else if count, countErr := e.tableRowCount(ctx, schemaName, reference.name); countErr == nil {
+				rowCount = count
+			}
+			if rowCount == 0 {
+				rowCount = 1
+			}
+			var partitions interface{}
+			if partitionRows := e.partitionRowsForTable(schemaName, reference.name); len(partitionRows) > 0 {
+				partitionNames := make([]string, 0, len(partitionRows))
+				for _, partition := range partitionRows {
+					partitionNames = append(partitionNames, fmt.Sprint(partition["PARTITION_NAME"]))
+				}
+				partitions = strings.Join(partitionNames, ",")
+			}
+			var keyLength interface{}
+			if selectedKey != nil {
+				keyLength = int64(8)
+			}
+			extra := ""
+			if statement.Where != nil {
+				extra = "Using where"
+			}
+			rows = append(rows, []interface{}{firstID, selectType, reference.label, partitions, accessType, nullIfEmpty(possibleKeys), selectedKey, keyLength, nil, rowCount, float64(100), extra})
+			firstID++
+		}
+	}
+	return rows, nil
 }
 
 func (e *XMySQLExecutor) tableRowCount(ctx *ExecutionContext, schemaName, tableName string) (int64, error) {

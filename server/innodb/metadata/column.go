@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/content"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/vector"
 )
 
 // ColumnMeta contains metadata for a single column
@@ -167,6 +169,59 @@ func (c *ColumnMeta) ConvertToBasicValue(val interface{}) (basic.Value, error) {
 		}
 		return nil, fmt.Errorf("column %s does not allow NULL", c.Name)
 	}
+	if c.Type == TypeContent {
+		var value content.Value
+		switch typed := val.(type) {
+		case content.Value:
+			value = typed
+		case *content.Value:
+			if typed == nil {
+				return nil, fmt.Errorf("column %s: CONTENT value is nil", c.Name)
+			}
+			value = *typed
+		case []byte:
+			var err error
+			value, err = content.NewValue("application/octet-stream", 1, typed)
+			if err != nil {
+				return nil, err
+			}
+		case string:
+			var err error
+			value, err = content.NewValue("application/octet-stream", 1, []byte(typed))
+			if err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("column %s: unsupported CONTENT value type %T", c.Name, val)
+		}
+		encoded, err := value.MarshalBinary()
+		if err != nil {
+			return nil, fmt.Errorf("column %s: encode CONTENT value: %w", c.Name, err)
+		}
+		return basic.NewBytes(encoded), nil
+	}
+	if c.Type == TypeVector {
+		var value vector.Value
+		switch typed := val.(type) {
+		case vector.Value:
+			value = typed
+		case *vector.Value:
+			if typed == nil {
+				return nil, fmt.Errorf("column %s: VECTOR value is nil", c.Name)
+			}
+			value = *typed
+		default:
+			return nil, fmt.Errorf("column %s: unsupported VECTOR value type %T", c.Name, val)
+		}
+		if c.Length > 0 && value.Dimension() != c.Length {
+			return nil, fmt.Errorf("column %s: VECTOR dimension %d does not match declared dimension %d", c.Name, value.Dimension(), c.Length)
+		}
+		encoded, err := value.MarshalBinary()
+		if err != nil {
+			return nil, err
+		}
+		return basic.NewBytes(encoded), nil
+	}
 
 	switch c.Type {
 	case TypeTinyInt, TypeSmallInt, TypeMediumInt, TypeInt, TypeBigInt, TypeBit, TypeBool, TypeBoolean:
@@ -186,10 +241,10 @@ func (c *ColumnMeta) ConvertToBasicValue(val interface{}) (basic.Value, error) {
 			return basic.NewTime(parsed), nil
 		}
 	case TypeChar, TypeVarchar, TypeText, TypeTinyText, TypeMediumText, TypeLongText,
-		TypeBinary, TypeVarBinary, TypeBlob, TypeTinyBlob, TypeMediumBlob, TypeLongBlob,
+		TypeBinary, TypeVarBinary, TypeBlob, TypeTinyBlob, TypeMediumBlob, TypeLongBlob, TypeContent, TypeVector,
 		TypeEnum, TypeSet, TypeJSON:
 		if s, ok := parseStringValue(val); ok {
-			if c.Type == TypeBinary || c.Type == TypeVarBinary || strings.Contains(string(c.Type), "BLOB") {
+			if c.Type == TypeBinary || c.Type == TypeVarBinary || c.Type == TypeContent || c.Type == TypeVector || strings.Contains(string(c.Type), "BLOB") {
 				return basic.NewBytes([]byte(s)), nil
 			}
 			return basic.NewString(s), nil

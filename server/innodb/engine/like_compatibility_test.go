@@ -43,3 +43,28 @@ func TestSQLLikePredicateHonorsExplicitEscapeCharacter(t *testing.T) {
 		t.Fatalf("LIKE ESCAPE truth = %d, want %d", truth, sqlTruthTrue)
 	}
 }
+
+func TestSQLLikeMatcherUsesAccentInsensitiveCollation(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		pattern string
+		want    bool
+	}{
+		{name: "precomposed accent folds", value: "CAFÉ", pattern: "cafe", want: true},
+		{name: "decomposed accent folds", value: "cafe\u0301", pattern: "cafe", want: true},
+		{name: "escaped wildcard stays literal after folding", value: "café%", pattern: `cafe\%`, want: true},
+		{name: "percent matches newline", value: "a\nb", pattern: "a%b", want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := sqlLikePatternMatchWithEscapeAndCollation(tt.value, tt.pattern, nil, nil, "utf8mb4_0900_ai_ci")
+			if err != nil {
+				t.Fatalf("LIKE evaluation failed: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("LIKE(%q, %q) = %v, want %v", tt.value, tt.pattern, got, tt.want)
+			}
+		})
+	}
+}

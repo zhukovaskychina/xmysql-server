@@ -99,8 +99,9 @@ func (e *XMySQLExecutor) executeCorrelatedDerivedOuterCompatibility(ctx *Executi
 		selectedColumns = append([]string(nil), outerResult.Columns...)
 	}
 	type selectedRow struct {
-		values []basic.Value
-		order  []interface{}
+		values          []basic.Value
+		order           []interface{}
+		orderCollations []string
 	}
 	selectedRows := make([]selectedRow, 0, len(outerResult.Records))
 	orderTerms, orderErr := correlatedDerivedOrderExpressions(tail)
@@ -162,22 +163,24 @@ func (e *XMySQLExecutor) executeCorrelatedDerivedOuterCompatibility(ctx *Executi
 						break
 					}
 				}
-				metaColumns = append(metaColumns, &metadata.ColumnMeta{Name: name, Type: columnType})
+				metaColumns = append(metaColumns, &metadata.ColumnMeta{Name: name, Type: columnType, Collation: recordColumnCollation(record, name)})
 			}
 		}
 		orderValues := make([]interface{}, len(orderTerms))
+		orderCollations := make([]string, len(orderTerms))
 		for index, term := range orderTerms {
 			orderValues[index], err = evaluateProjectionExpression(term.expression, rowValues)
 			if err != nil {
 				return true, fmt.Errorf("evaluate correlated derived ORDER BY expression %q: %v", term.expression, err)
 			}
+			orderCollations[index] = collationFromValueContext(rowValues, term.expression)
 		}
-		selectedRows = append(selectedRows, selectedRow{values: values, order: orderValues})
+		selectedRows = append(selectedRows, selectedRow{values: values, order: orderValues, orderCollations: orderCollations})
 	}
 	if len(orderTerms) > 0 {
 		sort.SliceStable(selectedRows, func(left, right int) bool {
 			for termIndex, term := range orderTerms {
-				comparison := compareScalarValues(selectedRows[left].order[termIndex], selectedRows[right].order[termIndex])
+				comparison := compareScalarValuesWithCollation(selectedRows[left].order[termIndex], selectedRows[right].order[termIndex], selectedRows[left].orderCollations[termIndex])
 				if comparison == 0 {
 					continue
 				}

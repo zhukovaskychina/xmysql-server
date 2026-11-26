@@ -80,6 +80,7 @@ func promotePendingClientTransactionChanges(txn *StorageTransactionContext) {
 	})
 	pruneCommittedClientTransactionHistoryLocked()
 	committedClientTransactionHistory.Unlock()
+	applyCommittedContentDependencyChanges(txn.DataDir, changes)
 }
 
 func pruneCommittedClientTransactionHistoryLocked() {

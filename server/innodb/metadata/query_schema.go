@@ -38,6 +38,10 @@ type QueryColumn struct {
 	// CharMaxLength 字符类型的最大长度
 	CharMaxLength int
 
+	// Collation is the effective character collation inherited from the
+	// source column. Operators must preserve it through projection and joins.
+	Collation string
+
 	// Comment 列注释
 	Comment string
 }
@@ -104,6 +108,7 @@ func FromTable(table *Table) *QuerySchema {
 			SchemaName:      schema.SchemaName,
 			OrdinalPosition: col.OrdinalPosition,
 			CharMaxLength:   col.CharMaxLength,
+			Collation:       col.Collation,
 			Comment:         col.Comment,
 		}
 		schema.Columns = append(schema.Columns, queryCol)
@@ -126,6 +131,7 @@ func MergeSchemas(schemas ...*QuerySchema) *QuerySchema {
 				TableName:     col.TableName,
 				SchemaName:    col.SchemaName,
 				CharMaxLength: col.CharMaxLength,
+				Collation:     col.Collation,
 				Comment:       col.Comment,
 			}
 			merged.AddColumn(newCol)
@@ -152,6 +158,7 @@ func ProjectSchema(source *QuerySchema, columnIndices []int) *QuerySchema {
 				TableName:     col.TableName,
 				SchemaName:    col.SchemaName,
 				CharMaxLength: col.CharMaxLength,
+				Collation:     col.Collation,
 				Comment:       col.Comment,
 			}
 			projected.AddColumn(newCol)
@@ -176,6 +183,7 @@ func (qs *QuerySchema) Clone() *QuerySchema {
 			SchemaName:      col.SchemaName,
 			OrdinalPosition: col.OrdinalPosition,
 			CharMaxLength:   col.CharMaxLength,
+			Collation:       col.Collation,
 			Comment:         col.Comment,
 		}
 		cloned.Columns = append(cloned.Columns, newCol)

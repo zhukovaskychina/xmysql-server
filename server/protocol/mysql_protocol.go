@@ -329,21 +329,25 @@ func (h *MySQLProtocolHandler) handleStmtExecute(conn net.Conn, packet *MySQLRaw
 	// iterationCount := uint32(packet.Body[6]) | uint32(packet.Body[7])<<8 |
 	// 	uint32(packet.Body[8])<<16 | uint32(packet.Body[9])<<24
 
-	params, typeBlock, err := ParseBinaryStmtExecuteParams(packet.Body[10:], stmt.ParamCount, stmt.LastParamTypes)
-	if err != nil {
-		errPacket := EncodeErrorFromGoError(err)
-		conn.Write(errPacket)
-		return err
-	}
 	longData, err := h.preparedStmtMgr.ConsumeLongData(stmtID)
 	if err != nil {
 		errPacket := EncodeErrorFromGoError(err)
 		_, _ = conn.Write(errPacket)
 		return err
 	}
+	omittedParams := make(map[uint16]struct{}, len(longData))
+	for paramID := range longData {
+		omittedParams[paramID] = struct{}{}
+	}
+	params, typeBlock, err := ParseBinaryStmtExecuteParamsWithOmittedParams(packet.Body[10:], stmt.ParamCount, stmt.LastParamTypes, omittedParams)
+	if err != nil {
+		errPacket := EncodeErrorFromGoError(err)
+		conn.Write(errPacket)
+		return err
+	}
 	for paramID, value := range longData {
 		if int(paramID) < len(params) {
-			params[paramID] = value
+			params[paramID] = PreparedBinaryParam(value)
 		}
 	}
 	stmt.LastParamTypes = typeBlock
@@ -413,16 +417,17 @@ func (h *MySQLProtocolHandler) handleStmtExecute(conn net.Conn, packet *MySQLRaw
 
 // handleStmtSendLongData buffers one chunk for a prepared-statement parameter.
 // MySQL intentionally sends no response for a successful COM_STMT_SEND_LONG_DATA.
-func (h *MySQLProtocolHandler) handleStmtSendLongData(conn net.Conn, packet *MySQLRawPacket) error {
-	if len(packet.Body) < 7 {
-		return fmt.Errorf("invalid stmt send long data packet")
+func (h *MySQLProtocolHandler) handleStmtSendLongData(_ net.Conn, packet *MySQLRawPacket) error {
+	if len(packet.Body) < 5 {
+		return fmt.Errorf("invalid stmt send long data header")
 	}
 	stmtID := binary.LittleEndian.Uint32(packet.Body[1:5])
-	paramID := binary.LittleEndian.Uint16(packet.Body[5:7])
-	if err := h.preparedStmtMgr.AppendLongData(stmtID, paramID, packet.Body[7:]); err != nil {
-		_, _ = conn.Write(EncodeErrorFromGoError(err))
-		return err
+	if len(packet.Body) < 7 {
+		_ = h.preparedStmtMgr.LatchLongDataError(stmtID, fmt.Errorf("invalid stmt send long data parameter header"))
+		return nil
 	}
+	paramID := binary.LittleEndian.Uint16(packet.Body[5:7])
+	_ = h.preparedStmtMgr.AppendLongData(stmtID, paramID, packet.Body[7:])
 	return nil
 }
 
@@ -506,6 +511,9 @@ func (h *MySQLProtocolHandler) sendCursorRows(conn net.Conn, result *MessageQuer
 
 func (h *MySQLProtocolHandler) handleResetConnection(conn net.Conn, packet *MySQLRawPacket) error {
 	// A connection reset closes all prepared statements and clears their buffered state.
+	if h.preparedStmtMgr != nil {
+		h.preparedStmtMgr.CloseAll()
+	}
 	h.preparedStmtMgr = NewPreparedStatementManager()
 	_, err := conn.Write(EncodeOKPacket(nil, 0, 0, nil))
 	return err

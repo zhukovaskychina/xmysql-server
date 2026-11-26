@@ -2,6 +2,7 @@ package manager
 
 import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"strconv"
 )
 
@@ -126,6 +127,12 @@ func (g *ColumnsGenerator) getNullable(nullable bool) string {
 }
 
 func (g *ColumnsGenerator) getDataType(typ uint8) string {
+	if basic.ValueType(typ) == basic.ValueTypeContent {
+		return "content"
+	}
+	if basic.ValueType(typ) == basic.ValueTypeVector {
+		return "vector"
+	}
 	switch typ {
 	case common.COLUMN_TYPE_TINY:
 		return "tinyint"

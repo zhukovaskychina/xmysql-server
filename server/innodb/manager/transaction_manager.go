@@ -45,6 +45,7 @@ const (
 // Transaction 表示一个事务
 type Transaction struct {
 	ID                 int64                // 事务ID
+	CommitLSN          uint64               // durable WAL commit marker LSN; monotonic commit sequence
 	State              uint8                // 事务状态
 	IsolationLevel     uint8                // 隔离级别
 	StartTime          time.Time            // 开始时间
@@ -298,17 +299,21 @@ func (tm *TransactionManager) Commit(trx *Transaction) error {
 	// its data records. Recovery uses this durable marker to distinguish a
 	// storage commit that was interrupted before the higher-level replication
 	// journal/GTID publication from an actually abandoned transaction.
-	if _, err := tm.redoManager.Append(&RedoLogEntry{
+	commitLSN, err := tm.redoManager.Append(&RedoLogEntry{
 		TrxID: trx.ID,
 		Type:  LOG_TYPE_TXN_COMMIT,
 		Data:  append([]byte(nil), trx.CommitMetadata...),
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 	// 确保Redo日志持久化
-	if err := tm.redoManager.Flush(0); err != nil {
+	if err := tm.redoManager.Flush(commitLSN); err != nil {
 		return err
 	}
+	// Expose the sequence only after the commit marker is durable. Transaction
+	// manager serialization makes this LSN a total order for successful commits.
+	trx.CommitLSN = commitLSN
 
 	// 更新事务状态
 	trx.State = common.TRX_STATE_COMMITTED

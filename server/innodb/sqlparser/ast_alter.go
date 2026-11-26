@@ -192,6 +192,12 @@ func splitAlterOperations(input string) ([]string, error) {
 		case ',':
 			if depth == 0 {
 				part := strings.TrimSpace(input[start:index])
+				lowerPart := strings.ToLower(part)
+				if strings.HasPrefix(lowerPart, "reorganize partition ") && !strings.Contains(lowerPart, " into ") {
+					// This comma separates source partition names. The
+					// operation ends after INTO (...), not before it.
+					continue
+				}
 				if part == "" {
 					return nil, fmt.Errorf("%w: empty ALTER operation", ErrInvalidStatement)
 				}

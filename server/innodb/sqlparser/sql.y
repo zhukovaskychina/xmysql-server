@@ -113,7 +113,8 @@ func forceEOF(yylex interface{}) {
 }
 
 %token LEX_ERROR
-%left <bytes> UNION
+%left <bytes> UNION EXCEPT
+%left <bytes> INTERSECT
 %token <bytes> SELECT STREAM INSERT UPDATE DELETE FROM WHERE GROUP HAVING ORDER BY LIMIT OFFSET FOR
 %token <bytes> ALL DISTINCT AS EXISTS ASC DESC INTO DUPLICATE KEY DEFAULT SET LOCK KEYS
 %token <bytes> VALUES LAST_INSERT_ID
@@ -168,7 +169,7 @@ func forceEOF(yylex interface{}) {
 %token <bytes> TIME TIMESTAMP DATETIME YEAR
 %token <bytes> CHAR VARCHAR BOOL CHARACTER VARBINARY NCHAR
 %token <bytes> TEXT TINYTEXT MEDIUMTEXT LONGTEXT
-%token <bytes> BLOB TINYBLOB MEDIUMBLOB LONGBLOB JSON ENUM
+%token <bytes> BLOB TINYBLOB MEDIUMBLOB LONGBLOB CONTENT VECTOR JSON ENUM
 %token <bytes> GEOMETRY POINT LINESTRING POLYGON GEOMETRYCOLLECTION MULTIPOINT MULTILINESTRING MULTIPOLYGON
 
 // Type Modifiers
@@ -342,7 +343,9 @@ select_statement:
   }
 | union_lhs union_op union_rhs order_by_opt limit_opt lock_opt
   {
-    $$ = &Union{Type: $2, Left: $1, Right: $3, OrderBy: $4, Limit: $5, Lock: $6}
+    set := newSetExpression($2, $1, $3)
+    set.OrderBy, set.Limit, set.Lock = $4, $5, $6
+    $$ = set
   }
 | SELECT comment_opt cache_opt NEXT num_val for_from table_name
   {
@@ -638,7 +641,7 @@ table_column_list:
   }
 
 column_definition:
-  ID column_type null_opt column_default_opt on_update_opt auto_increment_opt column_key_opt column_comment_opt
+  sql_id column_type null_opt column_default_opt on_update_opt auto_increment_opt column_key_opt column_comment_opt
   {
     $2.NotNull = $3
     $2.Default = $4
@@ -646,9 +649,9 @@ column_definition:
     $2.Autoincrement = $6
     $2.KeyOpt = $7
     $2.Comment = $8
-    $$ = &ColumnDefinition{Name: NewColIdent(string($1)), Type: $2}
+    $$ = &ColumnDefinition{Name: $1, Type: $2}
   }
-| ID column_type null_opt column_default_opt on_update_opt column_key_opt auto_increment_opt column_comment_opt
+| sql_id column_type null_opt column_default_opt on_update_opt column_key_opt auto_increment_opt column_comment_opt
   {
     $2.NotNull = $3
     $2.Default = $4
@@ -656,7 +659,7 @@ column_definition:
     $2.KeyOpt = $6
     $2.Autoincrement = $7
     $2.Comment = $8
-    $$ = &ColumnDefinition{Name: NewColIdent(string($1)), Type: $2}
+    $$ = &ColumnDefinition{Name: $1, Type: $2}
   }
 column_type:
   numeric_type unsigned_opt zero_fill_opt
@@ -812,6 +815,14 @@ char_type:
 | LONGBLOB
   {
     $$ = ColumnType{Type: string($1)}
+  }
+| CONTENT
+  {
+    $$ = ColumnType{Type: string($1)}
+  }
+| VECTOR '(' INTEGRAL ')'
+  {
+    $$ = ColumnType{Type: string($1), Length: NewIntVal($3)}
   }
 | JSON
   {
@@ -1104,6 +1115,10 @@ index_info:
 | SPATIAL index_or_key ID
   {
     $$ = &IndexInfo{Type: string($1) + " " + string($2), Name: NewColIdent(string($3)), Spatial: true, Unique: false}
+  }
+| FULLTEXT index_or_key ID
+  {
+    $$ = &IndexInfo{Type: string($1) + " " + string($2), Name: NewColIdent(string($3)), Unique: false}
   }
 | UNIQUE index_or_key ID
   {
@@ -1609,6 +1624,30 @@ union_op:
   {
     $$ = UnionDistinctStr
   }
+| INTERSECT
+  {
+    $$ = "intersect"
+  }
+| INTERSECT ALL
+  {
+    $$ = "intersect all"
+  }
+| INTERSECT DISTINCT
+  {
+    $$ = "intersect distinct"
+  }
+| EXCEPT
+  {
+    $$ = "except"
+  }
+| EXCEPT ALL
+  {
+    $$ = "except all"
+  }
+| EXCEPT DISTINCT
+  {
+    $$ = "except distinct"
+  }
 
 cache_opt:
 {
@@ -1743,6 +1782,15 @@ table_name as_opt_id index_hint_list
 | table_name PARTITION openb partition_list closeb as_opt_id index_hint_list
   {
     $$ = &AliasedTableExpr{Expr:$1, Partitions: $4, As: $6, Hints: $7}
+  }
+| TABLE openb function_call_generic closeb as_opt_id
+  {
+    function, ok := $3.(*FuncExpr)
+    if !ok {
+      yylex.Error("table-valued function must be a generic function call")
+      return 1
+    }
+    $$ = &AliasedTableExpr{Expr:&TableFunction{Function:function}, As:$5}
   }
 
 column_list:
@@ -2968,7 +3016,6 @@ reserved_keyword:
 | AND
 | AS
 | ASC
-| AUTO_INCREMENT
 | BETWEEN
 | BINARY
 | BY
@@ -3066,6 +3113,7 @@ reserved_keyword:
 */
 non_reserved_keyword:
   AGAINST
+| AUTO_INCREMENT
 | BEGIN
 | BIGINT
 | BIT
@@ -3077,6 +3125,8 @@ non_reserved_keyword:
 | COMMENT_KEYWORD
 | COMMIT
 | COMMITTED
+| CONTENT
+| VECTOR
 | DATE
 | DATETIME
 | DECIMAL

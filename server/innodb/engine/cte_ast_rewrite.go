@@ -40,16 +40,9 @@ func rewriteSimpleCTEFromAST(query string) (string, error) {
 		}
 		definition := cte.Query
 		if len(cte.Columns) > 0 {
-			columns := make([]string, 0, len(cte.Columns))
-			for _, column := range cte.Columns {
-				columns = append(columns, column.String())
+			if err := setCTEColumnAliases(definition, cte.Columns); err != nil {
+				return "", err
 			}
-			aliased := applyCTEColumnAliases(sqlparser.String(definition), columns)
-			parsed, parseErr := sqlparser.Parse(aliased)
-			if parseErr != nil {
-				return "", parseErr
-			}
-			definition = parsed
 		}
 		definitions[name] = definition
 	}
@@ -61,6 +54,30 @@ func rewriteSimpleCTEFromAST(query string) (string, error) {
 		return "", nil
 	}
 	return sqlparser.String(with.Body), nil
+}
+
+func setCTEColumnAliases(statement sqlparser.Statement, columns sqlparser.Columns) error {
+	switch node := statement.(type) {
+	case *sqlparser.ParenSelect:
+		return setCTEColumnAliases(node.Select, columns)
+	case *sqlparser.Union:
+		// A set expression takes its output names from its first operand.
+		return setCTEColumnAliases(node.Left, columns)
+	case *sqlparser.Select:
+		if len(node.SelectExprs) != len(columns) {
+			return fmt.Errorf("CTE column list does not match query column count")
+		}
+		for index, expression := range node.SelectExprs {
+			aliased, ok := expression.(*sqlparser.AliasedExpr)
+			if !ok {
+				return fmt.Errorf("CTE column aliases require an explicit projection")
+			}
+			aliased.As = sqlparser.NewColIdent(columns[index].String())
+		}
+		return nil
+	default:
+		return fmt.Errorf("CTE column aliases require a SELECT query")
+	}
 }
 
 func withStatementPrefix(query string) bool {

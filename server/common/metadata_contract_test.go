@@ -3,6 +3,7 @@ package common
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -35,7 +36,7 @@ func TestMetadataLegacyContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(want) != string(got) {
+	if strings.ReplaceAll(string(want), "\r\n", "\n") != string(got) {
 		t.Fatal("legacy metadata contract changed")
 	}
 }

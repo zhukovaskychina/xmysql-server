@@ -446,9 +446,9 @@ func (e *XMySQLExecutor) executeWindowOnlyProjection(ctx *ExecutionContext, quer
 		singleQuery += " " + sqlparser.String(selectStmt.OrderBy)
 	}
 	results := make(chan *Result, 1)
-	temporary := *ctx
+	temporary := ctx.Fork()
 	temporary.Results = results
-	if _, err := e.executeGeneralWindowQuery(&temporary, singleQuery, databaseName); err != nil {
+	if _, err := e.executeGeneralWindowQuery(temporary, singleQuery, databaseName); err != nil {
 		return true, err
 	}
 	result := <-results
@@ -550,9 +550,9 @@ func (e *XMySQLExecutor) executeMultipleWindowExpressionsViaTemporaryContext(ctx
 	var merged *SelectResult
 	for _, windowItem := range windowItems {
 		results := make(chan *Result, 1)
-		temporary := *ctx
+		temporary := ctx.Fork()
 		temporary.Results = results
-		if _, err := e.executeGeneralWindowQuery(&temporary, "select "+baseProjection+", "+windowItem+" from "+strings.TrimSpace(fromTail), databaseName); err != nil {
+		if _, err := e.executeGeneralWindowQuery(temporary, "select "+baseProjection+", "+windowItem+" from "+strings.TrimSpace(fromTail), databaseName); err != nil {
 			return true, err
 		}
 		result := <-results

@@ -80,8 +80,10 @@ type Cfg struct {
 	InnodbAdaptiveHashIndex   bool   `default:"true" yaml:"innodb_adaptive_hash_index" json:"innodb_adaptive_hash_index,omitempty"`
 	InnodbRedoLogDir          string `default:"redo" yaml:"innodb_redo_log_dir" json:"innodb_redo_log_dir,omitempty"`
 	InnodbUndoLogDir          string `default:"undo" yaml:"innodb_undo_log_dir" json:"innodb_undo_log_dir,omitempty"`
+	ContentMaxObjectBytes     int64  `default:"1099511627776" yaml:"content_max_object_bytes" json:"content_max_object_bytes,omitempty"`
 	InnodbEncryption          InnodbEncryptionConfig
 	InnodbCompression         InnodbCompressionConfig
+	AIModelExecution          AIModelExecutionConfig `json:"ai" yaml:"ai"`
 
 	// replication / cluster (P1: one source, many replicas)
 	ReplicationRole                   string   `default:"standalone" yaml:"replication_role" json:"replication_role,omitempty"`
@@ -167,6 +169,8 @@ func NewCfg() *Cfg {
 		InnodbAdaptiveHashIndex:   true,
 		InnodbRedoLogDir:          "redo",
 		InnodbUndoLogDir:          "undo",
+		ContentMaxObjectBytes:     1 << 40,
+		AIModelExecution:          DefaultAIModelExecutionConfig(),
 		InnodbEncryption: InnodbEncryptionConfig{
 			KeyRotationDays: 90,
 			Threads:         4,
@@ -201,6 +205,7 @@ func (cfg *Cfg) Load(args *CommandLineArgs) *Cfg {
 	cfg.parseInnodbCfg(cfg.Raw.Section("innodb"))
 	cfg.parseLogsCfg(cfg.Raw.Section("logs"))
 	cfg.parseReplicationCfg(cfg.Raw.Section("replication"))
+	cfg.parseAIModelExecutionCfg(cfg.Raw.Section("ai"))
 	return cfg
 }
 
@@ -450,6 +455,9 @@ func (cfg *Cfg) GetInt(key string) int {
 func (cfg *Cfg) parseInnodbCfg(section *ini.Section) *Cfg {
 	if section == nil {
 		return cfg
+	}
+	if maxContentBytes := section.Key("content_max_object_bytes").MustInt64(cfg.ContentMaxObjectBytes); maxContentBytes > 0 {
+		cfg.ContentMaxObjectBytes = maxContentBytes
 	}
 
 	// Parse data directory

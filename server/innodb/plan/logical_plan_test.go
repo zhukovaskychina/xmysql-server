@@ -287,6 +287,46 @@ func TestBuildLogicalPlan_PreservesHavingAfterGroupBy(t *testing.T) {
 	}
 }
 
+func TestBuildLogicalPlanPreservesCorrelatedHavingSubquery(t *testing.T) {
+	left := createTestTable2()
+	left.Name = "lhs"
+	right := createTestTable2()
+	right.Name = "rhs"
+	info := &mockInfoSchema{tables: map[string]*metadata.Table{"lhs": left, "rhs": right}}
+	stmt, err := sqlparser.Parse("SELECT l.name, COUNT(*) FROM lhs l GROUP BY l.name HAVING EXISTS (SELECT 1 FROM rhs r WHERE r.name = l.name)")
+	if err != nil {
+		t.Fatalf("parse correlated HAVING statement: %v", err)
+	}
+	logical, err := BuildLogicalPlan(stmt.(*sqlparser.Select), info)
+	if err != nil {
+		t.Fatalf("build correlated HAVING plan: %v", err)
+	}
+	projection, ok := logical.(*LogicalProjection)
+	if !ok || len(projection.Children()) != 1 {
+		t.Fatalf("logical plan = %T, want projection with one child", logical)
+	}
+	selection, ok := projection.Children()[0].(*LogicalSelection)
+	if !ok || len(selection.Children()) != 1 {
+		t.Fatalf("projection child = %T, want HAVING selection", projection.Children()[0])
+	}
+	if _, ok := selection.Children()[0].(*LogicalAggregation); !ok {
+		t.Fatalf("HAVING input = %T, want aggregation", selection.Children()[0])
+	}
+	if len(selection.Conditions) != 1 {
+		t.Fatalf("HAVING conditions = %d, want 1", len(selection.Conditions))
+	}
+	subquery, ok := selection.Conditions[0].(*SubqueryExpression)
+	if !ok {
+		t.Fatalf("HAVING condition = %T, want subquery expression", selection.Conditions[0])
+	}
+	if subquery.SubqueryType != "EXISTS" || !subquery.Correlated || fmt.Sprint(subquery.OuterRefs) != "[l.name]" {
+		t.Fatalf("subquery scope = type %q correlated %v outer refs %v", subquery.SubqueryType, subquery.Correlated, subquery.OuterRefs)
+	}
+	if subquery.Subplan == nil {
+		t.Fatal("correlated HAVING subquery did not retain its inner logical plan")
+	}
+}
+
 func TestBuildLogicalPlanProjectionPreservesSelectedColumnOrder(t *testing.T) {
 	table := createTestTable2()
 	info := &mockInfoSchema{tables: map[string]*metadata.Table{"users": table}}

@@ -193,7 +193,7 @@ func (e *XMySQLExecutor) executeRawTemporaryTableCompatibility(ctx *ExecutionCon
 		createSQL := fmt.Sprintf("create table `%s` %s", physical, createSpec.definition)
 		createSQL = e.rewriteTemporaryTableReferences(ctx.Session, createSQL)
 		childResults := make(chan *Result, 1)
-		child := *ctx
+		child := ctx.Fork()
 		child.Results = childResults
 		child.DatabaseName = targetDB
 		child.RawQuery = createSQL
@@ -204,9 +204,9 @@ func (e *XMySQLExecutor) executeRawTemporaryTableCompatibility(ctx *ExecutionCon
 		var err error
 		definition := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(createSpec.definition), ";"))
 		if strings.HasPrefix(strings.ToLower(definition), "like ") {
-			handled, err = e.executeRawCreateTableLikeCompatibility(&child, createSQL, targetDB)
+			handled, err = e.executeRawCreateTableLikeCompatibility(child, createSQL, targetDB)
 		} else if createTableAsSelectAST(createSQL) != nil {
-			handled, err = e.executeRawCreateTableAsSelectCompatibility(&child, createSQL, targetDB)
+			handled, err = e.executeRawCreateTableAsSelectCompatibility(child, createSQL, targetDB)
 		} else {
 			var stmt interface{}
 			stmt, err = sqlparser.Parse(createSQL)
@@ -218,7 +218,7 @@ func (e *XMySQLExecutor) executeRawTemporaryTableCompatibility(ctx *ExecutionCon
 				}
 			}
 			if err == nil {
-				e.executeCreateTableStatement(&child, targetDB, createDDL)
+				e.executeCreateTableStatement(child, targetDB, createDDL)
 				handled = true
 			}
 		}
@@ -311,11 +311,11 @@ func (e *XMySQLExecutor) executeRawTemporaryTableCompatibility(ctx *ExecutionCon
 				return true, fmt.Errorf("DROP TEMPORARY TABLE did not produce DROP TABLE AST")
 			}
 			childResults := make(chan *Result, 1)
-			child := *ctx
+			child := ctx.Fork()
 			child.Results = childResults
 			child.DatabaseName = item.binding.Database
 			child.RawQuery = dropSQL
-			e.executeDropTableStatement(&child, item.binding.Database, dropDDL, ctx.Session)
+			e.executeDropTableStatement(child, item.binding.Database, dropDDL, ctx.Session)
 			dropped := <-childResults
 			if dropped == nil || dropped.Err != nil {
 				if dropped == nil {

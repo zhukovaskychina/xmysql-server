@@ -73,6 +73,13 @@ func parseShowForExecution(query string) (*Show, error) {
 			index++
 		} else if show.Type == "procedure" && index < len(tokens) && strings.EqualFold(tokens[index].text, "status") {
 			index++
+		} else if show.Type == "function" && index < len(tokens) && strings.EqualFold(tokens[index].text, "status") {
+			index++
+		} else if show.Type == "character" && index < len(tokens) && strings.EqualFold(tokens[index].text, "set") {
+			show.Type = "character set"
+			index++
+		} else if show.Type == "open" && index < len(tokens) && strings.EqualFold(tokens[index].text, "tables") {
+			index++
 		}
 		if !showExecutionTypeSupported(show.Type) {
 			return nil, fmt.Errorf("%w: SHOW %s", ErrUnsupportedStatement, show.Type)
@@ -91,7 +98,7 @@ func parseShowForExecution(query string) (*Show, error) {
 			show.ShowTablesOpt.DbName = tokens[index].text
 			index++
 		}
-	} else if show.Type == "table status" || show.Type == "triggers" || show.Type == "events" || show.Type == "procedure" {
+	} else if show.Type == "table status" || show.Type == "triggers" || show.Type == "events" || show.Type == "procedure" || show.Type == "function" || show.Type == "open" {
 		if index < len(tokens) && (strings.EqualFold(tokens[index].text, "from") || strings.EqualFold(tokens[index].text, "in")) {
 			index++
 			if index >= len(tokens) || !isShowIdentifier(tokens[index]) {
@@ -152,19 +159,16 @@ func parseShowForExecution(query string) (*Show, error) {
 			show.Filter = &ShowFilter{Like: tokens[index].text}
 			index++
 		} else {
-			parsed, parseErr := Parse(query)
+			// The legacy SHOW grammar consumes some tails without retaining
+			// their predicate. Parse the WHERE tail as a SELECT expression so
+			// every SHOW family carries the same complete filter AST.
+			parsed, parseErr := Parse("select 1 from dual where " + query[tokens[index-1].end:])
 			if parseErr != nil {
 				return nil, fmt.Errorf("%w: SHOW WHERE: %v", ErrInvalidStatement, parseErr)
 			}
-			if parsedShow, ok := parsed.(*Show); ok {
-				show.Filter = parsedShow.Filter
-				show.Limit = parsedShow.Limit
-				if show.ShowTablesOpt == nil {
-					show.ShowTablesOpt = parsedShow.ShowTablesOpt
-				}
-				if show.OnTable.IsEmpty() {
-					show.OnTable = parsedShow.OnTable
-				}
+			if selectStmt, ok := parsed.(*Select); ok && selectStmt.Where != nil {
+				show.Filter = &ShowFilter{Filter: selectStmt.Where.Expr}
+				show.Limit = selectStmt.Limit
 			}
 			index = len(tokens)
 		}
@@ -284,7 +288,7 @@ func showCreateObjectType(value string) bool {
 
 func showExecutionTypeSupported(value string) bool {
 	switch value {
-	case "databases", "tables", "columns", "fields", "index", "indexes", "keys", "variables", "status", "processlist", "replica", "replicas", "slave", "replica hosts", "slave hosts", "master status", "source status", "engines", "storage", "open", "plugins", "engine", "warnings", "errors", "triggers", "events", "procedure", "table status", "binlog events", "binary logs", "relaylog events":
+	case "databases", "tables", "columns", "fields", "index", "indexes", "keys", "variables", "status", "processlist", "replica", "replicas", "slave", "replica hosts", "slave hosts", "master status", "source status", "engines", "storage", "open", "plugins", "engine", "warnings", "errors", "triggers", "events", "procedure", "function", "charset", "character set", "collation", "table status", "binlog events", "binary logs", "relaylog events":
 		return true
 	default:
 		return false

@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"errors"
 	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"strings"
@@ -77,7 +78,8 @@ func ClassifyGoError(err error) *common.SQLError {
 	if err == nil {
 		return nil
 	}
-	if sqlErr, ok := err.(*common.SQLError); ok {
+	var sqlErr *common.SQLError
+	if errors.As(err, &sqlErr) {
 		return sqlErr
 	}
 	message := err.Error()
@@ -100,6 +102,10 @@ func ClassifyGoError(err error) *common.SQLError {
 		code = common.ErrNoDB
 	case (strings.Contains(lower, "does not exist") || strings.Contains(lower, "doesn't exist") || strings.Contains(lower, "not found")) && strings.Contains(lower, "table"):
 		code = common.ErrNoSuchTable
+	case strings.Contains(lower, "lacks") && strings.Contains(lower, "privilege on table"):
+		code = common.ErrTableaccessDenied
+	case strings.Contains(lower, "lacks") && strings.Contains(lower, "privilege on column"):
+		code = common.ErrColumnaccessDenied
 	case strings.Contains(lower, "access denied") || strings.Contains(lower, "permission"):
 		code = common.ErrAccessDenied
 	case strings.Contains(lower, "syntax") || strings.Contains(lower, "parse error"):

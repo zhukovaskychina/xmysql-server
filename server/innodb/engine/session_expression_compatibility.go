@@ -11,6 +11,14 @@ import (
 
 const sessionExpressionValuesKey = "__xmysql_session_values"
 
+// PreparedContentParamsSessionParam carries one statement's opaque streamed
+// CONTENT values. It is cleared by the protocol handler after that execution.
+const PreparedContentParamsSessionParam = "__xmysql_prepared_content_params"
+
+// PreparedContentAdoptedRefsSessionParam is a per-execution acknowledgement
+// map. DML marks an uploaded object only after a row adopts its reference.
+const PreparedContentAdoptedRefsSessionParam = "__xmysql_prepared_content_adopted_refs"
+
 const emptyRolesGraphML = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><graphml />"
 
 const defaultServerVersion = "8.0.32"
@@ -84,6 +92,12 @@ func newSessionExpressionValues(session server.MySQLServerSession) map[string]in
 	values["row_count"] = sessionRowCount(session)
 	if version := sessionStringParam(session, "version"); version != "" {
 		values["version"] = version
+	}
+	if prepared := session.GetParamByName(PreparedContentParamsSessionParam); prepared != nil {
+		values[PreparedContentParamsSessionParam] = prepared
+	}
+	if adopted := session.GetParamByName(PreparedContentAdoptedRefsSessionParam); adopted != nil {
+		values[PreparedContentAdoptedRefsSessionParam] = adopted
 	}
 	for _, name := range []string{"server_id", "gtid_mode", "log_bin", "binlog_format", "binlog_checksum", "server_uuid", "gtid_executed"} {
 		if value := session.GetParamByName(name); value != nil {

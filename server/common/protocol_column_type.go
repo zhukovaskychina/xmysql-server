@@ -55,6 +55,9 @@ func GetProtocolColumnTypeInfo(columnType string) (mysqlType byte, columnLength 
 		mysqlType = COLUMN_TYPE_MEDIUM_BLOB
 	case strings.HasPrefix(columnType, "longblob"), strings.HasPrefix(columnType, "longtext"):
 		mysqlType = COLUMN_TYPE_LONG_BLOB
+	case strings.HasPrefix(columnType, "content"), strings.HasPrefix(columnType, "vector"):
+		mysqlType = COLUMN_TYPE_LONG_BLOB
+		flags = uint16(BinaryFlag)
 	case strings.HasPrefix(columnType, "enum"):
 		mysqlType = COLUMN_TYPE_ENUM
 	case strings.HasPrefix(columnType, "set"):

@@ -7,7 +7,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/content"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/vector"
 )
 
 const (
@@ -52,6 +54,27 @@ func EncodeClusteredRecord(row *InsertRowData, tableMeta *metadata.TableMeta) ([
 		value, err := normalizeClusteredFixedValue(value, col)
 		if err != nil {
 			return nil, fmt.Errorf("encode column %s: %v", col.Name, err)
+		}
+		if value != nil && columnHasDataType(col, metadata.TypeVector) {
+			var vectorValue vector.Value
+			switch typed := value.(type) {
+			case vector.Value:
+				vectorValue = typed
+			case *vector.Value:
+				if typed == nil {
+					return nil, fmt.Errorf("encode column %s: VECTOR value is nil", col.Name)
+				}
+				vectorValue = *typed
+			case []byte:
+				if err := vectorValue.UnmarshalBinary(typed); err != nil {
+					return nil, fmt.Errorf("encode column %s: invalid VECTOR value: %w", col.Name, err)
+				}
+			default:
+				return nil, fmt.Errorf("encode column %s: unsupported VECTOR value type %T", col.Name, value)
+			}
+			if col.Length > 0 && vectorValue.Dimension() != col.Length {
+				return nil, fmt.Errorf("encode column %s: VECTOR dimension %d does not match declared dimension %d", col.Name, vectorValue.Dimension(), col.Length)
+			}
 		}
 
 		valueType, valueBytes, err := encodeClusteredRecordValue(value, col.Type)
@@ -146,6 +169,39 @@ func decodeClusteredRecord(data []byte, tableMeta *metadata.TableMeta, projectio
 			if err != nil {
 				return nil, fmt.Errorf("decode column %s: %v", col.Name, err)
 			}
+			if columnHasDataType(col, metadata.TypeContent) {
+				bytesValue, ok := value.([]byte)
+				if !ok {
+					return nil, fmt.Errorf("decode column %s: CONTENT storage value is %T, want bytes", col.Name, value)
+				}
+				if content.IsEncoded(bytesValue) {
+					var contentValue content.Value
+					if err := contentValue.UnmarshalBinary(bytesValue); err != nil {
+						return nil, fmt.Errorf("decode column %s: invalid CONTENT envelope: %w", col.Name, err)
+					}
+					value = contentValue
+				} else {
+					contentValue, err := content.NewValue("application/octet-stream", 1, bytesValue)
+					if err != nil {
+						return nil, fmt.Errorf("decode column %s: %w", col.Name, err)
+					}
+					value = contentValue
+				}
+			}
+			if columnHasDataType(col, metadata.TypeVector) {
+				bytesValue, ok := value.([]byte)
+				if !ok {
+					return nil, fmt.Errorf("decode column %s: VECTOR storage value is %T, want bytes", col.Name, value)
+				}
+				var vectorValue vector.Value
+				if err := vectorValue.UnmarshalBinary(bytesValue); err != nil {
+					return nil, fmt.Errorf("decode column %s: invalid VECTOR value: %w", col.Name, err)
+				}
+				if col.Length > 0 && vectorValue.Dimension() != col.Length {
+					return nil, fmt.Errorf("decode column %s: VECTOR dimension %d does not match declared dimension %d", col.Name, vectorValue.Dimension(), col.Length)
+				}
+				value = vectorValue
+			}
 			if strings.EqualFold(string(col.Type), string(metadata.TypeChar)) {
 				if text, ok := value.(string); ok {
 					value = strings.TrimRight(text, " ")
@@ -230,6 +286,12 @@ func encodeClusteredRecordValue(value interface{}, dataType metadata.DataType) (
 	if value == nil {
 		return clusteredRecordNull, nil, nil
 	}
+	// Preserve the legacy encoding decisions for existing MySQL column types.
+	// The newer custom SQL types can arrive from metadata with lowercase names,
+	// so normalize only those two type tags here.
+	if normalized := metadata.DataType(strings.ToUpper(strings.TrimSpace(string(dataType)))); normalized == metadata.TypeContent || normalized == metadata.TypeVector {
+		dataType = normalized
+	}
 
 	switch dataType {
 	case metadata.TypeTinyInt, metadata.TypeSmallInt, metadata.TypeMediumInt, metadata.TypeInt,
@@ -257,6 +319,65 @@ func encodeClusteredRecordValue(value interface{}, dataType metadata.DataType) (
 			return clusteredRecordBool, []byte{1}, nil
 		}
 		return clusteredRecordBool, []byte{0}, nil
+	case metadata.TypeContent:
+		var contentValue content.Value
+		switch typed := value.(type) {
+		case content.Value:
+			contentValue = typed
+		case *content.Value:
+			if typed == nil {
+				return 0, nil, fmt.Errorf("CONTENT value is nil")
+			}
+			contentValue = *typed
+		case []byte:
+			var err error
+			contentValue, err = content.NewValue("application/octet-stream", 1, typed)
+			if err != nil {
+				return 0, nil, err
+			}
+		case string:
+			var err error
+			contentValue, err = content.NewValue("application/octet-stream", 1, []byte(typed))
+			if err != nil {
+				return 0, nil, err
+			}
+		default:
+			bytesValue, err := codecToBytes(value)
+			if err != nil {
+				return 0, nil, err
+			}
+			contentValue, err = content.NewValue("application/octet-stream", 1, bytesValue)
+			if err != nil {
+				return 0, nil, err
+			}
+		}
+		encoded, err := contentValue.MarshalStorageBinary()
+		if err != nil {
+			return 0, nil, err
+		}
+		return clusteredRecordBytes, encoded, nil
+	case metadata.TypeVector:
+		var vectorValue vector.Value
+		switch typed := value.(type) {
+		case vector.Value:
+			vectorValue = typed
+		case *vector.Value:
+			if typed == nil {
+				return 0, nil, fmt.Errorf("VECTOR value is nil")
+			}
+			vectorValue = *typed
+		case []byte:
+			if err := vectorValue.UnmarshalBinary(typed); err != nil {
+				return 0, nil, err
+			}
+		default:
+			return 0, nil, fmt.Errorf("unsupported VECTOR value type %T", value)
+		}
+		encoded, err := vectorValue.MarshalBinary()
+		if err != nil {
+			return 0, nil, err
+		}
+		return clusteredRecordBytes, encoded, nil
 	case metadata.TypeBinary, metadata.TypeVarBinary, metadata.TypeTinyBlob, metadata.TypeBlob,
 		metadata.TypeMediumBlob, metadata.TypeLongBlob:
 		bytesValue, err := codecToBytes(value)

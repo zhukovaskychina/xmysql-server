@@ -113,6 +113,12 @@ type session struct {
 	// read goroutines done signal
 	rDone chan struct{}
 	lock  sync.RWMutex
+
+	// Commands on one MySQL connection must run in wire order. The global task
+	// pool may execute packets concurrently, so each task waits for its
+	// predecessor while different sessions remain concurrent.
+	taskOrderMu sync.Mutex
+	taskTail    chan struct{}
 }
 
 func newSession(endPoint EndPoint, conn Connection) *session {
@@ -509,6 +515,7 @@ func (s *session) handleLoop() {
 			log.Error("[session.handleLoop] panic session %s: err=%s%s", s.sessionToken(), r, rBuf)
 		}
 
+		s.waitForQueuedTasks()
 		grNum := atomic.AddInt32(&(s.grNum), -1)
 		s.listener.OnClose(s)
 		log.Info("%s, [session.handleLoop] goroutine exit now, left gr num %d", s.Stat(), grNum)
@@ -605,7 +612,17 @@ LOOP:
 }
 
 func (s *session) addTask(pkg interface{}) {
+	s.taskOrderMu.Lock()
+	previous := s.taskTail
+	completed := make(chan struct{})
+	s.taskTail = completed
+	s.taskOrderMu.Unlock()
+
 	f := func() {
+		if previous != nil {
+			<-previous
+		}
+		defer close(completed)
 		runtime.LockOSThread()
 		defer runtime.UnlockOSThread()
 		if mysqlSession, ok := s.GetAttribute(mysqlSessionAttribute).(server.MySQLServerSession); ok {
@@ -659,6 +676,15 @@ func (s *session) handlePackage() {
 		err = s.handleTCPPackage()
 	} else {
 		err = fmt.Errorf("unknown type session{%#v}", s)
+	}
+}
+
+func (s *session) waitForQueuedTasks() {
+	s.taskOrderMu.Lock()
+	tail := s.taskTail
+	s.taskOrderMu.Unlock()
+	if tail != nil {
+		<-tail
 	}
 }
 
@@ -860,9 +886,19 @@ func (s *session) gc() {
 // or (session)handleLoop automatically. It's thread safe.
 func (s *session) Close() {
 	logger.Debugf("[session.Close] 关闭Session: %s\n", s.sessionToken())
+	closePreparedStatementManager(s)
 	s.stop()
 	log.Info("%s closed now. its current gr num is %d",
 		s.sessionToken(), atomic.LoadInt32(&(s.grNum)))
+}
+
+func closePreparedStatementManager(session Session) {
+	if session == nil {
+		return
+	}
+	if mgr, ok := session.GetAttribute("prepared_stmt_mgr").(*protocol.PreparedStatementManager); ok {
+		mgr.CloseAll()
+	}
 }
 
 // MySQL serverimpl session 本地存储

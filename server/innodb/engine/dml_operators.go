@@ -572,7 +572,7 @@ func (i *InsertOperator) sqlValToTypedInterface(val *sqlparser.SQLVal) (interfac
 	case sqlparser.FloatVal:
 		return strconv.ParseFloat(string(val.Val), 64)
 	case sqlparser.HexVal:
-		return val.Val, nil
+		return decodeSQLHexLiteral(val.Val)
 	default:
 		return string(val.Val), nil
 	}

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestCharsetManagerCatalogLegacyContract(t *testing.T) {
@@ -61,9 +63,9 @@ func TestCharsetManagerCatalogLegacyContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(got) != string(want) {
-		t.Fatal("protocol charset manager contract changed")
-	}
+	// Git can check out the snapshot with CRLF on Windows. The contract is
+	// the catalog and conversion values, not JSON whitespace or key order.
+	require.JSONEq(t, string(want), string(got), "protocol charset manager contract changed")
 }
 
 func TestCharsetManagerCatalogObjectsAndAliases(t *testing.T) {

@@ -218,27 +218,45 @@ func (adapter *EnhancedBTreeAdapter) RangeSearch(ctx context.Context, startKey, 
 
 // FullScan 顺序扫描默认索引的全部未删除记录。
 func (adapter *EnhancedBTreeAdapter) FullScan(ctx context.Context) ([]basic.Row, error) {
+	rows := make([]basic.Row, 0)
+	if err := adapter.FullScanEach(ctx, func(row basic.Row) error {
+		rows = append(rows, row)
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+// FullScanEach visits default-index rows without retaining the entire table in
+// memory. The callback must not mutate the scanned index.
+func (adapter *EnhancedBTreeAdapter) FullScanEach(ctx context.Context, visit func(basic.Row) error) error {
+	if adapter == nil || adapter.enhancedManager == nil || visit == nil {
+		return fmt.Errorf("full scan visitor requires an initialized B+Tree adapter")
+	}
 	index, err := adapter.enhancedManager.GetIndex(adapter.defaultIndexID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get index: %v", err)
+		return fmt.Errorf("failed to get index: %v", err)
 	}
 
 	enhancedIndex, ok := index.(*EnhancedBTreeIndex)
 	if !ok {
-		return nil, fmt.Errorf("invalid index type")
+		return fmt.Errorf("invalid index type")
 	}
 
 	firstLeafPageNo, err := enhancedIndex.GetFirstLeafPage(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	rows := make([]basic.Row, 0)
 	currentPageNo := firstLeafPageNo
 	for currentPageNo != 0 {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		page, err := enhancedIndex.GetPage(ctx, currentPageNo)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		for idx := range page.Records {
 			record := page.Records[idx]
@@ -247,11 +265,13 @@ func (adapter *EnhancedBTreeAdapter) FullScan(ctx context.Context) ([]basic.Row,
 			}
 			recordCopy := record
 			row := &IndexRecordRowAdapter{record: &recordCopy}
-			rows = append(rows, row)
+			if err := visit(row); err != nil {
+				return err
+			}
 		}
 		currentPageNo = page.NextPage
 	}
-	return rows, nil
+	return nil
 }
 
 // GetFirstLeafPage 获取第一个叶子节点

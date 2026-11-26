@@ -25,6 +25,11 @@ func normalizedShowExecutionType(stmt *sqlparser.Show, raw string) string {
 	}
 	typ := strings.ToLower(strings.TrimSpace(stmt.Type))
 	switch typ {
+	case "procedure", "function":
+		fields := strings.Fields(strings.ToLower(raw))
+		if len(fields) >= 3 && fields[0] == "show" && fields[1] == typ && fields[2] == "status" {
+			return typ + " status"
+		}
 	case "table":
 		if isShowTableStatusQuery(raw) {
 			return "table status"

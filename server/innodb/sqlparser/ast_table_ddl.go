@@ -61,12 +61,29 @@ func (node *TableDDLStatement) Format(buf *TrackedBuffer) {
 		buf.Myprintf(" as %v", node.AsSelect)
 		return
 	}
-	buf.Myprintf("%s", node.Action)
+	switch node.Action {
+	case "drop":
+		buf.Myprintf("drop ")
+		if node.Temporary {
+			buf.Myprintf("temporary ")
+		}
+		buf.Myprintf("table ")
+		if node.IfExists {
+			buf.Myprintf("if exists ")
+		}
+	case "rename":
+		buf.Myprintf("rename table ")
+	default:
+		buf.Myprintf("%s ", node.Action)
+	}
 	for i, target := range node.Targets {
 		if i > 0 {
 			buf.Myprintf(", ")
 		}
 		buf.Myprintf("%v", target)
+		if node.Action == "rename" && i < len(node.RenameTo) {
+			buf.Myprintf(" to %v", node.RenameTo[i])
+		}
 	}
 }
 

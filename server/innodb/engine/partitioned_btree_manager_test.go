@@ -64,6 +64,18 @@ func TestPartitionedBTreeManagerPrunesArithmeticRange(t *testing.T) {
 	require.Equal(t, "p0", router.partitions[0].name)
 }
 
+func TestPartitionExpressionMismatchDoesNotPrune(t *testing.T) {
+	for _, condition := range []string{"id + 11 = 15", "id = 5", "abs(id) = 15"} {
+		router := &partitionedBTreeManager{
+			method: "RANGE", expression: "id + 10",
+			definitions: []interface{}{map[string]interface{}{"name": "p0", "values": "less than (20)"}, map[string]interface{}{"name": "p1", "values": "maxvalue"}},
+			partitions:  []partitionedBTree{{name: "p0"}, {name: "p1"}},
+		}
+		router.RestrictToWherePartitions([]string{condition})
+		require.Len(t, router.partitions, 2, condition)
+	}
+}
+
 func TestPartitionedBTreeManagerIntersectsStringBetweenRange(t *testing.T) {
 	router := &partitionedBTreeManager{
 		method:      "RANGE",

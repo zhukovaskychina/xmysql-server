@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -377,7 +376,7 @@ func (e *XMySQLExecutor) handlerIndexColumns(ctx *ExecutionContext, databaseName
 	// .frm before the information-schema cache is refreshed. HANDLER must be
 	// usable in that small window too, just like ordinary SELECT.
 	frmPath := filepath.Join(e.getDataDir(), databaseName, tableName+".frm")
-	raw, readErr := os.ReadFile(frmPath)
+	raw, readErr := metadata.ReadFile(frmPath)
 	if readErr == nil {
 		var definition struct {
 			Indexes []struct {

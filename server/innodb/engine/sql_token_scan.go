@@ -7,14 +7,15 @@ import "strings"
 // bytes, matching the previous word-boundary behavior.
 
 func findExistsCall(sql string) (at int, notExists, found bool) {
-	lower := strings.ToLower(sql)
+	lower := asciiLowerSQL(sql)
+	code := sqlCodePositions(sql)
 	for start := 0; start < len(lower); {
 		index := strings.Index(lower[start:], "exists")
 		if index < 0 {
 			return 0, false, false
 		}
 		index += start
-		if index > 0 && isSQLIdentByte(lower[index-1]) {
+		if !code[index] || (index > 0 && isSQLIdentByte(lower[index-1])) {
 			start = index + len("exists")
 			continue
 		}
@@ -39,8 +40,8 @@ func findExistsCall(sql string) (at int, notExists, found bool) {
 }
 
 func findSpacedKeyword(sql, keyword string) (start, end int, found bool) {
-	lower := strings.ToLower(sql)
-	keyword = strings.ToLower(keyword)
+	lower := asciiLowerSQL(sql)
+	keyword = asciiLowerSQL(keyword)
 	for i := 0; i < len(lower); i++ {
 		if !isSQLSpaceByte(lower[i]) {
 			continue
@@ -106,7 +107,8 @@ type predicateCall struct {
 }
 
 func findPredicateCall(sql string, anchored bool) (predicateCall, bool) {
-	lower := strings.ToLower(sql)
+	lower := asciiLowerSQL(sql)
+	code := sqlCodePositions(sql)
 	begin := 0
 	if anchored {
 		begin = len(sql) - len(strings.TrimLeft(sql, " \t\r\n"))
@@ -114,6 +116,9 @@ func findPredicateCall(sql string, anchored bool) (predicateCall, bool) {
 	for i := begin; i < len(lower); i++ {
 		if anchored && i > begin {
 			break
+		}
+		if !code[i] {
+			continue
 		}
 		if !isSQLIdentByte(lower[i]) && lower[i] != '.' && lower[i] != '`' {
 			if anchored {
@@ -146,10 +151,16 @@ func findPredicateCall(sql string, anchored bool) (predicateCall, bool) {
 }
 
 func matchPredicateOperator(rest string) (string, int, bool) {
-	lower := strings.ToLower(rest)
+	trimmed := strings.TrimLeft(rest, " \t\r\n")
+	padding := len(rest) - len(trimmed)
+	if padding > 0 {
+		operator, end, matched := matchPredicateOperator(trimmed)
+		return operator, padding + end, matched
+	}
+	lower := asciiLowerSQL(rest)
 	if strings.HasPrefix(lower, "not") && (len(lower) == 3 || !isSQLIdentByte(lower[3])) {
 		tail := strings.TrimLeft(rest[3:], " \t\r\n")
-		tailLower := strings.ToLower(tail)
+		tailLower := asciiLowerSQL(tail)
 		pad := 3 + (len(rest[3:]) - len(tail))
 		if strings.HasPrefix(tailLower, "in") && (len(tailLower) == 2 || !isSQLIdentByte(tailLower[2])) {
 			return rest[:pad+2], pad + 2, true
@@ -163,7 +174,7 @@ func matchPredicateOperator(rest string) (string, int, bool) {
 			continue
 		}
 		tail := strings.TrimLeft(rest[len(op):], " \t\r\n")
-		tailLower := strings.ToLower(tail)
+		tailLower := asciiLowerSQL(tail)
 		pad := len(op) + (len(rest[len(op):]) - len(tail))
 		for _, quant := range []string{"any", "some", "all"} {
 			if strings.HasPrefix(tailLower, quant) && (len(tailLower) == len(quant) || !isSQLIdentByte(tailLower[len(quant)])) {
@@ -177,7 +188,7 @@ func matchPredicateOperator(rest string) (string, int, bool) {
 func findLeadingInCall(sql string) (start, end int, ok bool) {
 	trimmed := strings.TrimSpace(sql)
 	offset := len(sql) - len(trimmed)
-	lower := strings.ToLower(trimmed)
+	lower := asciiLowerSQL(trimmed)
 	for i := 1; i < len(lower); i++ {
 		if !isSQLSpaceByte(lower[i]) {
 			continue
@@ -215,12 +226,13 @@ func matchInOperator(rest string) (string, int, bool) {
 }
 
 func replaceQualifiedName(sql, qualifier, column, replacement string) string {
-	if qualifier == "" || column == "" {
+	if qualifier == "" {
 		return sql
 	}
-	lower := strings.ToLower(sql)
-	q := strings.ToLower(qualifier)
-	c := strings.ToLower(strings.Trim(column, "`"))
+	lower := asciiLowerSQL(sql)
+	code := sqlCodePositions(sql)
+	q := asciiLowerSQL(qualifier)
+	c := asciiLowerSQL(strings.Trim(column, "`"))
 	var builder strings.Builder
 	start := 0
 	for start < len(lower) {
@@ -230,7 +242,7 @@ func replaceQualifiedName(sql, qualifier, column, replacement string) string {
 			break
 		}
 		at += start
-		if (at > 0 && isSQLIdentByte(lower[at-1])) || at+len(q) > len(lower) {
+		if !code[at] || (at > 0 && isSQLIdentByte(lower[at-1])) || at+len(q) > len(lower) {
 			builder.WriteString(sql[start : at+1])
 			start = at + 1
 			continue
@@ -276,10 +288,11 @@ func sqlHasQualifierDot(sql, qualifier string) bool {
 }
 
 func findQualifiedPairs(sql string) [][2]string {
-	lower := strings.ToLower(sql)
+	lower := asciiLowerSQL(sql)
+	code := sqlCodePositions(sql)
 	pairs := make([][2]string, 0)
 	for i := 0; i < len(lower); i++ {
-		if !isSQLIdentByte(lower[i]) {
+		if !code[i] || !isSQLIdentByte(lower[i]) {
 			continue
 		}
 		if i > 0 && isSQLIdentByte(lower[i-1]) {
@@ -318,8 +331,8 @@ func replaceSQLIdent(expression, oldName, newName string) string {
 	if oldName == "" {
 		return expression
 	}
-	lower := strings.ToLower(expression)
-	needle := strings.ToLower(oldName)
+	lower := asciiLowerSQL(expression)
+	needle := asciiLowerSQL(oldName)
 	var builder strings.Builder
 	start := 0
 	for start < len(lower) {
@@ -347,7 +360,7 @@ func isSQLSpaceRune(value rune) bool {
 }
 
 func scanAutoIncrementValue(sql string) (string, bool) {
-	lower := strings.ToLower(sql)
+	lower := asciiLowerSQL(sql)
 	for start := 0; start < len(lower); {
 		at := strings.Index(lower[start:], "auto_increment")
 		if at < 0 {
@@ -375,7 +388,7 @@ func scanAutoIncrementValue(sql string) (string, bool) {
 
 func scanGeneratedExpression(definition string) (string, bool) {
 	definition = strings.TrimSpace(definition)
-	lower := strings.ToLower(definition)
+	lower := asciiLowerSQL(definition)
 	at := strings.LastIndex(lower, " as")
 	if at < 0 && strings.HasPrefix(lower, "as") {
 		at = 0
@@ -387,7 +400,7 @@ func scanGeneratedExpression(definition string) (string, bool) {
 		return "", false
 	}
 	rest := strings.TrimSpace(definition[at:])
-	restLower := strings.ToLower(rest)
+	restLower := asciiLowerSQL(rest)
 	if strings.HasPrefix(restLower, "as") && (len(restLower) == 2 || !isSQLIdentByte(restLower[2])) {
 		rest = strings.TrimSpace(rest[2:])
 	} else {
@@ -408,7 +421,7 @@ func scanGeneratedExpression(definition string) (string, bool) {
 }
 
 func scanTableOptionValue(options, keyPattern string) (string, bool) {
-	lower := strings.ToLower(options)
+	lower := asciiLowerSQL(options)
 	keys := tableOptionKeys(keyPattern)
 	bestAt := -1
 	bestKey := ""
@@ -454,12 +467,12 @@ func tableOptionKeys(keyPattern string) []string {
 	case `(?:default\s+)?(?:character\s+set|charset)`:
 		return []string{"default character set", "default charset", "character set", "charset"}
 	default:
-		return []string{strings.ToLower(keyPattern)}
+		return []string{asciiLowerSQL(keyPattern)}
 	}
 }
 
 func scanTableComment(options string) (string, bool) {
-	lower := strings.ToLower(options)
+	lower := asciiLowerSQL(options)
 	for start := 0; start < len(lower); {
 		at := strings.Index(lower[start:], "comment")
 		if at < 0 {

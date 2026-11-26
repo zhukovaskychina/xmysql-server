@@ -1,0 +1,162 @@
+# MySQL Query Compatibility Implementation Plan
+
+> **For agentic workers:** Use superpowers:executing-plans inline. Track each task, red-to-green evidence and rulings. Keep this feature branch local; do not commit, merge or push without user authorization.
+
+**Goal:** On a feature branch based on dev, close observed MySQL query compatibility gaps while preserving current SQL, protocol, transaction, permission and storage behavior.
+
+**Architecture:** Reuse the existing parser, logical optimizer, Volcano batch executor and compatibility paths. Test through SQL execution and protocol seams. Fix the owning mechanism instead of adding query-string-specific responses or replacing existing query functionality.
+
+**Tech Stack:** Go 1.24.13 on Windows, existing Go modules and MySQL driver, existing storage-backed SQL tests. Official MySQL 8.4 documentation defines expected semantics; live MySQL comparison is a separate evidence tier.
+
+**Spec:** User clarified “先补 MySQL 查询兼容性”. Query compatibility is the first priority on this branch; the branch must also preserve the existing MySQL capabilities while adding the previously designed AI and multimodal database features. Existing query backlog and SQL-01–SQL-14 acceptance documents are historical inputs, not current proof.
+
+## Global Constraints
+
+- Branch: `codex/mysql-query-compatibility`, base dev/origin/dev `ba418c400a958a763cb47f1ccaab915389c673b9` after fetch.
+- Original checkout `D:/workspaces/GolandProjects/xmysql-server` and all its uncommitted changes remain untouched.
+- Work only in `D:/codex/worktrees/mysql-query-compat/xmysql-server`; use task-local Go caches and test databases.
+- Preserve existing query families, values and metadata, duplicate and NULL behavior, explicit ordering, error classifications and permission boundaries.
+- Unsupported operations must fail explicitly. Do not hide failures as empty results, skip working tests, or claim upstream-wide MySQL compatibility from a limited suite.
+- Do not introduce AI calls, model dependencies, database migrations or unrelated storage refactors.
+
+## Review Focus
+
+- Empty and NULL-bearing subqueries must preserve MySQL three-valued logic and scalar cardinality errors.
+- USING/NATURAL and outer joins must produce correct coalesced values, star projection and nullable unmatched rows.
+- Aliases, ordinal ordering, DISTINCT and aggregation must preserve name resolution, duplicate and empty-input semantics.
+- Existing protocol result types, column metadata and classified errors must survive ordinary and prepared execution.
+- Cross-platform fixture formatting must not create a false compatibility failure or permit semantic catalog changes.
+
+## Task 1 Baseline and reproducible compatibility evidence
+
+Files: `server/protocol/charset_catalog_contract_test.go`; existing query/protocol packages and compatibility matrix.
+
+- [x] Create managed worktree and feature branch from fetched dev; keep original checkout intact.
+- [x] Run build and full plan/parser/protocol/dispatcher/engine baseline with JSON logs.
+- [x] Diagnose observed failures without relying on historical pass claims.
+- [x] Preserve exact charset catalog values while making its contract comparison insensitive to checkout line endings if the evidence proves that is the failure cause.
+- [x] Rerun the affected test and complete package; retain original failure and final results.
+
+Evidence directory: task artifacts `work/query_compatibility`. Baseline protocol failure: `TestCharsetManagerCatalogLegacyContract`; fixture has 885 CRLF lines while json.MarshalIndent produces LF. The full clean baseline completed before integration; original failures remain in `query_packages.log`.
+
+## Task 2 SQL comparison, aggregation and subquery compatibility
+
+Files: create `server/innodb/engine/query_semantics_compatibility_test.go`; inspect and fix owning functions in `plan/expression.go`, scalar/correlated subquery compatibility and aggregate executor paths as failures identify them.
+
+- [x] Add storage-backed SQL cases covering NULL comparisons, IN/NOT IN with empty and NULL-bearing subqueries, ANY/ALL, empty aggregates, scalar empty and multi-row subqueries, and qualified correlated results.
+- [x] Run each case before production edits; record the actual incorrect value or classified error.
+- [x] Fix the shared expression or execution mechanism; use independent expected SQL results.
+- [x] Run neighboring expression, aggregate, subquery and optimizer tests.
+
+Interfaces consumed: `newTestStorageIntegratedExecutor`, `mustExecSQL`, `mustQuerySQL` and `XMySQLEngine.ExecuteQuery` already used by the repository. No new query API.
+
+## Task 3 Relational result shape and query composition
+
+Files: extend the new SQL semantic matrix and existing join/set/CTE/window/derived query tests; modify the corresponding existing parser, binder or operator implementation only when a failing case demonstrates the gap.
+
+- [x] Exercise JOIN ON vs WHERE, USING/NATURAL output shape, outer unmatched rows, alias scope and ordering, DISTINCT, set multiplicities, derived queries, CTE and window composition.
+- [x] Capture red cases first, fix the owning mechanism, and prove neighboring query behavior stays green.
+- [x] Update the acceptance matrix with code and evidence for supported, corrected and still-unverified boundaries.
+
+## Task 4 Protocol and compatibility regression
+
+Files: related `server/net` and `server/protocol` tests, existing driver/runtime entry points; focused query acceptance documentation.
+
+- [x] Verify query and prepared result metadata/types, errno/SQLSTATE propagation, and negotiated result completion behavior.
+- [x] Run full affected Go packages and a build from the resulting branch.
+- [x] Run real-client or reference-server cases where an available isolated environment supports them; record unavailable external comparisons explicitly without substituting a model or another SQL dialect.
+- [x] Preserve original checkout and inspect the final diff for unrelated edits.
+
+## Task 5 Completion audit
+
+- [x] One fresh-context whole-branch review after integration; fix material issues with regression tests.
+- [x] Map each observed gap and each query family exercised to exact test evidence and limits. No goal completion based only on branch creation or baseline pass.
+- [x] Leave working changes on the feature branch for user review, with no push/merge/deployment and no unrequested commits.
+
+## Acceptance record
+
+See `docs/compatibility/2026-11-25-query-compatibility-acceptance.md`. Eight core package suites passed (3,129 top-level tests passed and 7 existing skips, counted using the latest completed run of each package). Current-source engine/net rerun completed exit 0 in 395.16 seconds after the final schema-qualified scope and remaining metadata-reader fixes; build from that source passed. Original dev checkout remains preserved. Test-owned tracked data was restored and the task-generated doublewrite file removed after test termination. Source and documentation remain uncommitted on the feature branch.
+
+Final audit: `git diff --check` passes excluding the native goyacc `y.output` artifact; generator whitespace is retained. Changed Go sources pass gofmt checks after normalizing the preserved CRLF of `token.go`. No production source changed after the final test/build source state.
+
+2026-11-26 live MySQL 8.4.13 follow-up: resolved the two sorted-JOIN boolean result-type mismatches found by the expanded 52-case run. The query result schema now reports INT for boolean projections when a joined SELECT has ORDER BY; unordered JOIN and single-source predicate projections retain BIGINT. Runtime execution and schema-only PREPARE description share the AST rule. Expanded the differential to 34 statements × text/native-prepared = 68 cases; all 66 successful results matched columns, types, values and ordering, and both expected cardinality errors matched errno/SQLSTATE. The targeted projection regression and live net differential passed. Evidence is recorded in `client_compatibility/MYSQL84_DIFFERENTIAL.md` and `C:/Users/zx187/AppData/Local/Temp/xmysql-mysql84-followup-final.json`. This settles the current narrow matrix only; broader MySQL query compatibility and the remaining multimodal/AI stages are still open.
+
+2026-11-26 locale-ordering follow-up: live MySQL comparison reproduced incorrect `utf8mb4_swedish_ci` ORDER BY (`a,z,å,ä,ö` expected) and `COUNT(DISTINCT)` (5 expected, 3 returned). Swedish collations now use a pooled `x/text` Swedish locale comparator with case-insensitive but accent-distinct weights; the shared key normalizer preserves `å/ä/ö`. Storage-backed SQL checks now pass. The reference matrix is 36 statements × two protocols = 72 cases; 70 successful results match values, types, labels and order, and both expected error results match. Evidence is recorded in `docs/compatibility/2026-11-25-query-compatibility-acceptance.md` and `C:/Users/zx187/AppData/Local/Temp/xmysql-mysql84-collation-final.json`. Other locale/version-specific MySQL weight tables and mixed-collation coercibility remain open; this is not full collation parity.
+
+2026-11-26 German2 follow-up: live MySQL exposed `utf8mb4_german2_ci` phonebook equivalences and ordering that generic accent stripping could not represent. Added DIN-2 expansion keys for `ä/ö/ü/ß` and Unicode-only `æ/œ`, preserving the documented latin1 difference. Storage-backed ordering/DISTINCT tests and live text/prepared comparison pass. Current reference matrix is 38 statements/76 cases: 74 successful results match and two expected errors match. Evidence: `C:/Users/zx187/AppData/Local/Temp/xmysql-mysql84-german2-final.json`; semantic reference: [MySQL Unicode Character Sets](https://dev.mysql.com/doc/refman/8.4/en/charset-unicode-sets.html). Other locale/weight versions and coercibility remain open.
+
+2026-11-26 German2 charset-boundary follow-up: added live and storage-backed `latin1_german2_ci` checks so the Æ/AE and Œ/OE equivalences are applied only to Unicode German2, as MySQL specifies. The full focused collation suite passes. Current isolated MySQL 8.4.13 matrix is 40 statements/80 text and native-prepared cases: 78 successful results match, with two expected errors matching errno/SQLSTATE. Evidence: `C:/Users/zx187/AppData/Local/Temp/xmysql-mysql84-german2-latin-final.json`. This closes only the tested Swedish/German2 subset; general collation weights and coercibility remain open.
+
+2026-11-26: extended the JOIN per-row subquery evaluator to boolean SELECT projections containing IN/NOT IN, EXISTS or other supported boolean subquery forms. The IN materialization rewrite now leaves those JOIN projections intact so each candidate outer row binds its own values; projection execution propagates inner-query errors and preserves TRUE/FALSE/UNKNOWN as 1/0/NULL. This is a source change after the historical acceptance run and has not been behaviorally tested; single-table correlated projections and aggregate/HAVING correlation remain open.
+
+2026-11-26: added a simple single-table path for correlated boolean predicates in SELECT projections and WHERE using IN/NOT IN or EXISTS. It projects only outer columns referenced by the query and correlated inner expressions (or all columns when the caller requested `*`), binds each selected row into the inner SELECT, evaluates WHERE and projection predicates with SQL three-valued logic, and lets permission/storage errors propagate. This path applies DISTINCT and LIMIT, and ORDER BY when each order item resolves to a projected column, alias, expression or ordinal. Outer aggregation/window expressions, HAVING, joined/derived outer sources, optimizer modifiers, and order expressions absent from the output remain outside its supported shape; it is source-only and unverified until exercised against the SQL matrix.
+
+2026-11-26: correlated IN/NOT IN subqueries in a JOIN query's WHERE are now left intact by the statement-level materializer and evaluated against each joined candidate through the existing row-binding set evaluator. JOIN WHERE expressions containing subqueries use the same three-valued predicate path as JOIN ON and propagate inner SELECT errors. Independent IN subqueries still materialize once. This source change has only been built; no SQL semantics or authorization tests cover it yet.
+
+2026-11-26: the compact correlated scalar/IN/EXISTS SQL rewriters now detect a structured outer JOIN and defer it to the JOIN executor instead of parsing the first table and accidentally discarding following JOIN clauses. The derived-outer handler remains restricted to an actual parenthesized derived source. The JOIN execution path is still behaviorally unverified after this routing correction.
+
+2026-11-26: grouped single-table and JOIN SELECTs now retain the parsed HAVING AST and evaluate correlated subqueries against each completed group row through the existing row-binding evaluator. Group keys that are simple columns receive their qualified outer bindings. Non-aggregate projection expressions containing subqueries also evaluate against the completed group row and preserve UNKNOWN as NULL. Aggregate functions mixed with subqueries are rejected explicitly. The IN materializer leaves correlated IN/NOT IN predicates in HAVING for that evaluator instead of returning an early unsupported error. Build succeeds; SQL behavior and permission/error propagation remain unverified.
+
+2026-11-26 follow-up: correlated-projection routing now recognizes `BIT_AND`, `BIT_OR`, `BIT_XOR`, and `ANY_VALUE` as aggregate functions, preventing this per-row compatibility path from claiming those aggregate queries. Rebuilt the current source snapshot with the repository's Go 1.24.13 toolchain using `go build -mod=readonly ./server/...`; it exited 0. This confirms server-package compilation only. The correlated projection/JOIN/HAVING additions remain outside the historical 3,129-test acceptance evidence and still require behavioral, permission, transaction, and MySQL 8.4 differential validation.
+
+2026-11-26 follow-up: correlated scalar grouping now delegates aggregate recognition and accumulation to the existing SELECT aggregate parser and accumulator instead of duplicating a five-function allowlist. It carries DISTINCT, GROUP_CONCAT separator/order, JSON_OBJECTAGG key/value, COUNT(*), statistical, bitwise, JSON array and ANY_VALUE behavior through the existing accumulator. `go build -mod=readonly ./server/...` exits 0. This is a source/build result only; aggregate NULL/empty-group semantics, aliases, correlated binding and compatibility against MySQL 8.4 remain behaviorally unverified.
+
+2026-11-26 correlated set-subquery live follow-up: added four reference queries for correlated IN projection, EXISTS projection, correlated EXISTS after an outer JOIN, and correlated EXISTS in grouped HAVING. The first 100-case run isolated three mismatches (IN projection route missing in `XMySQLEngine.ExecuteQuery`, EXISTS missing from boolean projection classification, and the old EXISTS text rewriter consuming HAVING). Added the shared correlated-set dispatcher to the engine entry point, classified EXISTS as boolean, and made the row-level EXISTS rewriter defer HAVING subqueries to the grouped-row evaluator. Local semantic tests pass. MySQL 8.4.13 differential now passes all 100 cases (92 successful results and 8 expected errors with matching errno/SQLSTATE); report is `C:/Users/zx187/AppData/Local/Temp/xmysql-mysql84-correlated-verified-20261126.json`. HAVING subquery execution currently bypasses the generic logical plan because the plan expression model cannot encode the filter; add proper plan representation and EXPLAIN coverage before claiming optimizer/plan parity. Full engine regression after these edits is still pending.
+
+2026-11-26 final correlated-output verification: full `server/innodb/engine` regression passes with `-count=1 -timeout=30m` (1001.873s), and the correlated EXISTS/predicate/multiple-subquery semantic group passes (14.624s). Root cause was correlated outer-column expressions returning Go integers that `NewExecutorRecordFromInterface` encodes as binary BIGINT bytes; result conversion now emits decimal text according to the declared SQL type. Final MySQL 8.4.13 differential is 50 SQL × text/native-prepared = 100 cases: 92 successful results match labels, types, values and order; 8 expected errors match errno/SQLSTATE. The JSON report `C:/Users/zx187/AppData/Local/Temp/xmysql-mysql84-correlated-final-20261126.json` reveals two metadata-only differences on the expected scalar-cardinality errors: MySQL exposes `too_many`/INT metadata but XMySQL's error result has none. The test comparator currently gates error cases on errno/SQLSTATE, so this remains an explicit compatibility gap. Test-mutated engine/net data files were restored and hash-checked. Generic logical-plan/EXPLAIN representation for HAVING subqueries remains the next optimizer fidelity task.
+
+The complete `server/net` package passes on the same source snapshot in 16.577s. Engine/net fixture hashes were restored to their pre-regression snapshot after all runs.
+
+2026-11-26 logical-plan follow-up: added `SubqueryExpression` fields for subquery kind, SQL text, correlation, outer references and inner plan; removed the SELECT executor bypass that set the complete logical plan to nil for HAVING subqueries. The plan package and the semantic/HAVING engine tests pass. EXPLAIN is currently generated by a separate persisted-metadata heuristic, so it still does not expose dependent subquery nodes or consume this plan. Next compatibility work: make EXPLAIN reflect the actual query/subquery tree, investigate MySQL's result metadata timing for scalar-cardinality errors, then expand query-family differential coverage.
+
+Fresh full net recheck after the logical-plan change passes in 15.513s. Test-touched data files were restored and snapshot hashes match.
+
+2026-11-26 EXPLAIN follow-up: EXPLAIN now consumes the built logical plan to find nested subqueries and emits `PRIMARY` plus `DEPENDENT SUBQUERY`/`SUBQUERY` rows, preserving table aliases. Grouped outer SELECT reports `Using temporary`. The correlated HAVING and uncorrelated IN EXPLAIN cases match a direct MySQL 8.4.13 reference for select type, table alias and Extra. Plan package, focused engine tests and full net package pass; latest full net run is 18.899s. Full EXPLAIN parity is still incomplete because key choice, row estimates and many query shapes remain heuristic. The prepared scalar-cardinality error metadata mismatch also remains open.
+
+2026-11-26 follow-up: grouped SELECT and JOIN execution share `aggregateGroupKey`; its former NUL-delimited encoding could collide when a grouped value contained a NUL or delimiter-shaped suffix. Group keys now length-prefix each typed value, and correlated scalar grouping delegates to that same helper. Go 1.24.13 server build, engine vet and targeted `git diff --check` pass. SQL grouping with binary/text NUL values has not been executed against XMySQL or MySQL 8.4.
+
+Known compatibility gap from source inspection: `aggregateGroupKey` still keys strings by their Go value and does not consume column collation or PAD_ATTRIBUTE. The expression comparator also uses bytewise/lexical ordering for two strings. MySQL collation sensitivity and trailing-space rules affect comparison semantics, so blanket case-folding would be incorrect; implement this only with explicit collation-aware value semantics shared by grouping, ordering and predicates. No SQL behavior was run for this gap.
+
+Ruling: Correlated or unbound IN clauses without an existing per-row executor must fail explicitly, rather than be materialized against the wrong scope. Conservative scope checking preserves existing WHERE/JOIN ON handling; HAVING/projection and unsupported binding shapes are documented boundaries.
+
+Ruling: The reproduced event/foreground query metadata race belongs to query reliability. Reuse the existing file publication path and coordinate its known query/DML readers by canonical path; this does not add cross-process or crash-recovery guarantees.
+
+2026-11-26 follow-up: preserved source-column collation in `metadata.QueryColumn` through `FromTable`, schema merge/projection/clone, Volcano projection and grouped-column output. Server build and `go vet -mod=readonly ./server/innodb/metadata ./server/innodb/engine` pass. This is only metadata propagation; current comparison, ordering and aggregate key functions still do not consume collation or `PAD_ATTRIBUTE`, so the known semantic gap remains open and no SQL behavior was executed.
+
+2026-11-26 follow-up: added a catalog lookup for collation metadata and propagated the source collation alongside row values in ordinary SELECT, JOIN, derived-row, and correlated scalar contexts. String predicates, `IN`, `BETWEEN`, JOIN comparisons, ordering, and grouped keys now consume the catalog PAD SPACE/NO PAD attribute; PAD SPACE strips only U+0020 at comparison/key time, while NO PAD keeps it significant. This closes the trailing-space part of the gap, not MySQL collation weight behavior (case/accent/language ordering), LIKE semantics, mixed-collation coercibility, or every Volcano plan path. Go server build, common/metadata/engine vet, and touched-file diff check pass. No SQL behavior was executed.
+
+2026-11-26 follow-up: the collation fallback now applies Unicode case folding for `_ci` names and canonical mark removal for explicit `_ai_` names, including ordinary DISTINCT/grouping keys. It still orders normalized strings by Go lexical order rather than MySQL collation weights, and old locale-specific `_ci` collations do not automatically imply accent removal. `LIKE`, `GROUP_CONCAT ORDER BY`, mixed-collation coercibility, and some optimizer-native paths remain open. Server build, common/metadata/engine vet, and touched-file diff check pass; no SQL behavior was executed.
+
+2026-11-26 follow-up: `LIKE` now consults the resolved operand collation in ordinary predicates and JOIN comparisons. Known `_ci` collations use case-insensitive regexp matching; `_cs` and binary collations are case-sensitive. Matching stays on raw text and does not reuse PAD SPACE normalization, so trailing spaces remain significant as required for `LIKE`. The collation-less fallback preserves prior case-insensitive behavior. Server build and `go vet -mod=readonly ./server/common ./server/innodb/metadata ./server/innodb/engine` pass. SQL behavior is unverified; Unicode collation weights, accent-insensitive `_ai_` matching, LIKE ESCAPE propagation in JOIN predicates, mixed-collation coercibility, and non-regexp edge equivalence remain open.
+
+2026-11-26 follow-up: `GROUP_CONCAT(... ORDER BY column)` now reads the source column's collation from the current record metadata and compares ordering keys through the shared collation comparator, including the catalog PAD SPACE/NO PAD and `_ci` behavior used by ordinary ORDER BY. This leaves complete MySQL collation weight ordering and alias/expression ORDER BY resolution as open compatibility boundaries. Go server build, relevant-package vet, and targeted diff check pass; SQL ordering behavior was not executed.
+
+2026-11-26 follow-up: aggregate DISTINCT keys for string columns now pass through the source column's declared collation, and `MIN`/`MAX` compare string values through the same shared collation comparator. This extends collation handling to `COUNT(DISTINCT column)`, `GROUP_CONCAT(DISTINCT column)`, `MIN(column)` and `MAX(column)` on resolvable source columns. Expression outputs without directly resolvable source metadata and full MySQL collation weights remain open. Go server build, relevant-package vet, and targeted diff check pass; SQL semantics were not executed.
+
+2026-11-26 follow-up: propagated source column collation into aggregate accumulators across ordinary SELECT, derived-table aggregate, correlated scalar aggregate and JOIN aggregate execution. `COUNT(DISTINCT ...)`/`GROUP_CONCAT(DISTINCT ...)`, `MIN`/`MAX`, and `GROUP_CONCAT(... ORDER BY ...)` now use the same collation-aware key/comparator where a source-column collation is available. Derived and correlated row maps carry hidden collation context alongside values. Build, relevant-package vet and targeted diff checks pass; these newly touched aggregate routes have not been exercised as SQL, mixed-collation coercibility is still incomplete, and full MySQL collation weight ordering is not implemented.
+
+2026-11-26 follow-up: fixed both non-grouped and grouped derived-table aggregate paths so `GROUP_CONCAT(... ORDER BY ...)` evaluates the declared ordering column and passes that key into the aggregate accumulator; missing ordering columns now return an explicit error. These paths also carry source collation into DISTINCT/MIN/MAX and sort-key handling when metadata is available. Build, relevant-package vet and targeted diff checks pass. Derived/grouped SQL behavior has not been run, so acceptance remains open.
+
+2026-11-26 follow-up: derived SELECT projection now carries source collation through output aliases and derived metadata. Derived and set-derived `DISTINCT` keys apply output-column collation; derived ORDER BY by alias/expression or ordinal uses the carried collation. Existing inner-row collation is copied for `SELECT *`. Go build, relevant-package vet and targeted diff check pass. Runtime behavior, expression-derived collation coercibility and complete MySQL weight ordering remain unverified/open.
+
+2026-11-26 follow-up: the correlated outer-row binder now attaches source collation to unqualified, alias-qualified and table-qualified column names. The correlated derived ORDER BY path consumes that context for each sort term and preserves projected-column collation in result metadata. Go build, relevant-package vet and targeted diff check pass; correlated-derived SQL behavior remains unverified.
+
+2026-11-26 follow-up: correlated IN/NOT IN and quantified ANY/ALL predicate helpers now accept the outer expression's collation and compare string values through the shared comparator. The correlated row binder supplies source collation to qualified and unqualified references. Existing non-correlated callers retain the prior no-context behavior. Go build, relevant-package vet and targeted diff check pass; correlated predicate SQL behavior and inner/outer mixed-collation coercibility remain unverified.
+
+2026-11-26 follow-up: simple CASE expressions now compare the operand and each WHEN value through their resolved collation instead of Go's fallback comparison. The existing searched CASE path continues to evaluate its boolean predicate normally. Go build, relevant-package vet and targeted diff check pass; CASE behavior has not been executed against XMySQL/MySQL.
+
+2026-11-26 follow-up: set-operation ORDER BY now carries output-column collation into ordinal, alias and supported expression sort keys and compares through the shared collation comparator. Server build, relevant-package vet and touched-file diff check pass; UNION/INTERSECT/EXCEPT ordering semantics were not run.
+
+2026-11-26 follow-up: derived-join projections preserve resolvable source collation in the output row and metadata; their ORDER BY and DISTINCT paths consume it, and USING equality compares with the left/right source collation context. Go build, relevant-package vet and touched-file diff check pass. Derived-join behavior is unverified; incompatible mixed collations still do not raise MySQL's coercibility errors.
+
+2026-11-26 follow-up: JOIN predicate evaluation now passes an explicit LIKE ... ESCAPE expression and joined row values into the shared LIKE matcher, preserving the selected operand collation. This fixes the previously documented case where JOIN matching silently used the default backslash escape. At this point invalid ESCAPE errors were still converted into non-matches; the following update corrects that source path. SQL behavior remains unverified.
+
+2026-11-26 follow-up: the JOIN predicate error-aware path now evaluates explicit LIKE ESCAPE through the shared matcher and returns invalid/NULL/multi-character escape errors to the caller, while retaining short-circuit evaluation for AND/OR. The ordinary truth-only path remains value-only. Go server build, engine vet, and touched-file diff check pass; SQL behavior remains unverified.
+
+2026-11-26 follow-up: REGEXP and NOT REGEXP in ordinary predicates and JOIN comparisons now derive case sensitivity from the resolved operand collation: known _ci collations use Unicode case-folded matching; _cs, binary and unresolved collations retain case-sensitive behavior. Invalid patterns propagate through ordinary predicate and JOIN error-aware paths. This does not implement MySQL ICU collation regex semantics or full accent/locale weight behavior; SQL behavior remains unverified.
+
+2026-11-26 follow-up: `LIKE` predicate matching now applies accent-mark removal to literal pattern characters and the value for known `_ai_` non-binary collations, in addition to existing `_ci` case handling. Wildcards and escaped wildcard characters retain pattern semantics; `%` and `_` now span line terminators. This remains an approximation derived from the collation name, not MySQL collation-weight matching, and combining-mark character boundaries, mixed-collation coercibility and complete ICU behavior remain open. `go build -mod=readonly ./server/...` and `go vet -mod=readonly ./server/innodb/engine` pass. SQL behavior was not executed.
+
+2026-11-26 collation verification follow-up: a temporary MySQL 8.4.13 reference confirmed a seven-value matrix spanning `utf8mb4_0900_ai_ci`, legacy `utf8mb4_general_ci`, inherited defaults and `utf8mb4_bin`, including PAD SPACE, accent handling, DISTINCT, simple CASE, REGEXP, ordered GROUP_CONCAT and MIN/MAX. This exposed that legacy `_ci` collations also ignore accents even though their names lack `_ai_`; normalization now removes diacritics for legacy `_ci` except explicit accent-sensitive `_as_` names. Updated expected binary behavior: `utf8mb4_bin` keeps case sensitivity while still applying its PAD SPACE attribute. The expanded SQL regression passes together with the main query semantic matrix. `go test ./server/common` also exposed a fixture-only CRLF/LF mismatch in `TestMetadataLegacyContract`; its comparison now normalizes line endings without changing fixture bytes or semantic contents, and the package passes. These checks do not implement MySQL collation weight tables, language-specific ordering or all coercibility rules.
+
+2026-11-26 full query regression rerun: `go test -mod=readonly -p 1 ./server/innodb/plan ./server/innodb/engine ./server/net -count=1 -timeout=30m` passed against the current source (plan 0.588s, engine 483.153s, net 15.476s). Test-owned changes to three package data files were identified against a byte snapshot and restored exactly. This closes the fresh full plan/engine/net regression gate for the current compatibility edits; a broad live MySQL 8.4 statement differential and complete collation weight/coercibility compatibility remain open.

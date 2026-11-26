@@ -20,11 +20,12 @@ import (
 
 // EnhancedBusinessMessageHandler 增强的业务消息处理器
 type EnhancedBusinessMessageHandler struct {
-	sqlDispatcher *SQLDispatcher
-	authService   auth.AuthService
-	config        *conf.Cfg
-	sessionsMu    sync.RWMutex
-	sessions      map[string]authenticatedSession
+	sqlDispatcher    *SQLDispatcher
+	authService      auth.AuthService
+	config           *conf.Cfg
+	sessionsMu       sync.RWMutex
+	sessions         map[string]authenticatedSession
+	metadataExecutor *engine.XMySQLExecutor
 }
 
 type authenticatedSession struct {
@@ -47,11 +48,38 @@ func NewEnhancedBusinessMessageHandler(config *conf.Cfg, xmysqlEngine *engine.XM
 	sqlDispatcher := NewSQLDispatcherWithXMySQLEngine(config, xmysqlEngine, storageManager)
 
 	return &EnhancedBusinessMessageHandler{
-		sqlDispatcher: sqlDispatcher,
-		authService:   authService,
-		config:        config,
-		sessions:      make(map[string]authenticatedSession),
+		sqlDispatcher:    sqlDispatcher,
+		authService:      authService,
+		config:           config,
+		sessions:         make(map[string]authenticatedSession),
+		metadataExecutor: xmysqlEngine.QueryExecutor,
 	}
+}
+
+// DescribePreparedSelectWithRealSession authorizes the original SELECT before
+// reading catalog metadata. It never dispatches SQL for execution, including
+// when the static describer cannot determine a result type.
+func (h *EnhancedBusinessMessageHandler) DescribePreparedSelectWithRealSession(realSession server.MySQLServerSession, query, database string) (*protocol.MessageQueryResult, error) {
+	if h.metadataExecutor == nil || realSession == nil {
+		return nil, fmt.Errorf("prepared SELECT metadata is unavailable")
+	}
+	user, _ := realSession.GetParamByName("user").(string)
+	host, _ := realSession.GetParamByName("host").(string)
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	ctx := context.Background()
+	if roles, ok := realSession.GetParamByName("active_roles").([]string); ok {
+		ctx = server.WithActiveRoles(ctx, roles)
+	}
+	if err := h.checkQueryPrivilege(ctx, user, host, database, query); err != nil {
+		return nil, err
+	}
+	result, err := h.metadataExecutor.DescribePreparedSelect(realSession, query, database)
+	if err != nil {
+		return nil, err
+	}
+	return &protocol.MessageQueryResult{Columns: result.Columns, ColumnTypes: result.ColumnTypes, Type: result.ResultType}, nil
 }
 
 // HandleMessage 处理消息
@@ -114,8 +142,7 @@ func (h *EnhancedBusinessMessageHandler) HandleQueryWithRealSession(realSession 
 	}
 	if err := h.checkQueryPrivilege(ctx, user, host, database, query); err != nil {
 		logger.Errorf(" 权限检查失败: %v", err)
-		return protocol.NewErrorMessage("temp", common.ErrAccessDenied,
-			user, host, "NO"), nil
+		return protocol.NewErrorMessageFromGoError("temp", err), nil
 	}
 
 	logger.Debugf(" 权限检查通过，准备执行SQL查询")
@@ -325,8 +352,7 @@ func (h *EnhancedBusinessMessageHandler) handleQueryMessage(ctx context.Context,
 	if !isSessionRoleCommand(queryMsg.SQL) {
 		if err := h.checkQueryPrivilege(ctx, user, host, queryMsg.Database, queryMsg.SQL); err != nil {
 			logger.Errorf(" 权限检查失败: %v", err)
-			return protocol.NewErrorMessage(msg.SessionID(), common.ErrAccessDenied,
-				user, host, "NO"), nil
+			return protocol.NewErrorMessageFromGoError(msg.SessionID(), err), nil
 		}
 	}
 
@@ -471,6 +497,14 @@ func (h *EnhancedBusinessMessageHandler) checkQueryPrivilege(ctx context.Context
 	var err error
 	for _, requirement := range requirements {
 		if err = h.checkRequiredPrivileges(ctx, user, host, database, requirement.table, requirement.privileges); err != nil {
+			if requirement.table != "" && len(requirement.privileges) > 0 {
+				table := requirement.table
+				if !strings.Contains(table, ".") && database != "" {
+					table = database + "." + table
+				}
+				err = fmt.Errorf("access denied: user '%s'@'%s' lacks %s privilege on table '%s': %w",
+					user, host, requirement.privileges[0], table, err)
+			}
 			break
 		}
 	}

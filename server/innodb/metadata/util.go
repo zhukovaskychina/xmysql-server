@@ -169,11 +169,15 @@ func (c *ColumnMeta) Validate() error {
 		if c.Length <= 0 {
 			return fmt.Errorf("column %s: length must be positive for type %v", c.Name, c.Type)
 		}
+	case TypeVector:
+		if c.Length <= 0 || c.Length > 65535 {
+			return fmt.Errorf("column %s: VECTOR dimension must be between 1 and 65535", c.Name)
+		}
 	case TypeTinyInt, TypeSmallInt, TypeMediumInt, TypeInt, TypeBigInt, TypeBit,
 		TypeFloat, TypeDouble, TypeDecimal, TypeDate, TypeTime,
 		TypeDateTime, TypeTimestamp, TypeYear, TypeJSON, TypeGeometry:
 		// These types don't require length validation
-	case TypeTinyBlob, TypeBlob, TypeMediumBlob, TypeLongBlob,
+	case TypeTinyBlob, TypeBlob, TypeMediumBlob, TypeLongBlob, TypeContent,
 		TypeTinyText, TypeText, TypeMediumText, TypeLongText:
 		// BLOB and TEXT types don't require length
 	case TypeEnum, TypeSet:
@@ -239,6 +243,10 @@ func (c *ColumnMeta) SQLType() string {
 		return "MEDIUMBLOB"
 	case TypeLongBlob:
 		return "LONGBLOB"
+	case TypeContent:
+		return "CONTENT"
+	case TypeVector:
+		return fmt.Sprintf("VECTOR(%d)", c.Length)
 	case TypeTinyText:
 		return "TINYTEXT"
 	case TypeText:

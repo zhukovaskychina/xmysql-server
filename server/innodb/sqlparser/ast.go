@@ -1350,6 +1350,19 @@ type Union struct {
 	Lock        string
 }
 
+// newSetExpression retains the existing set AST while giving INTERSECT
+// higher precedence than UNION and EXCEPT. Explicit ParenSelect nodes remain
+// barriers, so parenthesized operands keep their own evaluation order.
+func newSetExpression(operator string, left, right SelectStatement) *Union {
+	if strings.HasPrefix(operator, "intersect") {
+		if previous, ok := left.(*Union); ok && !strings.HasPrefix(previous.Type, "intersect") && len(previous.OrderBy) == 0 && previous.Limit == nil && previous.Lock == "" {
+			previous.Right = newSetExpression(operator, previous.Right, right)
+			return previous
+		}
+	}
+	return &Union{Type: operator, Left: left, Right: right}
+}
+
 // Union.Type
 const (
 	UnionStr         = "union"
@@ -2831,8 +2844,28 @@ type SimpleTableExpr interface {
 	SQLNode
 }
 
-func (TableName) iSimpleTableExpr() {}
-func (*Subquery) iSimpleTableExpr() {}
+func (TableName) iSimpleTableExpr()      {}
+func (*Subquery) iSimpleTableExpr()      {}
+func (*TableFunction) iSimpleTableExpr() {}
+
+// TableFunction represents an explicitly supported table-valued SQL function.
+// Execution support is intentionally decided by the engine, not the parser.
+type TableFunction struct {
+	Function *FuncExpr
+}
+
+func (node *TableFunction) Format(buf *TrackedBuffer) {
+	if node != nil && node.Function != nil {
+		buf.Myprintf("table(%v)", node.Function)
+	}
+}
+
+func (node *TableFunction) walkSubtree(visit Visit) error {
+	if node == nil {
+		return nil
+	}
+	return Walk(visit, node.Function)
+}
 
 // TableNames is a list of TableName.
 type TableNames []TableName

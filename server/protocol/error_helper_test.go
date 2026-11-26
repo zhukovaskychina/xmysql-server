@@ -8,6 +8,14 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 )
 
+func TestClassifyGoErrorPreservesWrappedSQLState(t *testing.T) {
+	cause := common.NewErr(common.ErrSubqueryNo1Row)
+	classified := ClassifyGoError(fmt.Errorf("execute scalar subquery: %w", cause))
+	if classified != cause {
+		t.Fatalf("classified wrapped error = %#v, want original %#v", classified, cause)
+	}
+}
+
 func TestErrorHelper_CreateSQLError(t *testing.T) {
 	helper := NewErrorHelper()
 
@@ -242,6 +250,27 @@ func TestErrorHelper_CommonErrors(t *testing.T) {
 
 			t.Logf("✅ %s: error code=%d, packet size=%d bytes", tt.name, errorCode, len(packet))
 		})
+	}
+}
+
+func TestClassifyGoErrorMapsTableAndColumnPrivilegesToMySQLErrors(t *testing.T) {
+	for _, test := range []struct {
+		message string
+		code    uint16
+	}{
+		{"access denied: user 'reader'@'localhost' lacks UPDATE privilege on table 'app.documents'", common.ErrTableaccessDenied},
+		{"access denied: user 'reader'@'localhost' lacks SELECT privilege on column 'app.documents.body'", common.ErrColumnaccessDenied},
+	} {
+		classified := ClassifyGoError(errors.New(test.message))
+		if classified.Code != test.code {
+			t.Errorf("ClassifyGoError(%q) code = %d, want %d", test.message, classified.Code, test.code)
+		}
+		if classified.State != common.MySQLState[test.code] {
+			t.Errorf("ClassifyGoError(%q) state = %q, want %q", test.message, classified.State, common.MySQLState[test.code])
+		}
+		if classified.Message != test.message {
+			t.Errorf("ClassifyGoError(%q) message = %q", test.message, classified.Message)
+		}
 	}
 }
 

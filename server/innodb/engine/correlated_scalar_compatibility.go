@@ -24,6 +24,9 @@ import (
 // row, so aggregates, empty results (NULL), and row-specific outer bindings
 // do not accidentally reuse the previous outer row.
 func (e *XMySQLExecutor) executeCorrelatedScalarSubqueryCompatibility(ctx *ExecutionContext, query, databaseName string) (bool, error) {
+	if queryHasJoinedOuterSource(query) {
+		return false, nil
+	}
 	trimmed := strings.TrimSpace(strings.TrimSuffix(query, ";"))
 	lower := strings.ToLower(trimmed)
 	if !strings.HasPrefix(lower, "select ") || !strings.Contains(lower, "(select") {
@@ -256,12 +259,20 @@ func (e *XMySQLExecutor) executeCorrelatedScalarSubqueryCompatibility(ctx *Execu
 	}
 
 	meta := &metadata.TableMeta{Name: "correlated_scalar", Columns: make([]*metadata.ColumnMeta, 0, len(parsedProjections))}
-	for _, projection := range parsedProjections {
+	// Describe the original visible projection, before hidden ORDER/GROUP
+	// helpers. SQL types remain valid for empty and NULL-first outer results.
+	declared, describeErr := e.DescribePreparedSelect(ctx.Session, query, databaseName)
+	for index, projection := range parsedProjections {
 		name := projection.alias
 		if name == "" {
 			name = projection.directExpression
 		}
-		meta.Columns = append(meta.Columns, &metadata.ColumnMeta{Name: name, Type: metadata.TypeVarchar})
+		typ := metadata.TypeVarchar
+		if describeErr == nil && index < len(declared.ColumnTypes) {
+			name = declared.Columns[index]
+			typ = metadata.DataType(strings.ToUpper(declared.ColumnTypes[index]))
+		}
+		meta.Columns = append(meta.Columns, &metadata.ColumnMeta{Name: name, Type: typ})
 	}
 	records := make([]Record, 0, len(outerResult.Records))
 	rawRows := make([]map[string]interface{}, 0, len(outerResult.Records))
@@ -324,7 +335,7 @@ func (e *XMySQLExecutor) executeCorrelatedScalarSubqueryCompatibility(ctx *Execu
 					return true, fmt.Errorf("correlated scalar subquery returns %d columns", len(innerResult.Columns))
 				}
 				if len(innerResult.Records) > 1 {
-					return true, fmt.Errorf("subquery returns more than 1 row")
+					return true, common.NewErr(common.ErrSubqueryNo1Row)
 				}
 				var scalarValue basic.Value
 				if len(innerResult.Records) == 0 || len(innerResult.Records[0].GetValues()) == 0 {
@@ -418,7 +429,11 @@ func (e *XMySQLExecutor) executeCorrelatedScalarSubqueryCompatibility(ctx *Execu
 	for _, column := range meta.Columns {
 		columns = append(columns, column.Name)
 	}
-	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: &SelectResult{Records: records, RowCount: len(records), Columns: columns, ColumnTypes: correlatedProjectionTypes(records, meta), ResultType: common.RESULT_TYPE_QUERY}, Message: fmt.Sprintf("correlated scalar query returned %d rows", len(records))}
+	columnTypes := correlatedProjectionTypes(records, meta)
+	if describeErr == nil && len(declared.ColumnTypes) == len(columns) {
+		columnTypes = append([]string(nil), declared.ColumnTypes...)
+	}
+	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: &SelectResult{Records: records, RowCount: len(records), Columns: columns, ColumnTypes: columnTypes, ResultType: common.RESULT_TYPE_QUERY}, Message: fmt.Sprintf("correlated scalar query returned %d rows", len(records))}
 	return true, nil
 }
 
@@ -517,7 +532,7 @@ func (e *XMySQLExecutor) evaluateCorrelatedScalarPredicate(ctx *ExecutionContext
 			return false, fmt.Errorf("correlated scalar predicate returns %d columns", len(innerResult.Columns))
 		}
 		if len(innerResult.Records) > 1 {
-			return false, fmt.Errorf("subquery returns more than 1 row")
+			return false, common.NewErr(common.ErrSubqueryNo1Row)
 		}
 		var scalar interface{}
 		if len(innerResult.Records) == 0 || len(innerResult.Records[0].GetValues()) == 0 || innerResult.Records[0].GetValues()[0] == nil || innerResult.Records[0].GetValues()[0].IsNull() {
@@ -678,7 +693,8 @@ func sortCorrelatedRecords(records []Record, orderClause string, meta *metadata.
 	}
 	sort.SliceStable(ordered, func(left, right int) bool {
 		for termIndex, term := range orderTerms {
-			comparison := compareCorrelatedOrderInterfaces(ordered[left].values[termIndex], ordered[right].values[termIndex])
+			collation := recordColumnCollation(ordered[left].record, term.expression)
+			comparison := compareCorrelatedOrderInterfacesWithCollation(ordered[left].values[termIndex], ordered[right].values[termIndex], collation)
 			if comparison == 0 {
 				continue
 			}
@@ -715,6 +731,10 @@ func compareCorrelatedOrderValues(left, right basic.Value) int {
 }
 
 func compareCorrelatedOrderInterfaces(leftValue, rightValue interface{}) int {
+	return compareCorrelatedOrderInterfacesWithCollation(leftValue, rightValue, "")
+}
+
+func compareCorrelatedOrderInterfacesWithCollation(leftValue, rightValue interface{}, collation string) int {
 	if leftValue == nil && rightValue == nil {
 		return 0
 	}
@@ -733,7 +753,7 @@ func compareCorrelatedOrderInterfaces(leftValue, rightValue interface{}) int {
 			}
 		}
 	}
-	return compareScalarValues(leftValue, rightValue)
+	return compareScalarValuesWithCollation(leftValue, rightValue, collation)
 }
 
 func correlatedRecordValueMap(record Record, meta *metadata.TableMeta) map[string]interface{} {
@@ -741,6 +761,13 @@ func correlatedRecordValueMap(record Record, meta *metadata.TableMeta) map[strin
 	for index, column := range meta.Columns {
 		if column == nil || index >= len(record.GetValues()) {
 			continue
+		}
+		collation := strings.TrimSpace(column.Collation)
+		if collation == "" {
+			collation = strings.TrimSpace(meta.Collation)
+		}
+		if collation != "" {
+			values[columnCollationContextKey(column.Name)] = collation
 		}
 		value := record.GetValues()[index]
 		var raw interface{}
@@ -822,7 +849,8 @@ func groupCorrelatedScalarRecords(records []Record, rawRows []map[string]interfa
 	byKey := make(map[string]int, len(records))
 	for index, record := range records {
 		values := correlatedRecordValueMap(record, meta)
-		parts := make([]string, 0, len(terms))
+		groupValues := make([]interface{}, 0, len(terms))
+		groupCollations := make([]string, 0, len(terms))
 		for _, term := range terms {
 			term = strings.TrimSpace(term)
 			value, exists := correlatedOuterColumnValue(values, term)
@@ -836,9 +864,10 @@ func groupCorrelatedScalarRecords(records []Record, rawRows []map[string]interfa
 					return nil, nil, err
 				}
 			}
-			parts = append(parts, fmt.Sprintf("%T:%v", value, value))
+			groupValues = append(groupValues, value)
+			groupCollations = append(groupCollations, recordColumnCollation(record, term))
 		}
-		key := strings.Join(parts, "\x00")
+		key := aggregateGroupKeyWithCollations(groupValues, groupCollations)
 		groupIndex, exists := byKey[key]
 		if !exists {
 			groupIndex = len(groups)
@@ -862,18 +891,52 @@ func groupCorrelatedScalarRecords(records []Record, rawRows []map[string]interfa
 				if projectionIndex < len(records[first].GetValues()) {
 					value = basicValueToInterface(records[first].GetValues()[projectionIndex])
 				}
-			} else if functionName, argument, ok := correlatedAggregateExpression(projection.directExpression); ok {
-				accumulator := aggregateAccumulator{fn: functionName}
+			} else if aggregate, ok := correlatedAggregateExpression(projection.directExpression); ok {
+				accumulator := aggregateAccumulator{
+					fn:        aggregate.funcName,
+					countStar: aggregate.column == "*",
+					separator: aggregate.separator,
+					orderBy:   aggregate.orderBy,
+					orderDesc: aggregate.orderDesc,
+				}
+				if aggregate.distinct {
+					accumulator.seen = make(map[string]struct{})
+				}
 				for _, rowIndex := range current.indexes {
-					if functionName == "COUNT" && strings.TrimSpace(argument) == "*" {
+					if aggregate.funcName == "JSON_OBJECTAGG" {
+						key, evalErr := evaluateProjectionExpression(aggregate.column, rawRows[rowIndex])
+						if evalErr != nil {
+							return nil, nil, evalErr
+						}
+						objectValue, evalErr := evaluateProjectionExpression(aggregate.valueColumn, rawRows[rowIndex])
+						if evalErr != nil {
+							return nil, nil, evalErr
+						}
+						accumulator.addJSONObject(key, objectValue)
+						continue
+					}
+					if aggregate.funcName == "COUNT" && aggregate.column == "*" {
 						accumulator.add(int64(1))
 						continue
 					}
-					rowValue, evalErr := evaluateProjectionExpression(argument, rawRows[rowIndex])
+					rowValue, evalErr := evaluateProjectionExpression(aggregate.column, rawRows[rowIndex])
 					if evalErr != nil {
 						return nil, nil, evalErr
 					}
-					accumulator.add(rowValue)
+					if collation := collationFromValueContext(rawRows[rowIndex], aggregate.column); collation != "" {
+						accumulator.valueCollation = collation
+					}
+					orderValue := rowValue
+					if aggregate.orderBy != "" {
+						orderValue, evalErr = evaluateProjectionExpression(aggregate.orderBy, rawRows[rowIndex])
+						if evalErr != nil {
+							return nil, nil, evalErr
+						}
+						if collation := collationFromValueContext(rawRows[rowIndex], aggregate.orderBy); collation != "" {
+							accumulator.orderCollation = collation
+						}
+					}
+					accumulator.addWithOrder(rowValue, orderValue)
 				}
 				value = accumulator.value()
 			} else if projectionIndex < len(records[first].GetValues()) {
@@ -919,32 +982,17 @@ func normalizeCorrelatedGroupingExpression(expression string) string {
 	return strings.Join(strings.Fields(strings.ToLower(strings.TrimSpace(expression))), "")
 }
 
-func correlatedAggregateExpression(expression string) (functionName, argument string, ok bool) {
-	expression = strings.TrimSpace(expression)
-	lower := strings.ToLower(expression)
-	name := ""
-	for _, candidate := range []string{"count", "sum", "avg", "min", "max"} {
-		if strings.HasPrefix(lower, candidate) && len(lower) > len(candidate) && !isSQLIdentByte(lower[len(candidate)]) {
-			name = candidate
-			break
-		}
+func correlatedAggregateExpression(expression string) (aggregateExpression, bool) {
+	trimmed := strings.TrimSpace(expression)
+	open := strings.Index(trimmed, "(")
+	if open <= 0 || matchingParenIndex(trimmed, open) != len(trimmed)-1 {
+		return aggregateExpression{}, false
 	}
-	if name == "" {
-		return "", "", false
+	aggregate := parseAggregateExpression(trimmed)
+	if aggregate.funcName == "" {
+		return aggregateExpression{}, false
 	}
-	rest := strings.TrimSpace(expression[len(name):])
-	if !strings.HasPrefix(rest, "(") || !strings.HasSuffix(strings.TrimSpace(rest), ")") {
-		return "", "", false
-	}
-	open := strings.Index(rest, "(")
-	close := strings.LastIndex(rest, ")")
-	if open < 0 || close < open {
-		return "", "", false
-	}
-	if strings.TrimSpace(rest[close+1:]) != "" {
-		return "", "", false
-	}
-	return strings.ToUpper(name), strings.TrimSpace(rest[open+1 : close]), true
+	return aggregate, true
 }
 
 // parseCorrelatedOuterSource accepts the ordinary table source plus the
@@ -1066,8 +1114,9 @@ type correlatedScalarProjectionRangeValue struct {
 
 func correlatedScalarProjectionRanges(expression string) []correlatedScalarProjectionRangeValue {
 	ranges := make([]correlatedScalarProjectionRangeValue, 0, 2)
+	code := sqlCodePositions(expression)
 	for index := 0; index < len(expression); index++ {
-		if expression[index] != '(' {
+		if expression[index] != '(' || !code[index] {
 			continue
 		}
 		close := matchingParenIndex(expression, index)
@@ -1076,6 +1125,20 @@ func correlatedScalarProjectionRanges(expression string) []correlatedScalarProje
 		}
 		inner := strings.TrimSpace(expression[index+1 : close])
 		if strings.HasPrefix(strings.ToLower(inner), "select ") {
+			end := index - 1
+			for end >= 0 && (!code[end] || isSQLSpaceByte(expression[end])) {
+				end--
+			}
+			start := end
+			for start >= 0 && isSQLIdentByte(expression[start]) {
+				start--
+			}
+			operator := strings.ToLower(expression[start+1 : end+1])
+			switch operator {
+			case "in", "exists", "any", "some", "all":
+				index = close
+				continue
+			}
 			ranges = append(ranges, correlatedScalarProjectionRangeValue{start: index, end: close, inner: inner})
 			index = close
 		}
@@ -1115,6 +1178,11 @@ func correlatedOuterRowValues(record Record, columns, columnTypes []string, alia
 		values[alias+"."+clean] = raw
 		values[strings.ToLower(alias+"."+clean)] = raw
 		values[table+"."+clean] = raw
+		if collation := recordColumnCollation(record, strconv.Itoa(index+1)); collation != "" {
+			values[columnCollationContextKey(clean)] = collation
+			values[columnCollationContextKey(alias+"."+clean)] = collation
+			values[columnCollationContextKey(table+"."+clean)] = collation
+		}
 	}
 	return values
 }
@@ -1141,7 +1209,11 @@ func correlatedBasicValueInterface(value basic.Value, index int, columnTypes []s
 		typeName := strings.ToUpper(strings.TrimSpace(columnTypes[index]))
 		switch typeName {
 		case "TINYINT", "SMALLINT", "MEDIUMINT", "INT", "INTEGER", "BIGINT", "YEAR":
-			if raw, ok := value.Raw().([]byte); ok && len(raw) == 8 && value.Type() == basic.ValueTypeVarchar {
+			switch value.Type() {
+			case basic.ValueTypeTinyInt, basic.ValueTypeSmallInt, basic.ValueTypeMediumInt, basic.ValueTypeInt, basic.ValueTypeBigInt:
+				return value.Int()
+			}
+			if raw, ok := value.Raw().([]byte); ok && len(raw) == 8 && (value.Type() == basic.ValueTypeVarchar || value.Type().IsBinary()) {
 				return int64(binary.BigEndian.Uint64(raw))
 			}
 			if parsed, err := strconv.ParseInt(strings.TrimSpace(value.String()), 10, 64); err == nil {

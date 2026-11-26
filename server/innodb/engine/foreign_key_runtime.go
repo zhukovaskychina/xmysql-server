@@ -31,7 +31,7 @@ func (dml *StorageIntegratedDMLExecutor) loadTableForeignKeys(schemaName, tableN
 	if dml == nil || dml.dataDir == "" || schemaName == "" || tableName == "" {
 		return nil, nil
 	}
-	data, err := os.ReadFile(filepath.Join(dml.dataDir, schemaName, tableName+".frm"))
+	data, err := metadata.ReadFile(filepath.Join(dml.dataDir, schemaName, tableName+".frm"))
 	if err != nil {
 		return nil, err
 	}
