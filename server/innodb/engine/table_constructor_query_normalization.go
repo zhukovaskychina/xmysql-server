@@ -3,6 +3,8 @@ package engine
 // NormalizeTableConstructorQuery prepares MySQL TABLE and VALUES query forms
 // for the existing SELECT, set-operation, and CREATE ... AS code paths.
 func NormalizeTableConstructorQuery(query string) string {
+	leading := skipSQLTrivia(query, 0)
+	prefix, query := query[:leading], query[leading:]
 	query = rewriteCreateTableConstructorSource(query)
 	query = rewriteParenthesizedTableConstructors(query)
 	if rewritten, ok := rewriteTableConstructorsInSetQuery(query); ok {
@@ -14,5 +16,5 @@ func NormalizeTableConstructorQuery(query string) string {
 	if rewritten, ok := rewriteStandaloneTableStatement(query); ok {
 		query = rewritten
 	}
-	return query
+	return prefix + query
 }

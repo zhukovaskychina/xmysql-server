@@ -2343,6 +2343,32 @@ func preparedSelectNeedsStaticMetadata(query string) bool {
 
 func looksLikePreparedResultStatement(sqlText string) bool {
 	trimmed := strings.TrimSpace(strings.ToLower(sqlText))
+	for {
+		switch {
+		case strings.HasPrefix(trimmed, "/*"):
+			close := strings.Index(trimmed[2:], "*/")
+			if close < 0 {
+				return false
+			}
+			trimmed = strings.TrimSpace(trimmed[close+4:])
+		case strings.HasPrefix(trimmed, "#"):
+			if newline := strings.IndexAny(trimmed, "\r\n"); newline >= 0 {
+				trimmed = strings.TrimSpace(trimmed[newline+1:])
+			} else {
+				return false
+			}
+		case len(trimmed) >= 3 && strings.HasPrefix(trimmed, "--") && (trimmed[2] == ' ' || trimmed[2] == '\t' || trimmed[2] == '\r' || trimmed[2] == '\n'):
+			if newline := strings.IndexAny(trimmed, "\r\n"); newline >= 0 {
+				trimmed = strings.TrimSpace(trimmed[newline+1:])
+			} else {
+				return false
+			}
+		default:
+			goto commentsDone
+		}
+	}
+
+commentsDone:
 	if strings.HasPrefix(trimmed, "(") {
 		return true
 	}
