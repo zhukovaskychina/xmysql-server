@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"unicode/utf8"
 
@@ -20,6 +21,8 @@ const (
 	maxAIRAGCandidates    = 16
 	maxAIRAGMediaBytes    = 16 << 20
 )
+
+var aiRAGEvidenceReferencePattern = regexp.MustCompile(`\[(E[0-9]+)\]`)
 
 type aiRAGCitation struct {
 	EvidenceID        string                                       `json:"evidence_id"`
@@ -198,12 +201,67 @@ func (e *XMySQLExecutor) evaluateAIRAGResult(ctx *ExecutionContext, function *sq
 	if omitted > 0 || mayHaveMore {
 		resultStatus = "PARTIAL"
 	}
+	citationAudit := auditAIRAGAnswerCitations(result.Text, citations)
 	return encodeAIRAGResult(map[string]interface{}{
 		"answer": result.Text, "answer_status": "UNASSESSED", "result_status": resultStatus,
-		"citation_status": "AVAILABLE_INPUTS_NOT_CLAIM_VERIFIED", "citations": citations, "source_manifest": citations, "context_manifest_id": aiRAGManifestID(question, citations),
+		"citation_status": citationAudit.Status, "citation_audit": citationAudit,
+		"citations": citations, "source_manifest": citations, "context_manifest_id": aiRAGManifestID(question, citations),
 		"coverage":    map[string]interface{}{"mode": mode, "retrieval_scope": "TOP_K", "requested_k": k, "selected": len(evidence), "omitted_by_budget": omitted, "may_have_more": mayHaveMore},
 		"model_usage": map[string]interface{}{"embedding_called": true, "embedding_model_alias": strings.TrimSpace(embeddingModel), "generation_called": true, "model_id": result.ModelID, "model_version": result.ModelVersion, "request_id": result.RequestID, "usage_known": result.UsageKnown, "input_tokens": result.InputTokens, "output_tokens": result.OutputTokens},
 	})
+}
+
+type aiRAGCitationAudit struct {
+	Status                  string   `json:"status"`
+	ReferenceIDs            []string `json:"reference_ids"`
+	UnknownReferenceIDs     []string `json:"unknown_reference_ids"`
+	UnreferencedEvidenceIDs []string `json:"unreferenced_evidence_ids"`
+	ReferenceIDsResolve     bool     `json:"reference_ids_resolve"`
+	ClaimSupportVerified    bool     `json:"claim_support_verified"`
+	Method                  string   `json:"method"`
+}
+
+func auditAIRAGAnswerCitations(answer string, citations []aiRAGCitation) aiRAGCitationAudit {
+	known := make(map[string]struct{}, len(citations))
+	for _, citation := range citations {
+		known[citation.EvidenceID] = struct{}{}
+	}
+
+	seen := make(map[string]struct{})
+	references := make([]string, 0)
+	unknown := make([]string, 0)
+	for _, match := range aiRAGEvidenceReferencePattern.FindAllStringSubmatch(answer, -1) {
+		if len(match) < 2 {
+			continue
+		}
+		reference := match[1]
+		if _, exists := seen[reference]; exists {
+			continue
+		}
+		seen[reference] = struct{}{}
+		references = append(references, reference)
+		if _, exists := known[reference]; !exists {
+			unknown = append(unknown, reference)
+		}
+	}
+
+	unreferenced := make([]string, 0)
+	for _, citation := range citations {
+		if _, exists := seen[citation.EvidenceID]; !exists {
+			unreferenced = append(unreferenced, citation.EvidenceID)
+		}
+	}
+	status := "REFERENCES_RESOLVE_SUPPORT_UNVERIFIED"
+	if len(references) == 0 {
+		status = "NO_CITATION_REFERENCES"
+	} else if len(unknown) > 0 {
+		status = "UNKNOWN_EVIDENCE_REFERENCES"
+	}
+	return aiRAGCitationAudit{
+		Status: status, ReferenceIDs: references, UnknownReferenceIDs: unknown,
+		UnreferencedEvidenceIDs: unreferenced, ReferenceIDsResolve: len(references) > 0 && len(unknown) == 0,
+		ClaimSupportVerified: false, Method: "EXACT_EVIDENCE_ID_TOKEN_SCAN",
+	}
 }
 
 func aiRAGVectorSearchFunction(schema, table, indexName, embeddingModel, question string, k int, mode string) *sqlparser.FuncExpr {
