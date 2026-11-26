@@ -141,6 +141,17 @@ func (e *XMySQLExecutor) executeDerivedJoinSelectWithMaterialized(ctx *Execution
 	streamedLimitApplied := false
 	var source *derivedJoinSource
 	for _, expression := range stmt.From {
+		if table, ok := contentVideoSegmentsFunctionInExpr(expression); ok {
+			if source == nil {
+				return nil, fmt.Errorf("CONTENT_VIDEO_SEGMENTS requires a preceding row source")
+			}
+			joined, err := lateralContentVideoSegments(executionContextBase(ctx), source, table, e.getDataDir())
+			if err != nil {
+				return nil, err
+			}
+			source = joined
+			continue
+		}
 		if table, ok := contentAudioSegmentsFunctionInExpr(expression); ok {
 			if source == nil {
 				return nil, fmt.Errorf("CONTENT_AUDIO_SEGMENTS requires a preceding row source")
@@ -536,6 +547,12 @@ func (e *XMySQLExecutor) executeDerivedJoinTableExprWithMaterialized(ctx *Execut
 				return nil, fmt.Errorf("CONTENT_AUDIO_SEGMENTS supports CROSS JOIN or comma join only")
 			}
 			return lateralContentAudioSegments(executionContextBase(ctx), left, functionTable, e.getDataDir())
+		}
+		if functionTable, ok := contentVideoSegmentsFunctionInExpr(table.RightExpr); ok {
+			if !supportsCrossTableFunctionJoin(table) {
+				return nil, fmt.Errorf("CONTENT_VIDEO_SEGMENTS supports CROSS JOIN or comma join only")
+			}
+			return lateralContentVideoSegments(executionContextBase(ctx), left, functionTable, e.getDataDir())
 		}
 		if functionTable, ok := contentTextParseFunctionInExpr(table.RightExpr); ok {
 			if !supportsCrossTableFunctionJoin(table) {
