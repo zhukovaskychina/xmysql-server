@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
@@ -290,6 +291,7 @@ func explainSetOperationName(operation string) string {
 
 type explainSetOperationNode struct {
 	operator   string
+	all        bool
 	filesort   bool
 	statement  *sqlparser.Select
 	left       *explainSetOperationNode
@@ -317,18 +319,20 @@ func buildExplainSetOperationTree(statement sqlparser.SelectStatement) (*explain
 		if operator != "UNION" && operator != "INTERSECT" && operator != "EXCEPT" {
 			return nil, false
 		}
-		if operator == "UNION" && strings.EqualFold(strings.TrimSpace(value.Type), sqlparser.UnionAllStr) {
-			return nil, false
-		}
 		left, leftOK := buildExplainSetOperationTree(value.Left)
 		right, rightOK := buildExplainSetOperationTree(value.Right)
 		if !leftOK || !rightOK {
 			return nil, false
 		}
-		return &explainSetOperationNode{operator: operator, filesort: len(value.OrderBy) > 0, left: left, right: right}, true
+		return &explainSetOperationNode{operator: operator, all: explainSetOperationUsesAll(value.Type), filesort: len(value.OrderBy) > 0, left: left, right: right}, true
 	default:
 		return nil, false
 	}
+}
+
+func explainSetOperationUsesAll(operation string) bool {
+	fields := strings.Fields(strings.ToUpper(strings.TrimSpace(operation)))
+	return len(fields) > 1 && fields[1] == "ALL"
 }
 
 func explainSetOperationPlanShapeSupported(statement sqlparser.SelectStatement) bool {
@@ -409,15 +413,22 @@ func assignExplainSetOperationResultIDs(node *explainSetOperationNode, nextID *i
 	}
 	assignExplainSetOperationResultIDs(node.left, nextID)
 	assignExplainSetOperationResultIDs(node.right, nextID)
+	if node.operator == "UNION" && node.all && !node.filesort {
+		return
+	}
 	node.resultID = *nextID
 	*nextID++
 }
 
-func explainSetOperationOutputID(node *explainSetOperationNode) int64 {
+func explainSetOperationOutputIDs(node *explainSetOperationNode) []int64 {
 	if node.statement != nil {
-		return node.id
+		return []int64{node.id}
 	}
-	return node.resultID
+	if node.operator == "UNION" && node.all && !node.filesort {
+		result := explainSetOperationOutputIDs(node.left)
+		return append(result, explainSetOperationOutputIDs(node.right)...)
+	}
+	return []int64{node.resultID}
 }
 
 func appendExplainSetOperationLeafRows(node *explainSetOperationNode, rows *[][]interface{}) {
@@ -435,14 +446,24 @@ func appendExplainSetOperationResultRows(node *explainSetOperationNode, rows *[]
 	}
 	appendExplainSetOperationResultRows(node.left, rows)
 	appendExplainSetOperationResultRows(node.right, rows)
-	leftID, rightID := explainSetOperationOutputID(node.left), explainSetOperationOutputID(node.right)
-	extra := "Using temporary"
+	if node.operator == "UNION" && node.all && !node.filesort {
+		return
+	}
+	inputIDs := append(explainSetOperationOutputIDs(node.left), explainSetOperationOutputIDs(node.right)...)
+	inputIDStrings := make([]string, 0, len(inputIDs))
+	for _, id := range inputIDs {
+		inputIDStrings = append(inputIDStrings, strconv.FormatInt(id, 10))
+	}
+	extra := ""
+	if node.operator != "UNION" || !node.all {
+		extra = "Using temporary"
+	}
 	if node.filesort {
 		extra = appendExplainExtra(extra, "Using filesort")
 	}
 	*rows = append(*rows, []interface{}{
 		node.resultID, node.operator + " RESULT",
-		fmt.Sprintf("<%s%d,%d>", strings.ToLower(node.operator), leftID, rightID),
+		fmt.Sprintf("<%s%s>", strings.ToLower(node.operator), strings.Join(inputIDStrings, ",")),
 		nil, "ALL", nil, nil, nil, nil, nil, nil, extra,
 	})
 }
@@ -450,7 +471,7 @@ func appendExplainSetOperationResultRows(node *explainSetOperationNode, rows *[]
 func (e *XMySQLExecutor) explainNestedSetOperationPlanRowsAt(ctx *ExecutionContext, statement sqlparser.SelectStatement, defaultSchema string, firstID int64, nextID *int64) ([][]interface{}, error) {
 	tree, ok := buildExplainSetOperationTree(statement)
 	if !ok || tree == nil || tree.statement != nil || !explainSetOperationPlanShapeSupported(statement) {
-		return nil, fmt.Errorf("EXPLAIN supports nested set operations over base-table SELECT leaves without UNION ALL, derived/subqueries, or locking clauses")
+		return nil, fmt.Errorf("EXPLAIN supports nested set operations over supported SELECT leaves without locking clauses")
 	}
 	leaves := make([]*explainSetOperationNode, 0)
 	explainSetOperationLeaves(tree, "PRIMARY", &leaves)
