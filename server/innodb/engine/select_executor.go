@@ -5291,6 +5291,9 @@ func (se *SelectExecutor) buildAggregateSelectResult() *SelectResult {
 			break
 		}
 	}
+	if expressionHasSubquery(se.havingExpression) && aggregateExpressionContainsAggregate(se.havingExpression) {
+		needsSubqueryAggregateRows = true
+	}
 	aggregateExprs := make([]aggregateExpression, len(se.selectExprs))
 	for i, expr := range se.selectExprs {
 		aggregateExprs[i] = parseAggregateExpression(expr)
@@ -5442,7 +5445,7 @@ func (se *SelectExecutor) buildAggregateSelectResult() *SelectResult {
 			rowMap[strings.ToLower(se.selectExprs[index])] = value
 		}
 		if se.havingCondition != "" {
-			matches, err := se.matchesHavingRow(joinedMapRow(rowMap))
+			matches, err := se.matchesGroupedHavingWithAggregateSubqueries(joinedMapRow(rowMap), state.rows)
 			if err != nil || !matches {
 				if err != nil && se.expressionError == nil {
 					se.expressionError = err

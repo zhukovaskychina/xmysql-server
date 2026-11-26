@@ -30,6 +30,24 @@ func (se *SelectExecutor) evaluateGroupedProjectionWithAggregateSubqueries(expre
 	return se.evaluateGroupedProjectionWithSubqueries(projection.Expr, row)
 }
 
+func (se *SelectExecutor) matchesGroupedHavingWithAggregateSubqueries(row joinedMapRow, groupRows []map[string]interface{}) (bool, error) {
+	if se == nil || se.havingExpression == nil || !expressionHasSubquery(se.havingExpression) || !aggregateExpressionContainsAggregate(se.havingExpression) {
+		return se.matchesHavingRow(row)
+	}
+	rewritten, err := replaceGroupedAggregateCalls(sqlparser.String(se.havingExpression), groupRows)
+	if err != nil {
+		return false, err
+	}
+	statement, err := parseSelectSQL("select 1 where " + rewritten)
+	if err != nil {
+		return false, err
+	}
+	if statement.Where == nil {
+		return false, fmt.Errorf("grouped HAVING expression has no predicate")
+	}
+	return se.evalJoinPredicateWithError(statement.Where.Expr, row)
+}
+
 func aggregateRecordRowValues(se *SelectExecutor, record Record) map[string]interface{} {
 	values := make(map[string]interface{})
 	if se == nil || record == nil {

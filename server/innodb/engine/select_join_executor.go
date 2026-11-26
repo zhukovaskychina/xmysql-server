@@ -1206,13 +1206,17 @@ func (se *SelectExecutor) buildJoinAggregateResult(rows []joinedMapRow) *SelectR
 			}
 		}
 		var groupRowsAsValues []map[string]interface{}
+		needsSubqueryAggregateRows := expressionHasSubquery(se.havingExpression) && aggregateExpressionContainsAggregate(se.havingExpression)
 		for _, expression := range se.selectExprASTs {
 			if expressionHasSubquery(expression) && aggregateExpressionContainsAggregate(expression) {
-				groupRowsAsValues = make([]map[string]interface{}, len(groupRows))
-				for rowIndex, groupRow := range groupRows {
-					groupRowsAsValues[rowIndex] = map[string]interface{}(groupRow)
-				}
+				needsSubqueryAggregateRows = true
 				break
+			}
+		}
+		if needsSubqueryAggregateRows {
+			groupRowsAsValues = make([]map[string]interface{}, len(groupRows))
+			for rowIndex, groupRow := range groupRows {
+				groupRowsAsValues[rowIndex] = map[string]interface{}(groupRow)
 			}
 		}
 		for index, expression := range se.selectExprASTs {
@@ -1232,7 +1236,7 @@ func (se *SelectExecutor) buildJoinAggregateResult(rows []joinedMapRow) *SelectR
 			out[strings.ToLower(se.selectExprs[index])] = value
 		}
 		if se.havingCondition != "" {
-			matched, err := se.matchesHavingRow(out)
+			matched, err := se.matchesGroupedHavingWithAggregateSubqueries(out, groupRowsAsValues)
 			if err != nil || !matched {
 				if err != nil && se.expressionError == nil {
 					se.expressionError = err
