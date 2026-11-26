@@ -338,12 +338,38 @@ func explainSetOperationPlanShapeSupported(statement sqlparser.SelectStatement) 
 			return false
 		}
 		if node.statement != nil {
-			return explainSelectHasSupportedSources(node.statement) &&
-				!explainSelectHasDerivedSource(node.statement) && !explainSelectContainsSubquery(node.statement)
+			return explainSetOperationLeafPlanShapeSupported(node.statement)
 		}
 		return supported(node.left) && supported(node.right)
 	}
 	return supported(tree)
+}
+
+func explainSetOperationLeafPlanShapeSupported(statement *sqlparser.Select) bool {
+	if !explainSelectHasSupportedSources(statement) || explainSelectHasDerivedSource(statement) {
+		return false
+	}
+	if !explainSelectContainsSubquery(statement) {
+		return true
+	}
+	subqueries := explainSelectSubqueries(statement)
+	if len(subqueries) == 0 {
+		return false
+	}
+	for _, subquery := range subqueries {
+		if subquery == nil {
+			return false
+		}
+		inner, err := parseSelectSQL(subquery.SQL)
+		if err != nil || !explainSelectStatementSupportsSources(inner) {
+			return false
+		}
+		innerSelect := explainSelectStatementAsSelect(inner)
+		if innerSelect == nil || explainSelectHasDerivedSource(innerSelect) || explainSelectContainsSubquery(innerSelect) || len(explainTableReferences(innerSelect)) == 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func explainSelectContainsSubquery(statement *sqlparser.Select) bool {
@@ -390,13 +416,21 @@ func explainSetOperationOutputID(node *explainSetOperationNode) int64 {
 	return node.resultID
 }
 
-func appendExplainSetOperationRows(node *explainSetOperationNode, rows *[][]interface{}) {
+func appendExplainSetOperationLeafRows(node *explainSetOperationNode, rows *[][]interface{}) {
 	if node.statement != nil {
 		*rows = append(*rows, node.rows...)
 		return
 	}
-	appendExplainSetOperationRows(node.left, rows)
-	appendExplainSetOperationRows(node.right, rows)
+	appendExplainSetOperationLeafRows(node.left, rows)
+	appendExplainSetOperationLeafRows(node.right, rows)
+}
+
+func appendExplainSetOperationResultRows(node *explainSetOperationNode, rows *[][]interface{}) {
+	if node.statement != nil {
+		return
+	}
+	appendExplainSetOperationResultRows(node.left, rows)
+	appendExplainSetOperationResultRows(node.right, rows)
 	leftID, rightID := explainSetOperationOutputID(node.left), explainSetOperationOutputID(node.right)
 	extra := "Using temporary"
 	if node.filesort {
@@ -431,9 +465,27 @@ func (e *XMySQLExecutor) explainNestedSetOperationPlanRowsAt(ctx *ExecutionConte
 		}
 		leaf.rows = rows
 	}
+	allSubqueries := make([]*plan.SubqueryExpression, 0)
+	for _, leaf := range leaves {
+		allSubqueries = append(allSubqueries, explainSelectSubqueries(leaf.statement)...)
+	}
+	if len(allSubqueries) > 0 {
+		subqueryRows, err := e.explainSubqueryRows(ctx, allSubqueries, defaultSchema, *nextID)
+		if err != nil {
+			return nil, err
+		}
+		*nextID += int64(len(subqueryRows))
+		rows := make([][]interface{}, 0, len(leaves)*2+len(subqueryRows))
+		appendExplainSetOperationLeafRows(tree, &rows)
+		rows = append(rows, subqueryRows...)
+		assignExplainSetOperationResultIDs(tree, nextID)
+		appendExplainSetOperationResultRows(tree, &rows)
+		return rows, nil
+	}
 	assignExplainSetOperationResultIDs(tree, nextID)
 	rows := make([][]interface{}, 0, len(leaves)*2)
-	appendExplainSetOperationRows(tree, &rows)
+	appendExplainSetOperationLeafRows(tree, &rows)
+	appendExplainSetOperationResultRows(tree, &rows)
 	return rows, nil
 }
 
