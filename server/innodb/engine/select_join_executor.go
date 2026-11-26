@@ -1205,17 +1205,21 @@ func (se *SelectExecutor) buildJoinAggregateResult(rows []joinedMapRow) *SelectR
 				}
 			}
 		}
+		var groupRowsAsValues []map[string]interface{}
+		for _, expression := range se.selectExprASTs {
+			if expressionHasSubquery(expression) && aggregateExpressionContainsAggregate(expression) {
+				groupRowsAsValues = make([]map[string]interface{}, len(groupRows))
+				for rowIndex, groupRow := range groupRows {
+					groupRowsAsValues[rowIndex] = map[string]interface{}(groupRow)
+				}
+				break
+			}
+		}
 		for index, expression := range se.selectExprASTs {
 			if index >= len(columns) || !expressionHasSubquery(expression) {
 				continue
 			}
-			if aggregateExpressionContainsAggregate(expression) {
-				if se.expressionError == nil {
-					se.expressionError = fmt.Errorf("aggregate expression mixed with a correlated subquery is not supported in grouped projection: %s", sqlparser.String(expression))
-				}
-				continue
-			}
-			value, err := se.evaluateGroupedProjectionWithSubqueries(expression, out)
+			value, err := se.evaluateGroupedProjectionWithAggregateSubqueries(expression, out, groupRowsAsValues)
 			if err != nil {
 				if se.expressionError == nil {
 					se.expressionError = err

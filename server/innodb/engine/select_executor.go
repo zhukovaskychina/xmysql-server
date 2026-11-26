@@ -5279,10 +5279,18 @@ func (a *aggregateAccumulator) value() interface{} {
 type aggregateGroupState struct {
 	groupValues []interface{}
 	accs        []aggregateAccumulator
+	rows        []map[string]interface{}
 }
 
 func (se *SelectExecutor) buildAggregateSelectResult() *SelectResult {
 	groupColumns := se.cleanColumnNames(se.groupByColumns)
+	needsSubqueryAggregateRows := false
+	for _, expression := range se.selectExprASTs {
+		if expressionHasSubquery(expression) && aggregateExpressionContainsAggregate(expression) {
+			needsSubqueryAggregateRows = true
+			break
+		}
+	}
 	aggregateExprs := make([]aggregateExpression, len(se.selectExprs))
 	for i, expr := range se.selectExprs {
 		aggregateExprs[i] = parseAggregateExpression(expr)
@@ -5318,6 +5326,9 @@ func (se *SelectExecutor) buildAggregateSelectResult() *SelectResult {
 			}
 			groups[groupKey] = state
 			groupOrder = append(groupOrder, groupKey)
+		}
+		if needsSubqueryAggregateRows {
+			state.rows = append(state.rows, aggregateRecordRowValues(se, record))
 		}
 
 		for i, agg := range aggregateExprs {
@@ -5417,13 +5428,7 @@ func (se *SelectExecutor) buildAggregateSelectResult() *SelectResult {
 			if index >= len(rowValues) || !expressionHasSubquery(expression) {
 				continue
 			}
-			if aggregateExpressionContainsAggregate(expression) {
-				if se.expressionError == nil {
-					se.expressionError = fmt.Errorf("aggregate expression mixed with a correlated subquery is not supported in grouped projection: %s", sqlparser.String(expression))
-				}
-				continue
-			}
-			value, err := se.evaluateGroupedProjectionWithSubqueries(expression, joinedMapRow(rowMap))
+			value, err := se.evaluateGroupedProjectionWithAggregateSubqueries(expression, joinedMapRow(rowMap), state.rows)
 			if err != nil {
 				if se.expressionError == nil {
 					se.expressionError = err
