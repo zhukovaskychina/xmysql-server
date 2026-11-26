@@ -637,8 +637,16 @@ func (e *XMySQLExecutor) fullTextCandidateIDs(databaseName, tableName string, co
 	}
 	postingSet := func(term fullTextQueryTerm) map[string]struct{} {
 		matches := make(map[string]struct{})
+		if !term.prefix {
+			for _, rowID := range state.Segments[term.token] {
+				if rowID != "" {
+					matches[rowID] = struct{}{}
+				}
+			}
+			return matches
+		}
 		for token, rowIDs := range state.Segments {
-			if token != term.token && !(term.prefix && strings.HasPrefix(token, term.token)) {
+			if !strings.HasPrefix(token, term.token) {
 				continue
 			}
 			for _, rowID := range rowIDs {
