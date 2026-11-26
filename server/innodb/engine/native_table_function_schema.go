@@ -56,6 +56,15 @@ func contentDOCXBlocksResultColumns() []joinOutputColumn {
 	}
 }
 
+func contentHTMLBlocksResultColumns() []joinOutputColumn {
+	return []joinOutputColumn{
+		{name: "ordinal", typ: metadata.TypeBigInt},
+		{name: "text", typ: metadata.TypeMediumText},
+		{name: "block", typ: metadata.TypeContent},
+		{name: "structure_path", typ: metadata.TypeVarchar},
+	}
+}
+
 func contentXLSXRowsResultColumns() []joinOutputColumn {
 	return []joinOutputColumn{
 		{name: "ordinal", typ: metadata.TypeBigInt},
