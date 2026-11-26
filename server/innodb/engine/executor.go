@@ -67,6 +67,7 @@ type XMySQLExecutor struct {
 	infosSchemaManager   metadata.InfoSchemaManager // 信息模式管理器
 	conf                 *conf.Cfg                  // 配置项
 	fullTextIndexMu      sync.RWMutex
+	fullTextActiveWrites map[string]int
 	embeddingRuntimeMu   sync.RWMutex
 	pdfPageParserMu      sync.RWMutex
 	pdfPageParser        content.PDFPageParser
@@ -355,9 +356,10 @@ type sessionTransactionState struct {
 	IsolationLevel string
 	// CommitKey is stable for one client transaction and is used by the
 	// replication source to make commit retries idempotent.
-	CommitKey        string
-	StorageCommitted bool
-	FullTextTables   map[string]string
+	CommitKey           string
+	StorageCommitted    bool
+	FullTextTables      map[string]string
+	FullTextWriteCounts map[string]int
 }
 
 type sessionSavepoint struct {
@@ -2080,6 +2082,17 @@ func (e *XMySQLExecutor) refreshQueuedFullTextIndexes(state *sessionTransactionS
 	if e == nil || state == nil {
 		return
 	}
+	e.fullTextIndexMu.Lock()
+	if e.fullTextActiveWrites != nil {
+		for key, count := range state.FullTextWriteCounts {
+			e.fullTextActiveWrites[key] -= count
+			if e.fullTextActiveWrites[key] <= 0 {
+				delete(e.fullTextActiveWrites, key)
+			}
+		}
+	}
+	state.FullTextWriteCounts = nil
+	e.fullTextIndexMu.Unlock()
 	for _, target := range state.FullTextTables {
 		parts := strings.SplitN(target, "\x00", 2)
 		if len(parts) != 2 {

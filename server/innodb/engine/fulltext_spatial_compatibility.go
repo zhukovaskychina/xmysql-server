@@ -556,12 +556,30 @@ func (e *XMySQLExecutor) prepareFullTextIndexDML(session server.MySQLServerSessi
 	if e == nil || session == nil {
 		return nil
 	}
-	e.queueFullTextIndexRefresh(session, databaseName, tableName)
+	state := e.sessionTransactionState(session)
+	if state == nil {
+		return fmt.Errorf("missing transaction state while preparing FULLTEXT index maintenance")
+	}
+	key := strings.ToLower(strings.TrimSpace(databaseName) + "\x00" + strings.TrimSpace(tableName))
+	target := strings.TrimSpace(databaseName) + "\x00" + strings.TrimSpace(tableName)
 	e.fullTextIndexMu.Lock()
 	defer e.fullTextIndexMu.Unlock()
 	if err := e.markFullTextIndexStateStale(databaseName, tableName); err != nil {
 		return fmt.Errorf("mark FULLTEXT index state stale before DML for %s.%s: %w", databaseName, tableName, err)
 	}
+	if state.FullTextTables == nil {
+		state.FullTextTables = make(map[string]string)
+	}
+	if state.FullTextWriteCounts == nil {
+		state.FullTextWriteCounts = make(map[string]int)
+	}
+	state.FullTextTables[key] = target
+	state.FullTextWriteCounts[key]++
+	if e.fullTextActiveWrites == nil {
+		e.fullTextActiveWrites = make(map[string]int)
+	}
+	e.fullTextActiveWrites[key]++
+	session.SetParamByName("transaction_dml_state", state)
 	return nil
 }
 
@@ -1041,6 +1059,10 @@ func (e *XMySQLExecutor) refreshFullTextIndexStateForTable(databaseName, tableNa
 		if err := rebuildFullTextSegments(info, target.name, rowMaps, target.columns); err != nil {
 			return err
 		}
+		state := info["fulltext_segments_"+target.name].(fullTextIndexState)
+		activeWriteKey := strings.ToLower(strings.TrimSpace(databaseName) + "\x00" + strings.TrimSpace(tableName))
+		state.Fresh = e.fullTextActiveWrites[activeWriteKey] == 0
+		info["fulltext_segments_"+target.name] = state
 	}
 	return writeTableMetadataMapAtomic(frmPath, info)
 }
