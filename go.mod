@@ -1,6 +1,6 @@
 module github.com/zhukovaskychina/xmysql-server
 
-go 1.24
+go 1.24.1
 
 require (
 	github.com/AlexStocks/getty v1.3.0
@@ -18,8 +18,9 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/shopspring/decimal v1.2.0
 	github.com/sirupsen/logrus v1.9.3
+	github.com/sassoftware/pdf-xtract v0.2.0
 	github.com/smartystreets/assertions v0.0.0-20180927180507-b2de0cb4f26d
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.11.1
 	gopkg.in/ini.v1 v1.51.0
 )
 
@@ -28,8 +29,8 @@ require (
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/klauspost/compress v1.17.11
 	github.com/pierrec/lz4/v4 v4.1.22
-	golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8
-	golang.org/x/text v0.20.0
+	golang.org/x/sys v0.35.0
+	golang.org/x/text v0.22.0
 )
 
 require (
@@ -37,11 +38,16 @@ require (
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
 	github.com/go-ole/go-ole v1.2.4 // indirect
+	github.com/go-playground/locales v0.14.1 // indirect
+	github.com/go-playground/universal-translator v0.18.1 // indirect
+	github.com/go-playground/validator/v10 v10.27.0 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/k0kubun/pp v3.0.1+incompatible // indirect
+	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/mailru/easyjson v0.7.1 // indirect
 	github.com/mattn/go-colorable v0.1.7 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect
@@ -52,6 +58,9 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
+	golang.org/x/crypto v0.33.0 // indirect
+	golang.org/x/net v0.34.0 // indirect
+	golang.org/x/sync v0.17.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

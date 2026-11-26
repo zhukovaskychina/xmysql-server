@@ -40,6 +40,7 @@ func TestPreparedSelectMetadataUsesCatalogAndFunctionContracts(t *testing.T) {
 		{"SELECT v.entry_id, v.distance, v.primary_key, v.approximate FROM TABLE(VECTOR_SEARCH('app','lhs','idx',AI_EMBED('model','query'),1,'EXACT')) v", []string{"entry_id", "distance", "primary_key", "approximate"}, []string{"varchar", "double", "longblob", "tinyint"}},
 		{"SELECT token, position FROM TABLE(FULLTEXT_TOKENS('alpha'))", []string{"token", "position"}, []string{"varchar", "bigint"}},
 		{"SELECT c.* FROM lhs, TABLE(CONTENT_TEXT_CHUNKS(body,64)) c", []string{"ordinal", "text", "block", "byte_start", "byte_end"}, []string{"bigint", "varchar", "content", "bigint", "bigint"}},
+		{"SELECT p.page,p.text,p.extraction_status FROM lhs, TABLE(CONTENT_PARSE_PDF(body)) p", []string{"page", "text", "extraction_status"}, []string{"bigint", "mediumtext", "varchar"}},
 		{"SELECT CONTENT_MAINTENANCE_STATUS(body,4096) AS maintenance_status FROM lhs", []string{"maintenance_status"}, []string{"varchar"}},
 	} {
 		t.Run(test.query, func(t *testing.T) {
@@ -69,6 +70,7 @@ func TestEmptyNativeTableFunctionsRetainDeclaredResultMetadata(t *testing.T) {
 		{"SELECT t.token, t.position FROM TABLE(FULLTEXT_TOKENS('')) t", []string{"token", "position"}, []string{"varchar", "bigint"}},
 		{"SELECT t.* FROM TABLE(FULLTEXT_TOKENS('')) t", []string{"token", "position"}, []string{"varchar", "bigint"}},
 		{"SELECT c.* FROM docs, TABLE(CONTENT_TEXT_CHUNKS(body,64)) c", []string{"ordinal", "text", "block", "byte_start", "byte_end"}, []string{"bigint", "varchar", "content", "bigint", "bigint"}},
+		{"SELECT p.* FROM docs, TABLE(CONTENT_PARSE_PDF(body)) p", []string{"ordinal", "page", "text", "block", "extraction_status"}, []string{"bigint", "bigint", "mediumtext", "content", "varchar"}},
 		{"SELECT d.id,c.block FROM docs d, TABLE(CONTENT_TEXT_CHUNKS(d.body,64)) c", []string{"id", "block"}, []string{"int", "content"}},
 	} {
 		t.Run(test.query, func(t *testing.T) {

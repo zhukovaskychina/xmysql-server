@@ -18,6 +18,8 @@
 
 2026-11-26 更新：增加 `CONTENT_PARSE_VIDEO(content_column)` SQL 原型与 ISO-BMFF/MP4 容器元数据解析器。解析器按 box 范围读取 `ftyp`/`moov`/`mvhd`，跳过 `mdat` 载荷，生成绑定来源版本和摘要的全片时间段块；视频时长使用半开毫秒区间。该能力只验证容器头和时长元数据，不解码帧、不提取音轨、不转写，也不提供视频内容检索。`AI_DESCRIBE_BLOCK`/`AI_EMBED_BLOCK` 可识别视频段块并向已安装 runtime 传递原始媒体内容，但不代表运行时具备视频模型或按时间裁剪能力。全服务代码构建通过；SQL 行为、畸形文件边界、取消、真实模型和多模态验收均待做。
 
+2026-11-26 更新：新增 `TABLE(CONTENT_PARSE_PDF(content_column))` 数字 PDF 文本层解析首段，逐页返回绑定来源修订和页码的 `CONTENT_BLOCK`、文本及 `TEXT_EXTRACTED`/`OCR_REQUIRED` 状态。底层通过有界 `ReaderAt` 读取外置 CONTENT，不复制原件到临时文件；默认限制为 64 MiB 原件、1000 页、64 MiB 解析内存和 32 MiB 总提取文本。内容与 SQL 测试、prepared SELECT 元数据、完整 engine 包（398.796 秒）、服务构建、content/engine vet 均通过。该切片未做 OCR、页面图像/版面提取、持久异步解析、DOC/PPT/Office、解析进程隔离或真实扫描 PDF 质量验收；不能视为 U07、U25 或 MySQL AI 文档导入追平完成。
+
 接下来按依赖顺序推进：先用当前最终源码复核 MySQL 兼容矩阵，补齐类型/协议/权限/恢复边界；再完成 CONTENT 大对象持久化和有界流式读写、原子提交及备份恢复；随后做持久反向依赖与增量派生维护、可替换解析器/模型执行、向量 ANN 与全文/向量混合计划、权限约束的语义目录和上下文构建，最后接 SQL 模型调用与 RAG/Agent，并分别验收引用质量、回答准确率、性能和故障恢复。阶段目标与尚未完成项以第十四、十五章及配套契约为准。当前尚无可据以宣称 RAG 或多模态生产可用的端到端验收结果。
 
 截至 2026-11-26，SQL 原型新增 `CONTENT_TEXT_BLOCK` 将显式文本 CONTENT 的有界字节范围包装为绑定当前行版本和原件定位的派生块；`CONTENT_TEXT_CHUNK`/`CONTENT_TEXT_CHUNK_COUNT` 提供确定性文本块访问与计数，`TABLE(CONTENT_TEXT_CHUNKS(...)) AS chunks` 表值函数可通过逗号或 `CROSS JOIN` 对前置关系行展开来源绑定块，输出块文本、typed CONTENT 块及原件字节范围。为避免扩大普通函数语法的解析冲突，表值函数采用显式 `TABLE(...)` 包装；重新生成后解析器冲突维持 46 shift/reduce、7 reduce/reduce。`RRF_SCORE` 为多个 SQL 候选名次提供确定性 RRF 分数组合。`AI_EMBED_BLOCK`、`AI_GENERATE`、`AI_GENERATE_RESULT`、`AI_SUMMARIZE` 已通过服务器注入的可替换 runtime 接入普通表、基础 JOIN 与派生投影；内容证据列身份可沿投影逐列保留，文本生成 prompt 限 1 MiB，嵌入媒体源限 16 MiB，普通 SQL 不隐式调用模型。这些是尚未行为验收的 SQL/runtime 原型，不含默认模型 provider、持久调用账本、模型目录、权限预算治理、文档导入解析、向量/全文融合执行器或 RAG 证据回答闭环。上述路径没有 SQL 行为或 MySQL 兼容性回归验收；文本分块表值函数仅处理显式文本 MIME，不提供 PDF/OCR/Office 解析。

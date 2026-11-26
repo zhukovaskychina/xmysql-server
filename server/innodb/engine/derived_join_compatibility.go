@@ -141,6 +141,17 @@ func (e *XMySQLExecutor) executeDerivedJoinSelectWithMaterialized(ctx *Execution
 	streamedLimitApplied := false
 	var source *derivedJoinSource
 	for _, expression := range stmt.From {
+		if table, ok := contentPDFPagesFunctionInExpr(expression); ok {
+			if source == nil {
+				return nil, fmt.Errorf("CONTENT_PARSE_PDF requires a preceding row source")
+			}
+			joined, err := lateralContentPDFPages(executionContextBase(ctx), source, table, e.getDataDir())
+			if err != nil {
+				return nil, err
+			}
+			source = joined
+			continue
+		}
 		if table, ok := contentTextChunksFunctionInExpr(expression); ok {
 			if source == nil {
 				return nil, fmt.Errorf("CONTENT_TEXT_CHUNKS requires a preceding row source")
@@ -453,6 +464,12 @@ func (e *XMySQLExecutor) executeDerivedJoinTableExprWithMaterialized(ctx *Execut
 				return nil, fmt.Errorf("CONTENT_TEXT_CHUNKS supports CROSS JOIN or comma join only")
 			}
 			return lateralContentTextChunks(executionContextBase(ctx), left, functionTable, e.getDataDir())
+		}
+		if functionTable, ok := contentPDFPagesFunctionInExpr(table.RightExpr); ok {
+			if !supportsCrossTableFunctionJoin(table) {
+				return nil, fmt.Errorf("CONTENT_PARSE_PDF supports CROSS JOIN or comma join only")
+			}
+			return lateralContentPDFPages(executionContextBase(ctx), left, functionTable, e.getDataDir())
 		}
 		if functionTable, ok := fullTextTokensFunctionInExpr(table.RightExpr); ok {
 			if !supportsCrossTableFunctionJoin(table) {
