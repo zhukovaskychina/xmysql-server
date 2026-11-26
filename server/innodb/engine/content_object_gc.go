@@ -109,6 +109,38 @@ func (e *XMySQLExecutor) ReclaimOrphanedContentObjects(ctx context.Context, stor
 			return 0, false, fmt.Errorf("scan %s.%s for CONTENT references: %w", schemaName, tableName, err)
 		}
 	}
+	queue, err := store.OpenMaintenanceQueue()
+	if err != nil {
+		return 0, false, fmt.Errorf("open CONTENT maintenance queue for object inventory: %w", err)
+	}
+	jobs, err := queue.List()
+	if err != nil {
+		return 0, true, nil
+	}
+	for _, job := range jobs {
+		if job.Status != content.MaintenanceReady || !job.ResultStored {
+			continue
+		}
+		encoded, found, err := queue.ReadResult(job.ID)
+		if err != nil || !found {
+			return 0, true, nil
+		}
+		manifest, err := decodeContentMaintenanceResultManifest(encoded)
+		if err != nil || manifest.Version != 1 || manifest.JobID != job.ID || !manifest.Source.Matches(job.Source) {
+			return 0, true, nil
+		}
+		if len(manifest.Blocks) == 0 {
+			continue
+		}
+		ref := manifest.Object
+		if ref.ID == "" || ref.MIMEType != content.BlockMIMEType || ref.Revision != 1 {
+			return 0, true, nil
+		}
+		if existing, duplicate := live[ref.ID]; duplicate && existing != ref {
+			return 0, true, nil
+		}
+		live[ref.ID] = ref
+	}
 
 	reclaimed, err = store.ReclaimUnreferenced(ctx, live)
 	if err != nil {

@@ -40,6 +40,7 @@ func TestPreparedSelectMetadataUsesCatalogAndFunctionContracts(t *testing.T) {
 		{"SELECT v.entry_id, v.distance, v.primary_key, v.approximate FROM TABLE(VECTOR_SEARCH('app','lhs','idx',AI_EMBED('model','query'),1,'EXACT')) v", []string{"entry_id", "distance", "primary_key", "approximate"}, []string{"varchar", "double", "longblob", "tinyint"}},
 		{"SELECT token, position FROM TABLE(FULLTEXT_TOKENS('alpha'))", []string{"token", "position"}, []string{"varchar", "bigint"}},
 		{"SELECT c.* FROM lhs, TABLE(CONTENT_TEXT_CHUNKS(body,64)) c", []string{"ordinal", "text", "block", "byte_start", "byte_end"}, []string{"bigint", "varchar", "content", "bigint", "bigint"}},
+		{"SELECT CONTENT_MAINTENANCE_STATUS(body,4096) AS maintenance_status FROM lhs", []string{"maintenance_status"}, []string{"varchar"}},
 	} {
 		t.Run(test.query, func(t *testing.T) {
 			result, err := executor.DescribePreparedSelect(nil, test.query, "app")

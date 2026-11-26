@@ -75,18 +75,20 @@ type XMySQLEngine struct {
 	slowQueryLogger *SlowQueryLogger
 
 	// Reliability & Recovery
-	checkpointManager  *CheckpointManager
-	contentStore       *content.SegmentStore
-	vectorIndexCatalog *innodbvector.IndexCatalog
-	crashRecovery      *manager.CrashRecovery
-	replicationRuntime *replication.Runtime
-	replicaRegistry    *replication.ReplicaRegistry
-	ready              atomic.Bool
-	startupErr         error
-	doublewrite        *ibd.Doublewrite
-	doublewriteDir     string
-	lifecycleMu        sync.RWMutex
-	lifecycleState     engineLifecycleState
+	checkpointManager        *CheckpointManager
+	contentStore             *content.SegmentStore
+	vectorIndexCatalog       *innodbvector.IndexCatalog
+	crashRecovery            *manager.CrashRecovery
+	replicationRuntime       *replication.Runtime
+	replicaRegistry          *replication.ReplicaRegistry
+	ready                    atomic.Bool
+	startupErr               error
+	doublewrite              *ibd.Doublewrite
+	doublewriteDir           string
+	lifecycleMu              sync.RWMutex
+	lifecycleState           engineLifecycleState
+	contentMaintenanceCancel context.CancelFunc
+	contentMaintenanceWG     sync.WaitGroup
 }
 
 func NewXMySQLEngine(conf *conf.Cfg) *XMySQLEngine {
@@ -231,6 +233,7 @@ func (e *XMySQLEngine) Start(ctx context.Context) (startErr error) {
 
 	logger.Info("✅ XMySQL Engine started successfully")
 	e.ready.Store(true)
+	e.startContentMaintenanceWorker(ctx)
 	return nil
 }
 
@@ -272,6 +275,11 @@ func (e *XMySQLEngine) Close() error {
 	}
 	e.lifecycleState = engineLifecycleStopping
 	e.ready.Store(false)
+	if e.contentMaintenanceCancel != nil {
+		e.contentMaintenanceCancel()
+		e.contentMaintenanceWG.Wait()
+		e.contentMaintenanceCancel = nil
+	}
 	logger.Info("🛑 Stopping XMySQL Engine...")
 	var closeErr error
 	joinCloseErr := func(resource string, err error) {

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -161,6 +162,176 @@ func TestClientTransactionPublishesTextMaintenanceOnlyAfterCommit(t *testing.T) 
 	if lease.Job.Source.Schema != "app" || lease.Job.Source.Table != "queued_documents" || lease.Job.Source.Column != "body" ||
 		!bytes.Equal(lease.Job.Source.PrimaryKey, []byte("2")) || lease.Job.Source.Revision == 0 {
 		t.Fatalf("queued maintenance source is not bound to the committed row: %#v", lease.Job.Source)
+	}
+}
+
+func TestTextMaintenanceWorkerPersistsSourceVerifiedBlocks(t *testing.T) {
+	engine := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, engine, "", "create database app")
+	mustExecSQL(t, engine, "app", "create table worker_documents (id int primary key, body content)")
+	text := []byte("first paragraph\n\nsecond paragraph")
+	mustExecSQL(t, engine, "app", "insert into worker_documents values (7, CONTENT_FROM_BYTES('first paragraph\\n\\nsecond paragraph', 'text/plain'))")
+
+	value, err := content.NewValue("text/plain", 1, text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source, err := content.NewSourceRef("app", "worker_documents", "body", []byte("7"), value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := content.NewTextChunkMaintenanceRequest(source, content.TextChunkOptions{MaxBytes: content.DefaultTextChunkBytes})
+	if err != nil {
+		t.Fatal(err)
+	}
+	queue := engine.QueryExecutor.contentMaintenanceQueue
+	seedJob, _, err := queue.Enqueue(request, time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	queuedStatus := mustQuerySQL(t, engine, "app", "select content_maintenance_status(body, 4096) from worker_documents where id = 7")
+	if len(queuedStatus) != 1 || queuedStatus[0][0] != string(content.MaintenanceQueued) {
+		t.Fatalf("SQL queued maintenance status = %#v, want QUEUED", queuedStatus)
+	}
+
+	processed, err := engine.QueryExecutor.ProcessNextContentMaintenance(context.Background(), "integration-worker")
+	if err != nil || !processed {
+		t.Fatalf("process next maintenance = processed %t, err %v", processed, err)
+	}
+	job, found, err := queue.Get(seedJob.ID)
+	if err != nil || !found || job.Status != content.MaintenanceReady || !job.ResultStored {
+		t.Fatalf("completed maintenance = %#v, found=%t, err=%v", job, found, err)
+	}
+	result, found, err := queue.ReadResult(job.ID)
+	if err != nil || !found {
+		t.Fatalf("read maintenance result = found %t, err %v", found, err)
+	}
+	var manifest contentMaintenanceResultManifest
+	if err := json.Unmarshal(result, &manifest); err != nil {
+		t.Fatalf("decode maintenance manifest: %v", err)
+	}
+	if manifest.Version != 1 || !manifest.Source.Matches(source) || manifest.Object.ID == "" || len(manifest.Blocks) != 1 {
+		t.Fatalf("maintenance manifest lost source or blocks: %#v", manifest)
+	}
+	store, err := contentSegmentStoreForDataDir(engine.QueryExecutor.getDataDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, skipped, err := engine.QueryExecutor.ReclaimOrphanedContentObjects(context.Background(), store); err != nil || skipped {
+		t.Fatalf("CONTENT result object inventory = skipped %t, err %v", skipped, err)
+	}
+	encoded, err := store.ReadRange(context.Background(), manifest.Object, manifest.Blocks[0].Offset, manifest.Blocks[0].Length)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var block content.Block
+	if err := block.UnmarshalBinary(encoded); err != nil {
+		t.Fatal(err)
+	}
+	if block.ID != manifest.Blocks[0].ID || block.Text != string(text) || !block.Source.Matches(source) {
+		t.Fatalf("persisted block = %#v, manifest entry = %#v", block, manifest.Blocks[0])
+	}
+	var reusedBlocks []content.Block
+	reusedCount, reused, err := visitPublishedTextChunks(context.Background(), store, source, content.TextChunkOptions{MaxBytes: content.DefaultTextChunkBytes}, func(block content.Block) error {
+		reusedBlocks = append(reusedBlocks, block)
+		return nil
+	})
+	if err != nil || !reused || reusedCount != 1 || len(reusedBlocks) != 1 || reusedBlocks[0].ID != block.ID {
+		t.Fatalf("published block reuse = count %d, reused %t, blocks %#v, err %v", reusedCount, reused, reusedBlocks, err)
+	}
+	rows := mustQuerySQL(t, engine, "app", "select chunks.ordinal, chunks.text from worker_documents d, table(content_text_chunks(d.body, 4096)) as chunks")
+	if len(rows) != 1 || rows[0][0] != "0" || rows[0][1] != string(text) {
+		t.Fatalf("SQL did not read the source-bound persisted text block: %#v", rows)
+	}
+	status := mustQuerySQL(t, engine, "app", "select content_maintenance_status(body, 4096) from worker_documents where id = 7")
+	if len(status) != 1 || status[0][0] != string(content.MaintenanceReady) {
+		t.Fatalf("SQL maintenance status = %#v, want READY", status)
+	}
+}
+
+func TestStartedEngineRunsAndStopsContentMaintenanceWorker(t *testing.T) {
+	engine := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, engine, "", "create database app")
+	mustExecSQL(t, engine, "app", "create table background_documents (id int primary key, body content)")
+	text := []byte("background derived text")
+	mustExecSQL(t, engine, "app", "insert into background_documents values (9, CONTENT_FROM_BYTES('background derived text', 'text/plain'))")
+	value, err := content.NewValue("text/plain", 1, text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source, err := content.NewSourceRef("app", "background_documents", "body", []byte("9"), value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := content.NewTextChunkMaintenanceRequest(source, content.TextChunkOptions{MaxBytes: content.DefaultTextChunkBytes})
+	if err != nil {
+		t.Fatal(err)
+	}
+	queue := engine.QueryExecutor.contentMaintenanceQueue
+	job, _, err := queue.Enqueue(request, time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.Start(context.Background()); err != nil {
+		t.Fatalf("start engine: %v", err)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		current, found, err := queue.Get(job.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if found && current.Status == content.MaintenanceReady {
+			if !current.ResultStored {
+				t.Fatal("background worker marked job READY without storing its result")
+			}
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	current, found, err := queue.Get(job.ID)
+	if err != nil || !found || current.Status != content.MaintenanceReady {
+		t.Fatalf("background maintenance job = %#v, found=%t, err=%v", current, found, err)
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatalf("close engine and stop worker: %v", err)
+	}
+	if engine.contentMaintenanceCancel != nil {
+		t.Fatal("content maintenance worker cancellation handle remained after close")
+	}
+}
+
+func TestTextMaintenanceWorkerFailsSupersededSourceVersion(t *testing.T) {
+	engine := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, engine, "", "create database app")
+	mustExecSQL(t, engine, "app", "create table changing_documents (id int primary key, body content)")
+	oldText := []byte("old source version")
+	mustExecSQL(t, engine, "app", "insert into changing_documents values (11, CONTENT_FROM_BYTES('old source version', 'text/plain'))")
+	oldValue, err := content.NewValue("text/plain", 1, oldText)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldSource, err := content.NewSourceRef("app", "changing_documents", "body", []byte("11"), oldValue)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldRequest, err := content.NewTextChunkMaintenanceRequest(oldSource, content.TextChunkOptions{MaxBytes: content.DefaultTextChunkBytes})
+	if err != nil {
+		t.Fatal(err)
+	}
+	queue := engine.QueryExecutor.contentMaintenanceQueue
+	oldJob, _, err := queue.Enqueue(oldRequest, time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustExecSQL(t, engine, "app", "update changing_documents set body = CONTENT_FROM_BYTES('new source version', 'text/plain') where id = 11")
+	processed, err := engine.QueryExecutor.ProcessNextContentMaintenance(context.Background(), "stale-source-worker")
+	if err != nil || !processed {
+		t.Fatalf("process superseded source = processed %t, err %v", processed, err)
+	}
+	job, found, err := queue.Get(oldJob.ID)
+	if err != nil || !found || job.Status != content.MaintenanceFailed || job.ResultStored || job.ResultDigest != "" {
+		t.Fatalf("superseded source job = %#v, found=%t, err=%v", job, found, err)
 	}
 }
 

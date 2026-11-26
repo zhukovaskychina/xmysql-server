@@ -3246,6 +3246,9 @@ func evaluateExpressionWithRow(expr sqlparser.Expr, values map[string]interface{
 		if functionName == "CONTENT_TEXT_CHUNK" || functionName == "CONTENT_TEXT_CHUNK_COUNT" {
 			return evaluateContentTextChunkSQL(v, values, functionName == "CONTENT_TEXT_CHUNK_COUNT")
 		}
+		if functionName == "CONTENT_MAINTENANCE_STATUS" {
+			return evaluateContentMaintenanceStatusSQL(v, values)
+		}
 		if functionName == "CONTENT_BLOCK_FROM_JSON" {
 			if len(v.Exprs) != 1 {
 				return nil, fmt.Errorf("CONTENT_BLOCK_FROM_JSON requires exactly one JSON argument")

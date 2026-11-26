@@ -1,6 +1,7 @@
 package content
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -100,6 +101,129 @@ func TestMaintenanceQueueFencesExpiredWorkersAndRecoversPublishedState(t *testin
 	loaded, found, err := reopened.Get(job.ID)
 	if err != nil || !found || loaded.Status != MaintenanceReady || loaded.FencingToken != 2 || loaded.ResultDigest != resultDigest {
 		t.Fatalf("recovered job = %#v, found=%t, err=%v", loaded, found, err)
+	}
+}
+
+func TestMaintenanceQueuePublishesBoundedResultOnlyWithCurrentLease(t *testing.T) {
+	root := t.TempDir()
+	store, err := NewSegmentStore(root, SegmentStoreOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	queue, err := store.OpenMaintenanceQueue()
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, _, err := queue.Enqueue(testMaintenanceRequest(), time.Unix(800, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, found, err := queue.Claim("worker-a", time.Unix(801, 0), time.Second)
+	if err != nil || !found {
+		t.Fatalf("first claim = %#v, found=%t, err=%v", first, found, err)
+	}
+	second, found, err := queue.Claim("worker-b", time.Unix(803, 0), time.Minute)
+	if err != nil || !found || second.FencingToken != first.FencingToken+1 {
+		t.Fatalf("reclaimed lease = %#v, found=%t, err=%v", second, found, err)
+	}
+	result := []byte("immutable derived manifest")
+	if _, err := queue.CompleteWithResult(first, time.Unix(804, 0), result); !errors.Is(err, ErrMaintenanceLeaseFenced) {
+		t.Fatalf("stale result publication error = %v, want fenced lease", err)
+	}
+	completed, err := queue.CompleteWithResult(second, time.Unix(805, 0), result)
+	if err != nil || completed.Status != MaintenanceReady {
+		t.Fatalf("complete with result = %#v, err=%v", completed, err)
+	}
+	wantDigest := sha256.Sum256(result)
+	if completed.ResultDigest != hex.EncodeToString(wantDigest[:]) {
+		t.Fatalf("result digest = %q, want %x", completed.ResultDigest, wantDigest)
+	}
+	got, found, err := queue.ReadResult(job.ID)
+	if err != nil || !found || !bytes.Equal(got, result) {
+		t.Fatalf("read result = %q, found=%t, err=%v", got, found, err)
+	}
+
+	reopenedStore, err := NewSegmentStore(root, SegmentStoreOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := reopenedStore.OpenMaintenanceQueue()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, found, err = reopened.ReadResult(job.ID)
+	if err != nil || !found || !bytes.Equal(got, result) {
+		t.Fatalf("recovered result = %q, found=%t, err=%v", got, found, err)
+	}
+	resultPath := maintenanceResultPath(filepath.Join(queue.dir, job.ID), completed.ResultDigest)
+	if err := os.WriteFile(resultPath, []byte("corrupt"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := reopened.ReadResult(job.ID); err == nil {
+		t.Fatal("corrupt persisted result was returned without a digest error")
+	}
+}
+
+func TestMaintenanceQueueRejectsOversizedPersistedResult(t *testing.T) {
+	store, err := NewSegmentStore(t.TempDir(), SegmentStoreOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	queue, err := store.OpenMaintenanceQueue()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = queue.Enqueue(testMaintenanceRequest(), time.Unix(900, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lease, found, err := queue.Claim("worker", time.Unix(901, 0), time.Minute)
+	if err != nil || !found {
+		t.Fatalf("claim = %#v, found=%t, err=%v", lease, found, err)
+	}
+	oversized := make([]byte, maxMaintenanceResultBytes+1)
+	if _, err := queue.CompleteWithResult(lease, time.Unix(902, 0), oversized); err == nil {
+		t.Fatal("oversized maintenance result completed without an error")
+	}
+	job, found, err := queue.Get(lease.Job.ID)
+	if err != nil || !found || job.Status != MaintenanceLeased {
+		t.Fatalf("oversized result changed queue state: %#v, found=%t, err=%v", job, found, err)
+	}
+}
+
+func TestMaintenanceQueueListsAndLooksUpRequestsWithoutCreatingJobs(t *testing.T) {
+	store, err := NewSegmentStore(t.TempDir(), SegmentStoreOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	queue, err := store.OpenMaintenanceQueue()
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := testMaintenanceRequest()
+	if _, found, err := queue.GetForRequest(request); err != nil || found {
+		t.Fatalf("missing request lookup = found %t, err %v", found, err)
+	}
+	jobs, err := queue.List()
+	if err != nil || len(jobs) != 0 {
+		t.Fatalf("empty queue list = %#v, err=%v", jobs, err)
+	}
+	created, _, err := queue.Enqueue(request, time.Unix(1000, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, found, err := queue.GetForRequest(request)
+	if err != nil || !found || loaded.ID != created.ID || loaded.Status != MaintenanceQueued {
+		t.Fatalf("request lookup = %#v, found=%t, err=%v", loaded, found, err)
+	}
+	jobs, err = queue.List()
+	if err != nil || len(jobs) != 1 || jobs[0].ID != created.ID {
+		t.Fatalf("queue list = %#v, err=%v", jobs, err)
+	}
+	jobs[0].Source.PrimaryKey[0] ^= 0xff
+	loaded, found, err = queue.Get(created.ID)
+	if err != nil || !found || !bytes.Equal(loaded.Source.PrimaryKey, request.Source.PrimaryKey) {
+		t.Fatal("listed maintenance job aliases queue-owned source identity")
 	}
 }
 

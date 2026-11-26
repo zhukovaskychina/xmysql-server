@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	maintenanceQueueVersion = 1
-	maxMaintenanceJobBytes  = 1 << 20
+	maintenanceQueueVersion   = 1
+	maxMaintenanceJobBytes    = 1 << 20
+	maxMaintenanceResultBytes = 16 << 20
 )
 
 var (
@@ -63,6 +64,7 @@ type MaintenanceJob struct {
 	LeaseOwner       string            `json:"lease_owner,omitempty"`
 	LeaseExpiresAt   time.Time         `json:"lease_expires_at,omitempty"`
 	ResultDigest     string            `json:"result_digest,omitempty"`
+	ResultStored     bool              `json:"result_stored,omitempty"`
 	LastError        string            `json:"last_error,omitempty"`
 }
 
@@ -150,6 +152,40 @@ func (q *MaintenanceQueue) Get(id string) (MaintenanceJob, bool, error) {
 	return cloneMaintenanceJob(job), found, err
 }
 
+// GetForRequest looks up deterministic work without creating or changing a
+// queue entry. It is used by SQL reads that can reuse a published derivation.
+func (q *MaintenanceQueue) GetForRequest(request MaintenanceRequest) (MaintenanceJob, bool, error) {
+	if q == nil {
+		return MaintenanceJob{}, false, fmt.Errorf("maintenance queue is nil")
+	}
+	if err := validateMaintenanceRequest(request); err != nil {
+		return MaintenanceJob{}, false, err
+	}
+	id, err := maintenanceJobID(request)
+	if err != nil {
+		return MaintenanceJob{}, false, err
+	}
+	return q.Get(id)
+}
+
+// List returns immutable snapshots of every job's latest published
+// generation in deterministic ID order.
+func (q *MaintenanceQueue) List() ([]MaintenanceJob, error) {
+	if q == nil {
+		return nil, fmt.Errorf("maintenance queue is nil")
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	jobs, err := q.listLatest()
+	if err != nil {
+		return nil, err
+	}
+	for index := range jobs {
+		jobs[index] = cloneMaintenanceJob(jobs[index])
+	}
+	return jobs, nil
+}
+
 // Claim chooses the oldest ready request and increments its fencing token.
 // Expired leases may be reclaimed; an old worker can no longer publish after
 // the newer generation becomes visible.
@@ -225,6 +261,52 @@ func (q *MaintenanceQueue) Complete(lease MaintenanceLease, now time.Time, resul
 	}
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	return q.completeLocked(lease, now, strings.ToLower(resultDigest), false)
+}
+
+// CompleteWithResult durably stores a bounded result payload before publishing
+// READY. The result is addressable only through a READY job whose digest
+// matches the bytes; an expired or fenced lease cannot publish it.
+func (q *MaintenanceQueue) CompleteWithResult(lease MaintenanceLease, now time.Time, result []byte) (MaintenanceJob, error) {
+	if q == nil || now.IsZero() || len(result) > maxMaintenanceResultBytes {
+		return MaintenanceJob{}, fmt.Errorf("invalid or oversized maintenance result")
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if _, err := q.validateLease(lease, now); err != nil {
+		return MaintenanceJob{}, err
+	}
+	digest := sha256.Sum256(result)
+	resultDigest := hex.EncodeToString(digest[:])
+	if err := q.publishResult(lease.Job.ID, resultDigest, result); err != nil {
+		return MaintenanceJob{}, err
+	}
+	return q.completeLocked(lease, now, resultDigest, true)
+}
+
+// ReadResult returns the verified payload for a READY job. Queued, leased,
+// failed, and missing jobs have no readable result.
+func (q *MaintenanceQueue) ReadResult(id string) ([]byte, bool, error) {
+	if q == nil || !validMaintenanceID(id) {
+		return nil, false, fmt.Errorf("invalid maintenance queue or job ID")
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	job, found, err := q.readLatest(id)
+	if err != nil || !found || job.Status != MaintenanceReady {
+		return nil, false, err
+	}
+	if !job.ResultStored {
+		return nil, false, nil
+	}
+	result, err := q.readResultFile(id, job.ResultDigest)
+	if err != nil {
+		return nil, false, err
+	}
+	return result, true, nil
+}
+
+func (q *MaintenanceQueue) completeLocked(lease MaintenanceLease, now time.Time, resultDigest string, resultStored bool) (MaintenanceJob, error) {
 	job, err := q.validateLease(lease, now)
 	if err != nil {
 		return MaintenanceJob{}, err
@@ -235,6 +317,7 @@ func (q *MaintenanceQueue) Complete(lease MaintenanceLease, now time.Time, resul
 	job.Generation++
 	job.Status = MaintenanceReady
 	job.ResultDigest = strings.ToLower(resultDigest)
+	job.ResultStored = resultStored
 	job.LeaseOwner = ""
 	job.LeaseExpiresAt = time.Time{}
 	job.LastError = ""
@@ -243,6 +326,88 @@ func (q *MaintenanceQueue) Complete(lease MaintenanceLease, now time.Time, resul
 		return MaintenanceJob{}, err
 	}
 	return cloneMaintenanceJob(job), nil
+}
+
+func (q *MaintenanceQueue) publishResult(jobID, resultDigest string, result []byte) error {
+	if !validMaintenanceID(jobID) || !validSHA256Hex(resultDigest) || len(result) > maxMaintenanceResultBytes {
+		return fmt.Errorf("invalid maintenance result identity or size")
+	}
+	jobDir := filepath.Join(q.dir, jobID)
+	directoryInfo, err := os.Lstat(jobDir)
+	if err != nil || !directoryInfo.IsDir() || directoryInfo.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("maintenance result parent must be a non-symlink job directory")
+	}
+	path := maintenanceResultPath(jobDir, resultDigest)
+	if info, statErr := os.Lstat(path); statErr == nil {
+		if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() > maxMaintenanceResultBytes {
+			return fmt.Errorf("maintenance result path is not a bounded regular file")
+		}
+		stored, readErr := os.ReadFile(path)
+		if readErr != nil || !bytes.Equal(stored, result) {
+			return fmt.Errorf("existing maintenance result does not match its digest")
+		}
+		return nil
+	} else if !errors.Is(statErr, os.ErrNotExist) {
+		return fmt.Errorf("inspect existing maintenance result: %w", statErr)
+	}
+	temporary, err := os.CreateTemp(jobDir, ".result-stage-")
+	if err != nil {
+		return fmt.Errorf("create maintenance result staging file: %w", err)
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+	if err := temporary.Chmod(0600); err != nil {
+		_ = temporary.Close()
+		return err
+	}
+	if _, err := temporary.Write(result); err != nil {
+		_ = temporary.Close()
+		return err
+	}
+	if err := temporary.Sync(); err != nil {
+		_ = temporary.Close()
+		return err
+	}
+	if err := temporary.Close(); err != nil {
+		return err
+	}
+	if err := os.Link(temporaryPath, path); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			stored, readErr := q.readResultFile(jobID, resultDigest)
+			if readErr == nil && bytes.Equal(stored, result) {
+				return nil
+			}
+		}
+		return fmt.Errorf("publish maintenance result: %w", err)
+	}
+	if err := syncDirectory(jobDir); err != nil {
+		return fmt.Errorf("sync maintenance result directory: %w", err)
+	}
+	return nil
+}
+
+func (q *MaintenanceQueue) readResultFile(jobID, resultDigest string) ([]byte, error) {
+	if !validMaintenanceID(jobID) || !validSHA256Hex(resultDigest) {
+		return nil, fmt.Errorf("invalid maintenance result reference")
+	}
+	path := maintenanceResultPath(filepath.Join(q.dir, jobID), resultDigest)
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() > maxMaintenanceResultBytes {
+		return nil, fmt.Errorf("maintenance result is missing or is not a bounded regular file")
+	}
+	result, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read maintenance result: %w", err)
+	}
+	digest := sha256.Sum256(result)
+	if hex.EncodeToString(digest[:]) != resultDigest {
+		return nil, fmt.Errorf("maintenance result digest mismatch")
+	}
+	return result, nil
+}
+
+func maintenanceResultPath(jobDir, resultDigest string) string {
+	return filepath.Join(jobDir, "result-"+strings.ToLower(resultDigest)+".bin")
 }
 
 func (q *MaintenanceQueue) Retry(lease MaintenanceLease, now time.Time, delay time.Duration, cause error) (MaintenanceJob, error) {
@@ -510,11 +675,11 @@ func validateMaintenanceJob(job MaintenanceJob) error {
 	}
 	switch job.Status {
 	case MaintenanceQueued:
-		if job.LeaseOwner != "" || !job.LeaseExpiresAt.IsZero() || job.ResultDigest != "" {
+		if job.LeaseOwner != "" || !job.LeaseExpiresAt.IsZero() || job.ResultDigest != "" || job.ResultStored {
 			return fmt.Errorf("queued maintenance job contains lease or result state")
 		}
 	case MaintenanceLeased:
-		if job.LeaseOwner == "" || job.LeaseExpiresAt.IsZero() || job.FencingToken == 0 || job.ResultDigest != "" {
+		if job.LeaseOwner == "" || job.LeaseExpiresAt.IsZero() || job.FencingToken == 0 || job.ResultDigest != "" || job.ResultStored {
 			return fmt.Errorf("leased maintenance job has incomplete lease state")
 		}
 	case MaintenanceReady:
@@ -522,7 +687,7 @@ func validateMaintenanceJob(job MaintenanceJob) error {
 			return fmt.Errorf("ready maintenance job has invalid result state")
 		}
 	case MaintenanceFailed:
-		if job.FencingToken == 0 || job.LeaseOwner != "" || !job.LeaseExpiresAt.IsZero() || job.LastError == "" {
+		if job.FencingToken == 0 || job.LeaseOwner != "" || !job.LeaseExpiresAt.IsZero() || job.LastError == "" || job.ResultStored {
 			return fmt.Errorf("failed maintenance job has invalid error state")
 		}
 	default:

@@ -116,7 +116,16 @@ func visitContentTextChunksTable(ctx context.Context, function *sqlparser.FuncEx
 	if err != nil {
 		return 0, err
 	}
-	count, err := content.VisitTextChunksFromStore(ctx, store, sourceValue, source, options, func(block content.Block) error {
+	maintenanceStore := store
+	if maintenanceStore == nil {
+		if dataDir, _ := values[storedFunctionDataDirKey].(string); strings.TrimSpace(dataDir) != "" {
+			maintenanceStore, err = contentSegmentStoreForDataDir(dataDir)
+			if err != nil {
+				return 0, err
+			}
+		}
+	}
+	visitBlock := func(block content.Block) error {
 		blockValue, err := content.BlockValue(block)
 		if err != nil {
 			return err
@@ -132,7 +141,13 @@ func visitContentTextChunksTable(ctx context.Context, function *sqlparser.FuncEx
 			"ordinal": int64(block.Ordinal), "text": block.Text, "block": blockValue,
 			"byte_start": start, "byte_end": end,
 		}})
-	})
+	}
+	if count, reused, err := visitPublishedTextChunks(ctx, maintenanceStore, source, options, visitBlock); err != nil {
+		return count, fmt.Errorf("CONTENT_TEXT_CHUNKS published result failed: %w", err)
+	} else if reused {
+		return count, nil
+	}
+	count, err := content.VisitTextChunksFromStore(ctx, store, sourceValue, source, options, visitBlock)
 	if err != nil {
 		return count, fmt.Errorf("CONTENT_TEXT_CHUNKS failed: %w", err)
 	}

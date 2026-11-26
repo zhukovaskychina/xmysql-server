@@ -2,9 +2,11 @@
 
 版本 0.8  通用数据库架构评审稿  2026 年 11 月 25 日
 
-2026-11-26 实施增量：在数据库 CONTENT 目录内建立带校验和及不可变代际的持久维护队列；租约支持 fencing、过期重领、续租、退避、终止失败和重启恢复。SQL DML 记录文本 CONTENT 来源主键、版本、摘要及分块处理器配置到事务 journal，并在物理提交后幂等入队；回滚不入队，已提交 journal 的恢复路径可重放入队意图；无法构造稳定来源身份时客户端提交失败关闭。普通提交/回滚、来源绑定、journal 往返、恢复重放与队列并发原语有定向测试。另修正错误结果元数据兼容：MySQL 8.4.13 的 50 条 SQL × 文本/预处理协议共 100 项差分通过，针对 1242/21000 标量运行期错误和 1267/HY000 排序规则语义错误严格比较元数据存在性。`go build -mod=readonly ./server/...` 与 `go vet -mod=readonly ./server/innodb/content ./server/innodb/engine ./server/net` 通过；新增队列事务用例、完整 `server/net` 包回归通过，完整 engine 回归尚未在本次队列接线后重跑。队列目前只自动调度显式文本 MIME 的文本分块任务，尚无后台 worker、派生结果存储/发布与 source-version fencing、SQL 状态查询、失败任务运维重放、保留清理或跨实例复制；因此 U05、异步内容处理和多模态闭环仍未完成。
+2026-11-26 实施增量：在数据库 CONTENT 目录内建立带校验和及不可变代际的持久维护队列；租约支持 fencing、过期重领、续租、退避、终止失败和重启恢复。SQL DML 记录文本 CONTENT 来源主键、版本、摘要及分块处理器配置到事务 journal，并在物理提交后幂等入队；回滚不入队，已提交 journal 的恢复路径可重放入队意图；无法构造稳定来源身份时客户端提交失败关闭。普通提交/回滚、来源绑定、journal 往返、恢复重放与队列并发原语有定向测试。另修正错误结果元数据兼容：MySQL 8.4.13 的 50 条 SQL × 文本/预处理协议共 100 项差分通过，针对 1242/21000 标量运行期错误和 1267/HY000 排序规则语义错误严格比较元数据存在性。`go build -mod=readonly ./server/...` 与 `go vet -mod=readonly ./server/innodb/content ./server/innodb/engine ./server/net` 通过；新增队列事务用例、完整 `server/net` 包回归通过，完整 engine 回归尚未在本次队列接线后重跑。该段记录的是后台 worker 接入前的状态；后续实现及当前未完成范围见紧随其后的更新。
 
 本计划的目标是一套存储、一套 SQL：在 XMySQL 现有关系模型、事务、索引、优化器和 MySQL 兼容访问方式上，统一处理结构化记录、文档、图片、音频、视频及其派生内容。开发者使用普通 Java 和 Python 数据库客户端完成导入、读取、检索和模型上下文获取，由数据库管理派生数据维护及一致性。开发分支优先保留当前 MySQL 兼容能力，新增功能采用增量扩展，并以既有能力无新增回归为发布门槛。
+
+2026-11-26 后续实施：文本分块维护已从“提交后只入队”推进为数据库内后台处理闭环。引擎启动恢复完成且进入 READY 后启动 worker，关闭时取消并等待 worker 退出；worker 按租约读取当前聚簇行，逐块校验源版本，流式写入不可变 CONTENT 对象，再由队列以结果摘要和 fencing lease 发布 READY。结果清单引用分块流，对象回收将 READY 清单纳入 live set；`CONTENT_TEXT_CHUNKS` 可复用已发布块，`CONTENT_MAINTENANCE_STATUS(content_column[, chunk_options])` 可查询当前行版本对应的 QUEUED/LEASED/READY/FAILED 状态。过时来源失败关闭，瞬时错误退避重试，结果上限 16 MiB。内容包全量测试、维护 worker/SQL/生命周期定向 engine 测试、服务构建与 content/engine vet 通过；本次完整 engine 回归通过（392.941 秒）。该切片只处理显式文本 MIME 和内置文本分块器；没有 SQL 管理重试/保留、队列复制、Embedding 维护、多模态解析 worker、ANN/混合检索或 RAG 闭环，U05 及整体计划仍未完成。
 
 ## 实施状态（2026-11-25）
 
