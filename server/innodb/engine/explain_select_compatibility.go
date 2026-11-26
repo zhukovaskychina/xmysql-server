@@ -286,6 +286,7 @@ func explainSetOperationName(operation string) string {
 
 type explainSetOperationNode struct {
 	operator   string
+	filesort   bool
 	statement  *sqlparser.Select
 	left       *explainSetOperationNode
 	right      *explainSetOperationNode
@@ -305,7 +306,7 @@ func buildExplainSetOperationTree(statement sqlparser.SelectStatement) (*explain
 		}
 		return buildExplainSetOperationTree(value.Select)
 	case *sqlparser.Union:
-		if value == nil || len(value.OrderBy) > 0 || value.Limit != nil || value.Lock != "" {
+		if value == nil || value.Lock != "" {
 			return nil, false
 		}
 		operator := explainSetOperationName(value.Type)
@@ -320,7 +321,7 @@ func buildExplainSetOperationTree(statement sqlparser.SelectStatement) (*explain
 		if !leftOK || !rightOK {
 			return nil, false
 		}
-		return &explainSetOperationNode{operator: operator, left: left, right: right}, true
+		return &explainSetOperationNode{operator: operator, filesort: len(value.OrderBy) > 0, left: left, right: right}, true
 	default:
 		return nil, false
 	}
@@ -397,17 +398,21 @@ func appendExplainSetOperationRows(node *explainSetOperationNode, rows *[][]inte
 	appendExplainSetOperationRows(node.left, rows)
 	appendExplainSetOperationRows(node.right, rows)
 	leftID, rightID := explainSetOperationOutputID(node.left), explainSetOperationOutputID(node.right)
+	extra := "Using temporary"
+	if node.filesort {
+		extra = appendExplainExtra(extra, "Using filesort")
+	}
 	*rows = append(*rows, []interface{}{
 		node.resultID, node.operator + " RESULT",
 		fmt.Sprintf("<%s%d,%d>", strings.ToLower(node.operator), leftID, rightID),
-		nil, "ALL", nil, nil, nil, nil, nil, nil, "Using temporary",
+		nil, "ALL", nil, nil, nil, nil, nil, nil, extra,
 	})
 }
 
 func (e *XMySQLExecutor) explainNestedSetOperationPlanRowsAt(ctx *ExecutionContext, statement sqlparser.SelectStatement, defaultSchema string, firstID int64, nextID *int64) ([][]interface{}, error) {
 	tree, ok := buildExplainSetOperationTree(statement)
 	if !ok || tree == nil || tree.statement != nil || !explainSetOperationPlanShapeSupported(statement) {
-		return nil, fmt.Errorf("EXPLAIN supports nested set operations over SELECT leaves without UNION ALL, derived/subqueries, or set-level ORDER BY/LIMIT")
+		return nil, fmt.Errorf("EXPLAIN supports nested set operations over base-table SELECT leaves without UNION ALL, derived/subqueries, or locking clauses")
 	}
 	leaves := make([]*explainSetOperationNode, 0)
 	explainSetOperationLeaves(tree, "PRIMARY", &leaves)
