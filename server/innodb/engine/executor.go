@@ -26825,6 +26825,22 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 		}
 	}
 	columns := []string{"id", "select_type", "table", "partitions", "type", "possible_keys", "key", "key_len", "ref", "rows", "filtered", "Extra"}
+	if explainedSelect != nil && explainSelectHasOnlyBaseTables(explainedSelect) {
+		subqueries := explainSelectSubqueries(explainedSelect)
+		rows, planErr := e.explainSelectTableRows(ctx, explainedSelect, schemaName, subqueries)
+		if planErr != nil {
+			ctx.Results <- &Result{Err: planErr, ResultType: common.RESULT_TYPE_QUERY}
+			return
+		}
+		subqueryRows, subqueryErr := e.explainSubqueryRows(ctx, subqueries, schemaName, 2)
+		if subqueryErr != nil {
+			ctx.Results <- &Result{Err: subqueryErr, ResultType: common.RESULT_TYPE_QUERY}
+			return
+		}
+		rows = append(rows, subqueryRows...)
+		ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: map[string]interface{}{"columns": columns, "rows": rows}, Message: "EXPLAIN completed"}
+		return
+	}
 	if tableName == "" {
 		ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: map[string]interface{}{"columns": columns, "rows": [][]interface{}{}}, Message: "EXPLAIN returned no table plan"}
 		return
@@ -26888,35 +26904,7 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 	if selectedKey != nil {
 		extra = "Using index condition"
 	}
-	var subqueries []*plan.SubqueryExpression
-	if explainedSelect != nil {
-		if logical, planErr := plan.BuildLogicalPlan(explainedSelect, &InfoSchemaAdapter{}); planErr == nil {
-			subqueries = logicalPlanSubqueryExpressions(logical)
-		}
-	}
-	selectType := "SIMPLE"
-	if len(subqueries) > 0 {
-		selectType = "PRIMARY"
-	}
-	primaryTableLabel := tableName
-	if tableReferences := explainTableReferences(explainedSelect); len(tableReferences) > 0 {
-		primaryTableLabel = tableReferences[0].label
-	}
-	if explainedSelect != nil && len(explainedSelect.GroupBy) > 0 {
-		extra = appendExplainExtra(extra, "Using temporary")
-	}
-	if explainedSelect != nil && len(explainedSelect.OrderBy) > 0 {
-		extra = appendExplainExtra(extra, "Using filesort")
-	}
-	rows := [][]interface{}{{int64(1), selectType, primaryTableLabel, partitions, accessType, nullIfEmpty(possibleKeys), selectedKey, keyLength, nil, rowCount, float64(100), extra}}
-	if explainedSelect != nil {
-		subqueryRows, subqueryErr := e.explainSubqueryRows(ctx, subqueries, schemaName, 2)
-		if subqueryErr != nil {
-			ctx.Results <- &Result{Err: subqueryErr, ResultType: common.RESULT_TYPE_QUERY}
-			return
-		}
-		rows = append(rows, subqueryRows...)
-	}
+	rows := [][]interface{}{{int64(1), "SIMPLE", tableName, partitions, accessType, nullIfEmpty(possibleKeys), selectedKey, keyLength, nil, rowCount, float64(100), extra}}
 	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: map[string]interface{}{"columns": columns, "rows": rows}, Message: "EXPLAIN completed"}
 }
 
