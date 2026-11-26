@@ -12,7 +12,9 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
+	"github.com/zhukovaskychina/xmysql-server/server/protocol"
 )
 
 // SQLDispatcher SQL查询分发器，负责将SQL查询路由到合适的引擎
@@ -73,16 +75,17 @@ type SQLRouter interface {
 
 // SQLResult SQL执行结果
 type SQLResult struct {
-	Err          error
-	Data         interface{}
-	ResultType   string
-	Message      string
-	Columns      []string
-	ColumnTypes  []string
-	Rows         [][]interface{}
-	AffectedRows uint64
-	LastInsertID uint64
-	WarningCount uint16
+	Err            error
+	Data           interface{}
+	ResultType     string
+	Message        string
+	Columns        []string
+	ColumnTypes    []string
+	ColumnMetadata []*metadata.ColumnMeta
+	Rows           [][]interface{}
+	AffectedRows   uint64
+	LastInsertID   uint64
+	WarningCount   uint16
 }
 
 // NewSQLDispatcher 创建SQL分发器
@@ -436,6 +439,7 @@ func (e *InnoDBSQLEngine) convertSelectResult(xmysqlResult *engine.Result, resul
 	if selectResult, ok := xmysqlResult.Data.(*engine.SelectResult); ok {
 		result.Columns = selectResult.Columns
 		result.ColumnTypes = selectResult.ColumnTypes
+		result.ColumnMetadata = selectResult.ColumnMetadata
 		result.Rows = make([][]interface{}, 0, len(selectResult.Records))
 		for _, record := range selectResult.Records {
 			if record == nil {
@@ -481,6 +485,24 @@ func (e *InnoDBSQLEngine) convertSelectResult(xmysqlResult *engine.Result, resul
 	}
 
 	result.Message = "Query executed successfully"
+	return result
+}
+
+func encodeProtocolColumnMetadata(columns []*metadata.ColumnMeta) []protocol.ResultColumnMetadata {
+	if len(columns) == 0 {
+		return nil
+	}
+	result := make([]protocol.ResultColumnMetadata, len(columns))
+	for index, column := range columns {
+		if column == nil {
+			continue
+		}
+		result[index] = protocol.ResultColumnMetadata{
+			Type: string(column.Type), Length: uint32(max(column.Length, 0)),
+			Scale: uint8(min(max(column.Scale, 0), 255)), Unsigned: column.IsUnsigned,
+			Charset: column.Charset, Collation: column.Collation, Nullable: column.IsNullable,
+		}
+	}
 	return result
 }
 

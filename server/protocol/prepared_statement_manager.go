@@ -429,6 +429,7 @@ func cloneQueryResult(result *MessageQueryResult) *MessageQueryResult {
 	copyResult := *result
 	copyResult.Columns = append([]string(nil), result.Columns...)
 	copyResult.ColumnTypes = append([]string(nil), result.ColumnTypes...)
+	copyResult.ColumnMetadata = append([]ResultColumnMetadata(nil), result.ColumnMetadata...)
 	copyResult.Rows = cloneRows(result.Rows)
 	return &copyResult
 }

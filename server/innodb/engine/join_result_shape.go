@@ -12,6 +12,7 @@ type joinOutputColumn struct {
 	name string
 	expr sqlparser.Expr
 	typ  metadata.DataType
+	meta *metadata.ColumnMeta
 }
 
 type joinResultShape struct {
@@ -86,7 +87,12 @@ func (se *SelectExecutor) resolveJoinResultShape(expression sqlparser.TableExpr)
 			if column == nil {
 				continue
 			}
-			shape.columns = append(shape.columns, joinOutputColumn{column.Name, &sqlparser.ColName{Name: sqlparser.NewColIdent(column.Name), Qualifier: sqlparser.TableName{Name: alias}}, column.Type})
+			copyColumn := *column
+			copyColumn.EnumValues = append([]string(nil), column.EnumValues...)
+			shape.columns = append(shape.columns, joinOutputColumn{
+				name: column.Name, expr: &sqlparser.ColName{Name: sqlparser.NewColIdent(column.Name), Qualifier: sqlparser.TableName{Name: alias}},
+				typ: column.Type, meta: &copyColumn,
+			})
 		}
 		shape.qualified[strings.ToLower(alias.String())] = shape.columns
 		return shape, nil

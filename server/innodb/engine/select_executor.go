@@ -4025,12 +4025,13 @@ func (se *SelectExecutor) buildSelectResult() *SelectResult {
 	}
 
 	result := &SelectResult{
-		Records:     limitedRecords,
-		RowCount:    len(limitedRecords),
-		Columns:     columns,
-		ColumnTypes: se.getResultColumnTypes(columns, projectedRecords),
-		ResultType:  common.RESULT_TYPE_QUERY,
-		Message:     fmt.Sprintf("Query OK, %d rows in set", len(limitedRecords)),
+		Records:        limitedRecords,
+		RowCount:       len(limitedRecords),
+		Columns:        columns,
+		ColumnTypes:    se.getResultColumnTypes(columns, projectedRecords),
+		ColumnMetadata: se.getResultColumnMetadata(columns, projectedRecords),
+		ResultType:     common.RESULT_TYPE_QUERY,
+		Message:        fmt.Sprintf("Query OK, %d rows in set", len(limitedRecords)),
 	}
 
 	logger.Debugf(" [buildSelectResult] 构建完成: %d行, %d列", result.RowCount, len(result.Columns))
@@ -5742,6 +5743,63 @@ func (se *SelectExecutor) getResultColumnTypes(columns []string, records []Recor
 	return types
 }
 
+func (se *SelectExecutor) getResultColumnMetadata(columns []string, records []Record) []*metadata.ColumnMeta {
+	metadataColumns := make([]*metadata.ColumnMeta, len(columns))
+	if len(records) > 0 {
+		if tableMeta, err := se.getRecordTableMeta(records[0]); err == nil && tableMeta != nil {
+			for index, column := range tableMeta.Columns {
+				if index >= len(metadataColumns) || column == nil {
+					continue
+				}
+				copyColumn := *column
+				copyColumn.EnumValues = append([]string(nil), column.EnumValues...)
+				metadataColumns[index] = &copyColumn
+			}
+		}
+	}
+	if len(records) == 0 {
+		if tableMeta, err := se.getTableMetadata(); err == nil && tableMeta != nil {
+			byName := make(map[string]*metadata.ColumnMeta, len(tableMeta.Columns))
+			for _, column := range tableMeta.Columns {
+				if column != nil {
+					byName[strings.ToLower(column.Name)] = column
+				}
+			}
+			for index, name := range columns {
+				if index < len(se.selectExprASTs) {
+					if source, ok := se.selectExprASTs[index].(*sqlparser.ColName); ok {
+						name = source.Name.String()
+					}
+				}
+				if column := byName[strings.ToLower(strings.Trim(strings.TrimSpace(name), "`"))]; column != nil {
+					copyColumn := *column
+					copyColumn.EnumValues = append([]string(nil), column.EnumValues...)
+					metadataColumns[index] = &copyColumn
+				}
+			}
+		}
+	}
+	columnTypes := se.getResultColumnTypes(columns, records)
+	for index, name := range columns {
+		if metadataColumns[index] == nil {
+			metadataColumns[index] = &metadata.ColumnMeta{Name: name, IsNullable: true}
+		} else {
+			metadataColumns[index].Name = name
+		}
+		if index < len(se.selectExprASTs) {
+			if expression := se.selectExprASTs[index]; expression != nil {
+				if _, isDirectColumn := expression.(*sqlparser.ColName); !isDirectColumn {
+					metadataColumns[index].IsNullable = true
+				}
+			}
+		}
+		if index < len(columnTypes) && strings.TrimSpace(columnTypes[index]) != "" {
+			metadataColumns[index].Type = metadata.DataType(strings.ToUpper(strings.TrimSpace(columnTypes[index])))
+		}
+	}
+	return metadataColumns
+}
+
 func booleanSQLExpression(expression sqlparser.Expr) bool {
 	switch node := expression.(type) {
 	case *sqlparser.ComparisonExpr, *sqlparser.IsExpr, *sqlparser.RangeCond, *sqlparser.AndExpr, *sqlparser.OrExpr, *sqlparser.NotExpr, *sqlparser.ExistsExpr, sqlparser.BoolVal:
@@ -5763,12 +5821,13 @@ func (se *SelectExecutor) isCountStarQuery() bool {
 
 // SelectResult SELECT查询结果
 type SelectResult struct {
-	Records     []Record
-	RowCount    int
-	Columns     []string
-	ColumnTypes []string
-	ResultType  string
-	Message     string
+	Records        []Record
+	RowCount       int
+	Columns        []string
+	ColumnTypes    []string
+	ColumnMetadata []*metadata.ColumnMeta
+	ResultType     string
+	Message        string
 }
 
 // InfoSchemaAdapter 信息模式适配器实现

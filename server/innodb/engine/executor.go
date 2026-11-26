@@ -7559,7 +7559,10 @@ func (e *XMySQLExecutor) executeUnionQuery(ctx *ExecutionContext, branches []str
 			return nil, err
 		}
 		if combined == nil {
-			combined = &SelectResult{Columns: append([]string(nil), result.Columns...), ColumnTypes: append([]string(nil), result.ColumnTypes...), ResultType: common.RESULT_TYPE_QUERY}
+			combined = &SelectResult{
+				Columns: append([]string(nil), result.Columns...), ColumnTypes: append([]string(nil), result.ColumnTypes...),
+				ColumnMetadata: cloneSetOperationColumnMetadata(result.ColumnMetadata, result.ColumnTypes), ResultType: common.RESULT_TYPE_QUERY,
+			}
 		}
 		if len(result.Columns) != len(combined.Columns) {
 			return nil, fmt.Errorf("UNION branches have different column counts")
@@ -7569,7 +7572,13 @@ func (e *XMySQLExecutor) executeUnionQuery(ctx *ExecutionContext, branches []str
 			if err != nil {
 				return nil, err
 			}
+			combined.ColumnMetadata, err = mergeSetOperationColumnMetadata(combined.ColumnMetadata, result.ColumnMetadata, combined.ColumnTypes)
+			if err != nil {
+				return nil, err
+			}
 		}
+		applySetOperationColumnMetadata(combined.Records, combined.ColumnMetadata)
+		applySetOperationColumnMetadata(result.Records, combined.ColumnMetadata)
 		if err := coerceSetOperationRecords(combined.Records, combined.ColumnTypes); err != nil {
 			return nil, err
 		}
@@ -7649,9 +7658,14 @@ func (e *XMySQLExecutor) executeIntersectExceptQuery(ctx *ExecutionContext, bran
 		results = append(results, result)
 	}
 	resultTypes := append([]string(nil), results[0].ColumnTypes...)
+	resultMetadata := cloneSetOperationColumnMetadata(results[0].ColumnMetadata, resultTypes)
 	for _, result := range results[1:] {
 		var err error
 		resultTypes, err = mergeSetOperationColumnTypes(resultTypes, result.ColumnTypes)
+		if err != nil {
+			return nil, err
+		}
+		resultMetadata, err = mergeSetOperationColumnMetadata(resultMetadata, result.ColumnMetadata, resultTypes)
 		if err != nil {
 			return nil, err
 		}
@@ -7660,12 +7674,12 @@ func (e *XMySQLExecutor) executeIntersectExceptQuery(ctx *ExecutionContext, bran
 		if err := coerceSetOperationRecords(result.Records, resultTypes); err != nil {
 			return nil, err
 		}
+		applySetOperationColumnMetadata(result.Records, resultMetadata)
 	}
 	combined := &SelectResult{
-		Columns:     append([]string(nil), results[0].Columns...),
-		ColumnTypes: resultTypes,
-		ResultType:  common.RESULT_TYPE_QUERY,
-		Records:     append([]Record(nil), results[0].Records...),
+		Columns: append([]string(nil), results[0].Columns...), ColumnTypes: resultTypes,
+		ColumnMetadata: resultMetadata, ResultType: common.RESULT_TYPE_QUERY,
+		Records: append([]Record(nil), results[0].Records...),
 	}
 	for branchIndex, operator := range operators {
 		right := results[branchIndex+1]
@@ -8081,17 +8095,22 @@ func combineSetOperationResults(left, right *SelectResult, operator intersectExc
 	if err != nil {
 		return nil, err
 	}
+	columnMetadata, err := mergeSetOperationColumnMetadata(left.ColumnMetadata, right.ColumnMetadata, columnTypes)
+	if err != nil {
+		return nil, err
+	}
 	if err := coerceSetOperationRecords(left.Records, columnTypes); err != nil {
 		return nil, err
 	}
 	if err := coerceSetOperationRecords(right.Records, columnTypes); err != nil {
 		return nil, err
 	}
+	applySetOperationColumnMetadata(left.Records, columnMetadata)
+	applySetOperationColumnMetadata(right.Records, columnMetadata)
 	combined := &SelectResult{
-		Columns:     append([]string(nil), left.Columns...),
-		ColumnTypes: columnTypes,
-		ResultType:  common.RESULT_TYPE_QUERY,
-		Records:     make([]Record, 0),
+		Columns: append([]string(nil), left.Columns...), ColumnTypes: columnTypes,
+		ColumnMetadata: columnMetadata, ResultType: common.RESULT_TYPE_QUERY,
+		Records: make([]Record, 0),
 	}
 	rightCounts := make(map[string]int, len(right.Records))
 	for _, record := range right.Records {

@@ -34,6 +34,14 @@ func emptySelectResultFromShape(columns []joinOutputColumn) *SelectResult {
 	for _, column := range columns {
 		result.Columns = append(result.Columns, column.name)
 		result.ColumnTypes = append(result.ColumnTypes, strings.ToLower(string(column.typ)))
+		if column.meta == nil {
+			result.ColumnMetadata = append(result.ColumnMetadata, &metadata.ColumnMeta{Name: column.name, Type: column.typ, IsNullable: true})
+		} else {
+			copyColumn := *column.meta
+			copyColumn.Name, copyColumn.Type = column.name, column.typ
+			copyColumn.EnumValues = append([]string(nil), column.meta.EnumValues...)
+			result.ColumnMetadata = append(result.ColumnMetadata, &copyColumn)
+		}
 	}
 	return result
 }
@@ -96,6 +104,20 @@ func (d *preparedSelectDescriber) describe(statement sqlparser.Statement, ctes m
 			}
 			left[index].typ = commonType
 		}
+		leftMetadata := make([]*metadata.ColumnMeta, len(left))
+		rightMetadata := make([]*metadata.ColumnMeta, len(right))
+		commonTypes := make([]string, len(left))
+		for index := range left {
+			leftMetadata[index], rightMetadata[index] = left[index].meta, right[index].meta
+			commonTypes[index] = string(left[index].typ)
+		}
+		merged, err := mergeSetOperationColumnMetadata(leftMetadata, rightMetadata, commonTypes)
+		if err != nil {
+			return nil, err
+		}
+		for index := range left {
+			left[index].meta = merged[index]
+		}
 		return left, nil
 	case *sqlparser.Select:
 		if err := d.executor.checkSelectColumnPrivileges(d.ctx, node, d.database); err != nil {
@@ -145,12 +167,34 @@ func (d *preparedSelectDescriber) projection(node *sqlparser.Select, shape joinR
 			if !expr.As.IsEmpty() {
 				name = expr.As.String()
 			}
-			output = append(output, joinOutputColumn{name: name, typ: typ})
+			output = append(output, joinOutputColumn{name: name, typ: typ, meta: joinOutputMetadata(expr.Expr, shape)})
 		default:
 			return nil, fmt.Errorf("unsupported prepared projection %T", expression)
 		}
 	}
 	return output, nil
+}
+
+func joinOutputMetadata(expression sqlparser.Expr, shape joinResultShape) *metadata.ColumnMeta {
+	column, ok := expression.(*sqlparser.ColName)
+	if !ok || column == nil {
+		return nil
+	}
+	candidates := shape.columns
+	if !column.Qualifier.IsEmpty() {
+		if qualified, found := shape.qualified[strings.ToLower(column.Qualifier.Name.String())]; found {
+			candidates = qualified
+		}
+	}
+	for _, candidate := range candidates {
+		if !strings.EqualFold(candidate.name, column.Name.String()) || candidate.meta == nil {
+			continue
+		}
+		copyColumn := *candidate.meta
+		copyColumn.EnumValues = append([]string(nil), candidate.meta.EnumValues...)
+		return &copyColumn
+	}
+	return nil
 }
 
 // MySQL 8.4 reports boolean projections from JOIN queries with ORDER BY as
@@ -174,7 +218,12 @@ func (e *XMySQLExecutor) describeMaterializedProjection(ctx *ExecutionContext, s
 		if typ == "" {
 			return nil, fmt.Errorf("materialized column %s has no SQL type", name)
 		}
-		shape.columns = append(shape.columns, joinOutputColumn{name: strings.Trim(name, "`"), typ: typ})
+		var columnMetadata *metadata.ColumnMeta
+		if index < len(input.ColumnMetadata) && input.ColumnMetadata[index] != nil {
+			copyColumn := *input.ColumnMetadata[index]
+			columnMetadata = &copyColumn
+		}
+		shape.columns = append(shape.columns, joinOutputColumn{name: strings.Trim(name, "`"), typ: typ, meta: columnMetadata})
 	}
 	shape.qualified[strings.ToLower(alias)] = shape.columns
 	if ctx == nil {
@@ -243,7 +292,9 @@ func (d *preparedSelectDescriber) source(expression sqlparser.TableExpr, ctes ma
 			}
 			for _, column := range meta.Columns {
 				if column != nil {
-					columns = append(columns, joinOutputColumn{name: column.Name, typ: column.Type})
+					copyColumn := *column
+					copyColumn.EnumValues = append([]string(nil), column.EnumValues...)
+					columns = append(columns, joinOutputColumn{name: column.Name, typ: column.Type, meta: &copyColumn})
 				}
 			}
 		case *sqlparser.Subquery:

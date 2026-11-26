@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
@@ -104,6 +105,177 @@ func mergeSetOperationColumnTypes(left, right []string) ([]string, error) {
 		merged[index] = strings.ToLower(string(commonType))
 	}
 	return merged, nil
+}
+
+func mergeSetOperationColumnMetadata(left, right []*metadata.ColumnMeta, columnTypes []string) ([]*metadata.ColumnMeta, error) {
+	if len(left) == 0 {
+		return cloneSetOperationColumnMetadata(right, columnTypes), nil
+	}
+	if len(right) == 0 {
+		return cloneSetOperationColumnMetadata(left, columnTypes), nil
+	}
+	if len(left) != len(right) || len(columnTypes) != len(left) {
+		return nil, fmt.Errorf("set-operation column metadata counts differ")
+	}
+	merged := make([]*metadata.ColumnMeta, len(columnTypes))
+	for index := range columnTypes {
+		var output metadata.ColumnMeta
+		unknownBranch := left[index] == nil || right[index] == nil
+		if left[index] != nil {
+			output = *left[index]
+			output.EnumValues = append([]string(nil), left[index].EnumValues...)
+		}
+		if right[index] != nil {
+			if left[index] == nil {
+				output = *right[index]
+				output.EnumValues = append([]string(nil), right[index].EnumValues...)
+			} else {
+				output.Length = max(output.Length, right[index].Length)
+				output.Scale = max(output.Scale, right[index].Scale)
+				output.IsUnsigned = output.IsUnsigned && right[index].IsUnsigned
+				output.IsNullable = output.IsNullable || right[index].IsNullable
+			}
+		}
+		output.Type = normalizeSetOperationType(metadata.DataType(columnTypes[index]))
+		if isSetOperationString(output.Type) {
+			rightCollation := ""
+			if right[index] != nil {
+				rightCollation = right[index].Collation
+			}
+			collation, charset, err := mergeSetOperationCollation(output.Collation, rightCollation, "UNION")
+			if err != nil {
+				return nil, fmt.Errorf("set-operation column %d: %w", index+1, err)
+			}
+			output.Collation, output.Charset = collation, charset
+		} else {
+			output.Collation, output.Charset = "", ""
+		}
+		if unknownBranch {
+			output.IsNullable = true
+		}
+		if output.Type != metadata.TypeEnum && output.Type != metadata.TypeSet {
+			output.EnumValues = nil
+		}
+		if output.Type == metadata.TypeDecimal {
+			leftPrecision, leftScale := setOperationExactNumericShape(left[index])
+			rightPrecision, rightScale := setOperationExactNumericShape(right[index])
+			output.Scale = min(max(leftScale, rightScale), 30)
+			output.Length = min(max(leftPrecision-leftScale, rightPrecision-rightScale)+output.Scale, 65)
+			if output.Length < output.Scale {
+				output.Length = output.Scale
+			}
+		}
+		merged[index] = &output
+	}
+	return merged, nil
+}
+
+func cloneSetOperationColumnMetadata(columns []*metadata.ColumnMeta, columnTypes []string) []*metadata.ColumnMeta {
+	if len(columns) == 0 {
+		return nil
+	}
+	cloned := make([]*metadata.ColumnMeta, len(columns))
+	for index, column := range columns {
+		if column == nil {
+			cloned[index] = &metadata.ColumnMeta{IsNullable: true}
+		} else {
+			copyColumn := *column
+			copyColumn.EnumValues = append([]string(nil), column.EnumValues...)
+			cloned[index] = &copyColumn
+		}
+		if index < len(columnTypes) {
+			cloned[index].Type = normalizeSetOperationType(metadata.DataType(columnTypes[index]))
+		}
+	}
+	return cloned
+}
+
+func applySetOperationColumnMetadata(records []Record, columns []*metadata.ColumnMeta) {
+	if len(columns) == 0 {
+		return
+	}
+	for _, record := range records {
+		typed, ok := record.(*EngineExecutorRecord)
+		if !ok || typed.GetTableMeta() == nil {
+			continue
+		}
+		tableMeta := typed.GetTableMeta()
+		for index, column := range columns {
+			if column == nil || index >= len(tableMeta.Columns) || tableMeta.Columns[index] == nil {
+				continue
+			}
+			copyColumn := *column
+			copyColumn.Name = tableMeta.Columns[index].Name
+			copyColumn.EnumValues = append([]string(nil), column.EnumValues...)
+			tableMeta.Columns[index] = &copyColumn
+		}
+	}
+}
+
+func setOperationExactNumericShape(column *metadata.ColumnMeta) (int, int) {
+	if column == nil {
+		return 10, 0
+	}
+	typ := normalizeSetOperationType(column.Type)
+	if typ == metadata.TypeDecimal {
+		precision := column.Length
+		if precision < 1 {
+			precision = 10
+		}
+		return min(precision, 65), min(max(column.Scale, 0), 30)
+	}
+	integerDigits := map[metadata.DataType]int{
+		metadata.TypeTinyInt: 3, metadata.TypeSmallInt: 5, metadata.TypeMediumInt: 8,
+		metadata.TypeInt: 10, metadata.TypeBigInt: 19, metadata.TypeYear: 4,
+		metadata.TypeBool: 1, metadata.TypeBoolean: 1, metadata.TypeBit: 64,
+	}[typ]
+	if integerDigits == 0 {
+		integerDigits = column.Length
+	}
+	if integerDigits < 1 {
+		integerDigits = 10
+	}
+	if column.IsUnsigned && typ == metadata.TypeBigInt {
+		integerDigits = 20
+	}
+	return min(integerDigits, 65), 0
+}
+
+func mergeSetOperationCollation(left, right, operation string) (string, string, error) {
+	left, right = strings.TrimSpace(left), strings.TrimSpace(right)
+	if left == "" {
+		if info, found := common.CollationMetadataByName(right); found {
+			return info.Name, info.Charset, nil
+		}
+		return right, "", nil
+	}
+	if right == "" || strings.EqualFold(left, right) {
+		if info, found := common.CollationMetadataByName(left); found {
+			return info.Name, info.Charset, nil
+		}
+		return left, "", nil
+	}
+	leftInfo, leftKnown := common.CollationMetadataByName(left)
+	rightInfo, rightKnown := common.CollationMetadataByName(right)
+	if leftKnown && rightKnown {
+		if strings.EqualFold(leftInfo.Charset, rightInfo.Charset) {
+			leftBinary := strings.HasSuffix(strings.ToLower(leftInfo.Name), "_bin")
+			rightBinary := strings.HasSuffix(strings.ToLower(rightInfo.Name), "_bin")
+			if leftBinary != rightBinary {
+				if leftBinary {
+					return leftInfo.Name, leftInfo.Charset, nil
+				}
+				return rightInfo.Name, rightInfo.Charset, nil
+			}
+		} else if isUnicodeCharset(leftInfo.Charset) != isUnicodeCharset(rightInfo.Charset) {
+			if isUnicodeCharset(leftInfo.Charset) {
+				return leftInfo.Name, leftInfo.Charset, nil
+			}
+			return rightInfo.Name, rightInfo.Charset, nil
+		}
+	}
+	return "", "", common.NewErr(common.ErrCantAggregate2collations,
+		left, "IMPLICIT", right, "IMPLICIT", operation)
 }
 
 // setOperationRecordKey compares values using the common result type. This is

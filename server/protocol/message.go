@@ -117,15 +117,28 @@ type QueryMessage struct {
 
 // MessageQueryResult 查询结果
 type MessageQueryResult struct {
-	Columns      []string
-	ColumnTypes  []string // 列类型信息（可选）
-	Rows         [][]interface{}
-	Error        error
-	Message      string
-	Type         string // select, insert, update, delete, ddl, etc.
-	AffectedRows uint64
-	LastInsertID uint64
-	WarningCount uint16
+	Columns        []string
+	ColumnTypes    []string // 列类型信息（可选）
+	ColumnMetadata []ResultColumnMetadata
+	Rows           [][]interface{}
+	Error          error
+	Message        string
+	Type           string // select, insert, update, delete, ddl, etc.
+	AffectedRows   uint64
+	LastInsertID   uint64
+	WarningCount   uint16
+}
+
+// ResultColumnMetadata carries result attributes that cannot be represented
+// by ColumnTypes alone and that clients need for prepared and cursor results.
+type ResultColumnMetadata struct {
+	Type      string
+	Length    uint32
+	Scale     uint8
+	Unsigned  bool
+	Charset   string
+	Collation string
+	Nullable  bool
 }
 
 // ResponseMessage 响应消息

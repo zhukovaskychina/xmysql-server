@@ -3120,7 +3120,10 @@ func (h *DecoupledMySQLMessageHandler) resultColumnDefinitions(result *protocol.
 	definitions := make([]*protocol.ColumnDefinition, 0, len(result.Columns))
 	for index, name := range result.Columns {
 		var definition *protocol.ColumnDefinition
-		if index < len(result.ColumnTypes) && strings.TrimSpace(result.ColumnTypes[index]) != "" {
+		if index < len(result.ColumnMetadata) && strings.TrimSpace(result.ColumnMetadata[index].Type) != "" {
+			definition = createColumnDefinitionForMetadata(encoder, name, result.ColumnMetadata[index])
+		}
+		if definition == nil && index < len(result.ColumnTypes) && strings.TrimSpace(result.ColumnTypes[index]) != "" {
 			definition = createColumnDefinitionForType(encoder, name, result.ColumnTypes[index])
 		}
 		if definition == nil && len(result.Rows) > 0 && index < len(result.Rows[0]) {
@@ -3132,6 +3135,66 @@ func (h *DecoupledMySQLMessageHandler) resultColumnDefinitions(result *protocol.
 		definitions = append(definitions, definition)
 	}
 	return definitions
+}
+
+func createColumnDefinitionForMetadata(encoder *protocol.MySQLResultSetEncoder, name string, metadata protocol.ResultColumnMetadata) *protocol.ColumnDefinition {
+	definition := createColumnDefinitionForType(encoder, name, metadata.Type)
+	if definition == nil {
+		return nil
+	}
+	typeName := strings.ToLower(strings.TrimSpace(metadata.Type))
+	if separator := strings.IndexAny(typeName, "( "); separator >= 0 {
+		typeName = typeName[:separator]
+	}
+	if metadata.Length > 0 {
+		length := uint64(metadata.Length)
+		applyLength := false
+		switch typeName {
+		case "char", "varchar", "tinytext", "text", "mediumtext", "longtext", "enum", "set":
+			applyLength = true
+			charsetName := strings.TrimSpace(metadata.Charset)
+			if collation, found := common.CollationMetadataByName(metadata.Collation); found {
+				charsetName = collation.Charset
+				definition.CharacterSet = uint16(collation.ID)
+			}
+			if charsetName != "" {
+				for _, charset := range common.ProtocolManagerCharsets() {
+					if strings.EqualFold(charset.Name, charsetName) {
+						if charset.MaxLen > 0 && length <= uint64(^uint32(0))/uint64(charset.MaxLen) {
+							length *= uint64(charset.MaxLen)
+						}
+						if strings.TrimSpace(metadata.Collation) == "" {
+							definition.CharacterSet = uint16(charset.ID)
+						}
+						break
+					}
+				}
+			}
+		case "decimal", "numeric":
+			applyLength = true
+			length++ // decimal point
+			if !metadata.Unsigned {
+				length++ // sign
+			}
+		case "binary", "varbinary", "tinyblob", "blob", "mediumblob", "longblob":
+			applyLength = true
+			definition.CharacterSet = 0x3f
+		}
+		if applyLength {
+			if length > uint64(^uint32(0)) {
+				length = uint64(^uint32(0))
+			}
+			definition.ColumnLength = uint32(length)
+		}
+	}
+	definition.Decimals = metadata.Scale
+	if metadata.Unsigned {
+		definition.Flags |= uint16(common.UnsignedFlag)
+	}
+	if !metadata.Nullable {
+		definition.Flags |= uint16(common.NotNullFlag)
+	}
+	return definition
 }
 
 func (h *DecoupledMySQLMessageHandler) sendCursorMetadata(session Session, result *protocol.MessageQueryResult, seqID byte) error {

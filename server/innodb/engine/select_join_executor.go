@@ -121,19 +121,20 @@ func (se *SelectExecutor) executeJoinSelect(ctx context.Context, stmt *sqlparser
 		return result, nil
 	}
 	se.sortJoinedRows(rows)
-	records, columns, columnTypes, err := se.projectJoinedRows(stmt, rows)
+	records, columns, columnTypes, columnMetadata, err := se.projectJoinedRows(stmt, rows)
 	if err != nil {
 		return nil, err
 	}
 	records = se.applyDistinct(records)
 	records = se.applyLimitOffset(records)
 	return &SelectResult{
-		Records:     records,
-		RowCount:    len(records),
-		Columns:     columns,
-		ColumnTypes: columnTypes,
-		ResultType:  common.RESULT_TYPE_QUERY,
-		Message:     fmt.Sprintf("Query OK, %d rows in set", len(records)),
+		Records:        records,
+		RowCount:       len(records),
+		Columns:        columns,
+		ColumnTypes:    columnTypes,
+		ColumnMetadata: columnMetadata,
+		ResultType:     common.RESULT_TYPE_QUERY,
+		Message:        fmt.Sprintf("Query OK, %d rows in set", len(records)),
 	}, nil
 }
 
@@ -880,7 +881,7 @@ func joinColumnKey(col *sqlparser.ColName) string {
 	return col.Name.String()
 }
 
-func (se *SelectExecutor) projectJoinedRows(stmt *sqlparser.Select, rows []joinedMapRow) ([]Record, []string, []string, error) {
+func (se *SelectExecutor) projectJoinedRows(stmt *sqlparser.Select, rows []joinedMapRow) ([]Record, []string, []string, []*metadata.ColumnMeta, error) {
 	columns := se.getColumnNames()
 	columnTypes := make([]string, len(columns))
 	projectedColumns := make([]*metadata.ColumnMeta, 0, len(columns))
@@ -902,14 +903,14 @@ func (se *SelectExecutor) projectJoinedRows(stmt *sqlparser.Select, rows []joine
 			} else if len(rows) > 0 {
 				value, err := se.valueForJoinProjection(rows[0], i, se.selectExprs[i])
 				if err != nil {
-					return nil, nil, nil, err
+					return nil, nil, nil, nil, err
 				}
 				typ = projectionValueType(value)
 			}
 			typ = mysqlSortedJoinMaterializationType(stmt, se.selectExprASTs[i], typ)
 		}
 		columnTypes[i] = strings.ToLower(string(typ))
-		projectedColumns = append(projectedColumns, &metadata.ColumnMeta{Name: col, Type: typ, Collation: collation})
+		projectedColumns = append(projectedColumns, &metadata.ColumnMeta{Name: col, Type: typ, Collation: collation, IsNullable: true})
 	}
 	records := make([]Record, 0, len(rows))
 	for _, row := range rows {
@@ -917,7 +918,7 @@ func (se *SelectExecutor) projectJoinedRows(stmt *sqlparser.Select, rows []joine
 		for index, expr := range se.selectExprs {
 			value, err := se.valueForJoinProjection(row, index, expr)
 			if err != nil {
-				return nil, nil, nil, err
+				return nil, nil, nil, nil, err
 			}
 			values = append(values, value)
 		}
@@ -949,7 +950,7 @@ func (se *SelectExecutor) projectJoinedRows(stmt *sqlparser.Select, rows []joine
 		}
 		records = append(records, record)
 	}
-	return records, columns, columnTypes, nil
+	return records, columns, columnTypes, projectedColumns, nil
 }
 
 func (se *SelectExecutor) valueForJoinProjection(row joinedMapRow, index int, expr string) (interface{}, error) {

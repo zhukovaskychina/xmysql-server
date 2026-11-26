@@ -79,7 +79,10 @@ func (h *EnhancedBusinessMessageHandler) DescribePreparedSelectWithRealSession(r
 	if err != nil {
 		return nil, err
 	}
-	return &protocol.MessageQueryResult{Columns: result.Columns, ColumnTypes: result.ColumnTypes, Type: result.ResultType}, nil
+	return &protocol.MessageQueryResult{
+		Columns: result.Columns, ColumnTypes: result.ColumnTypes,
+		ColumnMetadata: encodeProtocolColumnMetadata(result.ColumnMetadata), Type: result.ResultType,
+	}, nil
 }
 
 // HandleMessage 处理消息
@@ -176,15 +179,16 @@ func (h *EnhancedBusinessMessageHandler) dispatchQueryResult(sessionID string, s
 
 		// 转换结果格式
 		queryResult := &protocol.MessageQueryResult{
-			Columns:      result.Columns,
-			ColumnTypes:  result.ColumnTypes,
-			Rows:         result.Rows,
-			Error:        result.Err,
-			Message:      result.Message,
-			Type:         result.ResultType,
-			AffectedRows: result.AffectedRows,
-			LastInsertID: result.LastInsertID,
-			WarningCount: result.WarningCount,
+			Columns:        result.Columns,
+			ColumnTypes:    result.ColumnTypes,
+			ColumnMetadata: encodeProtocolColumnMetadata(result.ColumnMetadata),
+			Rows:           result.Rows,
+			Error:          result.Err,
+			Message:        result.Message,
+			Type:           result.ResultType,
+			AffectedRows:   result.AffectedRows,
+			LastInsertID:   result.LastInsertID,
+			WarningCount:   result.WarningCount,
 		}
 
 		responseMsg := &protocol.ResponseMessage{
@@ -394,14 +398,15 @@ func (h *EnhancedBusinessMessageHandler) handleQueryMessage(ctx context.Context,
 		}
 
 		queryResult := &protocol.MessageQueryResult{
-			Columns:      result.Columns,
-			ColumnTypes:  columnTypes,
-			Rows:         result.Rows,
-			Error:        result.Err,
-			Message:      result.Message,
-			Type:         result.ResultType,
-			AffectedRows: result.AffectedRows,
-			LastInsertID: result.LastInsertID,
+			Columns:        result.Columns,
+			ColumnTypes:    columnTypes,
+			ColumnMetadata: encodeProtocolColumnMetadata(result.ColumnMetadata),
+			Rows:           result.Rows,
+			Error:          result.Err,
+			Message:        result.Message,
+			Type:           result.ResultType,
+			AffectedRows:   result.AffectedRows,
+			LastInsertID:   result.LastInsertID,
 		}
 
 		responseMsg := &protocol.ResponseMessage{
