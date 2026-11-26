@@ -2825,6 +2825,9 @@ func (e *XMySQLExecutor) recordStatementMetrics(ctx *ExecutionContext, mysqlSess
 // executeQuery 是实际的 SQL 执行过程，包括解析和语义分派
 func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server.MySQLServerSession, query string, databaseName string, results chan *Result) {
 	query = rewriteCharsetIntroducers(query)
+	if rewritten, ok := rewriteStandaloneValuesStatement(query); ok {
+		query = rewritten
+	}
 	if rewritten, ok := rewriteStandaloneTableStatement(query); ok {
 		query = rewritten
 	}
