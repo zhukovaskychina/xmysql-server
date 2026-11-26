@@ -4379,7 +4379,7 @@ func (se *SelectExecutor) evaluateProjectionExpression(expression string, values
 			"VECTOR_DIMENSION", "VECTOR_MODEL_ID", "VECTOR_MODEL_VERSION", "VECTOR_SPACE", "VECTOR_MODALITY", "VECTOR_STATE", "VECTOR_BLOCK_ID",
 			"VECTOR_SOURCE_SCHEMA", "VECTOR_SOURCE_TABLE", "VECTOR_SOURCE_COLUMN", "VECTOR_SOURCE_PRIMARY_KEY", "VECTOR_SOURCE_REVISION", "VECTOR_SOURCE_SHA256":
 			return evaluateExpressionWithRow(function, values)
-		case "FULLTEXT_SCORE", "FULLTEXT_TOKEN_COUNT", "BM25_TERM_SCORE", "RRF_SCORE":
+		case "FULLTEXT_SCORE", "FULLTEXT_TOKEN_COUNT", "BM25_TERM_SCORE", "BM25_SCORE", "RRF_SCORE":
 			return evaluateExpressionWithRow(function, values)
 		}
 		if value, handled, functionErr := se.evaluatePersistedFunctionProjection(function, values); handled {

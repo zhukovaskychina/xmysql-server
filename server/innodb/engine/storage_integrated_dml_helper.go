@@ -3751,6 +3751,9 @@ func evaluateExpressionWithRow(expr sqlparser.Expr, values map[string]interface{
 		if functionName == "BM25_TERM_SCORE" {
 			return evaluateBM25TermScore(v, values)
 		}
+		if functionName == "BM25_SCORE" {
+			return evaluateBM25Score(v, values)
+		}
 		if functionName == "FULLTEXT_TOKEN_COUNT" {
 			return evaluateFullTextTokenCount(v, values)
 		}

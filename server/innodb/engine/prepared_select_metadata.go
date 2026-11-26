@@ -359,7 +359,7 @@ func (d *preparedSelectDescriber) expressionType(expression sqlparser.Expr, shap
 			return metadata.TypeMediumBlob, nil
 		case "CONTENT_BLOCK_RETRIEVAL_TEXT":
 			return metadata.TypeMediumText, nil
-		case "VECTOR_DISTANCE", "FULLTEXT_SCORE", "BM25_TERM_SCORE", "RRF_SCORE", "AVG":
+		case "VECTOR_DISTANCE", "FULLTEXT_SCORE", "BM25_TERM_SCORE", "BM25_SCORE", "RRF_SCORE", "AVG":
 			return metadata.TypeDouble, nil
 		case "CONCAT", "LOWER", "UPPER", "CONTENT_TEXT", "CONTENT_MIME", "CONTENT_SHA256", "CONTENT_FAMILY", "CONTENT_BLOCK_TEXT", "CONTENT_BLOCK_CONTEXT", "CONTENT_BLOCK_STATE", "CONTENT_MAINTENANCE_STATUS":
 			return metadata.TypeVarchar, nil
