@@ -228,13 +228,15 @@ func (e *XMySQLExecutor) explainSelectPlanRowsAt(ctx *ExecutionContext, statemen
 
 func explainUnionBranches(statement sqlparser.SelectStatement) ([]*sqlparser.Select, bool) {
 	branches := make([]*sqlparser.Select, 0, 2)
+	firstUnion := true
 	var appendStatement func(sqlparser.SelectStatement) bool
 	appendStatement = func(statement sqlparser.SelectStatement) bool {
 		switch value := statement.(type) {
 		case *sqlparser.Union:
-			if value == nil || !strings.HasPrefix(strings.ToLower(strings.TrimSpace(value.Type)), "union") || len(value.OrderBy) > 0 || value.Limit != nil || value.Lock != "" {
+			if value == nil || !strings.HasPrefix(strings.ToLower(strings.TrimSpace(value.Type)), "union") || !firstUnion && (len(value.OrderBy) > 0 || value.Limit != nil || value.Lock != "") {
 				return false
 			}
+			firstUnion = false
 			return appendStatement(value.Left) && appendStatement(value.Right)
 		case *sqlparser.Select:
 			if value == nil || !explainSelectHasSupportedSources(value) {
@@ -355,7 +357,13 @@ func (e *XMySQLExecutor) explainUnionPlanRowsAt(ctx *ExecutionContext, statement
 	if explainUnionRequiresDistinct(statement) {
 		unionExtra = "Using temporary"
 	}
-	rows = append(rows, []interface{}{nil, "UNION RESULT", fmt.Sprintf("<union%d,%d>", branchIDs[0], branchIDs[len(branchIDs)-1]), nil, "ALL", nil, nil, nil, nil, nil, float64(100), unionExtra})
+	if len(statement.OrderBy) > 0 {
+		unionExtra = appendExplainExtra(unionExtra, "Using filesort")
+	}
+	includeUnionResult := explainUnionRequiresDistinct(statement) || len(statement.OrderBy) > 0
+	if includeUnionResult {
+		rows = append(rows, []interface{}{nil, "UNION RESULT", fmt.Sprintf("<union%d,%d>", branchIDs[0], branchIDs[len(branchIDs)-1]), nil, "ALL", nil, nil, nil, nil, nil, float64(100), unionExtra})
+	}
 	return rows, nil
 }
 
