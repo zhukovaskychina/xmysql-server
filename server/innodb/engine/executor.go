@@ -6439,6 +6439,12 @@ func (e *XMySQLExecutor) alterTableAddColumns(dbName, tableName string, cols []*
 			"unsigned": col.Type.Unsigned,
 			"nullable": !col.Type.NotNull,
 		}
+		if col.Type.Charset != "" {
+			column["charset"] = col.Type.Charset
+		}
+		if col.Type.Collate != "" {
+			column["collate"] = col.Type.Collate
+		}
 		if col.Type.Default != nil {
 			column["default"] = sqlparser.String(col.Type.Default)
 		}

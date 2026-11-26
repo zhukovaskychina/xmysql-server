@@ -263,7 +263,23 @@ func persistedIndexKeyLength(info *persistedTableInfo, index *explainIndexChoice
 			length := persistedNumber(column["length"])
 			scale := persistedNumber(column["scale"])
 			columnType, _ := column["type"].(string)
-			keyLength, known := mysqlIndexColumnLength(strings.ToLower(columnType), int64(length), int64(scale), persistedString(column["collation"]))
+			collation := persistedString(column["collate"])
+			if collation == "" && info.Options != nil {
+				collation = persistedString(info.Options["collation"])
+			}
+			if collation == "" {
+				charset := persistedString(column["charset"])
+				if charset == "" && info.Options != nil {
+					charset = persistedString(info.Options["charset"])
+				}
+				if charset == "" && informationSchemaCharacterSet(columnType) != nil {
+					charset = fmt.Sprint(informationSchemaCharacterSet(columnType))
+				}
+				if charset != "" {
+					collation = persistedString(informationSchemaCollationForCharacterSet(charset))
+				}
+			}
+			keyLength, known := mysqlIndexColumnLength(strings.ToLower(columnType), int64(length), int64(scale), collation)
 			if !known {
 				return 0, false
 			}
@@ -329,13 +345,15 @@ func mysqlIndexColumnLength(columnType string, declaredLength, scale int64, coll
 			switch {
 			case strings.HasPrefix(normalizedCollation, "utf8mb4_"):
 				width = 4
-			case strings.HasPrefix(normalizedCollation, "utf8_"):
+			case strings.HasPrefix(normalizedCollation, "utf8_") || strings.HasPrefix(normalizedCollation, "utf8mb3_"):
 				width = 3
 			case strings.HasPrefix(normalizedCollation, "ucs2_"):
 				width = 2
 			case strings.HasPrefix(normalizedCollation, "utf16_") || strings.HasPrefix(normalizedCollation, "utf32_"):
 				width = 4
-			case strings.HasPrefix(normalizedCollation, "latin1_") || strings.HasPrefix(normalizedCollation, "ascii_") || strings.HasPrefix(normalizedCollation, "binary_"):
+			case strings.HasPrefix(normalizedCollation, "gbk_") || strings.HasPrefix(normalizedCollation, "big5_") || strings.HasPrefix(normalizedCollation, "sjis_") || strings.HasPrefix(normalizedCollation, "ujis_"):
+				width = 2
+			case normalizedCollation == "binary" || strings.HasPrefix(normalizedCollation, "latin1_") || strings.HasPrefix(normalizedCollation, "ascii_") || strings.HasPrefix(normalizedCollation, "binary_"):
 				width = 1
 			default:
 				return 0, false
