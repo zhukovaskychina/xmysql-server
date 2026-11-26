@@ -26872,7 +26872,9 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 			}
 			if explain.Statement != nil {
 				explainedSelect, _ = explain.Statement.(*sqlparser.Select)
-				explainedUnion, _ = explain.Statement.(*sqlparser.Union)
+				if selectStatement, ok := explain.Statement.(sqlparser.SelectStatement); ok {
+					explainedUnion, _ = explainSelectStatementAsUnion(selectStatement)
+				}
 				if with, ok := explain.Statement.(*sqlparser.With); ok && with != nil && !with.Recursive {
 					rewritten, rewriteErr := rewriteSimpleCTEFromAST(sqlparser.String(with))
 					if rewriteErr != nil {

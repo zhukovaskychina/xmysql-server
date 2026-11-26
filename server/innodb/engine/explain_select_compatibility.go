@@ -83,7 +83,7 @@ func explainSelectStatementSupportsSources(statement sqlparser.SelectStatement) 
 		return explainSelectStatementSupportsSources(value.Select)
 	case *sqlparser.Union:
 		_, ok := explainUnionBranches(value)
-		return ok
+		return ok || explainSetOperationPlanShapeSupported(value)
 	default:
 		return false
 	}
@@ -284,6 +284,154 @@ func explainSetOperationName(operation string) string {
 	return fields[0]
 }
 
+type explainSetOperationNode struct {
+	operator   string
+	statement  *sqlparser.Select
+	left       *explainSetOperationNode
+	right      *explainSetOperationNode
+	id         int64
+	selectType string
+	resultID   int64
+	rows       [][]interface{}
+}
+
+func buildExplainSetOperationTree(statement sqlparser.SelectStatement) (*explainSetOperationNode, bool) {
+	switch value := statement.(type) {
+	case *sqlparser.Select:
+		return &explainSetOperationNode{statement: value}, value != nil
+	case *sqlparser.ParenSelect:
+		if value == nil {
+			return nil, false
+		}
+		return buildExplainSetOperationTree(value.Select)
+	case *sqlparser.Union:
+		if value == nil || len(value.OrderBy) > 0 || value.Limit != nil || value.Lock != "" {
+			return nil, false
+		}
+		operator := explainSetOperationName(value.Type)
+		if operator != "UNION" && operator != "INTERSECT" && operator != "EXCEPT" {
+			return nil, false
+		}
+		if operator == "UNION" && strings.EqualFold(strings.TrimSpace(value.Type), sqlparser.UnionAllStr) {
+			return nil, false
+		}
+		left, leftOK := buildExplainSetOperationTree(value.Left)
+		right, rightOK := buildExplainSetOperationTree(value.Right)
+		if !leftOK || !rightOK {
+			return nil, false
+		}
+		return &explainSetOperationNode{operator: operator, left: left, right: right}, true
+	default:
+		return nil, false
+	}
+}
+
+func explainSetOperationPlanShapeSupported(statement sqlparser.SelectStatement) bool {
+	tree, ok := buildExplainSetOperationTree(statement)
+	if !ok || tree == nil || tree.statement != nil {
+		return false
+	}
+	var supported func(*explainSetOperationNode) bool
+	supported = func(node *explainSetOperationNode) bool {
+		if node == nil {
+			return false
+		}
+		if node.statement != nil {
+			return explainSelectHasSupportedSources(node.statement) &&
+				!explainSelectHasDerivedSource(node.statement) && !explainSelectContainsSubquery(node.statement)
+		}
+		return supported(node.left) && supported(node.right)
+	}
+	return supported(tree)
+}
+
+func explainSelectContainsSubquery(statement *sqlparser.Select) bool {
+	if statement == nil {
+		return false
+	}
+	found := false
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		if _, ok := node.(*sqlparser.Subquery); ok {
+			found = true
+			return false, nil
+		}
+		return !found, nil
+	}, statement)
+	return found
+}
+
+func explainSetOperationLeaves(node *explainSetOperationNode, inheritedType string, leaves *[]*explainSetOperationNode) {
+	if node.statement != nil {
+		node.selectType = inheritedType
+		*leaves = append(*leaves, node)
+		return
+	}
+	leftType := "PRIMARY"
+	rightType := node.operator
+	explainSetOperationLeaves(node.left, leftType, leaves)
+	explainSetOperationLeaves(node.right, rightType, leaves)
+}
+
+func assignExplainSetOperationResultIDs(node *explainSetOperationNode, nextID *int64) {
+	if node.statement != nil {
+		return
+	}
+	assignExplainSetOperationResultIDs(node.left, nextID)
+	assignExplainSetOperationResultIDs(node.right, nextID)
+	node.resultID = *nextID
+	*nextID++
+}
+
+func explainSetOperationOutputID(node *explainSetOperationNode) int64 {
+	if node.statement != nil {
+		return node.id
+	}
+	return node.resultID
+}
+
+func appendExplainSetOperationRows(node *explainSetOperationNode, rows *[][]interface{}) {
+	if node.statement != nil {
+		*rows = append(*rows, node.rows...)
+		return
+	}
+	appendExplainSetOperationRows(node.left, rows)
+	appendExplainSetOperationRows(node.right, rows)
+	leftID, rightID := explainSetOperationOutputID(node.left), explainSetOperationOutputID(node.right)
+	*rows = append(*rows, []interface{}{
+		node.resultID, node.operator + " RESULT",
+		fmt.Sprintf("<%s%d,%d>", strings.ToLower(node.operator), leftID, rightID),
+		nil, "ALL", nil, nil, nil, nil, nil, nil, "Using temporary",
+	})
+}
+
+func (e *XMySQLExecutor) explainNestedSetOperationPlanRowsAt(ctx *ExecutionContext, statement sqlparser.SelectStatement, defaultSchema string, firstID int64, nextID *int64) ([][]interface{}, error) {
+	tree, ok := buildExplainSetOperationTree(statement)
+	if !ok || tree == nil || tree.statement != nil || !explainSetOperationPlanShapeSupported(statement) {
+		return nil, fmt.Errorf("EXPLAIN supports nested set operations over SELECT leaves without UNION ALL, derived/subqueries, or set-level ORDER BY/LIMIT")
+	}
+	leaves := make([]*explainSetOperationNode, 0)
+	explainSetOperationLeaves(tree, "PRIMARY", &leaves)
+	for index, leaf := range leaves {
+		if index == 0 {
+			leaf.id = firstID
+			continue
+		}
+		leaf.id = *nextID
+		*nextID++
+	}
+	for _, leaf := range leaves {
+		rows, err := e.explainSelectBlockRows(ctx, leaf.statement, defaultSchema, leaf.id, leaf.selectType, nextID, &[]explainDerivedTask{})
+		if err != nil {
+			return nil, err
+		}
+		leaf.rows = rows
+	}
+	assignExplainSetOperationResultIDs(tree, nextID)
+	rows := make([][]interface{}, 0, len(leaves)*2)
+	appendExplainSetOperationRows(tree, &rows)
+	return rows, nil
+}
+
 func explainUnionRequiresDistinct(statement sqlparser.SelectStatement) bool {
 	switch value := statement.(type) {
 	case *sqlparser.Union:
@@ -306,7 +454,7 @@ func (e *XMySQLExecutor) explainUnionPlanRows(ctx *ExecutionContext, statement *
 func (e *XMySQLExecutor) explainUnionPlanRowsAt(ctx *ExecutionContext, statement *sqlparser.Union, defaultSchema string, firstID int64, nextID *int64) ([][]interface{}, error) {
 	branches, ok := explainUnionBranches(statement)
 	if !ok {
-		return nil, fmt.Errorf("EXPLAIN supports UNION query expressions and binary INTERSECT/EXCEPT SELECT branches without set-level ORDER BY or LIMIT")
+		return e.explainNestedSetOperationPlanRowsAt(ctx, statement, defaultSchema, firstID, nextID)
 	}
 	operator := explainSetOperationName(statement.Type)
 	rows := make([][]interface{}, 0, len(branches)+1)
