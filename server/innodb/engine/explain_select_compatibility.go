@@ -227,13 +227,30 @@ func (e *XMySQLExecutor) explainSelectPlanRowsAt(ctx *ExecutionContext, statemen
 }
 
 func explainUnionBranches(statement sqlparser.SelectStatement) ([]*sqlparser.Select, bool) {
+	if setOperation, ok := statement.(*sqlparser.Union); ok && setOperation != nil {
+		operator := explainSetOperationName(setOperation.Type)
+		if operator == "INTERSECT" || operator == "EXCEPT" {
+			if len(setOperation.OrderBy) > 0 || setOperation.Limit != nil || setOperation.Lock != "" {
+				return nil, false
+			}
+			left, leftOK := setOperation.Left.(*sqlparser.Select)
+			right, rightOK := setOperation.Right.(*sqlparser.Select)
+			if !leftOK || !rightOK || !explainSelectHasSupportedSources(left) || !explainSelectHasSupportedSources(right) {
+				return nil, false
+			}
+			return []*sqlparser.Select{left, right}, true
+		}
+		if operator != "UNION" {
+			return nil, false
+		}
+	}
 	branches := make([]*sqlparser.Select, 0, 2)
 	firstUnion := true
 	var appendStatement func(sqlparser.SelectStatement) bool
 	appendStatement = func(statement sqlparser.SelectStatement) bool {
 		switch value := statement.(type) {
 		case *sqlparser.Union:
-			if value == nil || !strings.HasPrefix(strings.ToLower(strings.TrimSpace(value.Type)), "union") || !firstUnion && (len(value.OrderBy) > 0 || value.Limit != nil || value.Lock != "") {
+			if value == nil || explainSetOperationName(value.Type) != "UNION" || !firstUnion && (len(value.OrderBy) > 0 || value.Limit != nil || value.Lock != "") {
 				return false
 			}
 			firstUnion = false
@@ -259,6 +276,14 @@ func explainUnionBranches(statement sqlparser.SelectStatement) ([]*sqlparser.Sel
 	return branches, true
 }
 
+func explainSetOperationName(operation string) string {
+	fields := strings.Fields(strings.ToUpper(strings.TrimSpace(operation)))
+	if len(fields) == 0 {
+		return ""
+	}
+	return fields[0]
+}
+
 func explainUnionRequiresDistinct(statement sqlparser.SelectStatement) bool {
 	switch value := statement.(type) {
 	case *sqlparser.Union:
@@ -281,8 +306,9 @@ func (e *XMySQLExecutor) explainUnionPlanRows(ctx *ExecutionContext, statement *
 func (e *XMySQLExecutor) explainUnionPlanRowsAt(ctx *ExecutionContext, statement *sqlparser.Union, defaultSchema string, firstID int64, nextID *int64) ([][]interface{}, error) {
 	branches, ok := explainUnionBranches(statement)
 	if !ok {
-		return nil, fmt.Errorf("EXPLAIN supports UNION/UNION ALL with SELECT branches and no set-level ORDER BY or LIMIT")
+		return nil, fmt.Errorf("EXPLAIN supports UNION query expressions and binary INTERSECT/EXCEPT SELECT branches without set-level ORDER BY or LIMIT")
 	}
+	operator := explainSetOperationName(statement.Type)
 	rows := make([][]interface{}, 0, len(branches)+1)
 	tasks := make([]explainDerivedTask, 0)
 	branchIDs := make([]int64, 0, len(branches))
@@ -307,7 +333,7 @@ func (e *XMySQLExecutor) explainUnionPlanRowsAt(ctx *ExecutionContext, statement
 			*nextID++
 		}
 		branchIDs = append(branchIDs, id)
-		selectType := "UNION"
+		selectType := operator
 		if index == 0 {
 			selectType = "PRIMARY"
 		}
@@ -353,16 +379,30 @@ func (e *XMySQLExecutor) explainUnionPlanRowsAt(ctx *ExecutionContext, statement
 		rows = append(rows, subqueryRows...)
 		*nextID += int64(len(subqueryRows))
 	}
-	unionExtra := ""
-	if explainUnionRequiresDistinct(statement) {
-		unionExtra = "Using temporary"
+	resultExtra := ""
+	resultType := "UNION RESULT"
+	resultTable := "union"
+	includeSetResult := explainUnionRequiresDistinct(statement) || len(statement.OrderBy) > 0
+	if operator == "INTERSECT" || operator == "EXCEPT" {
+		resultExtra = "Using temporary"
+		resultType = operator + " RESULT"
+		resultTable = strings.ToLower(operator)
+		includeSetResult = true
+	} else if explainUnionRequiresDistinct(statement) {
+		resultExtra = "Using temporary"
 	}
 	if len(statement.OrderBy) > 0 {
-		unionExtra = appendExplainExtra(unionExtra, "Using filesort")
+		resultExtra = appendExplainExtra(resultExtra, "Using filesort")
 	}
-	includeUnionResult := explainUnionRequiresDistinct(statement) || len(statement.OrderBy) > 0
-	if includeUnionResult {
-		rows = append(rows, []interface{}{nil, "UNION RESULT", fmt.Sprintf("<union%d,%d>", branchIDs[0], branchIDs[len(branchIDs)-1]), nil, "ALL", nil, nil, nil, nil, nil, float64(100), unionExtra})
+	if includeSetResult {
+		var resultID interface{}
+		var resultFiltered interface{} = float64(100)
+		if operator == "INTERSECT" || operator == "EXCEPT" {
+			resultID = *nextID
+			*nextID++
+			resultFiltered = nil
+		}
+		rows = append(rows, []interface{}{resultID, resultType, fmt.Sprintf("<%s%d,%d>", resultTable, branchIDs[0], branchIDs[len(branchIDs)-1]), nil, "ALL", nil, nil, nil, nil, nil, resultFiltered, resultExtra})
 	}
 	return rows, nil
 }
