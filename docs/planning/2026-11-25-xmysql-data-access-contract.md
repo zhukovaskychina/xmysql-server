@@ -657,7 +657,7 @@ Java 与 Python 分别完成同一 DDL、提交与回滚、内容参数导入、
 
 ## RIFF/WAVE 元数据适配器
 
-`CONTENT_PARSE_AUDIO(content_column)` 当前仅支持 RIFF/WAVE PCM 与 IEEE-float。它扫描有界数量的 chunk 头和最多 64 KiB 的 `fmt ` 块，不读取音频样本；核对 RIFF 边界、唯一 `fmt `/`data` 块、通道、采样率、位宽和 block alignment，输出样本帧数与基于帧数/采样率计算的时长。类型载荷为 `xmysql.audio@1`，音频块记录半开 `[0, duration_ms)` 时间范围（短于 1 ms 时没有可表达的毫秒级定位），并声明 `container_header_only`、`samples_decoded=false`、`transcription_available=false`。须通过 `CONTENT_BLOCK_CONTEXT(..., 'ALLOW_DECLARED_DERIVATION')` 才能将描述符带入上下文，模型输入仍需从来源 CONTENT 提供实际音频。压缩编码、RF64、多 data chunk、解码、分段、转写和语音语义检索不在此解析器范围。当前仅有源码构建证据，没有 SQL 行为验收。
+`CONTENT_PARSE_AUDIO(content_column)` 当前仅支持 RIFF/WAVE PCM 与 IEEE-float。它扫描有界数量的 chunk 头和最多 64 KiB 的 `fmt ` 块，不读取音频样本；核对 RIFF 边界、唯一 `fmt `/`data` 块、通道、采样率、位宽和 block alignment，输出样本帧数与基于帧数/采样率计算的时长。类型载荷为 `xmysql.audio@1`，音频块记录半开 `[0, duration_ms)` 时间范围（短于 1 ms 时没有可表达的毫秒级定位），并声明 `container_header_only`、`samples_decoded=false`、`transcription_available=false`。须通过 `CONTENT_BLOCK_CONTEXT(..., 'ALLOW_DECLARED_DERIVATION')` 才能将描述符带入上下文，模型输入仍需从来源 CONTENT 提供实际音频。压缩编码、RF64、多 data chunk、解码、分段、转写和语音语义检索不在此解析器范围。新增 content 层用例覆盖有效 PCM、RIFF/data 越界、MIME/codec/对齐错误、缺失或重复 chunk 及 chunk 数上限；engine SQL 用例核对 READY 块的 1 秒定位，并确认派生上下文标出 `SOURCE_VERSION_MATCHED`、`DECLARED_TRANSFORMATION_NOT_VERIFIED`、实际音频模态输入要求及不可用转写状态。该验证没有证明 WAV 样本解码或模型语音质量。
 
 格式依据：[Microsoft RIFF chunk 说明](https://learn.microsoft.com/en-us/windows/win32/xaudio2/resource-interchange-file-format--riff-)与 [WAVEFORMATEX 采样格式约束](https://learn.microsoft.com/en-us/windows/win32/api/mmeapi/ns-mmeapi-waveformatex)。
 
