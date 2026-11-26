@@ -201,6 +201,7 @@ func (e *XMySQLExecutor) evaluateVectorSearchTable(ctx *ExecutionContext, functi
 		sourceBlock   *content.Value
 	}
 	verifiedHits := make([]verifiedVectorHit, 0, len(hits))
+	sourceContentByIdentity := make(map[string]content.Value, len(hits))
 	for _, hit := range hits {
 		value := hit.Entry.Value
 		if value.Source == nil {
@@ -218,17 +219,21 @@ func (e *XMySQLExecutor) evaluateVectorSearchTable(ctx *ExecutionContext, functi
 		if !exists {
 			return nil, fmt.Errorf("VECTOR index source CONTENT column %s is missing", source.Column)
 		}
-		var sourceContent content.Value
-		switch typed := rawSourceContent.(type) {
-		case content.Value:
-			sourceContent = typed.Clone()
-		case *content.Value:
-			if typed == nil {
-				return nil, fmt.Errorf("VECTOR index source CONTENT column %s is NULL", source.Column)
+		sourceIdentity := fmt.Sprintf("%s\x00%s\x00%s\x00%s\x00%d\x00%x", source.Schema, source.Table, source.Column, source.PrimaryKey, source.Revision, source.Digest)
+		sourceContent, cached := sourceContentByIdentity[sourceIdentity]
+		if !cached {
+			switch typed := rawSourceContent.(type) {
+			case content.Value:
+				sourceContent = typed.Clone()
+			case *content.Value:
+				if typed == nil {
+					return nil, fmt.Errorf("VECTOR index source CONTENT column %s is NULL", source.Column)
+				}
+				sourceContent = typed.Clone()
+			default:
+				return nil, fmt.Errorf("VECTOR index source column %s has unsupported value %T", source.Column, rawSourceContent)
 			}
-			sourceContent = typed.Clone()
-		default:
-			return nil, fmt.Errorf("VECTOR index source column %s has unsupported value %T", source.Column, rawSourceContent)
+			sourceContentByIdentity[sourceIdentity] = sourceContent
 		}
 		var sourceBlock *content.Value
 		if value.SourceBlockID != "" {

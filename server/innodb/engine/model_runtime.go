@@ -30,6 +30,8 @@ func modelProjectionResultType(expression sqlparser.Expr) (metadata.DataType, bo
 		return metadata.TypeVector, true
 	case "AI_EXTRACT":
 		return metadata.TypeJSON, true
+	case "AI_RAG_RESULT":
+		return metadata.TypeJSON, true
 	case "AI_GENERATE", "AI_GENERATE_RESULT", "AI_SUMMARIZE", "AI_DESCRIBE_BLOCK", "AI_DESCRIBE_BLOCK_RESULT":
 		return metadata.TypeVarchar, true
 	default:
@@ -44,10 +46,16 @@ func (e *XMySQLExecutor) executeConstantSelectWithModels(ctx *ExecutionContext, 
 	if ctx != nil {
 		se.modelContext = ctx.Context
 	}
+	se.ragEvaluator = func(function *sqlparser.FuncExpr, values map[string]interface{}) (interface{}, error) {
+		if stmt != nil && len(stmt.From) != 0 {
+			return nil, fmt.Errorf("AI_RAG_RESULT must be used as a no-FROM SELECT expression")
+		}
+		return e.evaluateAIRAGResult(ctx, function, values)
+	}
 	return executeConstantSelectWithEvaluator(stmt, func(expr sqlparser.Expr, row map[string]interface{}) (interface{}, error) {
 		if function, ok := expr.(*sqlparser.FuncExpr); ok {
 			switch strings.ToUpper(strings.Trim(function.Name.String(), "` ")) {
-			case "AI_EMBED", "AI_EXTRACT", "AI_GENERATE", "AI_GENERATE_RESULT", "AI_SUMMARIZE":
+			case "AI_EMBED", "AI_EXTRACT", "AI_GENERATE", "AI_GENERATE_RESULT", "AI_SUMMARIZE", "AI_RAG_RESULT":
 				// The existing constant SELECT evaluator does not execute these
 				// clauses. Do not issue a model call under silently ignored filters.
 				if stmt.Where != nil || stmt.Having != nil || len(stmt.GroupBy) != 0 || len(stmt.OrderBy) != 0 || stmt.Limit != nil {
@@ -61,6 +69,8 @@ func (e *XMySQLExecutor) executeConstantSelectWithModels(ctx *ExecutionContext, 
 				return se.evaluateAIExtractSQL(function, row)
 			case "AI_GENERATE", "AI_GENERATE_RESULT", "AI_SUMMARIZE":
 				return se.evaluateAIGenerateSQL(function, row)
+			case "AI_RAG_RESULT":
+				return se.ragEvaluator(function, row)
 			}
 		}
 		return evaluateExpressionWithRow(expr, row)
@@ -74,6 +84,7 @@ type GenerationRequest struct {
 	Modality   string
 	MIMEType   string
 	Media      []byte
+	Evidence   []GenerationEvidence
 	Locator    content.Locator
 	Source     content.SourceRef
 	BlockID    string
@@ -83,6 +94,26 @@ type GenerationRequest struct {
 	// TableSemantics contains only confirmed source-table meaning and
 	// relationships whose targets are visible to the current SQL session.
 	TableSemantics *metadata.TableSemanticDefinition
+}
+
+// GenerationEvidence is one authorized retrieval item delivered to a model.
+// Media contains actual bytes when the evidence is non-text; Source and Locator
+// bind those bytes to the selected source revision and region/time range.
+type GenerationEvidence struct {
+	ID               string
+	Text             string
+	Modality         string
+	MIMEType         string
+	Media            []byte
+	Source           content.SourceRef
+	BlockID          string
+	Locator          content.Locator
+	ProcessorID      string
+	ProcessorVersion string
+	ModelID          string
+	ModelVersion     string
+	ColumnSemantics  map[string]metadata.ColumnSemanticDefinition
+	TableSemantics   *metadata.TableSemanticDefinition
 }
 
 type GenerationResult struct {
@@ -96,10 +127,19 @@ type GenerationResult struct {
 }
 
 type GenerationRuntime interface {
-	// Generate may receive text in Prompt or actual source bytes in Media.
-	// For multimodal requests it must honor Modality, MIMEType and Locator,
-	// consume the authorized input before returning, and honor cancellation.
+	// Generate may receive text in Prompt, one direct-media input in Media, or
+	// multiple retrieved items in Evidence. For each multimodal evidence item
+	// it must honor Modality, MIMEType and Locator, consume the actual authorized
+	// bytes before returning, and honor cancellation.
 	Generate(context.Context, GenerationRequest) (GenerationResult, error)
+}
+
+// GenerationModalitySupport is an optional runtime capability contract. RAG
+// fails closed for image/audio/video evidence unless the installed runtime
+// explicitly confirms that it can consume that modality for the selected
+// generation model.
+type GenerationModalitySupport interface {
+	SupportsGenerationModality(modelAlias, modality string) bool
 }
 
 // EmbeddingRequest contains the actual authorized model input for one query or

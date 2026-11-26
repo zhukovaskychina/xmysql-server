@@ -121,7 +121,15 @@ func invokeEmbedding(ctx context.Context, runtime EmbeddingRuntime, request Embe
 }
 
 func invokeGeneration(ctx context.Context, runtime GenerationRuntime, request GenerationRequest) (GenerationResult, error) {
-	callContext, cancel, err := beginModelCall(ctx, uint64(len(request.Prompt))+uint64(len(request.Media)))
+	inputBytes := uint64(len(request.Prompt)) + uint64(len(request.Media))
+	for _, evidence := range request.Evidence {
+		itemBytes := uint64(len(evidence.Text)) + uint64(len(evidence.Media))
+		if itemBytes > ^uint64(0)-inputBytes {
+			return GenerationResult{}, ErrModelBudgetExceeded
+		}
+		inputBytes += itemBytes
+	}
+	callContext, cancel, err := beginModelCall(ctx, inputBytes)
 	if err != nil {
 		return GenerationResult{}, err
 	}

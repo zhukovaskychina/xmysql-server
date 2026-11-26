@@ -7166,6 +7166,12 @@ func (e *XMySQLExecutor) executeSelectStatement(ctx *ExecutionContext, stmt *sql
 	selectExecutor.embeddingRuntime = e.embeddingRuntimeSnapshot()
 	selectExecutor.generationRuntime = e.generationRuntimeSnapshot()
 	selectExecutor.modelContext = selectContext
+	selectExecutor.ragEvaluator = func(function *sqlparser.FuncExpr, values map[string]interface{}) (interface{}, error) {
+		if len(stmt.From) != 0 {
+			return nil, fmt.Errorf("AI_RAG_RESULT must be used as a no-FROM SELECT expression")
+		}
+		return e.evaluateAIRAGResult(ctx, function, values)
+	}
 	result, err := selectExecutor.ExecuteSelect(selectContext, stmt, databaseName)
 	if ctx != nil {
 		ctx.recordIndexAccessPath(selectExecutor.lastAccessPath)

@@ -50,6 +50,7 @@ type SelectExecutor struct {
 	columnSemanticCache         map[*metadata.TableMeta]map[string]metadata.ColumnSemanticDefinition
 	tableSemanticCache          map[tableSemanticCacheKey]*metadata.TableSemanticDefinition
 	semanticRelationshipAllowed func(string, string, metadata.SemanticRelationship) bool
+	ragEvaluator                func(*sqlparser.FuncExpr, map[string]interface{}) (interface{}, error)
 
 	// 查询相关
 	logicalPlan             plan.LogicalPlan
@@ -4389,6 +4390,11 @@ func (se *SelectExecutor) evaluateProjectionExpression(expression string, values
 			return se.evaluateAIEmbedBlockSQL(function, values)
 		case "AI_EMBED":
 			return evaluateAIEmbedSQL(se.embeddingRuntime, se.modelContext, function, values)
+		case "AI_RAG_RESULT":
+			if se.ragEvaluator == nil {
+				return nil, fmt.Errorf("AI_RAG_RESULT is unavailable in this SELECT execution path")
+			}
+			return se.ragEvaluator(function, values)
 		case "CONTENT_BLOCK_FROM_JSON", "CONTENT_BLOCK_FROM_SOURCE", "CONTENT_BLOCK_MATCHES_SOURCE", "CONTENT_BLOCK_VERIFIED_TEXT", "CONTENT_BLOCK_CONTEXT", "CONTENT_BLOCK_SOURCE_SLICE", "CONTENT_PARSE_CSV", "CONTENT_PARSE_JSON_ARRAY", "CONTENT_PARSE_IMAGE", "CONTENT_PARSE_AUDIO", "CONTENT_PARSE_VIDEO", "CONTENT_BLOCK_RETRIEVAL_TEXT", "CONTENT_TEXT_BLOCK", "CONTENT_TEXT_CHUNK", "CONTENT_TEXT_CHUNK_COUNT", "CONTENT_MAINTENANCE_STATUS", "CONTENT_FROM_BYTES", "CONTENT_SLICE", "CONTENT_TEXT", "CONTENT_BYTES", "CONTENT_MIME", "CONTENT_KIND", "CONTENT_REVISION", "CONTENT_SHA256", "CONTENT_LENGTH",
 			"CONTENT_BLOCK_ID", "CONTENT_BLOCK_IDENTITY_VERSION", "CONTENT_BLOCK_STATE", "CONTENT_BLOCK_KIND", "CONTENT_BLOCK_TEXT", "CONTENT_BLOCK_PAYLOAD", "CONTENT_BLOCK_PAYLOAD_SCHEMA", "CONTENT_BLOCK_PAYLOAD_VERSION", "CONTENT_BLOCK_PAYLOAD_MEDIA_TYPE", "CONTENT_BLOCK_PAYLOAD_SHA256", "CONTENT_BLOCK_ATTRIBUTES", "CONTENT_BLOCK_ORDINAL", "CONTENT_BLOCK_PARENT_ID", "CONTENT_BLOCK_RELATION",
 			"CONTENT_BLOCK_SOURCE_SCHEMA", "CONTENT_BLOCK_SOURCE_TABLE", "CONTENT_BLOCK_SOURCE_COLUMN",
@@ -4592,7 +4598,7 @@ func isNativeTypedValueFunction(expression sqlparser.Expr) bool {
 		return false
 	}
 	name := strings.ToUpper(strings.Trim(function.Name.String(), "` "))
-	return strings.HasPrefix(name, "CONTENT_") || strings.HasPrefix(name, "VECTOR_") || name == "AI_EXTRACT" || name == "AI_GENERATE" || name == "AI_GENERATE_RESULT" || name == "AI_SUMMARIZE" || name == "AI_DESCRIBE_BLOCK" || name == "AI_DESCRIBE_BLOCK_RESULT"
+	return strings.HasPrefix(name, "CONTENT_") || strings.HasPrefix(name, "VECTOR_") || name == "AI_EXTRACT" || name == "AI_RAG_RESULT" || name == "AI_GENERATE" || name == "AI_GENERATE_RESULT" || name == "AI_SUMMARIZE" || name == "AI_DESCRIBE_BLOCK" || name == "AI_DESCRIBE_BLOCK_RESULT"
 }
 
 func projectionValueString(value interface{}) string {
