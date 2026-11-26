@@ -69,6 +69,8 @@ type XMySQLExecutor struct {
 	embeddingRuntimeMu   sync.RWMutex
 	pdfPageParserMu      sync.RWMutex
 	pdfPageParser        content.PDFPageParser
+	docxBlockParserMu    sync.RWMutex
+	docxBlockParser      content.DOCXBlockParser
 	embeddingRuntime     EmbeddingRuntime
 	generationRuntime    GenerationRuntime
 	modelExecutionPolicy ModelExecutionPolicy

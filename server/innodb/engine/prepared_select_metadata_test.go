@@ -41,6 +41,7 @@ func TestPreparedSelectMetadataUsesCatalogAndFunctionContracts(t *testing.T) {
 		{"SELECT token, position FROM TABLE(FULLTEXT_TOKENS('alpha'))", []string{"token", "position"}, []string{"varchar", "bigint"}},
 		{"SELECT c.* FROM lhs, TABLE(CONTENT_TEXT_CHUNKS(body,64)) c", []string{"ordinal", "text", "block", "byte_start", "byte_end"}, []string{"bigint", "varchar", "content", "bigint", "bigint"}},
 		{"SELECT p.page,p.text,p.extraction_status FROM lhs, TABLE(CONTENT_PARSE_PDF(body)) p", []string{"page", "text", "extraction_status"}, []string{"bigint", "mediumtext", "varchar"}},
+		{"SELECT d.text,d.structure_path FROM lhs, TABLE(CONTENT_PARSE_DOCX(body)) d", []string{"text", "structure_path"}, []string{"mediumtext", "varchar"}},
 		{"SELECT CONTENT_MAINTENANCE_STATUS(body,4096) AS maintenance_status FROM lhs", []string{"maintenance_status"}, []string{"varchar"}},
 	} {
 		t.Run(test.query, func(t *testing.T) {

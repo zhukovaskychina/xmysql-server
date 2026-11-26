@@ -47,6 +47,15 @@ func contentPDFPagesResultColumns() []joinOutputColumn {
 	}
 }
 
+func contentDOCXBlocksResultColumns() []joinOutputColumn {
+	return []joinOutputColumn{
+		{name: "ordinal", typ: metadata.TypeBigInt},
+		{name: "text", typ: metadata.TypeMediumText},
+		{name: "block", typ: metadata.TypeContent},
+		{name: "structure_path", typ: metadata.TypeVarchar},
+	}
+}
+
 func fullTextTokensResultColumns() []joinOutputColumn {
 	return []joinOutputColumn{{name: "token", typ: metadata.TypeVarchar}, {name: "position", typ: metadata.TypeBigInt}}
 }

@@ -265,6 +265,8 @@ func (d *preparedSelectDescriber) source(expression sqlparser.TableExpr, ctes ma
 				columns = contentTextChunksResultColumns()
 			case "content_parse_pdf":
 				columns = contentPDFPagesResultColumns()
+			case "content_parse_docx":
+				columns = contentDOCXBlocksResultColumns()
 			case "fulltext_tokens":
 				columns = fullTextTokensResultColumns()
 			default:
