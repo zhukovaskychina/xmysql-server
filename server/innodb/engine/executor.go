@@ -26862,6 +26862,7 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 	tableName, schemaName := "", databaseName
 	var explainedSelect *sqlparser.Select
 	var explainedUnion *sqlparser.Union
+	var explainJSONUnion *sqlparser.Union
 	var explainPreparationErr error
 	explainFormat := ""
 	explainAnalyze := false
@@ -26935,7 +26936,13 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 		resultColumns := columns
 		resultRows := rows
 		if explainFormat == "json" {
-			encoded, encodeErr := explainPlanRowsJSON(rows)
+			var encoded string
+			var encodeErr error
+			if explainJSONUnion != nil {
+				encoded, encodeErr = explainUnionPlanRowsJSON(rows, explainJSONUnion)
+			} else {
+				encoded, encodeErr = explainPlanRowsJSON(rows)
+			}
 			if encodeErr != nil {
 				ctx.Results <- &Result{Err: encodeErr, ResultType: common.RESULT_TYPE_QUERY}
 				return
@@ -26960,6 +26967,9 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 		if planErr != nil {
 			ctx.Results <- &Result{Err: planErr, ResultType: common.RESULT_TYPE_QUERY}
 			return
+		}
+		if explainFormat == "json" {
+			explainJSONUnion = explainedUnion
 		}
 		emitPlanRows(rows)
 		return
@@ -27029,6 +27039,75 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 	}
 	rows := [][]interface{}{{int64(1), "SIMPLE", tableName, partitions, accessType, nullIfEmpty(possibleKeys), selectedKey, keyLength, nil, rowCount, float64(100), extra}}
 	emitPlanRows(rows)
+}
+
+func explainUnionPlanRowsJSON(rows [][]interface{}, statement *sqlparser.Union) (string, error) {
+	if statement == nil || explainSetOperationName(statement.Type) != "UNION" {
+		return "", fmt.Errorf("EXPLAIN FORMAT=JSON currently supports only UNION query blocks")
+	}
+	branches, supported := explainUnionBranches(statement)
+	if !supported || len(branches) < 2 {
+		return "", fmt.Errorf("EXPLAIN FORMAT=JSON currently supports UNION branches with SELECT query blocks")
+	}
+	rowsBySelectID := make(map[int64][][]interface{}, len(branches))
+	selectIDs := make([]int64, 0, len(branches))
+	usingTemporaryTable := false
+	for _, row := range rows {
+		if len(row) < 12 {
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON cannot encode a malformed UNION plan row")
+		}
+		selectType, _ := row[1].(string)
+		if selectType == "UNION RESULT" {
+			usingTemporaryTable = true
+			continue
+		}
+		if selectType != "PRIMARY" && selectType != "UNION" {
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON UNION currently supports base SELECT branches only")
+		}
+		selectID, ok := row[0].(int64)
+		if !ok {
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON UNION branch has an invalid SELECT identifier")
+		}
+		if _, exists := rowsBySelectID[selectID]; !exists {
+			selectIDs = append(selectIDs, selectID)
+		}
+		rowsBySelectID[selectID] = append(rowsBySelectID[selectID], row)
+	}
+	if len(selectIDs) != len(branches) {
+		return "", fmt.Errorf("EXPLAIN FORMAT=JSON UNION branch plan count does not match the query")
+	}
+	querySpecifications := make([]map[string]interface{}, 0, len(selectIDs))
+	for _, selectID := range selectIDs {
+		branchRows := rowsBySelectID[selectID]
+		jsonRows := make([][]interface{}, len(branchRows))
+		for index, row := range branchRows {
+			jsonRows[index] = append([]interface{}(nil), row...)
+			// The branch kind is expressed by its position in query_specifications,
+			// while the branch query_block uses the same shape as SIMPLE/PRIMARY.
+			jsonRows[index][1] = "PRIMARY"
+		}
+		encodedBlock, err := explainPlanRowsJSON(jsonRows)
+		if err != nil {
+			return "", err
+		}
+		var decoded struct {
+			QueryBlock map[string]interface{} `json:"query_block"`
+		}
+		if err := json.Unmarshal([]byte(encodedBlock), &decoded); err != nil || decoded.QueryBlock == nil {
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON could not decode a UNION query block")
+		}
+		decoded.QueryBlock["select_id"] = selectID
+		querySpecifications = append(querySpecifications, map[string]interface{}{
+			"dependent": false, "cacheable": true, "query_block": decoded.QueryBlock,
+		})
+	}
+	encoded, err := json.Marshal(map[string]interface{}{"query_block": map[string]interface{}{
+		"union_result": map[string]interface{}{
+			"using_temporary_table": usingTemporaryTable,
+			"query_specifications":  querySpecifications,
+		},
+	}})
+	return string(encoded), err
 }
 
 type explainJSONTable struct {
