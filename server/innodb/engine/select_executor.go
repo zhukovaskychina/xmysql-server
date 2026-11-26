@@ -4379,6 +4379,8 @@ func (se *SelectExecutor) evaluateProjectionExpression(expression string, values
 	if function, ok := entry.ast.(*sqlparser.FuncExpr); ok {
 		functionName := strings.ToUpper(strings.Trim(function.Name.String(), "` "))
 		switch functionName {
+		case "AI_EXTRACT":
+			return se.evaluateAIExtractSQL(function, values)
 		case "AI_GENERATE", "AI_GENERATE_RESULT", "AI_SUMMARIZE":
 			return se.evaluateAIGenerateSQL(function, values)
 		case "AI_DESCRIBE_BLOCK", "AI_DESCRIBE_BLOCK_RESULT":
@@ -4590,7 +4592,7 @@ func isNativeTypedValueFunction(expression sqlparser.Expr) bool {
 		return false
 	}
 	name := strings.ToUpper(strings.Trim(function.Name.String(), "` "))
-	return strings.HasPrefix(name, "CONTENT_") || strings.HasPrefix(name, "VECTOR_") || name == "AI_GENERATE" || name == "AI_GENERATE_RESULT" || name == "AI_SUMMARIZE" || name == "AI_DESCRIBE_BLOCK" || name == "AI_DESCRIBE_BLOCK_RESULT"
+	return strings.HasPrefix(name, "CONTENT_") || strings.HasPrefix(name, "VECTOR_") || name == "AI_EXTRACT" || name == "AI_GENERATE" || name == "AI_GENERATE_RESULT" || name == "AI_SUMMARIZE" || name == "AI_DESCRIBE_BLOCK" || name == "AI_DESCRIBE_BLOCK_RESULT"
 }
 
 func projectionValueString(value interface{}) string {

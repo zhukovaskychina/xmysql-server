@@ -957,6 +957,8 @@ func (se *SelectExecutor) valueForJoinProjection(row joinedMapRow, index int, ex
 		if function, ok := se.selectExprASTs[index].(*sqlparser.FuncExpr); ok {
 			name := strings.ToUpper(strings.Trim(function.Name.String(), "` "))
 			switch name {
+			case "AI_EXTRACT":
+				return se.evaluateAIExtractSQL(function, map[string]interface{}(row))
 			case "AI_EMBED":
 				return evaluateAIEmbedSQL(se.embeddingRuntime, se.modelContext, function, map[string]interface{}(row))
 			case "AI_EMBED_BLOCK":
