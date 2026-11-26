@@ -665,6 +665,14 @@ func (e *XMySQLExecutor) executeDerivedJoinAliasedTableWithMaterialized(ctx *Exe
 			}
 			return source, nil
 		}
+		if strings.EqualFold(expression.Function.Name.String(), "FULLTEXT_SEARCH") {
+			source, err := e.evaluateFullTextSearchTable(ctx, expression.Function)
+			if err != nil {
+				return nil, err
+			}
+			source.qualifiedCols[strings.ToLower(alias)] = append([]string(nil), source.columns...)
+			return source, nil
+		}
 		if strings.EqualFold(expression.Function.Name.String(), "FULLTEXT_TOKENS") {
 			source, err := evaluateFullTextTokensTable(expression.Function, map[string]interface{}{storedFunctionDataDirKey: e.getDataDir()})
 			if err != nil {

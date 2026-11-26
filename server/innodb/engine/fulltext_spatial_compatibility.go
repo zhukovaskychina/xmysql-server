@@ -626,6 +626,10 @@ func (e *XMySQLExecutor) fullTextCandidateIDs(databaseName, tableName string, co
 	if !found {
 		return nil, false
 	}
+	return fullTextCandidateIDsFromState(state, query, booleanMode)
+}
+
+func fullTextCandidateIDsFromState(state fullTextIndexState, query string, booleanMode bool) ([]string, bool) {
 	queryTerms := make([]fullTextQueryTerm, 0)
 	if booleanMode {
 		queryTerms = parseFullTextBooleanTerms(query)

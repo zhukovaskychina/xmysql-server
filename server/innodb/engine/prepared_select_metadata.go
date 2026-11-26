@@ -334,6 +334,8 @@ func (d *preparedSelectDescriber) source(expression sqlparser.TableExpr, ctes ma
 				columns = contentXLSXRowsResultColumns()
 			case "fulltext_tokens":
 				columns = fullTextTokensResultColumns()
+			case "fulltext_search":
+				columns = fullTextSearchResultColumns()
 			default:
 				return joinResultShape{}, fmt.Errorf("unsupported table-function metadata: %s", name)
 			}
