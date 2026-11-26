@@ -2281,11 +2281,15 @@ func (h *DecoupledMySQLMessageHandler) handleComStmtPrepare(session Session, cur
 }
 
 func (h *DecoupledMySQLMessageHandler) populatePreparedResultMetadata(session Session, currentMysqlSession *server.MySQLServerSession, stmt *protocol.PreparedStatement) {
-	if stmt == nil || !looksLikePreparedResultStatement(stmt.SQL) || h.businessHandler == nil {
+	if stmt == nil || h.businessHandler == nil || !looksLikePreparedResultStatement(stmt.SQL) {
 		return
 	}
 	params := make([]interface{}, strings.Count(stmt.SQL, "?"))
 	metadataSQL := protocol.BindPreparedSQL(stmt.SQL, params)
+	metadataSQL = engine.NormalizeTableConstructorQuery(metadataSQL)
+	if !looksLikePreparedResultStatement(metadataSQL) {
+		return
+	}
 	var result *protocol.MessageQueryResult
 	var err error
 	if preparedSelectNeedsStaticMetadata(metadataSQL) {
@@ -2339,7 +2343,10 @@ func preparedSelectNeedsStaticMetadata(query string) bool {
 
 func looksLikePreparedResultStatement(sqlText string) bool {
 	trimmed := strings.TrimSpace(strings.ToLower(sqlText))
-	for _, prefix := range []string{"select", "with", "show", "describe", "desc", "explain"} {
+	if strings.HasPrefix(trimmed, "(") {
+		return true
+	}
+	for _, prefix := range []string{"select", "with", "show", "describe", "desc", "explain", "table", "values"} {
 		if strings.HasPrefix(trimmed, prefix+" ") || trimmed == prefix {
 			return true
 		}
