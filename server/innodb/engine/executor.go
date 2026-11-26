@@ -26939,7 +26939,7 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 			var encoded string
 			var encodeErr error
 			if explainJSONUnion != nil {
-				encoded, encodeErr = explainUnionPlanRowsJSON(rows, explainJSONUnion)
+				encoded, encodeErr = explainSetOperationPlanRowsJSON(rows, explainJSONUnion)
 			} else if explainedSelect != nil && explainSelectHasDerivedSource(explainedSelect) {
 				encoded, encodeErr = explainMaterializedDerivedPlanRowsJSON(rows, explainedSelect)
 			} else {
@@ -27043,25 +27043,33 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 	emitPlanRows(rows)
 }
 
-func explainUnionPlanRowsJSON(rows [][]interface{}, statement *sqlparser.Union) (string, error) {
-	if statement == nil || explainSetOperationName(statement.Type) != "UNION" {
-		return "", fmt.Errorf("EXPLAIN FORMAT=JSON currently supports only UNION query blocks")
+func explainSetOperationPlanRowsJSON(rows [][]interface{}, statement *sqlparser.Union) (string, error) {
+	if statement == nil {
+		return "", fmt.Errorf("EXPLAIN FORMAT=JSON requires a set-operation query block")
+	}
+	operator := explainSetOperationName(statement.Type)
+	if operator != "UNION" && operator != "INTERSECT" && operator != "EXCEPT" {
+		return "", fmt.Errorf("EXPLAIN FORMAT=JSON does not support %s query blocks", operator)
 	}
 	branches, supported := explainUnionBranches(statement)
 	if !supported || len(branches) < 2 {
-		return "", fmt.Errorf("EXPLAIN FORMAT=JSON currently supports UNION branches with SELECT query blocks")
+		return "", fmt.Errorf("EXPLAIN FORMAT=JSON currently supports flat %s query blocks with SELECT branches", operator)
 	}
 	rowsBySelectID := make(map[int64][][]interface{}, len(branches))
 	derivedRowsByID := make(map[int64][][]interface{})
 	selectIDs := make([]int64, 0, len(branches))
 	usingTemporaryTable := false
+	var resultSelectID interface{}
+	resultTableName := ""
 	for _, row := range rows {
 		if len(row) < 12 {
 			return "", fmt.Errorf("EXPLAIN FORMAT=JSON cannot encode a malformed UNION plan row")
 		}
 		selectType, _ := row[1].(string)
-		if selectType == "UNION RESULT" {
+		if selectType == operator+" RESULT" {
 			usingTemporaryTable = true
+			resultSelectID = row[0]
+			resultTableName, _ = row[2].(string)
 			continue
 		}
 		if selectType == "DERIVED" {
@@ -27072,8 +27080,8 @@ func explainUnionPlanRowsJSON(rows [][]interface{}, statement *sqlparser.Union) 
 			derivedRowsByID[selectID] = append(derivedRowsByID[selectID], row)
 			continue
 		}
-		if selectType != "PRIMARY" && selectType != "UNION" {
-			return "", fmt.Errorf("EXPLAIN FORMAT=JSON UNION currently supports SELECT branches and direct materialized derived blocks only")
+		if selectType != "PRIMARY" && selectType != operator {
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON %s currently supports SELECT branches and direct materialized derived blocks only", operator)
 		}
 		selectID, ok := row[0].(int64)
 		if !ok {
@@ -27085,7 +27093,10 @@ func explainUnionPlanRowsJSON(rows [][]interface{}, statement *sqlparser.Union) 
 		rowsBySelectID[selectID] = append(rowsBySelectID[selectID], row)
 	}
 	if len(selectIDs) != len(branches) {
-		return "", fmt.Errorf("EXPLAIN FORMAT=JSON UNION branch plan count does not match the query")
+		return "", fmt.Errorf("EXPLAIN FORMAT=JSON %s branch plan count does not match the query", operator)
+	}
+	if operator != "UNION" && (resultSelectID == nil || resultTableName == "") {
+		return "", fmt.Errorf("EXPLAIN FORMAT=JSON %s result plan row is missing", operator)
 	}
 	querySpecifications := make([]map[string]interface{}, 0, len(selectIDs))
 	consumedDerivedIDs := make(map[int64]struct{}, len(derivedRowsByID))
@@ -27100,12 +27111,12 @@ func explainUnionPlanRowsJSON(rows [][]interface{}, statement *sqlparser.Union) 
 			}
 			derivedID, parseErr := strconv.ParseInt(strings.TrimSuffix(strings.TrimPrefix(tableName, "<derived"), ">"), 10, 64)
 			if parseErr != nil || derivedID < 1 {
-				return "", fmt.Errorf("EXPLAIN FORMAT=JSON UNION branch has an invalid derived-table identifier")
+				return "", fmt.Errorf("EXPLAIN FORMAT=JSON %s branch has an invalid derived-table identifier", operator)
 			}
 			derivedIDs = append(derivedIDs, derivedID)
 		}
 		if len(derivedIDs) != len(derivedSources) {
-			return "", fmt.Errorf("EXPLAIN FORMAT=JSON UNION branch derived source count does not match its plan")
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON %s branch derived source count does not match its plan", operator)
 		}
 		var encodedBlock string
 		var err error
@@ -27128,10 +27139,10 @@ func explainUnionPlanRowsJSON(rows [][]interface{}, statement *sqlparser.Union) 
 			for _, derivedID := range derivedIDs {
 				childRows := derivedRowsByID[derivedID]
 				if len(childRows) == 0 {
-					return "", fmt.Errorf("EXPLAIN FORMAT=JSON UNION derived parent and child identifiers do not match")
+					return "", fmt.Errorf("EXPLAIN FORMAT=JSON %s derived parent and child identifiers do not match", operator)
 				}
 				if _, alreadyUsed := consumedDerivedIDs[derivedID]; alreadyUsed {
-					return "", fmt.Errorf("EXPLAIN FORMAT=JSON UNION contains a duplicate derived-table identifier")
+					return "", fmt.Errorf("EXPLAIN FORMAT=JSON %s contains a duplicate derived-table identifier", operator)
 				}
 				consumedDerivedIDs[derivedID] = struct{}{}
 				combinedRows = append(combinedRows, childRows...)
@@ -27145,7 +27156,7 @@ func explainUnionPlanRowsJSON(rows [][]interface{}, statement *sqlparser.Union) 
 			QueryBlock map[string]interface{} `json:"query_block"`
 		}
 		if err := json.Unmarshal([]byte(encodedBlock), &decoded); err != nil || decoded.QueryBlock == nil {
-			return "", fmt.Errorf("EXPLAIN FORMAT=JSON could not decode a UNION query block")
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON could not decode a %s query block", operator)
 		}
 		decoded.QueryBlock["select_id"] = selectID
 		querySpecifications = append(querySpecifications, map[string]interface{}{
@@ -27153,13 +27164,20 @@ func explainUnionPlanRowsJSON(rows [][]interface{}, statement *sqlparser.Union) 
 		})
 	}
 	if len(consumedDerivedIDs) != len(derivedRowsByID) {
-		return "", fmt.Errorf("EXPLAIN FORMAT=JSON UNION contains an orphan derived query block")
+		return "", fmt.Errorf("EXPLAIN FORMAT=JSON %s contains an orphan derived query block", operator)
+	}
+	resultBlock := map[string]interface{}{
+		"using_temporary_table": usingTemporaryTable,
+		"query_specifications":  querySpecifications,
+	}
+	if operator != "UNION" {
+		resultBlock["using_temporary_table"] = true
+		resultBlock["select_id"] = resultSelectID
+		resultBlock["table_name"] = resultTableName
+		resultBlock["access_type"] = "ALL"
 	}
 	encoded, err := json.Marshal(map[string]interface{}{"query_block": map[string]interface{}{
-		"union_result": map[string]interface{}{
-			"using_temporary_table": usingTemporaryTable,
-			"query_specifications":  querySpecifications,
-		},
+		strings.ToLower(operator) + "_result": resultBlock,
 	}})
 	return string(encoded), err
 }
