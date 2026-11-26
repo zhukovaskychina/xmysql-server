@@ -53,6 +53,13 @@ func main() {
 		}
 		return
 	}
+	if len(os.Args) == 2 && os.Args[1] == "--xmysql-internal-pptx-worker" {
+		if err := content.RunPPTXWorker(os.Stdin, os.Stdout); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		return
+	}
 	if len(os.Args) == 2 && os.Args[1] == "--xmysql-internal-xlsx-worker" {
 		if err := content.RunXLSXWorker(os.Stdin, os.Stdout); err != nil {
 			_, _ = fmt.Fprintln(os.Stderr, err)

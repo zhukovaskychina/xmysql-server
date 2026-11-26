@@ -73,6 +73,8 @@ type XMySQLExecutor struct {
 	docxBlockParser      content.DOCXBlockParser
 	htmlBlockParserMu    sync.RWMutex
 	htmlBlockParser      content.HTMLBlockParser
+	pptxBlockParserMu    sync.RWMutex
+	pptxBlockParser      content.PPTXBlockParser
 	xlsxRowParserMu      sync.RWMutex
 	xlsxRowParser        content.XLSXRowParser
 	embeddingRuntime     EmbeddingRuntime

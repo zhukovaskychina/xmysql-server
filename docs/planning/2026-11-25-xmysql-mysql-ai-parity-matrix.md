@@ -24,7 +24,7 @@ HeatWave 单列参考线 H，不混入 MySQL AI 26.10 的实现结论。其手�
 
 | ID 与能力 | 官方依据与比较边界 | XMySQL 当前判断及拟议落点 | 必须完成的验收 |
 | --- | --- | --- | --- |
-| A01 文档导入 | MySQL AI 支持 PDF、PPTX、PPT、TXT、HTML、DOCX、DOC；见 D1 | 待实现；U03 U07 U30。普通驱动写 CONTENT，不能只做上传 API | 同一文件集逐格式导入；成功、失败、超限和不支持分别可见，Office 旧格式不能静默略去 |
+| A01 文档导入 | MySQL AI 支持 PDF、PPTX、PPT、TXT、HTML、DOCX、DOC；见 D1 | 部分源码原型、待行为验收：PDF/TXT/HTML/DOCX/PPTX SQL 表值解析与 XLSX 有界提取；DOC/PPT 旧格式、扫描 PDF OCR、普通客户端全链路仍缺；U03 U07 U30 | 同一文件集逐格式导入；成功、失败、超限和不支持分别可见；DOC/PPT 受限转换，不能静默略去；尚未完成全格式追平 |
 | A02 扫描 PDF OCR | 官方明确包含扫描 PDF；见 D2 | 待实现；U07 与页级状态 | 数字、扫描、混合、旧 OCR、空白和损坏页，分别核验正文与原页定位 |
 | A03 结构提取与分块 | 自动解析、分段是对方既有能力；规范表格和位置保真另单列 | 部分源码原型待验证：显式文本 CONTENT 可按有界范围切块并保留来源范围，`VisitTextChunksFromStore` 可供维护任务逐块消费；SQL 仅在无过滤/排序/聚合且有字面量 `LIMIT` 时按需生成，其他形状仍物化；PDF/OCR/Office 解析、模型 token 感知分块及结构表格提取仍待实现；U06 U07 U08 | 块、表格单元格、类型、页码及父子关系一致；重叠上下文不参与重复统计 |
 | A04 单条与批量嵌入 | ML_EMBED_ROW、表数据批处理及 DISTANCE；见 D3 | 部分 SQL 原型待验证：VECTOR 类型、维度/空间/来源块绑定与精确距离函数已有；新增 `AI_EMBED_BLOCK` 可调用服务器注入的 EmbeddingRuntime；无默认 provider、模型目录、持久批处理和查询向量复用；U10 U11 U13 | 持久源向量、维度和空间校验、独立距离真值；同语句查询向量一次，批次逐项状态 |

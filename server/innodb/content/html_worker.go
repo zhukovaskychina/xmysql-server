@@ -69,7 +69,7 @@ func (parser IsolatedHTMLBlockParser) ParseHTMLBlocks(ctx context.Context, store
 	if err != nil {
 		return nil, fmt.Errorf("create HTML worker input pipe: %w", err)
 	}
-	stdout := &boundedPDFWorkerBuffer{limit: maxHTMLWorkerOutputSize}
+	stdout := &boundedWorkerBuffer{limit: maxHTMLWorkerOutputSize, worker: "HTML"}
 	stderr := &truncatedPDFWorkerBuffer{limit: maxPDFWorkerErrorBytes}
 	command.Stdout, command.Stderr = stdout, stderr
 	if err := command.Start(); err != nil {

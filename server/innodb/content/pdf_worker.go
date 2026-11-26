@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -24,10 +23,7 @@ const (
 	pdfWorkerConcurrency   = 2
 )
 
-var (
-	pdfWorkerSlots             = make(chan struct{}, pdfWorkerConcurrency)
-	errPDFWorkerOutputTooLarge = errors.New("PDF worker output exceeds the configured limit")
-)
+var pdfWorkerSlots = make(chan struct{}, pdfWorkerConcurrency)
 
 type IsolatedPDFPageParser struct {
 	Executable string
@@ -81,7 +77,7 @@ func (parser IsolatedPDFPageParser) ParsePDFPages(ctx context.Context, store *Se
 	if err != nil {
 		return nil, fmt.Errorf("create PDF worker input pipe: %w", err)
 	}
-	stdout := &boundedPDFWorkerBuffer{limit: maxPDFWorkerOutputSize}
+	stdout := &boundedWorkerBuffer{limit: maxPDFWorkerOutputSize, worker: "PDF"}
 	stderr := &truncatedPDFWorkerBuffer{limit: maxPDFWorkerErrorBytes}
 	command.Stdout = stdout
 	command.Stderr = stderr
@@ -246,14 +242,15 @@ func runPDFWorker(input io.Reader, _ io.Writer) ([]Block, error) {
 	return blocks, nil
 }
 
-type boundedPDFWorkerBuffer struct {
+type boundedWorkerBuffer struct {
 	bytes.Buffer
-	limit int
+	limit  int
+	worker string
 }
 
-func (buffer *boundedPDFWorkerBuffer) Write(p []byte) (int, error) {
+func (buffer *boundedWorkerBuffer) Write(p []byte) (int, error) {
 	if len(p) > buffer.limit-buffer.Len() {
-		return 0, errPDFWorkerOutputTooLarge
+		return 0, fmt.Errorf("%s worker output exceeds the configured limit", buffer.worker)
 	}
 	return buffer.Buffer.Write(p)
 }

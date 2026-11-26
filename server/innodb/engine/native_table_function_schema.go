@@ -75,6 +75,18 @@ func contentHTMLBlocksResultColumns() []joinOutputColumn {
 	}
 }
 
+func contentPPTXBlocksResultColumns() []joinOutputColumn {
+	return []joinOutputColumn{
+		{name: "ordinal", typ: metadata.TypeBigInt},
+		{name: "slide", typ: metadata.TypeBigInt},
+		{name: "text", typ: metadata.TypeMediumText},
+		{name: "block", typ: metadata.TypeContent},
+		{name: "structure_path", typ: metadata.TypeVarchar},
+		{name: "shape_name", typ: metadata.TypeVarchar},
+		{name: "shape_id", typ: metadata.TypeVarchar},
+	}
+}
+
 func contentXLSXRowsResultColumns() []joinOutputColumn {
 	return []joinOutputColumn{
 		{name: "ordinal", typ: metadata.TypeBigInt},

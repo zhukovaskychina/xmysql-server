@@ -75,7 +75,7 @@ func (parser IsolatedXLSXRowParser) ParseXLSXRows(ctx context.Context, store *Se
 	if err != nil {
 		return nil, fmt.Errorf("create XLSX worker input pipe: %w", err)
 	}
-	stdout := &boundedPDFWorkerBuffer{limit: maxPDFWorkerOutputSize}
+	stdout := &boundedWorkerBuffer{limit: maxPDFWorkerOutputSize, worker: "XLSX"}
 	stderr := &truncatedPDFWorkerBuffer{limit: maxPDFWorkerErrorBytes}
 	command.Stdout, command.Stderr = stdout, stderr
 	if err := command.Start(); err != nil {

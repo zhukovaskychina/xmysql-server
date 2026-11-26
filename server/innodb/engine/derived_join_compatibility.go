@@ -141,6 +141,17 @@ func (e *XMySQLExecutor) executeDerivedJoinSelectWithMaterialized(ctx *Execution
 	streamedLimitApplied := false
 	var source *derivedJoinSource
 	for _, expression := range stmt.From {
+		if table, ok := contentPPTXBlocksFunctionInExpr(expression); ok {
+			if source == nil {
+				return nil, fmt.Errorf("CONTENT_PARSE_PPTX requires a preceding row source")
+			}
+			joined, err := lateralContentPPTXBlocks(executionContextBase(ctx), source, table, e)
+			if err != nil {
+				return nil, err
+			}
+			source = joined
+			continue
+		}
 		if table, ok := contentTextParseFunctionInExpr(expression); ok {
 			if source == nil {
 				return nil, fmt.Errorf("CONTENT_PARSE_TEXT requires a preceding row source")
@@ -532,6 +543,12 @@ func (e *XMySQLExecutor) executeDerivedJoinTableExprWithMaterialized(ctx *Execut
 				return nil, fmt.Errorf("CONTENT_PARSE_HTML supports CROSS JOIN or comma join only")
 			}
 			return lateralContentHTMLBlocks(executionContextBase(ctx), left, functionTable, e)
+		}
+		if functionTable, ok := contentPPTXBlocksFunctionInExpr(table.RightExpr); ok {
+			if !supportsCrossTableFunctionJoin(table) {
+				return nil, fmt.Errorf("CONTENT_PARSE_PPTX supports CROSS JOIN or comma join only")
+			}
+			return lateralContentPPTXBlocks(executionContextBase(ctx), left, functionTable, e)
 		}
 		if functionTable, ok := contentXLSXRowsFunctionInExpr(table.RightExpr); ok {
 			if !supportsCrossTableFunctionJoin(table) {

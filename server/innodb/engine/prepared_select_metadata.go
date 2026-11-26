@@ -271,6 +271,8 @@ func (d *preparedSelectDescriber) source(expression sqlparser.TableExpr, ctes ma
 				columns = contentDOCXBlocksResultColumns()
 			case "content_parse_html":
 				columns = contentHTMLBlocksResultColumns()
+			case "content_parse_pptx":
+				columns = contentPPTXBlocksResultColumns()
 			case "content_parse_xlsx":
 				columns = contentXLSXRowsResultColumns()
 			case "fulltext_tokens":

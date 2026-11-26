@@ -75,7 +75,7 @@ func (parser IsolatedDOCXBlockParser) ParseDOCXBlocks(ctx context.Context, store
 	if err != nil {
 		return nil, fmt.Errorf("create DOCX worker input pipe: %w", err)
 	}
-	stdout := &boundedPDFWorkerBuffer{limit: maxPDFWorkerOutputSize}
+	stdout := &boundedWorkerBuffer{limit: maxPDFWorkerOutputSize, worker: "DOCX"}
 	stderr := &truncatedPDFWorkerBuffer{limit: maxPDFWorkerErrorBytes}
 	command.Stdout, command.Stderr = stdout, stderr
 	if err := command.Start(); err != nil {
