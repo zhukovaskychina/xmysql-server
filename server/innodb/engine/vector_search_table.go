@@ -13,7 +13,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/vector"
 )
 
-// TABLE(VECTOR_SEARCH(schema, table, index_name, query_vector, k, mode[, ef]))
+// TABLE(VECTOR_SEARCH(schema, table, index_name, query_vector, k, mode[, ef|filters[, filters]]))
 // exposes a bounded search over one READY native vector index. mode is either
 // ANN or EXACT; returned rows carry the complete source identity so callers
 // can fetch the authoritative row or CONTENT value through ordinary SQL.
@@ -26,8 +26,8 @@ func (e *XMySQLExecutor) evaluateVectorSearchTable(ctx *ExecutionContext, functi
 	if e == nil || e.vectorIndexCatalog == nil || !e.VectorIndexCatalogUsable() {
 		return nil, fmt.Errorf("native vector index catalog is unavailable")
 	}
-	if function == nil || (len(function.Exprs) != 6 && len(function.Exprs) != 7) {
-		return nil, fmt.Errorf("VECTOR_SEARCH requires schema, table, index name, query vector, k, mode, and optional ef")
+	if function == nil || len(function.Exprs) < 6 || len(function.Exprs) > 8 {
+		return nil, fmt.Errorf("VECTOR_SEARCH requires schema, table, index name, query vector, k, mode, and optional search parameters")
 	}
 	arguments := make([]interface{}, len(function.Exprs))
 	for i, raw := range function.Exprs {
@@ -82,11 +82,29 @@ func (e *XMySQLExecutor) evaluateVectorSearchTable(ctx *ExecutionContext, functi
 	}
 	mode = strings.ToUpper(strings.TrimSpace(mode))
 	ef := k
-	if len(arguments) == 7 {
-		ef, err = vectorSearchInteger(arguments[6], "ef")
-		if err != nil {
-			return nil, err
+	filterJSON := ""
+	hasFilterArgument := false
+	switch mode {
+	case "EXACT":
+		if len(arguments) == 7 {
+			hasFilterArgument = true
+			filterJSON, err = vectorStringArgument(arguments[6], "filter JSON")
+		} else if len(arguments) == 8 {
+			return nil, fmt.Errorf("VECTOR_SEARCH EXACT accepts a filter JSON argument but no ef")
 		}
+	case "ANN":
+		if len(arguments) >= 7 {
+			ef, err = vectorSearchInteger(arguments[6], "ef")
+		}
+		if err == nil && len(arguments) == 8 {
+			hasFilterArgument = true
+			filterJSON, err = vectorStringArgument(arguments[7], "filter JSON")
+		}
+	default:
+		return nil, fmt.Errorf("VECTOR_SEARCH mode must be ANN or EXACT")
+	}
+	if err != nil {
+		return nil, err
 	}
 	if !strings.EqualFold(strings.TrimSpace(schema), schema) || strings.TrimSpace(schema) == "" || strings.TrimSpace(table) == "" || strings.TrimSpace(name) == "" {
 		return nil, fmt.Errorf("VECTOR_SEARCH schema, table, and index name must be non-empty identifiers")
@@ -108,6 +126,43 @@ func (e *XMySQLExecutor) evaluateVectorSearchTable(ctx *ExecutionContext, functi
 	if manifest.Freshness != vector.IndexFreshnessReady {
 		return nil, vector.ErrIndexNotReady
 	}
+	var verifier *vectorSearchSourceVerifier
+	var filters []vectorSearchFilter
+	if hasFilterArgument {
+		verifier, err = e.newVectorSearchSourceVerifier(vectorSearchExecutionContext(ctx), manifest)
+		if err != nil {
+			return nil, err
+		}
+		filters, err = parseVectorSearchFilters(filterJSON, verifier.tableMeta)
+		if err != nil {
+			return nil, err
+		}
+		for _, filter := range filters {
+			if err := e.checkColumnPrivilege(ctx, schema, table, filter.column.Name, "SELECT"); err != nil {
+				return nil, err
+			}
+		}
+	}
+	var filterErr error
+	var accept func(vector.HNSWEntry) bool
+	if len(filters) > 0 {
+		accept = func(entry vector.HNSWEntry) bool {
+			if filterErr != nil {
+				return false
+			}
+			row, err := verifier.verifyAndRead(vector.HNSWHit{Entry: entry})
+			if err != nil {
+				filterErr = err
+				return false
+			}
+			matched, err := vectorSearchFiltersMatch(row, filters)
+			if err != nil {
+				filterErr = err
+				return false
+			}
+			return matched
+		}
+	}
 	var hits []vector.HNSWHit
 	approximate := false
 	visited := 0
@@ -115,16 +170,13 @@ func (e *XMySQLExecutor) evaluateVectorSearchTable(ctx *ExecutionContext, functi
 	searchBudget := 0
 	switch mode {
 	case "EXACT":
-		if len(arguments) == 7 {
-			return nil, fmt.Errorf("VECTOR_SEARCH EXACT mode does not accept ef")
-		}
-		hits, manifest, err = e.vectorIndexCatalog.SearchExact(indexID, query, k, nil)
+		hits, manifest, err = e.vectorIndexCatalog.SearchExact(indexID, query, k, accept)
 	case "ANN":
 		if ef < k || ef > 4096 {
 			return nil, fmt.Errorf("VECTOR_SEARCH ANN ef must be k..4096")
 		}
 		var search vector.HNSWSearchResult
-		search, manifest, err = e.vectorIndexCatalog.SearchApproximate(indexID, query, k, ef, nil)
+		search, manifest, err = e.vectorIndexCatalog.SearchApproximate(indexID, query, k, ef, accept)
 		hits, approximate, visited, mayHaveMore, searchBudget = search.Hits, search.Approximate, search.CandidatesVisited, search.MayHaveMore, search.SearchBudget
 	default:
 		return nil, fmt.Errorf("VECTOR_SEARCH mode must be ANN or EXACT")
@@ -132,10 +184,15 @@ func (e *XMySQLExecutor) evaluateVectorSearchTable(ctx *ExecutionContext, functi
 	if err != nil {
 		return nil, err
 	}
+	if filterErr != nil {
+		return nil, filterErr
+	}
 	if len(hits) > 0 {
-		verifier, err := e.newVectorSearchSourceVerifier(vectorSearchExecutionContext(ctx), manifest)
-		if err != nil {
-			return nil, err
+		if verifier == nil {
+			verifier, err = e.newVectorSearchSourceVerifier(vectorSearchExecutionContext(ctx), manifest)
+			if err != nil {
+				return nil, err
+			}
 		}
 		for _, hit := range hits {
 			if err := verifier.verify(hit); err != nil {
@@ -201,72 +258,77 @@ func (e *XMySQLExecutor) newVectorSearchSourceVerifier(ctx *ExecutionContext, ma
 }
 
 func (verifier *vectorSearchSourceVerifier) verify(hit vector.HNSWHit) error {
+	_, err := verifier.verifyAndRead(hit)
+	return err
+}
+
+func (verifier *vectorSearchSourceVerifier) verifyAndRead(hit vector.HNSWHit) (*InsertRowData, error) {
 	if verifier == nil || verifier.executor == nil || verifier.scanner == nil {
-		return fmt.Errorf("VECTOR index source verifier is unavailable")
+		return nil, fmt.Errorf("VECTOR index source verifier is unavailable")
 	}
 	e := verifier.executor
 	manifest := verifier.manifest
 	indexed := hit.Entry.Value
 	if indexed.Source == nil {
-		return fmt.Errorf("VECTOR index returned an entry without source provenance")
+		return nil, fmt.Errorf("VECTOR index returned an entry without source provenance")
 	}
 	source := *indexed.Source
 	sourceColumn := verifier.columns[strings.ToLower(strings.TrimSpace(source.Column))]
 	if !columnHasDataType(sourceColumn, metadata.TypeContent) {
-		return e.rejectStaleVectorSearchSource(manifest, "source column no longer matches its manifest")
+		return nil, e.rejectStaleVectorSearchSource(manifest, "source column no longer matches its manifest")
 	}
 	lookupKey, err := vectorSearchPrimaryKeyLookupKey(source.PrimaryKey, verifier.tableMeta)
 	if err != nil {
-		return fmt.Errorf("decode VECTOR index primary key: %w", err)
+		return nil, fmt.Errorf("decode VECTOR index primary key: %w", err)
 	}
 	row, _, found, err := verifier.scanner.FindByLookupKeyAndStorageKey(verifier.ctx, lookupKey, source.PrimaryKey)
 	if err != nil {
-		return fmt.Errorf("re-read VECTOR index source row: %w", err)
+		return nil, fmt.Errorf("re-read VECTOR index source row: %w", err)
 	}
 	if !found || row == nil {
-		return e.rejectStaleVectorSearchSource(manifest, "source row is missing")
+		return nil, e.rejectStaleVectorSearchSource(manifest, "source row is missing")
 	}
 	var contentValue content.Value
 	sourceValue, exists := clusteredRowColumnValue(row, sourceColumn.Name)
 	if !exists {
-		return fmt.Errorf("VECTOR index source CONTENT column %s is missing", sourceColumn.Name)
+		return nil, fmt.Errorf("VECTOR index source CONTENT column %s is missing", sourceColumn.Name)
 	}
 	switch typed := sourceValue.(type) {
 	case content.Value:
 		contentValue = typed
 	case *content.Value:
 		if typed == nil {
-			return fmt.Errorf("VECTOR index source CONTENT column %s is NULL", sourceColumn.Name)
+			return nil, fmt.Errorf("VECTOR index source CONTENT column %s is NULL", sourceColumn.Name)
 		}
 		contentValue = *typed
 	default:
-		return fmt.Errorf("VECTOR index source column %s has unsupported value %T", sourceColumn.Name, sourceValue)
+		return nil, fmt.Errorf("VECTOR index source column %s has unsupported value %T", sourceColumn.Name, sourceValue)
 	}
 	currentSource, err := content.NewSourceRef(manifest.Schema, manifest.Table, sourceColumn.Name, source.PrimaryKey, contentValue)
 	if err != nil {
-		return fmt.Errorf("validate current VECTOR index source: %w", err)
+		return nil, fmt.Errorf("validate current VECTOR index source: %w", err)
 	}
 	if !source.Matches(currentSource) {
-		return e.rejectStaleVectorSearchSource(manifest, "source revision is stale")
+		return nil, e.rejectStaleVectorSearchSource(manifest, "source revision is stale")
 	}
 	currentVectorValue, exists := clusteredRowColumnValue(row, verifier.vectorColumn.Name)
 	if !exists {
-		return fmt.Errorf("VECTOR index column %s is missing from its source row", verifier.vectorColumn.Name)
+		return nil, fmt.Errorf("VECTOR index column %s is missing from its source row", verifier.vectorColumn.Name)
 	}
 	currentVector, ok := vectorArgument(currentVectorValue)
 	if !ok || currentVector.State != vector.StateReady || currentVector.Source == nil || !currentVector.Source.Matches(currentSource) || currentVector.SourceBlockID != indexed.SourceBlockID {
-		return e.rejectStaleVectorSearchSource(manifest, "index entry no longer matches its current source row")
+		return nil, e.rejectStaleVectorSearchSource(manifest, "index entry no longer matches its current source row")
 	}
 	indexedBytes, indexedErr := indexed.MarshalBinary()
 	currentBytes, currentErr := currentVector.MarshalBinary()
 	if indexedErr != nil || currentErr != nil || !bytes.Equal(indexedBytes, currentBytes) {
-		return e.rejectStaleVectorSearchSource(manifest, "index entry differs from its current source row")
+		return nil, e.rejectStaleVectorSearchSource(manifest, "index entry differs from its current source row")
 	}
 	expectedEntryID := vectorIndexEntryID(manifest.IndexID, currentSource, currentVector.SourceBlockID)
 	if hit.Entry.ID != expectedEntryID {
-		return e.rejectStaleVectorSearchSource(manifest, "entry identity does not match its current source row")
+		return nil, e.rejectStaleVectorSearchSource(manifest, "entry identity does not match its current source row")
 	}
-	return nil
+	return row, nil
 }
 
 func (e *XMySQLExecutor) rejectStaleVectorSearchSource(manifest vector.IndexManifest, reason string) error {
