@@ -11,6 +11,7 @@ func vectorSearchResultColumns() []joinOutputColumn {
 		{name: "source_schema", typ: metadata.TypeVarchar},
 		{name: "source_table", typ: metadata.TypeVarchar},
 		{name: "source_column", typ: metadata.TypeVarchar},
+		{name: "source_content", typ: metadata.TypeContent},
 		{name: "primary_key", typ: metadata.TypeLongBlob},
 		{name: "source_revision", typ: metadata.TypeBigInt},
 		{name: "source_sha256", typ: metadata.TypeVarchar},

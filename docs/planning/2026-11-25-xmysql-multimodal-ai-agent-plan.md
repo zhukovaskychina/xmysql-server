@@ -10,7 +10,7 @@
 
 ## 实施状态（2026-11-25）
 
-当前分支已先实现一轮 MySQL 查询兼容修复，并记录了范围内验收结果，见[查询兼容性阶段验收记录](../compatibility/2026-11-25-query-compatibility-acceptance.md)。AI/多模态工作仍是尚未端到端验证的内核原型：已新增 `server/innodb/content` 规范内容值与内容块编码，`CONTENT`/`VECTOR(n)` 类型路径、来源绑定与核验函数、跨表 DML 派生失效、受限 `CONTENT_SLICE`、`CONTENT_TEXT`、`FULLTEXT_SCORE`，以及数据库目录内的不可变分段对象存储原型 `content.SegmentStore`。新增 SQL 函数 `CONTENT_TEXT_BLOCK(content, ordinal, byte_offset, byte_length)` 可从显式文本 MIME 的 CONTENT 列读取有界 UTF-8 字节范围，并返回带当前行主键、来源修订、摘要及原件字节定位的已绑定 CONTENT 块；单次范围最多 4 MiB，调用方或后续维护任务仍需选择分块范围。该函数已通过服务代码构建，尚未经过 SQL 行为和来源失效测试，不能视为自动分块或文档解析器。`SegmentStore.NewWriter` 和预处理长参数路径现可对被识别为 `CONTENT_FROM_BYTES(?, '<literal MIME>')` 的参数逐包分段写入，避免服务端先缓存整份长参数；其他长参数仍使用既有缓冲路径。未执行语句的 writer 在 reset、close 和连接关闭时会尝试中止；执行时只把被 DML 行实际采纳的对象交给事务跟踪，其他对象由协议层清理。长参数协议保持 `COM_STMT_SEND_LONG_DATA` 无响应，接收错误暂存并在对应 execute 响应中报告。单对象上限通过 `[innodb] content_max_object_bytes` 配置。引擎崩溃恢复后会清除未发布的 `.staging-*` 写入目录；现已接入启动期已发布对象回收原型：在成功完成崩溃与事务恢复后流式扫描已映射用户表中的 CONTENT 引用，仅回收确认无引用的对象；发现保留 XA 清单、缺少崩溃恢复能力或无法确认 CONTENT 表映射完整时会跳过回收。该路径刚完成接线并通过服务根包构建，尚未经过事务/协议/SQL/故障注入验收，也没有纳入备份与快照保留策略，不能视为 U09 完成或通用有界 IO 已验收。大于 8 KiB 的 SQL CONTENT 值会在聚簇行编码前写入分段存储，行内保存版本化引用；切片、文本及全文函数能按引用读取相应数据。新建及更新对象引用已随 DML 变更记录传递；逻辑行回滚后清理本事务创建的对象，提交保留对象。原生 CONTENT 整列投影目前最多物化 4 MiB，超过后需显式分段读取；未实现可续传内容句柄。权限与备份恢复仍未接入，U03 尚未完成。这些源码的存在不代表事务、权限、重启或 SQL 客户端行为已全部验收；当前派生失效已有数据库目录内的进程级反向映射，以来源版本筛选候选表；首次使用从持久行重建，提交后增量更新并每 256 次相关变更写一次检查点。重启后检查点不作为权威状态加载，而从行存重建；显式共享事务回退全表扫描，候选表仍逐行检查。它尚未成为 B+Tree 管理的事务内持久索引，未经过 SQL/事务/恢复验收。向量分数也尚无 ANN 索引与优化执行器。
+当前分支已先实现一轮 MySQL 查询兼容修复，并记录了范围内验收结果，见[查询兼容性阶段验收记录](../compatibility/2026-11-25-query-compatibility-acceptance.md)。AI/多模态工作仍是尚未端到端验证的内核原型：已新增 `server/innodb/content` 规范内容值与内容块编码，`CONTENT`/`VECTOR(n)` 类型路径、来源绑定与核验函数、跨表 DML 派生失效、受限 `CONTENT_SLICE`、`CONTENT_TEXT`、`FULLTEXT_SCORE`，以及数据库目录内的不可变分段对象存储原型 `content.SegmentStore`。新增 SQL 函数 `CONTENT_TEXT_BLOCK(content, ordinal, byte_offset, byte_length)` 可从显式文本 MIME 的 CONTENT 列读取有界 UTF-8 字节范围，并返回带当前行主键、来源修订、摘要及原件字节定位的已绑定 CONTENT 块；单次范围最多 4 MiB，调用方或后续维护任务仍需选择分块范围。该函数已通过服务代码构建，尚未经过 SQL 行为和来源失效测试，不能视为自动分块或文档解析器。`SegmentStore.NewWriter` 和预处理长参数路径现可对被识别为 `CONTENT_FROM_BYTES(?, '<literal MIME>')` 的参数逐包分段写入，避免服务端先缓存整份长参数；其他长参数仍使用既有缓冲路径。未执行语句的 writer 在 reset、close 和连接关闭时会尝试中止；执行时只把被 DML 行实际采纳的对象交给事务跟踪，其他对象由协议层清理。长参数协议保持 `COM_STMT_SEND_LONG_DATA` 无响应，接收错误暂存并在对应 execute 响应中报告。单对象上限通过 `[innodb] content_max_object_bytes` 配置。引擎崩溃恢复后会清除未发布的 `.staging-*` 写入目录；现已接入启动期已发布对象回收原型：在成功完成崩溃与事务恢复后流式扫描已映射用户表中的 CONTENT 引用，仅回收确认无引用的对象；发现保留 XA 清单、缺少崩溃恢复能力或无法确认 CONTENT 表映射完整时会跳过回收。该路径刚完成接线并通过服务根包构建，尚未经过事务/协议/SQL/故障注入验收，也没有纳入备份与快照保留策略，不能视为 U09 完成或通用有界 IO 已验收。大于 8 KiB 的 SQL CONTENT 值会在聚簇行编码前写入分段存储，行内保存版本化引用；切片、文本及全文函数能按引用读取相应数据。新建及更新对象引用已随 DML 变更记录传递；逻辑行回滚后清理本事务创建的对象，提交保留对象。原生 CONTENT 整列投影目前最多物化 4 MiB，超过后需显式分段读取；未实现可续传内容句柄。权限与备份恢复仍未接入，U03 尚未完成。这些源码的存在不代表事务、权限、重启或 SQL 客户端行为已全部验收；当前派生失效已有数据库目录内的进程级反向映射，以来源版本筛选候选表；首次使用从持久行重建，提交后增量更新并每 256 次相关变更写一次检查点。重启后检查点不作为权威状态加载，而从行存重建；显式共享事务回退全表扫描，候选表仍逐行检查。它尚未成为 B+Tree 管理的事务内持久索引，未经过 SQL/事务/恢复验收。向量索引另有手动 HNSW、不可变 base segment、持久 delta/tombstone 和 EXACT/ANN 查询原型；自动索引及通用优化器计划选择仍未实现，相关行为与恢复待验收。
 
 2026-11-26 更新：CONTENT 派生依赖目录现为进程级反向映射，并在重建时记录 B+Tree 原生行键；普通提交事务按来源版本定位候选派生行后点查，不再扫描这些候选表的全部行。同一事务刚写入的派生表与共享显式事务仍使用流式扫描回退。派生数据 DML 提交后目录立即标脏，下次从已提交行存重建；磁盘检查点只保存来源/表计数摘要，不加载为权威状态。该目录仍不是事务内持久 B+Tree 索引，重建仍需扫描所有含 CONTENT/VECTOR 列的用户表；行为、并发和恢复尚未验收。
 
@@ -31,6 +31,10 @@
 2026-11-27 更新：增加 `TABLE(CONTENT_PARSE_TEXT(content_column))`，接受 `text/plain` 与 `text/markdown`，以空白行分段，保留段内换行，并返回来源绑定 CONTENT 块及精确 UTF-8 原件字节范围。读取走有界 CONTENT 分段流；单原件 32 MiB、输出 16 MiB-1 byte、段落最多 100000，取消在流读取和发出块时检查。SQL 表值函数具有固定结果元数据；服务包构建通过。本轮未运行测试，段落边界、空行、Unicode 偏移、超限和 prepared/普通客户端行为待验收。Markdown 目前作为普通文本分段，不展开其标题、列表或链接语法。
 
 2026-11-27 更新：增加 `TABLE(CONTENT_PARSE_PPTX(content_column))`，按 `ppt/presentation.xml` 与内部 relationship 顺序扫描幻灯片，提取 DrawingML 形状段落和表格单元格文本，输出 slide/page、形状序号/ID/名称与结构路径，块绑定原件行版本。只读取 presentation、其关系和引用的 slide XML；拒绝外部或包外 slide 关系、重复 ZIP part 和缺失 slide，忽略媒体、备注、宏及嵌入对象。限制原件 64 MiB、被读取 XML 总量 32 MiB、1000 张幻灯片、100000 个段落、单一结果文本 16 MiB-1 byte、XML 令牌/深度以及 ZIP 条目。处理默认走共用并发、90 秒时限和输出限制的独立 worker。服务和根程序构建通过；本轮未运行测试，Office 样例、表格结构、隐藏幻灯片、坏包、外链/越界、取消及 prepared SQL 行为待验收。它只实现 PPTX 文本读取，不代表完整版面/图表/备注处理或 DOC/PPT 旧格式支持，A01/U30 仍未完成。
+
+2026-11-27 更新：`TABLE(VECTOR_SEARCH(...))` 的每条候选现在附带重新读取并核验过修订/摘要的原始来源 `source_content`，同时在读取前核对该来源列的 SELECT 权限；候选仍携带 `source_block_id`、主键、修订、摘要及索引代际。该列是 SourceRef 指向的 CONTENT 原值，不自动还原嵌入块正文，也不构成上下文或引用支持证明；向量检索到模型实际输入块的精确取回仍待实现。服务与根程序构建通过，未运行行为验收。此改动为 U15/A07 的来源读取前置能力，不代表 RAG 已完成。
+
+当前向量索引源码已有显式 `CREATE VECTOR INDEX ... USING HNSW`、EXACT/ANN 搜索、过滤前候选核验和持久 base segment/delta 路径；自动向量索引与通用优化器对 ANN 的计划选择仍未实现。本轮没有运行向量行为测试或 MySQL/pgvector 同条件对照，故性能、召回率、并发更新与重启恢复仍为待验收，不应把源码存在视为已追平。
 
 2026-11-27 更新：`AI_EMBED_BLOCK` 与 `AI_DESCRIBE_BLOCK` 对带时间范围的 WAV 音频块，现按 `[start_ms,end_ms)` 映射到 PCM/IEEE-float 采样帧，读取有界原件范围并重建仅含对应 `fmt ` 与 `data` 块的 RIFF/WAVE 输入。新增 `TABLE(CONTENT_AUDIO_SEGMENTS(content_column, segment_ms[, overlap_ms]))`，确定性地产生不超过 10000 个来源绑定时间窗及其采样帧计数，输出可直接用于上述模型算子的 CONTENT_BLOCK。新增 `TABLE(CONTENT_VIDEO_SEGMENTS(content_column, segment_ms[, overlap_ms]))`，从 ISO-BMFF 容器时长生成不超过 10000 个来源绑定时间窗；它不解码视频帧，模型 runtime 收到原始有界视频和窗口 locator，必须自行遵守该时间范围。音频仅处理 PCM/IEEE-float WAVE，不提供转写；视频仍无帧提取和音画转写。服务和根程序构建通过；本轮未运行行为测试，片段边界、重叠语义、prepared SQL、外部分段存储、取消与模型适配器的实际消费均待验收，不能视为 U17 或 U18/A07 完成。
 
@@ -805,7 +809,7 @@ MySQL AI 核心清单为追平矩阵 A01 到 A14 排除 A06 的 13 项，C58 到
 | 评审建议 | 本版处理 | 落点 |
 | --- | --- | --- |
 | 深化 CONTENT 和派生引擎 | 采纳；编码、状态转换、代际及故障边界补齐 | 第六 七 十章，U02 U26 |
-| 推迟完整事务型 HNSW | 采纳；不可变段与持久 delta 为候选版路线 | 第八章，U19 U27 |
+| 推迟自动向量索引与通用优化器选择 | 采纳；显式 HNSW 不可变段及持久 delta 已有候选实现，自动创建和通用计划选择后续补齐 | 第八章，U19 U27 |
 | 四种读取模式 | 采用便利配置思路，保留正交字段与严格不变量 | 第十章与配套契约 |
 | 强化安全和资源治理 | 采纳；成为阶段门槛 | 第十三章，U25 |
 | 延长总工期及代码减少 50% | 不照抄未验证数字；基线后估算并公开实测 | 第十四 十五章 |

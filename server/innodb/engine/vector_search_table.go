@@ -194,21 +194,50 @@ func (e *XMySQLExecutor) evaluateVectorSearchTable(ctx *ExecutionContext, functi
 				return nil, err
 			}
 		}
-		for _, hit := range hits {
-			if err := verifier.verify(hit); err != nil {
-				return nil, err
-			}
-		}
 	}
+	type verifiedVectorHit struct {
+		hit           vector.HNSWHit
+		sourceContent content.Value
+	}
+	verifiedHits := make([]verifiedVectorHit, 0, len(hits))
 	for _, hit := range hits {
 		value := hit.Entry.Value
 		if value.Source == nil {
 			return nil, fmt.Errorf("VECTOR index returned an entry without source provenance")
 		}
 		source := value.Source
+		if err := e.checkColumnPrivilege(ctx, source.Schema, source.Table, source.Column, "SELECT"); err != nil {
+			return nil, err
+		}
+		row, err := verifier.verifyAndRead(hit)
+		if err != nil {
+			return nil, err
+		}
+		rawSourceContent, exists := clusteredRowColumnValue(row, source.Column)
+		if !exists {
+			return nil, fmt.Errorf("VECTOR index source CONTENT column %s is missing", source.Column)
+		}
+		var sourceContent content.Value
+		switch typed := rawSourceContent.(type) {
+		case content.Value:
+			sourceContent = typed.Clone()
+		case *content.Value:
+			if typed == nil {
+				return nil, fmt.Errorf("VECTOR index source CONTENT column %s is NULL", source.Column)
+			}
+			sourceContent = typed.Clone()
+		default:
+			return nil, fmt.Errorf("VECTOR index source column %s has unsupported value %T", source.Column, rawSourceContent)
+		}
+		verifiedHits = append(verifiedHits, verifiedVectorHit{hit: hit, sourceContent: sourceContent})
+	}
+	for _, verified := range verifiedHits {
+		hit := verified.hit
+		value := hit.Entry.Value
+		source := value.Source
 		result.rows = append(result.rows, derivedRow{values: map[string]interface{}{
 			"entry_id": hit.Entry.ID, "distance": hit.Distance, "source_schema": source.Schema,
-			"source_table": source.Table, "source_column": source.Column,
+			"source_table": source.Table, "source_column": source.Column, "source_content": verified.sourceContent,
 			"primary_key": append([]byte(nil), source.PrimaryKey...), "source_revision": source.Revision,
 			"source_sha256": fmt.Sprintf("%x", source.Digest), "source_block_id": value.SourceBlockID,
 			"source_modality": value.SourceModality, "model_id": value.Space.ModelID,
