@@ -141,6 +141,170 @@ func ParseWaveFromStore(ctx context.Context, store *SegmentStore, value Value, s
 	return block, nil
 }
 
+// ReadWaveSegmentFromStore returns a self-contained RIFF/WAVE value containing
+// only the sample frames in the half-open [startMS, endMS) interval. It copies
+// the validated format chunk and reads the corresponding aligned data bytes in
+// bounded ranges, so callers can send the located audio evidence to a model
+// without loading unrelated portions of the source recording.
+func ReadWaveSegmentFromStore(ctx context.Context, store *SegmentStore, value Value, startMS, endMS, maxBytes uint64) ([]byte, error) {
+	if err := value.Validate(); err != nil {
+		return nil, err
+	}
+	if value.Kind != KindAudio {
+		return nil, fmt.Errorf("WAVE segment reader requires an audio CONTENT value")
+	}
+	if maxBytes == 0 || maxBytes > MaxReadRangeBytes*16 {
+		return nil, fmt.Errorf("WAVE segment byte limit must be between 1 and %d", MaxReadRangeBytes*16)
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	mimeType, _, err := mime.ParseMediaType(value.MIMEType)
+	if err != nil || !isWaveMIME(mimeType) {
+		return nil, fmt.Errorf("WAVE segment reader requires audio/wav or audio/wave MIME type")
+	}
+	if value.Size() < 12 {
+		return nil, fmt.Errorf("WAVE source is shorter than its RIFF header")
+	}
+	read := func(offset, length uint64) ([]byte, error) {
+		if length > MaxReadRangeBytes || offset > value.Size() || length > value.Size()-offset {
+			return nil, fmt.Errorf("WAVE range is outside the source or exceeds the read limit")
+		}
+		return value.ReadRangeFromStore(ctx, store, offset, length)
+	}
+	header, err := read(0, 12)
+	if err != nil {
+		return nil, fmt.Errorf("read WAVE header: %w", err)
+	}
+	if string(header[:4]) != "RIFF" || string(header[8:12]) != "WAVE" {
+		return nil, fmt.Errorf("source is not a RIFF/WAVE container")
+	}
+	riffEnd := uint64(binary.LittleEndian.Uint32(header[4:8])) + 8
+	if riffEnd < 12 || riffEnd > value.Size() {
+		return nil, fmt.Errorf("RIFF size exceeds the CONTENT source")
+	}
+	var format []byte
+	var dataOffset, dataBytes uint64
+	hasData := false
+	position := uint64(12)
+	for chunks := 0; position < riffEnd; chunks++ {
+		if chunks >= maxWaveChunks || riffEnd-position < 8 {
+			return nil, fmt.Errorf("WAVE chunk table is malformed or exceeds %d chunks", maxWaveChunks)
+		}
+		chunkHeader, readErr := read(position, 8)
+		if readErr != nil {
+			return nil, fmt.Errorf("read WAVE chunk header: %w", readErr)
+		}
+		chunkID := string(chunkHeader[:4])
+		chunkSize := uint64(binary.LittleEndian.Uint32(chunkHeader[4:8]))
+		chunkStart := position + 8
+		if chunkSize > riffEnd-chunkStart {
+			return nil, fmt.Errorf("WAVE %q chunk exceeds RIFF bounds", chunkID)
+		}
+		switch chunkID {
+		case "fmt ":
+			if format != nil || chunkSize < 16 || chunkSize > 64<<10 {
+				return nil, fmt.Errorf("WAVE fmt chunk is duplicate or outside the supported size")
+			}
+			format, err = read(chunkStart, chunkSize)
+			if err != nil {
+				return nil, fmt.Errorf("read WAVE fmt chunk: %w", err)
+			}
+		case "data":
+			if hasData {
+				return nil, fmt.Errorf("multiple WAVE data chunks are not supported")
+			}
+			dataOffset, dataBytes, hasData = chunkStart, chunkSize, true
+		}
+		advance := uint64(8) + chunkSize + chunkSize%2
+		if advance > riffEnd-position {
+			return nil, fmt.Errorf("WAVE chunk padding exceeds RIFF bounds")
+		}
+		position += advance
+	}
+	if position != riffEnd || format == nil || !hasData {
+		return nil, fmt.Errorf("WAVE source must contain exactly one fmt and one data chunk")
+	}
+	info, err := parseWaveFormat(mimeType, format, dataBytes)
+	if err != nil {
+		return nil, err
+	}
+	if startMS >= endMS || endMS > info.DurationMS {
+		return nil, fmt.Errorf("WAVE segment interval [%d,%d) ms is outside duration %d ms", startMS, endMS, info.DurationMS)
+	}
+	frameForMS := func(milliseconds uint64) (uint64, error) {
+		rate := uint64(info.SampleRateHz)
+		seconds := milliseconds / 1000
+		if seconds > ^uint64(0)/rate {
+			return 0, fmt.Errorf("WAVE segment time overflows sample-frame coordinates")
+		}
+		whole := seconds * rate
+		fraction := milliseconds % 1000 * rate
+		fraction = (fraction + 999) / 1000
+		if fraction > ^uint64(0)-whole {
+			return 0, fmt.Errorf("WAVE segment time overflows sample-frame coordinates")
+		}
+		return whole + fraction, nil
+	}
+	firstFrame, err := frameForMS(startMS)
+	if err != nil {
+		return nil, err
+	}
+	endFrame, err := frameForMS(endMS)
+	if err != nil {
+		return nil, err
+	}
+	if endFrame > info.SampleFrames {
+		endFrame = info.SampleFrames
+	}
+	if startMS == 0 && endMS == info.DurationMS {
+		endFrame = info.SampleFrames
+	}
+	if firstFrame >= endFrame {
+		return nil, fmt.Errorf("WAVE segment interval contains no complete sample frames")
+	}
+	frameBytes := uint64(info.BlockAlignBytes)
+	segmentBytes := (endFrame - firstFrame) * frameBytes
+	formatChunkBytes := uint64(8 + len(format) + len(format)%2)
+	dataChunkBytes := uint64(8) + segmentBytes + segmentBytes%2
+	riffSize := uint64(4) + formatChunkBytes + dataChunkBytes
+	if segmentBytes > maxBytes || riffSize > uint64(^uint32(0)) || riffSize+8 > maxBytes {
+		return nil, fmt.Errorf("WAVE segment exceeds the %d byte media limit", maxBytes)
+	}
+	output := make([]byte, int(riffSize+8))
+	copy(output[:4], "RIFF")
+	binary.LittleEndian.PutUint32(output[4:8], uint32(riffSize))
+	copy(output[8:12], "WAVE")
+	writeOffset := 12
+	copy(output[writeOffset:writeOffset+4], "fmt ")
+	binary.LittleEndian.PutUint32(output[writeOffset+4:writeOffset+8], uint32(len(format)))
+	copy(output[writeOffset+8:], format)
+	writeOffset += int(formatChunkBytes)
+	copy(output[writeOffset:writeOffset+4], "data")
+	binary.LittleEndian.PutUint32(output[writeOffset+4:writeOffset+8], uint32(segmentBytes))
+	writeOffset += 8
+	readOffset := dataOffset + firstFrame*frameBytes
+	remaining := segmentBytes
+	for remaining > 0 {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		length := remaining
+		if length > MaxReadRangeBytes {
+			length = MaxReadRangeBytes
+		}
+		chunk, readErr := read(readOffset, length)
+		if readErr != nil {
+			return nil, fmt.Errorf("read WAVE sample range: %w", readErr)
+		}
+		copy(output[writeOffset:], chunk)
+		writeOffset += len(chunk)
+		readOffset += length
+		remaining -= length
+	}
+	return output, nil
+}
+
 func parseWaveFormat(mimeType string, format []byte, dataBytes uint64) (AudioInfo, error) {
 	codecTag := binary.LittleEndian.Uint16(format[0:2])
 	channels := binary.LittleEndian.Uint16(format[2:4])

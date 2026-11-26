@@ -469,16 +469,13 @@ func (se *SelectExecutor) evaluateAIDescribeBlockSQL(function *sqlparser.FuncExp
 		if err := ctx.Err(); err != nil {
 			return nil, fmt.Errorf("%s cancelled before media read: %w", function.Name.String(), err)
 		}
-		if source.Size() == 0 || source.Size() > MaxAIMediaSourceBytes {
-			return nil, fmt.Errorf("%s media source must be between 1 and %d bytes; got %d", function.Name.String(), MaxAIMediaSourceBytes, source.Size())
-		}
 		store, err := contentSegmentStoreForValue(values, source)
 		if err != nil {
 			return nil, fmt.Errorf("%s cannot open source media: %w", function.Name.String(), err)
 		}
-		request.Media, err = source.ReadAllFromStore(ctx, store, MaxAIMediaSourceBytes)
+		request.Media, err = readModelBlockMedia(ctx, store, source, block, MaxAIMediaSourceBytes)
 		if err != nil {
-			return nil, fmt.Errorf("%s cannot read bounded source media: %w", function.Name.String(), err)
+			return nil, fmt.Errorf("%s cannot read bounded block media: %w", function.Name.String(), err)
 		}
 	}
 	ctx := ctxOrBackground(se.modelContext)
@@ -632,25 +629,37 @@ func (se *SelectExecutor) evaluateAIEmbedBlock(functionName, modelAlias string, 
 		request.Modality = "text"
 		request.Text = text
 	case content.BlockImageRegion:
+		if source.Kind != content.KindImage {
+			return vector.Value{}, fmt.Errorf("%s image block is bound to non-image CONTENT (%s)", functionName, source.Kind)
+		}
 		request.Modality = "image"
 	case content.BlockAudioSegment:
+		if source.Kind != content.KindAudio {
+			return vector.Value{}, fmt.Errorf("%s audio block is bound to non-audio CONTENT (%s)", functionName, source.Kind)
+		}
+		if block.Locator.StartMS == nil || block.Locator.EndMS == nil {
+			return vector.Value{}, fmt.Errorf("%s audio block requires a time-range locator", functionName)
+		}
 		request.Modality = "audio"
 	case content.BlockVideoFrame, content.BlockVideoSegment:
+		if source.Kind != content.KindVideo {
+			return vector.Value{}, fmt.Errorf("%s video block is bound to non-video CONTENT (%s)", functionName, source.Kind)
+		}
+		if block.Locator.StartMS == nil || block.Locator.EndMS == nil {
+			return vector.Value{}, fmt.Errorf("%s video block requires a time-range locator", functionName)
+		}
 		request.Modality = "video"
 	default:
 		return vector.Value{}, fmt.Errorf("%s does not support block kind %q", functionName, block.Kind)
 	}
 	if request.Modality != "text" {
-		if source.Size() == 0 || source.Size() > MaxAIEmbeddingSourceBytes {
-			return vector.Value{}, fmt.Errorf("%s media source must be between 1 and %d bytes; got %d", functionName, MaxAIEmbeddingSourceBytes, source.Size())
-		}
 		store, err := contentSegmentStoreForValue(values, source)
 		if err != nil {
 			return vector.Value{}, fmt.Errorf("%s cannot open source media: %w", functionName, err)
 		}
-		media, err := source.ReadAllFromStore(ctxOrBackground(se.modelContext), store, MaxAIEmbeddingSourceBytes)
+		media, err := readModelBlockMedia(ctxOrBackground(se.modelContext), store, source, block, MaxAIEmbeddingSourceBytes)
 		if err != nil {
-			return vector.Value{}, fmt.Errorf("%s cannot read bounded source media: %w", functionName, err)
+			return vector.Value{}, fmt.Errorf("%s cannot read bounded block media: %w", functionName, err)
 		}
 		request.Media = media
 	}
@@ -668,6 +677,19 @@ func (se *SelectExecutor) evaluateAIEmbedBlock(functionName, modelAlias string, 
 	return vector.NewBlockBoundValue(vector.Space{
 		ModelID: result.ModelID, ModelVersion: result.ModelVersion, ID: result.SpaceID,
 	}, request.Modality, result.Elements, actualSource, block.ID)
+}
+
+func readModelBlockMedia(ctx context.Context, store *content.SegmentStore, source content.Value, block content.Block, maxBytes uint64) ([]byte, error) {
+	if block.Kind == content.BlockAudioSegment {
+		if source.Kind != content.KindAudio || block.Locator.StartMS == nil || block.Locator.EndMS == nil {
+			return nil, fmt.Errorf("audio block requires an audio source and a bounded time-range locator")
+		}
+		return content.ReadWaveSegmentFromStore(ctx, store, source, *block.Locator.StartMS, *block.Locator.EndMS, maxBytes)
+	}
+	if source.Size() == 0 || source.Size() > maxBytes {
+		return nil, fmt.Errorf("media source must be between 1 and %d bytes; got %d", maxBytes, source.Size())
+	}
+	return source.ReadAllFromStore(ctx, store, maxBytes)
 }
 
 func (se *SelectExecutor) evaluateAIEmbedBlockSQL(function *sqlparser.FuncExpr, values map[string]interface{}) (interface{}, error) {
