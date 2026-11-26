@@ -27052,6 +27052,7 @@ func explainUnionPlanRowsJSON(rows [][]interface{}, statement *sqlparser.Union) 
 		return "", fmt.Errorf("EXPLAIN FORMAT=JSON currently supports UNION branches with SELECT query blocks")
 	}
 	rowsBySelectID := make(map[int64][][]interface{}, len(branches))
+	derivedRowsByID := make(map[int64][][]interface{})
 	selectIDs := make([]int64, 0, len(branches))
 	usingTemporaryTable := false
 	for _, row := range rows {
@@ -27063,8 +27064,16 @@ func explainUnionPlanRowsJSON(rows [][]interface{}, statement *sqlparser.Union) 
 			usingTemporaryTable = true
 			continue
 		}
+		if selectType == "DERIVED" {
+			selectID, ok := row[0].(int64)
+			if !ok || selectID < 1 {
+				return "", fmt.Errorf("EXPLAIN FORMAT=JSON UNION derived block has an invalid SELECT identifier")
+			}
+			derivedRowsByID[selectID] = append(derivedRowsByID[selectID], row)
+			continue
+		}
 		if selectType != "PRIMARY" && selectType != "UNION" {
-			return "", fmt.Errorf("EXPLAIN FORMAT=JSON UNION currently supports base SELECT branches only")
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON UNION currently supports SELECT branches and direct materialized derived blocks only")
 		}
 		selectID, ok := row[0].(int64)
 		if !ok {
@@ -27079,16 +27088,56 @@ func explainUnionPlanRowsJSON(rows [][]interface{}, statement *sqlparser.Union) 
 		return "", fmt.Errorf("EXPLAIN FORMAT=JSON UNION branch plan count does not match the query")
 	}
 	querySpecifications := make([]map[string]interface{}, 0, len(selectIDs))
-	for _, selectID := range selectIDs {
+	consumedDerivedIDs := make(map[int64]struct{}, len(derivedRowsByID))
+	for branchIndex, selectID := range selectIDs {
 		branchRows := rowsBySelectID[selectID]
-		jsonRows := make([][]interface{}, len(branchRows))
-		for index, row := range branchRows {
-			jsonRows[index] = append([]interface{}(nil), row...)
-			// The branch kind is expressed by its position in query_specifications,
-			// while the branch query_block uses the same shape as SIMPLE/PRIMARY.
-			jsonRows[index][1] = "PRIMARY"
+		derivedSources := explainDirectDerivedSources(branches[branchIndex])
+		derivedIDs := make([]int64, 0, len(derivedSources))
+		for _, row := range branchRows {
+			tableName, _ := row[2].(string)
+			if !strings.HasPrefix(tableName, "<derived") || !strings.HasSuffix(tableName, ">") {
+				continue
+			}
+			derivedID, parseErr := strconv.ParseInt(strings.TrimSuffix(strings.TrimPrefix(tableName, "<derived"), ">"), 10, 64)
+			if parseErr != nil || derivedID < 1 {
+				return "", fmt.Errorf("EXPLAIN FORMAT=JSON UNION branch has an invalid derived-table identifier")
+			}
+			derivedIDs = append(derivedIDs, derivedID)
 		}
-		encodedBlock, err := explainPlanRowsJSON(jsonRows)
+		if len(derivedIDs) != len(derivedSources) {
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON UNION branch derived source count does not match its plan")
+		}
+		var encodedBlock string
+		var err error
+		if len(derivedSources) == 0 {
+			jsonRows := make([][]interface{}, len(branchRows))
+			for index, row := range branchRows {
+				jsonRows[index] = append([]interface{}(nil), row...)
+				// The branch kind is expressed by its position in query_specifications,
+				// while the branch query_block uses the same shape as SIMPLE/PRIMARY.
+				jsonRows[index][1] = "PRIMARY"
+			}
+			encodedBlock, err = explainPlanRowsJSON(jsonRows)
+		} else {
+			combinedRows := make([][]interface{}, 0, len(branchRows)+len(derivedIDs))
+			for _, row := range branchRows {
+				rootRow := append([]interface{}(nil), row...)
+				rootRow[1] = "PRIMARY"
+				combinedRows = append(combinedRows, rootRow)
+			}
+			for _, derivedID := range derivedIDs {
+				childRows := derivedRowsByID[derivedID]
+				if len(childRows) == 0 {
+					return "", fmt.Errorf("EXPLAIN FORMAT=JSON UNION derived parent and child identifiers do not match")
+				}
+				if _, alreadyUsed := consumedDerivedIDs[derivedID]; alreadyUsed {
+					return "", fmt.Errorf("EXPLAIN FORMAT=JSON UNION contains a duplicate derived-table identifier")
+				}
+				consumedDerivedIDs[derivedID] = struct{}{}
+				combinedRows = append(combinedRows, childRows...)
+			}
+			encodedBlock, err = explainMaterializedDerivedPlanRowsJSON(combinedRows, branches[branchIndex])
+		}
 		if err != nil {
 			return "", err
 		}
@@ -27102,6 +27151,9 @@ func explainUnionPlanRowsJSON(rows [][]interface{}, statement *sqlparser.Union) 
 		querySpecifications = append(querySpecifications, map[string]interface{}{
 			"dependent": false, "cacheable": true, "query_block": decoded.QueryBlock,
 		})
+	}
+	if len(consumedDerivedIDs) != len(derivedRowsByID) {
+		return "", fmt.Errorf("EXPLAIN FORMAT=JSON UNION contains an orphan derived query block")
 	}
 	encoded, err := json.Marshal(map[string]interface{}{"query_block": map[string]interface{}{
 		"union_result": map[string]interface{}{
