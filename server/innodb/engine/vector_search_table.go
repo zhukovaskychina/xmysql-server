@@ -198,6 +198,7 @@ func (e *XMySQLExecutor) evaluateVectorSearchTable(ctx *ExecutionContext, functi
 	type verifiedVectorHit struct {
 		hit           vector.HNSWHit
 		sourceContent content.Value
+		sourceBlock   *content.Value
 	}
 	verifiedHits := make([]verifiedVectorHit, 0, len(hits))
 	for _, hit := range hits {
@@ -229,7 +230,18 @@ func (e *XMySQLExecutor) evaluateVectorSearchTable(ctx *ExecutionContext, functi
 		default:
 			return nil, fmt.Errorf("VECTOR index source column %s has unsupported value %T", source.Column, rawSourceContent)
 		}
-		verifiedHits = append(verifiedHits, verifiedVectorHit{hit: hit, sourceContent: sourceContent})
+		var sourceBlock *content.Value
+		if value.SourceBlockID != "" {
+			block, found, blockErr := vectorSearchSourceBlock(e, ctx, row, value.SourceBlockID, *source)
+			if blockErr != nil {
+				return nil, blockErr
+			}
+			if found {
+				blockValue := block.Clone()
+				sourceBlock = &blockValue
+			}
+		}
+		verifiedHits = append(verifiedHits, verifiedVectorHit{hit: hit, sourceContent: sourceContent, sourceBlock: sourceBlock})
 	}
 	for _, verified := range verifiedHits {
 		hit := verified.hit
@@ -244,9 +256,50 @@ func (e *XMySQLExecutor) evaluateVectorSearchTable(ctx *ExecutionContext, functi
 			"model_version": value.Space.ModelVersion, "space_id": value.Space.ID,
 			"index_generation": manifest.Generation, "approximate": approximate,
 			"candidates_visited": int64(visited), "search_budget": int64(searchBudget), "may_have_more": mayHaveMore,
+			"source_block": verified.sourceBlock,
 		}})
 	}
 	return result, nil
+}
+
+func vectorSearchSourceBlock(executor *XMySQLExecutor, ctx *ExecutionContext, row *InsertRowData, blockID string, source content.SourceRef) (content.Value, bool, error) {
+	if executor == nil || row == nil || strings.TrimSpace(blockID) == "" {
+		return content.Value{}, false, nil
+	}
+	var matched content.Value
+	found := false
+	for column, raw := range row.ColumnValues {
+		var value content.Value
+		switch typed := raw.(type) {
+		case content.Value:
+			value = typed
+		case *content.Value:
+			if typed == nil {
+				continue
+			}
+			value = *typed
+		default:
+			continue
+		}
+		if value.MIMEType != content.BlockMIMEType {
+			continue
+		}
+		if executor.checkColumnPrivilege(ctx, source.Schema, source.Table, column, "SELECT") != nil {
+			continue
+		}
+		block, err := content.BlockFromValue(value)
+		if err != nil {
+			return content.Value{}, false, fmt.Errorf("decode VECTOR_SEARCH source block column %s: %w", column, err)
+		}
+		if !strings.EqualFold(block.ID, blockID) || block.State != content.BlockStateReady || !block.Source.Matches(source) {
+			continue
+		}
+		if !found {
+			matched = value.Clone()
+			found = true
+		}
+	}
+	return matched, found, nil
 }
 
 type vectorSearchSourceVerifier struct {

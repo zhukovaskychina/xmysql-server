@@ -25,6 +25,7 @@ func vectorSearchResultColumns() []joinOutputColumn {
 		{name: "candidates_visited", typ: metadata.TypeBigInt},
 		{name: "search_budget", typ: metadata.TypeBigInt},
 		{name: "may_have_more", typ: metadata.TypeTinyInt},
+		{name: "source_block", typ: metadata.TypeContent},
 	}
 }
 
