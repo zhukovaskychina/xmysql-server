@@ -26863,8 +26863,12 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 	var explainedSelect *sqlparser.Select
 	var explainedUnion *sqlparser.Union
 	var explainPreparationErr error
+	explainFormat := ""
+	explainAnalyze := false
 	if parsed, parseErr := sqlparser.ParseForExecution(query); parseErr == nil {
 		if explain, ok := parsed.AST.(*sqlparser.ExplainStatement); ok {
+			explainFormat = strings.ToLower(strings.TrimSpace(explain.ExplainFormat))
+			explainAnalyze = explain.Analyze
 			if !explain.Table.IsEmpty() {
 				schemaName, tableName = explain.Table.Qualifier.String(), explain.Table.Name.String()
 				if schemaName == "" {
@@ -26872,6 +26876,9 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 				}
 			}
 			if explain.Statement != nil {
+				if _, ok := explain.Statement.(sqlparser.SelectStatement); !ok {
+					explainPreparationErr = fmt.Errorf("EXPLAIN query plans are currently supported only for SELECT statements")
+				}
 				explainedSelect, _ = explain.Statement.(*sqlparser.Select)
 				if selectStatement, ok := explain.Statement.(sqlparser.SelectStatement); ok {
 					explainedUnion, _ = explainSelectStatementAsUnion(selectStatement)
@@ -26901,6 +26908,14 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 			}
 		}
 	}
+	if explainAnalyze {
+		ctx.Results <- &Result{Err: fmt.Errorf("EXPLAIN ANALYZE is not supported by this execution engine"), ResultType: common.RESULT_TYPE_QUERY}
+		return
+	}
+	if explainFormat != "" && explainFormat != "traditional" && explainFormat != "json" {
+		ctx.Results <- &Result{Err: fmt.Errorf("EXPLAIN FORMAT=%s is not supported; supported formats are TRADITIONAL and JSON", strings.ToUpper(explainFormat)), ResultType: common.RESULT_TYPE_QUERY}
+		return
+	}
 	if explainPreparationErr != nil {
 		ctx.Results <- &Result{Err: explainPreparationErr, ResultType: common.RESULT_TYPE_QUERY}
 		return
@@ -26911,7 +26926,25 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 			schemaName = tableReferences[0].schema
 		}
 	}
+	if explainFormat == "json" && explainedSelect != nil && !explainSelectHasSupportedSources(explainedSelect) {
+		ctx.Results <- &Result{Err: fmt.Errorf("EXPLAIN FORMAT=JSON does not support this SELECT source shape"), ResultType: common.RESULT_TYPE_QUERY}
+		return
+	}
 	columns := []string{"id", "select_type", "table", "partitions", "type", "possible_keys", "key", "key_len", "ref", "rows", "filtered", "Extra"}
+	emitPlanRows := func(rows [][]interface{}) {
+		resultColumns := columns
+		resultRows := rows
+		if explainFormat == "json" {
+			encoded, encodeErr := explainPlanRowsJSON(rows)
+			if encodeErr != nil {
+				ctx.Results <- &Result{Err: encodeErr, ResultType: common.RESULT_TYPE_QUERY}
+				return
+			}
+			resultColumns = []string{"EXPLAIN"}
+			resultRows = [][]interface{}{{encoded}}
+		}
+		ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: map[string]interface{}{"columns": resultColumns, "rows": resultRows}, Message: "EXPLAIN completed"}
+	}
 	if explainedSelect != nil && explainSelectHasSupportedSources(explainedSelect) {
 		subqueries := explainSelectSubqueries(explainedSelect)
 		rows, planErr := e.explainSelectPlanRows(ctx, explainedSelect, schemaName, subqueries)
@@ -26919,7 +26952,7 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 			ctx.Results <- &Result{Err: planErr, ResultType: common.RESULT_TYPE_QUERY}
 			return
 		}
-		ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: map[string]interface{}{"columns": columns, "rows": rows}, Message: "EXPLAIN completed"}
+		emitPlanRows(rows)
 		return
 	}
 	if explainedUnion != nil {
@@ -26928,11 +26961,11 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 			ctx.Results <- &Result{Err: planErr, ResultType: common.RESULT_TYPE_QUERY}
 			return
 		}
-		ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: map[string]interface{}{"columns": columns, "rows": rows}, Message: "EXPLAIN completed"}
+		emitPlanRows(rows)
 		return
 	}
 	if tableName == "" {
-		ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: map[string]interface{}{"columns": columns, "rows": [][]interface{}{}}, Message: "EXPLAIN returned no table plan"}
+		emitPlanRows(nil)
 		return
 	}
 	info, err := e.readPersistedTableInfo(schemaName, tableName)
@@ -26995,7 +27028,116 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 		extra = "Using index condition"
 	}
 	rows := [][]interface{}{{int64(1), "SIMPLE", tableName, partitions, accessType, nullIfEmpty(possibleKeys), selectedKey, keyLength, nil, rowCount, float64(100), extra}}
-	ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: map[string]interface{}{"columns": columns, "rows": rows}, Message: "EXPLAIN completed"}
+	emitPlanRows(rows)
+}
+
+type explainJSONTable struct {
+	TableName           string      `json:"table_name"`
+	Partitions          interface{} `json:"partitions,omitempty"`
+	AccessType          string      `json:"access_type"`
+	PossibleKeys        []string    `json:"possible_keys,omitempty"`
+	Key                 interface{} `json:"key,omitempty"`
+	KeyLength           interface{} `json:"key_length,omitempty"`
+	Ref                 interface{} `json:"ref,omitempty"`
+	RowsExaminedPerScan interface{} `json:"rows_examined_per_scan,omitempty"`
+	RowsProducedPerJoin interface{} `json:"rows_produced_per_join,omitempty"`
+	Filtered            interface{} `json:"filtered,omitempty"`
+	UsingTemporaryTable bool        `json:"using_temporary_table,omitempty"`
+	UsingFilesort       bool        `json:"using_filesort,omitempty"`
+	UsingIndex          bool        `json:"using_index,omitempty"`
+	UsingIndexCondition bool        `json:"using_index_condition,omitempty"`
+	Message             string      `json:"message,omitempty"`
+}
+
+func explainPlanRowsJSON(rows [][]interface{}) (string, error) {
+	if len(rows) == 0 {
+		encoded, err := json.Marshal(map[string]interface{}{"query_block": map[string]interface{}{"select_id": 1, "message": "No tables used"}})
+		return string(encoded), err
+	}
+	var selectID int64
+	tables := make([]explainJSONTable, 0, len(rows))
+	for index, row := range rows {
+		if len(row) < 12 {
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON cannot encode a malformed plan row")
+		}
+		id, ok := row[0].(int64)
+		if !ok || (index > 0 && id != selectID) {
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON currently supports a single SELECT block")
+		}
+		selectID = id
+		selectType, _ := row[1].(string)
+		if selectType != "SIMPLE" && selectType != "PRIMARY" {
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON currently supports only SIMPLE/PRIMARY query blocks")
+		}
+		tableName, _ := row[2].(string)
+		accessType, _ := row[4].(string)
+		entry := explainJSONTable{TableName: tableName, AccessType: accessType}
+		if row[3] != nil {
+			entry.Partitions = row[3]
+		}
+		if possible, ok := row[5].(string); ok && strings.TrimSpace(possible) != "" {
+			for _, key := range strings.Split(possible, ",") {
+				if key = strings.TrimSpace(key); key != "" {
+					entry.PossibleKeys = append(entry.PossibleKeys, key)
+				}
+			}
+		}
+		entry.Key, entry.KeyLength, entry.Ref = row[6], row[7], row[8]
+		entry.RowsExaminedPerScan, entry.Filtered = row[9], row[10]
+		if examined, ok := explainNumericValue(row[9]); ok {
+			if filtered, filteredOK := explainNumericValue(row[10]); filteredOK {
+				entry.RowsProducedPerJoin = examined * filtered / 100
+			}
+		}
+		if extra, ok := row[11].(string); ok {
+			lowerExtra := strings.ToLower(extra)
+			entry.UsingTemporaryTable = strings.Contains(lowerExtra, "using temporary")
+			entry.UsingFilesort = strings.Contains(lowerExtra, "using filesort")
+			entry.UsingIndexCondition = strings.Contains(lowerExtra, "using index condition")
+			entry.UsingIndex = strings.Contains(lowerExtra, "using index") && !entry.UsingIndexCondition
+			knownExtra := map[string]struct{}{
+				"using temporary": {}, "using filesort": {}, "using index": {}, "using index condition": {},
+			}
+			for _, item := range strings.Split(lowerExtra, ";") {
+				if _, known := knownExtra[strings.TrimSpace(item)]; !known {
+					entry.Message = extra
+					break
+				}
+			}
+		}
+		tables = append(tables, entry)
+	}
+	queryBlock := map[string]interface{}{"select_id": selectID}
+	if len(tables) == 1 {
+		queryBlock["table"] = tables[0]
+	} else {
+		queryBlock["nested_loop"] = tables
+	}
+	encoded, err := json.Marshal(map[string]interface{}{"query_block": queryBlock})
+	return string(encoded), err
+}
+
+func explainNumericValue(value interface{}) (float64, bool) {
+	switch typed := value.(type) {
+	case int:
+		return float64(typed), true
+	case int32:
+		return float64(typed), true
+	case int64:
+		return float64(typed), true
+	case uint:
+		return float64(typed), true
+	case uint32:
+		return float64(typed), true
+	case uint64:
+		return float64(typed), true
+	case float32:
+		return float64(typed), true
+	case float64:
+		return typed, true
+	default:
+		return 0, false
+	}
 }
 
 func appendExplainExtra(current, extra string) string {
