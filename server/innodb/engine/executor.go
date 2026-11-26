@@ -27116,14 +27116,19 @@ func explainMaterializedDerivedPlanRowsJSON(rows [][]interface{}, statement *sql
 	if statement == nil || len(explainSelectSubqueries(statement)) != 0 {
 		return "", fmt.Errorf("EXPLAIN FORMAT=JSON derived sources with scalar or predicate subqueries are not supported")
 	}
-	derived := explainDirectDerivedSelects(statement)
-	if len(derived) != 1 || !explainSelectRequiresMaterialization(derived[0]) ||
-		explainSelectHasDerivedSource(derived[0]) || len(explainSelectSubqueries(derived[0])) != 0 {
-		return "", fmt.Errorf("EXPLAIN FORMAT=JSON currently supports one materialized derived SELECT without nested derived tables or subqueries")
+	derived := explainDirectDerivedSources(statement)
+	if len(derived) == 0 {
+		return "", fmt.Errorf("EXPLAIN FORMAT=JSON derived-table plan has no direct derived SELECT source")
+	}
+	for _, source := range derived {
+		if !explainSelectRequiresMaterialization(source.statement) || explainSelectHasDerivedSource(source.statement) || len(explainSelectSubqueries(source.statement)) != 0 {
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON currently supports forced-materialization derived SELECTs without nested derived tables or subqueries")
+		}
 	}
 	rootRows := make([][]interface{}, 0, len(rows))
-	childRows := make([][]interface{}, 0, len(rows))
-	var derivedID int64
+	childRows := make(map[int64][][]interface{}, len(derived))
+	derivedIDs := make([]int64, 0, len(derived))
+	seenDerivedIDs := make(map[int64]struct{}, len(derived))
 	for _, row := range rows {
 		if len(row) < 12 {
 			return "", fmt.Errorf("EXPLAIN FORMAT=JSON cannot encode a malformed derived plan row")
@@ -27134,46 +27139,26 @@ func explainMaterializedDerivedPlanRowsJSON(rows [][]interface{}, statement *sql
 			rootRows = append(rootRows, row)
 			if strings.HasPrefix(tableName, "<derived") && strings.HasSuffix(tableName, ">") {
 				parsedID, err := strconv.ParseInt(strings.TrimSuffix(strings.TrimPrefix(tableName, "<derived"), ">"), 10, 64)
-				if err != nil || parsedID < 1 || derivedID != 0 {
-					return "", fmt.Errorf("EXPLAIN FORMAT=JSON found an invalid or ambiguous derived-table identifier")
+				if _, duplicate := seenDerivedIDs[parsedID]; err != nil || parsedID < 1 || duplicate {
+					return "", fmt.Errorf("EXPLAIN FORMAT=JSON found an invalid or duplicate derived-table identifier")
 				}
-				derivedID = parsedID
+				seenDerivedIDs[parsedID] = struct{}{}
+				derivedIDs = append(derivedIDs, parsedID)
 			}
 			continue
 		}
 		if selectType != "DERIVED" {
 			return "", fmt.Errorf("EXPLAIN FORMAT=JSON currently supports primary and materialized derived query blocks only")
 		}
-		childRows = append(childRows, row)
+		childID, ok := row[0].(int64)
+		if !ok || childID < 1 {
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON derived query block has an invalid identifier")
+		}
+		childRows[childID] = append(childRows[childID], row)
 	}
-	if derivedID == 0 || len(rootRows) == 0 || len(childRows) == 0 {
+	if len(rootRows) == 0 || len(derivedIDs) != len(derived) || len(childRows) != len(derivedIDs) {
 		return "", fmt.Errorf("EXPLAIN FORMAT=JSON derived-table plan is incomplete")
 	}
-	childID, ok := childRows[0][0].(int64)
-	if !ok || childID != derivedID {
-		return "", fmt.Errorf("EXPLAIN FORMAT=JSON derived-table parent and child identifiers do not match")
-	}
-	for _, row := range childRows {
-		if rowID, valid := row[0].(int64); !valid || rowID != childID {
-			return "", fmt.Errorf("EXPLAIN FORMAT=JSON nested derived query blocks are not supported")
-		}
-	}
-	childJSONRows := make([][]interface{}, len(childRows))
-	for index, row := range childRows {
-		childJSONRows[index] = append([]interface{}(nil), row...)
-		childJSONRows[index][1] = "PRIMARY"
-	}
-	childEncoded, err := explainPlanRowsJSON(childJSONRows)
-	if err != nil {
-		return "", err
-	}
-	var childEnvelope struct {
-		QueryBlock map[string]interface{} `json:"query_block"`
-	}
-	if err := json.Unmarshal([]byte(childEncoded), &childEnvelope); err != nil || childEnvelope.QueryBlock == nil {
-		return "", fmt.Errorf("EXPLAIN FORMAT=JSON could not decode the derived query block")
-	}
-	childEnvelope.QueryBlock["select_id"] = childID
 	rootEncoded, err := explainPlanRowsJSON(rootRows)
 	if err != nil {
 		return "", err
@@ -27184,30 +27169,63 @@ func explainMaterializedDerivedPlanRowsJSON(rows [][]interface{}, statement *sql
 	if err := json.Unmarshal([]byte(rootEncoded), &rootEnvelope); err != nil || rootEnvelope.QueryBlock == nil {
 		return "", fmt.Errorf("EXPLAIN FORMAT=JSON could not decode the outer query block")
 	}
-	materialized := map[string]interface{}{
-		"using_temporary_table": true, "dependent": false, "cacheable": true,
-		"query_block": childEnvelope.QueryBlock,
-	}
-	derivedName := explainDirectDerivedAlias(statement)
-	if derivedName == "" {
-		derivedName = fmt.Sprintf("<derived%d>", derivedID)
-	}
-	if !attachExplainJSONMaterializedSubquery(rootEnvelope.QueryBlock, fmt.Sprintf("<derived%d>", derivedID), derivedName, materialized) {
-		return "", fmt.Errorf("EXPLAIN FORMAT=JSON could not attach the materialized derived query block")
+	for index, derivedID := range derivedIDs {
+		branchRows := childRows[derivedID]
+		if len(branchRows) == 0 {
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON derived-table parent and child identifiers do not match")
+		}
+		for _, row := range branchRows {
+			rowID, valid := row[0].(int64)
+			if !valid || rowID != derivedID {
+				return "", fmt.Errorf("EXPLAIN FORMAT=JSON nested derived query blocks are not supported")
+			}
+		}
+		childJSONRows := make([][]interface{}, len(branchRows))
+		for rowIndex, row := range branchRows {
+			childJSONRows[rowIndex] = append([]interface{}(nil), row...)
+			childJSONRows[rowIndex][1] = "PRIMARY"
+		}
+		childEncoded, err := explainPlanRowsJSON(childJSONRows)
+		if err != nil {
+			return "", err
+		}
+		var childEnvelope struct {
+			QueryBlock map[string]interface{} `json:"query_block"`
+		}
+		if err := json.Unmarshal([]byte(childEncoded), &childEnvelope); err != nil || childEnvelope.QueryBlock == nil {
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON could not decode a derived query block")
+		}
+		childEnvelope.QueryBlock["select_id"] = derivedID
+		materialized := map[string]interface{}{
+			"using_temporary_table": true, "dependent": false, "cacheable": true,
+			"query_block": childEnvelope.QueryBlock,
+		}
+		derivedName := derived[index].alias
+		if derivedName == "" {
+			derivedName = fmt.Sprintf("<derived%d>", derivedID)
+		}
+		if !attachExplainJSONMaterializedSubquery(rootEnvelope.QueryBlock, fmt.Sprintf("<derived%d>", derivedID), derivedName, materialized) {
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON could not attach derived query block %d", derivedID)
+		}
 	}
 	encoded, err := json.Marshal(map[string]interface{}{"query_block": rootEnvelope.QueryBlock})
 	return string(encoded), err
 }
 
-func explainDirectDerivedSelects(statement *sqlparser.Select) []*sqlparser.Select {
-	var derived []*sqlparser.Select
+type explainJSONDerivedSource struct {
+	statement *sqlparser.Select
+	alias     string
+}
+
+func explainDirectDerivedSources(statement *sqlparser.Select) []explainJSONDerivedSource {
+	var derived []explainJSONDerivedSource
 	var visit func(sqlparser.TableExpr)
 	visit = func(expression sqlparser.TableExpr) {
 		switch source := expression.(type) {
 		case *sqlparser.AliasedTableExpr:
 			if subquery, ok := source.Expr.(*sqlparser.Subquery); ok {
 				if selectStatement, ok := subquery.Select.(*sqlparser.Select); ok {
-					derived = append(derived, selectStatement)
+					derived = append(derived, explainJSONDerivedSource{statement: selectStatement, alias: source.As.String()})
 				}
 			}
 		case *sqlparser.JoinTableExpr:
@@ -27225,36 +27243,6 @@ func explainDirectDerivedSelects(statement *sqlparser.Select) []*sqlparser.Selec
 		}
 	}
 	return derived
-}
-
-func explainDirectDerivedAlias(statement *sqlparser.Select) string {
-	if statement == nil {
-		return ""
-	}
-	for _, expression := range statement.From {
-		var found string
-		var visit func(sqlparser.TableExpr)
-		visit = func(table sqlparser.TableExpr) {
-			switch source := table.(type) {
-			case *sqlparser.AliasedTableExpr:
-				if _, ok := source.Expr.(*sqlparser.Subquery); ok {
-					found = source.As.String()
-				}
-			case *sqlparser.JoinTableExpr:
-				visit(source.LeftExpr)
-				visit(source.RightExpr)
-			case *sqlparser.ParenTableExpr:
-				for _, child := range source.Exprs {
-					visit(child)
-				}
-			}
-		}
-		visit(expression)
-		if found != "" {
-			return found
-		}
-	}
-	return ""
 }
 
 func explainSelectRequiresMaterialization(statement *sqlparser.Select) bool {
