@@ -263,6 +263,8 @@ func (d *preparedSelectDescriber) source(expression sqlparser.TableExpr, ctes ma
 				columns = vectorSearchResultColumns()
 			case "content_text_chunks":
 				columns = contentTextChunksResultColumns()
+			case "content_parse_text":
+				columns = contentTextParseResultColumns()
 			case "content_parse_pdf":
 				columns = contentPDFPagesResultColumns()
 			case "content_parse_docx":

@@ -53,7 +53,7 @@ func ParseHTMLBlocks(ctx context.Context, store *SegmentStore, value Value, sour
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	reader := &htmlValueReader{ctx: ctx, store: store, value: value}
+	reader := &contentRangeReader{ctx: ctx, store: store, value: value}
 	tokenizer := html.NewTokenizer(reader)
 	tokenizer.SetMaxBuf(maxHTMLTokenBytes)
 
@@ -287,7 +287,7 @@ type htmlBlockFrame struct {
 	text          strings.Builder
 }
 
-type htmlValueReader struct {
+type contentRangeReader struct {
 	ctx    context.Context
 	store  *SegmentStore
 	value  Value
@@ -295,7 +295,7 @@ type htmlValueReader struct {
 	buffer []byte
 }
 
-func (reader *htmlValueReader) Read(destination []byte) (int, error) {
+func (reader *contentRangeReader) Read(destination []byte) (int, error) {
 	if err := reader.ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -310,9 +310,16 @@ func (reader *htmlValueReader) Read(destination []byte) (int, error) {
 		if length > 64<<10 {
 			length = 64 << 10
 		}
-		buffer, err := reader.value.ReadRangeFromStore(reader.ctx, reader.store, reader.offset, length)
-		if err != nil {
-			return 0, err
+		var buffer []byte
+		if reader.value.ExternalRef == nil {
+			start, end := int(reader.offset), int(reader.offset+length)
+			buffer = append([]byte(nil), reader.value.Bytes[start:end]...)
+		} else {
+			var err error
+			buffer, err = reader.value.ReadRangeFromStore(reader.ctx, reader.store, reader.offset, length)
+			if err != nil {
+				return 0, err
+			}
 		}
 		if uint64(len(buffer)) != length {
 			return 0, fmt.Errorf("read HTML source range at %d returned %d bytes, expected %d", reader.offset, len(buffer), length)

@@ -37,6 +37,16 @@ func contentTextChunksResultColumns() []joinOutputColumn {
 	}
 }
 
+func contentTextParseResultColumns() []joinOutputColumn {
+	return []joinOutputColumn{
+		{name: "ordinal", typ: metadata.TypeBigInt},
+		{name: "text", typ: metadata.TypeMediumText},
+		{name: "block", typ: metadata.TypeContent},
+		{name: "byte_start", typ: metadata.TypeBigInt},
+		{name: "byte_end", typ: metadata.TypeBigInt},
+	}
+}
+
 func contentPDFPagesResultColumns() []joinOutputColumn {
 	return []joinOutputColumn{
 		{name: "ordinal", typ: metadata.TypeBigInt},
