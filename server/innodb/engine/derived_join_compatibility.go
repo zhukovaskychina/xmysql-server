@@ -449,13 +449,13 @@ func (e *XMySQLExecutor) executeDerivedJoinTableExprWithMaterialized(ctx *Execut
 			return nil, err
 		}
 		if functionTable, ok := contentTextChunksFunctionInExpr(table.RightExpr); ok {
-			if !strings.Contains(strings.ToLower(strings.TrimSpace(table.Join)), "cross") {
+			if !supportsCrossTableFunctionJoin(table) {
 				return nil, fmt.Errorf("CONTENT_TEXT_CHUNKS supports CROSS JOIN or comma join only")
 			}
 			return lateralContentTextChunks(executionContextBase(ctx), left, functionTable, e.getDataDir())
 		}
 		if functionTable, ok := fullTextTokensFunctionInExpr(table.RightExpr); ok {
-			if !strings.Contains(strings.ToLower(strings.TrimSpace(table.Join)), "cross") {
+			if !supportsCrossTableFunctionJoin(table) {
 				return nil, fmt.Errorf("FULLTEXT_TOKENS supports CROSS JOIN or comma join only")
 			}
 			return lateralFullTextTokens(left, functionTable, e.getDataDir())
@@ -473,6 +473,15 @@ func (e *XMySQLExecutor) executeDerivedJoinTableExprWithMaterialized(ctx *Execut
 	default:
 		return nil, fmt.Errorf("unsupported derived join table expression %T", expression)
 	}
+}
+
+// MySQL grammar and the local parser normalize CROSS JOIN to the generic join
+// token. Treat an unqualified inner join as a cross join only when it has no
+// ON/USING clause; lateral table functions remain unavailable to filtered or
+// outer joins.
+func supportsCrossTableFunctionJoin(join *sqlparser.JoinTableExpr) bool {
+	return join != nil && strings.EqualFold(strings.TrimSpace(join.Join), sqlparser.JoinStr) &&
+		join.Condition.On == nil && len(join.Condition.Using) == 0
 }
 
 func (e *XMySQLExecutor) executeDerivedJoinAliasedTable(ctx *ExecutionContext, table *sqlparser.AliasedTableExpr, databaseName string) (*derivedJoinSource, error) {
