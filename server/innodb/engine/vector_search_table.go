@@ -257,6 +257,14 @@ func (e *XMySQLExecutor) evaluateVectorSearchTable(ctx *ExecutionContext, functi
 			"index_generation": manifest.Generation, "approximate": approximate,
 			"candidates_visited": int64(visited), "search_budget": int64(searchBudget), "may_have_more": mayHaveMore,
 			"source_block": verified.sourceBlock,
+			contentSourceRowContextKey: contentSourceRowContext{
+				Schema: source.Schema, Table: source.Table, PrimaryKey: append([]byte(nil), source.PrimaryKey...),
+				SourceColumnAliases: map[string]string{
+					"source_content": source.Column,
+					"source_block":   source.Column,
+				},
+				ColumnSemantics: confirmedColumnSemanticDefinitions(verifier.tableMeta),
+			},
 		}})
 	}
 	return result, nil

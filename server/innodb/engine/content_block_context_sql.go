@@ -89,7 +89,8 @@ func evaluateContentBlockContext(function *sqlparser.FuncExpr, values map[string
 	if !ok || len(rowContext.PrimaryKey) == 0 {
 		return nil, fmt.Errorf("CONTENT_BLOCK_CONTEXT requires stored-row context for the source column")
 	}
-	actualSource, err := content.NewSourceRef(rowContext.Schema, rowContext.Table, sourceColumn.Name.String(), rowContext.PrimaryKey, typedSource)
+	sourceColumnName := contentSourcePhysicalColumnName(rowContext, sourceColumn.Name.String())
+	actualSource, err := content.NewSourceRef(rowContext.Schema, rowContext.Table, sourceColumnName, rowContext.PrimaryKey, typedSource)
 	if err != nil {
 		return nil, fmt.Errorf("CONTENT_BLOCK_CONTEXT current source is invalid: %w", err)
 	}
@@ -131,7 +132,7 @@ func evaluateContentBlockContext(function *sqlparser.FuncExpr, values map[string
 		SHA256: hex.EncodeToString(block.Source.Digest[:]),
 	}
 	var semanticDefinition *metadata.ColumnSemanticDefinition
-	if definition, exists := rowContext.ColumnSemantics[strings.ToLower(strings.TrimSpace(sourceColumn.Name.String()))]; exists {
+	if definition, exists := rowContext.ColumnSemantics[strings.ToLower(strings.TrimSpace(sourceColumnName))]; exists {
 		confirmed := definition
 		semanticDefinition = &confirmed
 	}
@@ -242,7 +243,8 @@ func evaluateContentBlockSourceSlice(function *sqlparser.FuncExpr, values map[st
 	if !ok || len(rowContext.PrimaryKey) == 0 {
 		return nil, fmt.Errorf("CONTENT_BLOCK_SOURCE_SLICE requires stored-row context for the source column")
 	}
-	actualSource, err := content.NewSourceRef(rowContext.Schema, rowContext.Table, sourceColumn.Name.String(), rowContext.PrimaryKey, typedSource)
+	sourceColumnName := contentSourcePhysicalColumnName(rowContext, sourceColumn.Name.String())
+	actualSource, err := content.NewSourceRef(rowContext.Schema, rowContext.Table, sourceColumnName, rowContext.PrimaryKey, typedSource)
 	if err != nil {
 		return nil, fmt.Errorf("CONTENT_BLOCK_SOURCE_SLICE current source is invalid: %w", err)
 	}

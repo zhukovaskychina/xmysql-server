@@ -652,6 +652,13 @@ func (e *XMySQLExecutor) executeDerivedJoinAliasedTableWithMaterialized(ctx *Exe
 				return nil, err
 			}
 			source.qualifiedCols[strings.ToLower(alias)] = append([]string(nil), source.columns...)
+			for index := range source.rows {
+				if rowContext, ok := source.rows[index].values[contentSourceRowContextKey].(contentSourceRowContext); ok {
+					for _, column := range []string{"source_content", "source_block"} {
+						source.rows[index].values[contentSourceRowContextKeyForColumn(alias, column)] = rowContext
+					}
+				}
+			}
 			return source, nil
 		}
 		if strings.EqualFold(expression.Function.Name.String(), "FULLTEXT_TOKENS") {

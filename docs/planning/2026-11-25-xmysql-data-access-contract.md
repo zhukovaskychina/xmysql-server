@@ -665,7 +665,7 @@ Java 与 Python 分别完成同一 DDL、提交与回滚、内容参数导入、
 
 `VECTOR_FROM_SOURCE(json, content_column)` 绑定原件行版本，但无法区分同一原件的多个分块。新增 `VECTOR_FROM_BLOCK(json, block_column, source_content_column)`：仅接受当前查询中的 READY 内容块和 typed CONTENT 列；要求内容块来源身份、主键、修订和摘要与当前关系行完全匹配，再将其块 ID 编入向量。`VECTOR_BLOCK_ID(vector_column)` 可供 SQL 关联检索命中和内容块。向量编码 v3 增加 32 字节 SHA-256 块 ID；v1/v2 保持读取，现有不含块绑定的值仍写为 v2。检索查询仍应同时校验 `VECTOR_MATCHES_SOURCE(vector, source)`、块 ID 等值及内容块 READY 状态。`AI_EMBED_BLOCK(block, source, model_alias)` 是显式投影原型，可通过服务器注入的 `EmbeddingRuntime` 对文本或受限实际媒体发起嵌入；暂无默认提供方、可持久化批量维护、ANN 索引及自动增量维护。本路径尚未进行 SQL、旧值往返或事务验收。
 
-当前分支的 `VECTOR_SEARCH` 结果契约在既有字段尾部追加 nullable `source_block CONTENT`。命中向量含块 ID 时，执行器只在来源行内查找 READY 块，并同时核对块 ID、来源表/列/主键/修订/摘要；只有调用方对块列有 SELECT 权限才返回该块。块没有存入来源行、身份不匹配或调用方无列权限时返回 NULL，客户端仍可用 `source_block_id` 按自己的授权 SQL 定位；该字段不会把相似度提升为语义证据，也不证明生成答案正确。此增量尚待 Go 构建、SQL 元数据与受限权限场景验证。
+当前分支的 `VECTOR_SEARCH` 结果契约在既有字段尾部追加 nullable `source_block CONTENT`。命中向量含块 ID 时，执行器只在来源行内查找 READY 块，并同时核对块 ID、来源表/列/主键/修订/摘要；只有调用方对块列有 SELECT 权限才返回该块。块没有存入来源行、身份不匹配或调用方无列权限时返回 NULL，客户端仍可用 `source_block_id` 按自己的授权 SQL 定位；该字段不会把相似度提升为语义证据，也不证明生成答案正确。检索结果同时携带仅供执行器内部使用的来源行上下文和 `source_content` 到物理来源列的映射，因而同一 SELECT 可将 `v.source_block`、`v.source_content` 直接交给 `AI_DESCRIBE_BLOCK`、`AI_EMBED_BLOCK` 或 `CONTENT_BLOCK_CONTEXT`，继续核对来源并读取实际媒体；模型只附带已确认的源列语义，不自动扩展表关系。engine 包 Go 构建已通过；该 SQL 组合路径及受限列权限场景仍待运行验收。
 
 可用 `VECTOR_MATCHES_BLOCK(vector, block, source)` 原子校验向量、READY 内容块及当前来源行；`VECTOR_VERIFIED_BLOCK_DISTANCE(vector, query_vector, block, source[, metric])` 仅对这三者身份一致的候选返回距离，否则返回 NULL。它防止遗漏块 ID 比较造成同一文档内块级向量错配。两个算子仍需通过 SQL 行为和权限验收。
 

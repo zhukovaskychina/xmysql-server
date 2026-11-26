@@ -400,7 +400,8 @@ func (se *SelectExecutor) evaluateAIDescribeBlockSQL(function *sqlparser.FuncExp
 	if !ok || len(rowContext.PrimaryKey) == 0 {
 		return nil, fmt.Errorf("%s requires stored-row context for the source column", function.Name.String())
 	}
-	actualSource, err := content.NewSourceRef(rowContext.Schema, rowContext.Table, sourceColumn.Name.String(), rowContext.PrimaryKey, source)
+	sourceColumnName := contentSourcePhysicalColumnName(rowContext, sourceColumn.Name.String())
+	actualSource, err := content.NewSourceRef(rowContext.Schema, rowContext.Table, sourceColumnName, rowContext.PrimaryKey, source)
 	if err != nil {
 		return nil, fmt.Errorf("%s source verification failed: %w", function.Name.String(), err)
 	}
@@ -422,7 +423,7 @@ func (se *SelectExecutor) evaluateAIDescribeBlockSQL(function *sqlparser.FuncExp
 		ModelAlias: strings.TrimSpace(modelAlias), Task: "DESCRIBE", MIMEType: source.MIMEType,
 		Locator: block.Locator, Source: actualSource, BlockID: block.ID,
 	}
-	if definition, exists := rowContext.ColumnSemantics[strings.ToLower(strings.TrimSpace(sourceColumn.Name.String()))]; exists {
+	if definition, exists := rowContext.ColumnSemantics[strings.ToLower(strings.TrimSpace(sourceColumnName))]; exists {
 		confirmed := definition
 		request.SemanticDefinition = &confirmed
 	}
@@ -736,7 +737,8 @@ func (se *SelectExecutor) evaluateAIEmbedBlockSQL(function *sqlparser.FuncExpr, 
 	if !ok || len(rowContext.PrimaryKey) == 0 {
 		return nil, fmt.Errorf("AI_EMBED_BLOCK requires stored-row context for the source column")
 	}
-	actualSource, err := content.NewSourceRef(rowContext.Schema, rowContext.Table, sourceColumn.Name.String(), rowContext.PrimaryKey, source)
+	sourceColumnName := contentSourcePhysicalColumnName(rowContext, sourceColumn.Name.String())
+	actualSource, err := content.NewSourceRef(rowContext.Schema, rowContext.Table, sourceColumnName, rowContext.PrimaryKey, source)
 	if err != nil {
 		return nil, fmt.Errorf("AI_EMBED_BLOCK source verification failed: %w", err)
 	}

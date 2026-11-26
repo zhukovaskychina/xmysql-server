@@ -104,8 +104,17 @@ type contentSourceRowContext struct {
 	Schema          string
 	Table           string
 	PrimaryKey      []byte
+	SourceColumnAliases map[string]string
 	ColumnSemantics map[string]metadata.ColumnSemanticDefinition
 	TableSemantics  *metadata.TableSemanticDefinition
+}
+
+func contentSourcePhysicalColumnName(rowContext contentSourceRowContext, column string) string {
+	key := strings.ToLower(strings.Trim(strings.TrimSpace(column), "` "))
+	if actual, ok := rowContext.SourceColumnAliases[key]; ok && strings.TrimSpace(actual) != "" {
+		return actual
+	}
+	return column
 }
 
 type tableSemanticCacheKey struct {
