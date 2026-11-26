@@ -261,6 +261,8 @@ func (d *preparedSelectDescriber) source(expression sqlparser.TableExpr, ctes ma
 			switch name {
 			case "vector_search":
 				columns = vectorSearchResultColumns()
+			case "content_audio_segments":
+				columns = contentAudioSegmentsResultColumns()
 			case "content_text_chunks":
 				columns = contentTextChunksResultColumns()
 			case "content_parse_text":

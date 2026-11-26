@@ -232,33 +232,9 @@ func ReadWaveSegmentFromStore(ctx context.Context, store *SegmentStore, value Va
 	if startMS >= endMS || endMS > info.DurationMS {
 		return nil, fmt.Errorf("WAVE segment interval [%d,%d) ms is outside duration %d ms", startMS, endMS, info.DurationMS)
 	}
-	frameForMS := func(milliseconds uint64) (uint64, error) {
-		rate := uint64(info.SampleRateHz)
-		seconds := milliseconds / 1000
-		if seconds > ^uint64(0)/rate {
-			return 0, fmt.Errorf("WAVE segment time overflows sample-frame coordinates")
-		}
-		whole := seconds * rate
-		fraction := milliseconds % 1000 * rate
-		fraction = (fraction + 999) / 1000
-		if fraction > ^uint64(0)-whole {
-			return 0, fmt.Errorf("WAVE segment time overflows sample-frame coordinates")
-		}
-		return whole + fraction, nil
-	}
-	firstFrame, err := frameForMS(startMS)
+	firstFrame, endFrame, err := waveFrameBounds(info, startMS, endMS)
 	if err != nil {
 		return nil, err
-	}
-	endFrame, err := frameForMS(endMS)
-	if err != nil {
-		return nil, err
-	}
-	if endFrame > info.SampleFrames {
-		endFrame = info.SampleFrames
-	}
-	if startMS == 0 && endMS == info.DurationMS {
-		endFrame = info.SampleFrames
 	}
 	if firstFrame >= endFrame {
 		return nil, fmt.Errorf("WAVE segment interval contains no complete sample frames")
@@ -303,6 +279,116 @@ func ReadWaveSegmentFromStore(ctx context.Context, store *SegmentStore, value Va
 		remaining -= length
 	}
 	return output, nil
+}
+
+// ParseWaveSegmentsFromStore returns deterministic, source-bound time windows
+// over one validated PCM/IEEE-float WAVE recording. Blocks retain only the
+// source identity and exact half-open time range; sample bytes are read when a
+// model operator consumes a block.
+func ParseWaveSegmentsFromStore(ctx context.Context, store *SegmentStore, value Value, source SourceRef, segmentMS, overlapMS uint64) ([]Block, error) {
+	if segmentMS < 1000 || segmentMS > 10*60*1000 || overlapMS >= segmentMS || overlapMS > 5*60*1000 {
+		return nil, fmt.Errorf("WAVE segment_ms must be 1000..600000 and overlap_ms must be less than segment_ms and at most 300000")
+	}
+	whole, err := ParseWaveFromStore(ctx, store, value, source)
+	if err != nil {
+		return nil, err
+	}
+	info, err := DecodeAudioInfo(*whole.Payload)
+	if err != nil {
+		return nil, err
+	}
+	if info.DurationMS == 0 {
+		return nil, fmt.Errorf("WAVE recording is shorter than one millisecond and cannot be segmented")
+	}
+	step := segmentMS - overlapMS
+	count := uint64(1)
+	if info.DurationMS > segmentMS {
+		remaining := info.DurationMS - segmentMS
+		count += (remaining-1)/step + 1
+	}
+	if count > 10000 {
+		return nil, fmt.Errorf("WAVE segmentation would produce %d blocks; maximum is 10000", count)
+	}
+	blocks := make([]Block, 0, int(count))
+	for ordinal := uint64(0); ordinal < count; ordinal++ {
+		if ctx != nil {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+		}
+		startMS := ordinal * step
+		endMS := startMS + segmentMS
+		if endMS < startMS || endMS > info.DurationMS {
+			endMS = info.DurationMS
+		}
+		firstFrame, endFrame, err := waveFrameBounds(info, startMS, endMS)
+		if err != nil {
+			return nil, fmt.Errorf("WAVE segment %d: %w", ordinal+1, err)
+		}
+		if firstFrame >= endFrame {
+			return nil, fmt.Errorf("WAVE segment %d contains no complete sample frames", ordinal+1)
+		}
+		segmentInfo := info
+		segmentInfo.SampleFrames = endFrame - firstFrame
+		segmentInfo.DataBytes = segmentInfo.SampleFrames * uint64(info.BlockAlignBytes)
+		segmentInfo.DurationMS = segmentInfo.SampleFrames / uint64(info.SampleRateHz) * 1000
+		segmentInfo.DurationMS += segmentInfo.SampleFrames % uint64(info.SampleRateHz) * 1000 / uint64(info.SampleRateHz)
+		payload, err := NewAudioInfoPayload(segmentInfo)
+		if err != nil {
+			return nil, err
+		}
+		start, end := startMS, endMS
+		block, err := NewBlock(source, uint32(ordinal+1), BlockAudioSegment, "", Locator{StartMS: &start, EndMS: &end}, audioProcessorID, audioProcessorVersion, "", "")
+		if err != nil {
+			return nil, err
+		}
+		block.Payload = &payload
+		block.Attributes = map[string]string{
+			"region_scope": "time_range", "validation_scope": "container_header_only",
+			"samples_decoded": "false", "transcription_available": "false",
+		}
+		block.ID = block.Identity()
+		if err := block.Validate(); err != nil {
+			return nil, err
+		}
+		blocks = append(blocks, block)
+	}
+	return blocks, nil
+}
+
+func waveFrameBounds(info AudioInfo, startMS, endMS uint64) (uint64, uint64, error) {
+	if startMS >= endMS || endMS > info.DurationMS || info.SampleRateHz == 0 {
+		return 0, 0, fmt.Errorf("interval [%d,%d) ms is outside WAVE duration %d ms", startMS, endMS, info.DurationMS)
+	}
+	frameForMS := func(milliseconds uint64) (uint64, error) {
+		rate := uint64(info.SampleRateHz)
+		seconds := milliseconds / 1000
+		if seconds > ^uint64(0)/rate {
+			return 0, fmt.Errorf("time overflows sample-frame coordinates")
+		}
+		whole := seconds * rate
+		fraction := milliseconds % 1000 * rate
+		fraction = (fraction + 999) / 1000
+		if fraction > ^uint64(0)-whole {
+			return 0, fmt.Errorf("time overflows sample-frame coordinates")
+		}
+		return whole + fraction, nil
+	}
+	firstFrame, err := frameForMS(startMS)
+	if err != nil {
+		return 0, 0, err
+	}
+	endFrame, err := frameForMS(endMS)
+	if err != nil {
+		return 0, 0, err
+	}
+	if endFrame > info.SampleFrames {
+		endFrame = info.SampleFrames
+	}
+	if endMS == info.DurationMS {
+		endFrame = info.SampleFrames
+	}
+	return firstFrame, endFrame, nil
 }
 
 func parseWaveFormat(mimeType string, format []byte, dataBytes uint64) (AudioInfo, error) {

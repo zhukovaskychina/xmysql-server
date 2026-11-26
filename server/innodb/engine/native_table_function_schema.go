@@ -37,6 +37,16 @@ func contentTextChunksResultColumns() []joinOutputColumn {
 	}
 }
 
+func contentAudioSegmentsResultColumns() []joinOutputColumn {
+	return []joinOutputColumn{
+		{name: "ordinal", typ: metadata.TypeBigInt},
+		{name: "start_ms", typ: metadata.TypeBigInt},
+		{name: "end_ms", typ: metadata.TypeBigInt},
+		{name: "sample_frames", typ: metadata.TypeBigInt},
+		{name: "block", typ: metadata.TypeContent},
+	}
+}
+
 func contentTextParseResultColumns() []joinOutputColumn {
 	return []joinOutputColumn{
 		{name: "ordinal", typ: metadata.TypeBigInt},
