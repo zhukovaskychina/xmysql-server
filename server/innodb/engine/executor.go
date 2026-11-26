@@ -26808,6 +26808,7 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 
 	tableName, schemaName := "", databaseName
 	var explainedSelect *sqlparser.Select
+	var explainPreparationErr error
 	if parsed, parseErr := sqlparser.ParseForExecution(query); parseErr == nil {
 		if explain, ok := parsed.AST.(*sqlparser.ExplainStatement); ok {
 			if !explain.Table.IsEmpty() {
@@ -26818,11 +26819,34 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 			}
 			if explain.Statement != nil {
 				explainedSelect, _ = explain.Statement.(*sqlparser.Select)
+				if with, ok := explain.Statement.(*sqlparser.With); ok && with != nil && !with.Recursive {
+					rewritten, rewriteErr := rewriteSimpleCTEFromAST(sqlparser.String(with))
+					if rewriteErr != nil {
+						explainPreparationErr = rewriteErr
+					} else if rewritten != "" {
+						rewrittenStatement, rewrittenParseErr := sqlparser.Parse(rewritten)
+						if rewrittenParseErr != nil {
+							explainPreparationErr = rewrittenParseErr
+						} else if selectStatement, ok := rewrittenStatement.(*sqlparser.Select); ok {
+							explainedSelect = selectStatement
+						} else {
+							explainPreparationErr = fmt.Errorf("EXPLAIN CTE body does not resolve to a SELECT")
+						}
+					} else if body, ok := with.Body.(*sqlparser.Select); ok {
+						explainedSelect = body
+					}
+				} else if with, ok := explain.Statement.(*sqlparser.With); ok && with != nil && with.Recursive {
+					explainPreparationErr = fmt.Errorf("EXPLAIN for recursive CTE plans is not yet supported")
+				}
 				if refs, refErr := sqlparser.CollectObjectReferences(explain.Statement, databaseName); refErr == nil && len(refs) > 0 {
 					schemaName, tableName = refs[0].Schema, refs[0].Name
 				}
 			}
 		}
+	}
+	if explainPreparationErr != nil {
+		ctx.Results <- &Result{Err: explainPreparationErr, ResultType: common.RESULT_TYPE_QUERY}
+		return
 	}
 	if tableReferences := explainTableReferences(explainedSelect); len(tableReferences) > 0 {
 		tableName = tableReferences[0].name
@@ -26831,19 +26855,13 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 		}
 	}
 	columns := []string{"id", "select_type", "table", "partitions", "type", "possible_keys", "key", "key_len", "ref", "rows", "filtered", "Extra"}
-	if explainedSelect != nil && explainSelectHasOnlyBaseTables(explainedSelect) {
+	if explainedSelect != nil && explainSelectHasSupportedSources(explainedSelect) {
 		subqueries := explainSelectSubqueries(explainedSelect)
-		rows, planErr := e.explainSelectTableRows(ctx, explainedSelect, schemaName, subqueries)
+		rows, planErr := e.explainSelectPlanRows(ctx, explainedSelect, schemaName, subqueries)
 		if planErr != nil {
 			ctx.Results <- &Result{Err: planErr, ResultType: common.RESULT_TYPE_QUERY}
 			return
 		}
-		subqueryRows, subqueryErr := e.explainSubqueryRows(ctx, subqueries, schemaName, 2)
-		if subqueryErr != nil {
-			ctx.Results <- &Result{Err: subqueryErr, ResultType: common.RESULT_TYPE_QUERY}
-			return
-		}
-		rows = append(rows, subqueryRows...)
 		ctx.Results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: map[string]interface{}{"columns": columns, "rows": rows}, Message: "EXPLAIN completed"}
 		return
 	}

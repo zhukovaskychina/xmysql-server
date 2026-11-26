@@ -38,7 +38,7 @@ func explainSelectSubqueries(statement *sqlparser.Select) []*plan.SubqueryExpres
 	return logicalPlanSubqueryExpressions(logical)
 }
 
-func explainSelectHasOnlyBaseTables(statement *sqlparser.Select) bool {
+func explainSelectHasSupportedSources(statement *sqlparser.Select) bool {
 	if statement == nil {
 		return false
 	}
@@ -46,8 +46,14 @@ func explainSelectHasOnlyBaseTables(statement *sqlparser.Select) bool {
 	supports = func(expression sqlparser.TableExpr) bool {
 		switch value := expression.(type) {
 		case *sqlparser.AliasedTableExpr:
-			_, ok := value.Expr.(sqlparser.TableName)
-			return ok
+			switch source := value.Expr.(type) {
+			case sqlparser.TableName:
+				return true
+			case *sqlparser.Subquery:
+				return explainSelectStatementSupportsSources(source.Select)
+			default:
+				return false
+			}
 		case *sqlparser.JoinTableExpr:
 			return supports(value.LeftExpr) && supports(value.RightExpr)
 		case *sqlparser.ParenTableExpr:
@@ -67,6 +73,17 @@ func explainSelectHasOnlyBaseTables(statement *sqlparser.Select) bool {
 		}
 	}
 	return true
+}
+
+func explainSelectStatementSupportsSources(statement sqlparser.SelectStatement) bool {
+	switch value := statement.(type) {
+	case *sqlparser.Select:
+		return explainSelectHasSupportedSources(value)
+	case *sqlparser.ParenSelect:
+		return explainSelectStatementSupportsSources(value.Select)
+	default:
+		return false
+	}
 }
 
 func (e *XMySQLExecutor) explainSelectTableRows(ctx *ExecutionContext, statement *sqlparser.Select, defaultSchema string, subqueries []*plan.SubqueryExpression) ([][]interface{}, error) {
@@ -92,7 +109,10 @@ func (e *XMySQLExecutor) explainSelectTableRows(ctx *ExecutionContext, statement
 		selectType = "PRIMARY"
 	}
 	if len(sources) == 0 {
-		return [][]interface{}{{int64(1), selectType, nil, nil, "NULL", nil, nil, nil, nil, int64(1), float64(100), "No tables used"}}, nil
+		if len(statement.From) == 0 {
+			return [][]interface{}{{int64(1), selectType, nil, nil, "NULL", nil, nil, nil, nil, int64(1), float64(100), "No tables used"}}, nil
+		}
+		return nil, nil
 	}
 	rows := make([][]interface{}, 0, len(sources))
 	for sourceIndex, source := range sources {
@@ -131,6 +151,214 @@ func (e *XMySQLExecutor) explainSelectTableRows(ctx *ExecutionContext, statement
 		rows = append(rows, []interface{}{int64(1), selectType, source.reference.label, partitions, accessType, nullIfEmpty(possibleKeys), selectedName, keyLength, nil, estimate, float64(100), extra})
 	}
 	return rows, nil
+}
+
+type explainDerivedTask struct {
+	statement sqlparser.SelectStatement
+	id        int64
+	parentRow []interface{}
+}
+
+func (e *XMySQLExecutor) explainSelectPlanRows(ctx *ExecutionContext, statement *sqlparser.Select, defaultSchema string, rootSubqueries []*plan.SubqueryExpression) ([][]interface{}, error) {
+	nextID := int64(2)
+	tasks := make([]explainDerivedTask, 0)
+	allSubqueries := make([]*plan.SubqueryExpression, 0, len(rootSubqueries))
+	seenSubqueries := make(map[*plan.SubqueryExpression]struct{}, len(rootSubqueries))
+	appendSubqueries := func(subqueries []*plan.SubqueryExpression) {
+		for _, subquery := range subqueries {
+			if subquery == nil {
+				continue
+			}
+			if _, exists := seenSubqueries[subquery]; exists {
+				continue
+			}
+			seenSubqueries[subquery] = struct{}{}
+			allSubqueries = append(allSubqueries, subquery)
+		}
+	}
+	appendSubqueries(rootSubqueries)
+
+	rows, err := e.explainSelectBlockRows(ctx, statement, defaultSchema, 1, "", &nextID, &tasks)
+	if err != nil {
+		return nil, err
+	}
+	for taskIndex := 0; taskIndex < len(tasks); taskIndex++ {
+		task := tasks[taskIndex]
+		child := explainSelectStatementAsSelect(task.statement)
+		if child == nil {
+			continue
+		}
+		childSubqueries := explainSelectSubqueries(child)
+		appendSubqueries(childSubqueries)
+		childRows, childErr := e.explainSelectBlockRows(ctx, child, defaultSchema, task.id, "DERIVED", &nextID, &tasks)
+		if childErr != nil {
+			return nil, childErr
+		}
+		if task.parentRow != nil {
+			if estimate, known := explainDerivedRowsEstimate(child, childRows); known {
+				task.parentRow[9] = estimate
+			}
+		}
+		rows = append(rows, childRows...)
+	}
+	if len(allSubqueries) > 0 {
+		subqueryRows, subqueryErr := e.explainSubqueryRows(ctx, allSubqueries, defaultSchema, nextID)
+		if subqueryErr != nil {
+			return nil, subqueryErr
+		}
+		rows = append(rows, subqueryRows...)
+	}
+	return rows, nil
+}
+
+func explainDerivedRowsEstimate(statement *sqlparser.Select, rows [][]interface{}) (interface{}, bool) {
+	if statement == nil || len(rows) == 0 {
+		return nil, false
+	}
+	if len(statement.From) == 0 {
+		return int64(1), true
+	}
+	if statement.Distinct != "" || len(statement.GroupBy) > 0 || statement.Having != nil || statement.Limit != nil || len(statement.Windows) > 0 || explainSelectHasDerivedSource(statement) || explainSelectHasAggregateOrWindowProjection(statement) {
+		return nil, false
+	}
+	if len(explainTableReferences(statement)) != 1 || rows[0][9] == nil {
+		return nil, false
+	}
+	return rows[0][9], true
+}
+
+func explainSelectHasAggregateOrWindowProjection(statement *sqlparser.Select) bool {
+	if statement == nil {
+		return false
+	}
+	found := false
+	for _, expression := range statement.SelectExprs {
+		_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+			function, ok := node.(*sqlparser.FuncExpr)
+			if !ok {
+				return !found, nil
+			}
+			if function.Over != nil {
+				found = true
+				return false, nil
+			}
+			switch strings.ToUpper(function.Name.String()) {
+			case "COUNT", "SUM", "AVG", "MIN", "MAX", "GROUP_CONCAT", "JSON_ARRAYAGG", "JSON_OBJECTAGG", "ANY_VALUE", "BIT_AND", "BIT_OR", "BIT_XOR", "STD", "STDDEV", "STDDEV_POP", "STDDEV_SAMP", "VAR_POP", "VAR_SAMP", "VARIANCE":
+				found = true
+				return false, nil
+			}
+			return true, nil
+		}, expression)
+		if found {
+			return true
+		}
+	}
+	return found
+}
+
+func explainSelectStatementAsSelect(statement sqlparser.SelectStatement) *sqlparser.Select {
+	switch value := statement.(type) {
+	case *sqlparser.Select:
+		return value
+	case *sqlparser.ParenSelect:
+		return explainSelectStatementAsSelect(value.Select)
+	default:
+		return nil
+	}
+}
+
+func (e *XMySQLExecutor) explainSelectBlockRows(ctx *ExecutionContext, statement *sqlparser.Select, defaultSchema string, id int64, selectType string, nextID *int64, tasks *[]explainDerivedTask) ([][]interface{}, error) {
+	subqueries := explainSelectSubqueries(statement)
+	baseRows, err := e.explainSelectTableRows(ctx, statement, defaultSchema, subqueries)
+	if err != nil {
+		return nil, err
+	}
+	hasDerived := explainSelectHasDerivedSource(statement)
+	if selectType == "" {
+		selectType = "SIMPLE"
+		if hasDerived || len(subqueries) > 0 {
+			selectType = "PRIMARY"
+		}
+	}
+	if len(statement.From) == 0 {
+		if len(baseRows) == 0 {
+			return nil, nil
+		}
+		baseRows[0][0], baseRows[0][1] = id, selectType
+		return baseRows, nil
+	}
+	rows := make([][]interface{}, 0, len(baseRows)+len(statement.From))
+	baseIndex := 0
+	var appendTable func(sqlparser.TableExpr) error
+	appendTable = func(expression sqlparser.TableExpr) error {
+		switch value := expression.(type) {
+		case *sqlparser.AliasedTableExpr:
+			switch source := value.Expr.(type) {
+			case sqlparser.TableName:
+				if baseIndex >= len(baseRows) {
+					return fmt.Errorf("EXPLAIN table source metadata is incomplete")
+				}
+				row := baseRows[baseIndex]
+				baseIndex++
+				row[0], row[1] = id, selectType
+				rows = append(rows, row)
+			case *sqlparser.Subquery:
+				derivedID := *nextID
+				*nextID++
+				row := []interface{}{id, selectType, fmt.Sprintf("<derived%d>", derivedID), nil, "ALL", nil, nil, nil, nil, nil, float64(100), ""}
+				rows = append(rows, row)
+				*tasks = append(*tasks, explainDerivedTask{statement: source.Select, id: derivedID, parentRow: row})
+			default:
+				return fmt.Errorf("unsupported EXPLAIN table source %T", source)
+			}
+		case *sqlparser.JoinTableExpr:
+			if err := appendTable(value.LeftExpr); err != nil {
+				return err
+			}
+			return appendTable(value.RightExpr)
+		case *sqlparser.ParenTableExpr:
+			for _, child := range value.Exprs {
+				if err := appendTable(child); err != nil {
+					return err
+				}
+			}
+		default:
+			return fmt.Errorf("unsupported EXPLAIN table expression %T", expression)
+		}
+		return nil
+	}
+	for _, expression := range statement.From {
+		if err := appendTable(expression); err != nil {
+			return nil, err
+		}
+	}
+	return rows, nil
+}
+
+func explainSelectHasDerivedSource(statement *sqlparser.Select) bool {
+	var contains func(sqlparser.TableExpr) bool
+	contains = func(expression sqlparser.TableExpr) bool {
+		switch value := expression.(type) {
+		case *sqlparser.AliasedTableExpr:
+			_, ok := value.Expr.(*sqlparser.Subquery)
+			return ok
+		case *sqlparser.JoinTableExpr:
+			return contains(value.LeftExpr) || contains(value.RightExpr)
+		case *sqlparser.ParenTableExpr:
+			for _, child := range value.Exprs {
+				if contains(child) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	for _, expression := range statement.From {
+		if contains(expression) {
+			return true
+		}
+	}
+	return false
 }
 
 type explainIndexChoice struct {
