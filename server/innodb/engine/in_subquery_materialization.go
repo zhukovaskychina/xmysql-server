@@ -100,9 +100,14 @@ func (e *XMySQLExecutor) materializeInSubqueryAST(ctx *ExecutionContext, query, 
 			} // Correlated candidates are evaluated in the joined-row scope.
 			if havingPredicates[comparison] {
 				if _, independent := e.independentINColumns(subquery.Select, databaseName); !independent {
-					return false, fmt.Errorf("correlated IN subquery in HAVING is not supported")
+					// Keep correlated HAVING predicates in the AST. Grouped SELECT
+					// execution binds each completed group and evaluates IN/NOT IN
+					// through its set-subquery evaluator, preserving correlation and
+					// SQL's NULL/UNKNOWN behavior. Materializing here would execute
+					// the inner query without the group row in scope.
+					return false, nil
 				}
-			} // Correlated HAVING is rejected until grouped-row evaluation supports it.
+			}
 			if _, independent := e.independentINColumns(subquery.Select, databaseName); !independent {
 				return false, common.NewErr(common.ErrNotSupportedYet, "correlated or unbound IN subquery materialization in this clause")
 			}
