@@ -256,18 +256,60 @@ func (e *XMySQLExecutor) evaluateVectorSearchTable(ctx *ExecutionContext, functi
 			"model_version": value.Space.ModelVersion, "space_id": value.Space.ID,
 			"index_generation": manifest.Generation, "approximate": approximate,
 			"candidates_visited": int64(visited), "search_budget": int64(searchBudget), "may_have_more": mayHaveMore,
-			"source_block": verified.sourceBlock,
-			contentSourceRowContextKey: contentSourceRowContext{
-				Schema: source.Schema, Table: source.Table, PrimaryKey: append([]byte(nil), source.PrimaryKey...),
-				SourceColumnAliases: map[string]string{
-					"source_content": source.Column,
-					"source_block":   source.Column,
-				},
-				ColumnSemantics: confirmedColumnSemanticDefinitions(verifier.tableMeta),
-			},
+			"source_block":             verified.sourceBlock,
+			contentSourceRowContextKey: vectorSearchSourceRowContext(e, ctx, verifier.tableMeta, *source),
 		}})
 	}
 	return result, nil
+}
+
+func vectorSearchSourceRowContext(executor *XMySQLExecutor, ctx *ExecutionContext, tableMeta *metadata.TableMeta, source content.SourceRef) contentSourceRowContext {
+	rowContext := contentSourceRowContext{
+		Schema: source.Schema, Table: source.Table, PrimaryKey: append([]byte(nil), source.PrimaryKey...),
+		SourceColumnAliases: map[string]string{
+			"source_content": source.Column,
+			"source_block":   source.Column,
+		},
+		ColumnSemantics: confirmedColumnSemanticDefinitions(tableMeta),
+	}
+	if tableMeta == nil {
+		return rowContext
+	}
+	definition, found, err := metadata.ParseTableSemanticComment(tableMeta.Comment)
+	if err != nil || !found || definition == nil || !strings.EqualFold(definition.Status, "CONFIRMED") {
+		return rowContext
+	}
+	visible := make([]metadata.SemanticRelationship, 0, len(definition.Relationships))
+	for _, relationship := range definition.Relationships {
+		if !strings.EqualFold(relationship.Status, "CONFIRMED") || executor == nil || ctx == nil || ctx.Session == nil {
+			continue
+		}
+		canReadColumns := func(schema, table string, columns []string) bool {
+			if err := executor.checkTablePrivilege(ctx, schema, table, "SELECT"); err == nil {
+				return true
+			}
+			if len(columns) == 0 {
+				return false
+			}
+			for _, column := range columns {
+				if err := executor.checkColumnPrivilege(ctx, schema, table, column, "SELECT"); err != nil {
+					return false
+				}
+			}
+			return true
+		}
+		targetSchema := strings.TrimSpace(relationship.TargetSchema)
+		if targetSchema == "" {
+			targetSchema = source.Schema
+		}
+		if canReadColumns(source.Schema, source.Table, relationship.SourceColumns) &&
+			canReadColumns(targetSchema, relationship.TargetTable, relationship.TargetColumns) {
+			visible = append(visible, relationship)
+		}
+	}
+	definition.Relationships = visible
+	rowContext.TableSemantics = definition
+	return rowContext
 }
 
 func vectorSearchSourceBlock(executor *XMySQLExecutor, ctx *ExecutionContext, row *InsertRowData, blockID string, source content.SourceRef) (content.Value, bool, error) {
