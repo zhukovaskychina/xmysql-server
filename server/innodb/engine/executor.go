@@ -7564,6 +7564,12 @@ func (e *XMySQLExecutor) executeUnionQuery(ctx *ExecutionContext, branches []str
 		if len(result.Columns) != len(combined.Columns) {
 			return nil, fmt.Errorf("UNION branches have different column counts")
 		}
+		if branchIndex > 0 {
+			combined.ColumnTypes, err = mergeSetOperationColumnTypes(combined.ColumnTypes, result.ColumnTypes)
+			if err != nil {
+				return nil, err
+			}
+		}
 		all := branchIndex > 0 && branchIndex-1 < len(unionAll) && unionAll[branchIndex-1]
 		if !all {
 			// UNION DISTINCT applies to the accumulated left side and the
@@ -7644,9 +7650,17 @@ func (e *XMySQLExecutor) executeIntersectExceptQuery(ctx *ExecutionContext, bran
 		}
 		results = append(results, result)
 	}
+	resultTypes := append([]string(nil), results[0].ColumnTypes...)
+	for _, result := range results[1:] {
+		var err error
+		resultTypes, err = mergeSetOperationColumnTypes(resultTypes, result.ColumnTypes)
+		if err != nil {
+			return nil, err
+		}
+	}
 	combined := &SelectResult{
 		Columns:     append([]string(nil), results[0].Columns...),
-		ColumnTypes: append([]string(nil), results[0].ColumnTypes...),
+		ColumnTypes: resultTypes,
 		ResultType:  common.RESULT_TYPE_QUERY,
 		Records:     append([]Record(nil), results[0].Records...),
 	}

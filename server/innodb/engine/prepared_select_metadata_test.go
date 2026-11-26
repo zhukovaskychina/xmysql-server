@@ -55,7 +55,7 @@ func TestPreparedSelectMetadataUsesCatalogAndFunctionContracts(t *testing.T) {
 	}
 
 	// Unknown effectful functions are not executed as a type-inference fallback.
-	for _, query := range []string{"SELECT unknown_function()", "SELECT SLEEP(60)", "SELECT id FROM lhs l JOIN rhs r ON l.id=r.id", "SELECT 1 UNION ALL SELECT 'text'"} {
+	for _, query := range []string{"SELECT unknown_function()", "SELECT SLEEP(60)", "SELECT id FROM lhs l JOIN rhs r ON l.id=r.id"} {
 		_, err := executor.DescribePreparedSelect(nil, query, "app")
 		require.Error(t, err, query)
 	}

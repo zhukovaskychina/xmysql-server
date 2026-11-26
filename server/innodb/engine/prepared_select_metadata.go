@@ -90,9 +90,11 @@ func (d *preparedSelectDescriber) describe(statement sqlparser.Statement, ctes m
 			return nil, fmt.Errorf("set-operation column counts differ")
 		}
 		for index := range left {
-			if !strings.EqualFold(string(left[index].typ), string(right[index].typ)) {
-				return nil, fmt.Errorf("set-operation metadata requires execution-time type reconciliation")
+			commonType, err := mysqlSetOperationColumnType(left[index].typ, right[index].typ)
+			if err != nil {
+				return nil, fmt.Errorf("set-operation column %d: %w", index+1, err)
 			}
+			left[index].typ = commonType
 		}
 		return left, nil
 	case *sqlparser.Select:
