@@ -27054,6 +27054,18 @@ func explainPlanRowsJSON(rows [][]interface{}) (string, error) {
 		encoded, err := json.Marshal(map[string]interface{}{"query_block": map[string]interface{}{"select_id": 1, "message": "No tables used"}})
 		return string(encoded), err
 	}
+	if len(rows) == 1 && len(rows[0]) >= 12 && rows[0][2] == nil {
+		id, ok := rows[0][0].(int64)
+		if !ok {
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON cannot encode a malformed no-table plan row")
+		}
+		message, _ := rows[0][11].(string)
+		if strings.TrimSpace(message) == "" {
+			message = "No tables used"
+		}
+		encoded, err := json.Marshal(map[string]interface{}{"query_block": map[string]interface{}{"select_id": id, "message": message}})
+		return string(encoded), err
+	}
 	var selectID int64
 	tables := make([]explainJSONTable, 0, len(rows))
 	for index, row := range rows {
