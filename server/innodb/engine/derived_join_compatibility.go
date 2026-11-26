@@ -141,6 +141,17 @@ func (e *XMySQLExecutor) executeDerivedJoinSelectWithMaterialized(ctx *Execution
 	streamedLimitApplied := false
 	var source *derivedJoinSource
 	for _, expression := range stmt.From {
+		if table, ok := contentXLSXRowsFunctionInExpr(expression); ok {
+			if source == nil {
+				return nil, fmt.Errorf("CONTENT_PARSE_XLSX requires a preceding row source")
+			}
+			joined, err := lateralContentXLSXRows(executionContextBase(ctx), source, table, e)
+			if err != nil {
+				return nil, err
+			}
+			source = joined
+			continue
+		}
 		if table, ok := contentDOCXBlocksFunctionInExpr(expression); ok {
 			if source == nil {
 				return nil, fmt.Errorf("CONTENT_PARSE_DOCX requires a preceding row source")
@@ -487,6 +498,12 @@ func (e *XMySQLExecutor) executeDerivedJoinTableExprWithMaterialized(ctx *Execut
 				return nil, fmt.Errorf("CONTENT_PARSE_DOCX supports CROSS JOIN or comma join only")
 			}
 			return lateralContentDOCXBlocks(executionContextBase(ctx), left, functionTable, e)
+		}
+		if functionTable, ok := contentXLSXRowsFunctionInExpr(table.RightExpr); ok {
+			if !supportsCrossTableFunctionJoin(table) {
+				return nil, fmt.Errorf("CONTENT_PARSE_XLSX supports CROSS JOIN or comma join only")
+			}
+			return lateralContentXLSXRows(executionContextBase(ctx), left, functionTable, e)
 		}
 		if functionTable, ok := fullTextTokensFunctionInExpr(table.RightExpr); ok {
 			if !supportsCrossTableFunctionJoin(table) {
