@@ -406,7 +406,7 @@ func (d *preparedSelectDescriber) expressionType(expression sqlparser.Expr, shap
 			return metadata.TypeBigInt, nil
 		case "VECTOR_FROM_ARRAY", "VECTOR_FROM_SOURCE", "VECTOR_FROM_BLOCK":
 			return metadata.TypeVector, nil
-		case "AI_EXTRACT", "AI_EXTRACT_RESULT", "AI_RAG_RESULT":
+		case "AI_EXTRACT", "AI_EXTRACT_RESULT", "AI_RAG_RESULT", "AI_NL_SQL":
 			return metadata.TypeJSON, nil
 		case "CONTENT_FROM_BYTES", "CONTENT_BLOCK_FROM_JSON", "CONTENT_BLOCK_FROM_SOURCE", "CONTENT_TEXT_BLOCK", "CONTENT_TEXT_CHUNK", "CONTENT_PARSE_CSV", "CONTENT_PARSE_JSON_ARRAY", "CONTENT_PARSE_IMAGE", "CONTENT_PARSE_AUDIO", "CONTENT_PARSE_VIDEO":
 			return metadata.TypeContent, nil
