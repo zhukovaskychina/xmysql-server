@@ -13,13 +13,13 @@ func (e *XMySQLExecutor) SetContentHTMLBlockParser(parser content.HTMLBlockParse
 
 func (e *XMySQLExecutor) contentHTMLBlockParserSnapshot() content.HTMLBlockParser {
 	if e == nil {
-		return content.InProcessHTMLBlockParser{}
+		return content.IsolatedHTMLBlockParser{}
 	}
 	e.htmlBlockParserMu.RLock()
 	parser := e.htmlBlockParser
 	e.htmlBlockParserMu.RUnlock()
 	if parser == nil {
-		return content.InProcessHTMLBlockParser{}
+		return content.IsolatedHTMLBlockParser{}
 	}
 	return parser
 }

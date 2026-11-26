@@ -26,7 +26,7 @@
 
 2026-11-27 更新：`TABLE(VECTOR_SEARCH(...))` 增加可选 JSON 等值过滤参数，过滤在 EXACT Top-K 之前执行；ANN 将过滤回调传入 HNSW 候选筛选，仍标记近似结果并保留候选数、预算及 `may_have_more`。过滤只接受已知标量列和 JSON 标量，不解析任意 SQL 谓词；按 SQL 列类型校验值，数值以精确有理数比较，过滤列须通过列级 SELECT 授权。当前 `go build -mod=readonly ./server/...` 与 `git diff --check` 通过；本轮按工作要求未运行测试，因此 SQL 语义、prepared 执行、列权限、ANN 欠填充以及权限/索引并发行为均待运行验收。此接口只解决显式传入过滤条件时的候选前过滤，不代表外层 SQL `WHERE` 已自动下推，也不证明精确检索性能或 RAG 质量已达标。
 
-2026-11-27 更新：增加 `TABLE(CONTENT_PARSE_HTML(content_column))`，对 `text/html` 与 `application/xhtml+xml` 的 UTF-8 原件按 HTML token 流提取标题、段落、列表项、预格式文本及表格单元格；跳过 script/style/template/noscript/iframe/object 子树，块携带规范结构路径、CONTENT 来源版本与原件字节范围。单个原件上限 32 MiB，token 1 Mi、嵌套 256 层、文本 16 MiB、块 100000；解析读取分段 CONTENT 范围并响应查询取消。SQL 表值函数有声明列类型及 Java/Python 预处理描述路径。服务代码构建通过；本轮未运行测试，SQL 结果、坏 HTML、UTF-8 限制、字节定位、取消与权限行为均待验收。HTML 解析目前在引擎进程内执行，不构成操作系统隔离或完整浏览器 DOM/编码推断；非 UTF-8 文档显式报错。
+2026-11-27 更新：增加 `TABLE(CONTENT_PARSE_HTML(content_column))`，对 `text/html` 与 `application/xhtml+xml` 的 UTF-8 原件按 HTML token 流提取标题、段落、列表项、预格式文本及表格单元格；跳过 script/style/template/noscript/iframe/object 子树，块携带规范结构路径、CONTENT 来源版本与原件字节范围。单个原件上限 32 MiB，token 1 Mi、嵌套 256 层、文本 16 MiB-1 byte、块 100000；解析读取分段 CONTENT 范围并响应查询取消。SQL 表值函数有声明列类型及 Java/Python 预处理描述路径，默认通过有界并发、90 秒超时及输出上限的独立子进程运行。根程序构建通过；本轮未运行测试，SQL 结果、坏 HTML、UTF-8 限制、字节定位、取消与权限行为均待验收。隔离不提供操作系统级 RSS 硬限制，也不实现完整浏览器 DOM/编码推断；非 UTF-8 文档显式报错。
 
 接下来按依赖顺序推进：先用当前最终源码复核 MySQL 兼容矩阵，补齐类型/协议/权限/恢复边界；再完成 CONTENT 大对象持久化和有界流式读写、原子提交及备份恢复；随后做持久反向依赖与增量派生维护、可替换解析器/模型执行、向量 ANN 与全文/向量混合计划、权限约束的语义目录和上下文构建，最后接 SQL 模型调用与 RAG/Agent，并分别验收引用质量、回答准确率、性能和故障恢复。阶段目标与尚未完成项以第十四、十五章及配套契约为准。当前尚无可据以宣称 RAG 或多模态生产可用的端到端验收结果。
 
