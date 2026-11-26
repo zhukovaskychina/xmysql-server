@@ -50,6 +50,9 @@ type ExecutionContext struct {
 	// spatial MBR index. Select execution can use it to avoid decoding rows
 	// that cannot satisfy the spatial predicate.
 	SpatialCandidateKeys map[string]struct{}
+	// PrimaryKeyCandidateLookupKeys lets an index-backed predicate fetch only
+	// the listed clustered rows through point lookups.
+	PrimaryKeyCandidateLookupKeys []interface{}
 
 	// ddlWriteLocks tracks re-entrant compound ALTER calls. The outer ALTER
 	// owns the actual table lock; inner clause execution only increments this
@@ -124,6 +127,16 @@ func (ctx *ExecutionContext) Fork() *ExecutionContext {
 		child.SpatialCandidateKeys = make(map[string]struct{}, len(ctx.SpatialCandidateKeys))
 		for key := range ctx.SpatialCandidateKeys {
 			child.SpatialCandidateKeys[key] = struct{}{}
+		}
+	}
+	if ctx.PrimaryKeyCandidateLookupKeys != nil {
+		child.PrimaryKeyCandidateLookupKeys = make([]interface{}, len(ctx.PrimaryKeyCandidateLookupKeys))
+		for index, key := range ctx.PrimaryKeyCandidateLookupKeys {
+			if bytes, ok := key.([]byte); ok {
+				child.PrimaryKeyCandidateLookupKeys[index] = append([]byte(nil), bytes...)
+			} else {
+				child.PrimaryKeyCandidateLookupKeys[index] = key
+			}
 		}
 	}
 	if ctx.ddlWriteLocks != nil {

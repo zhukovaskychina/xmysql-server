@@ -383,33 +383,50 @@ func (e *XMySQLExecutor) executeFullTextQuery(ctx *ExecutionContext, query, data
 	// latest committed write. Keep the exact MATCH evaluator below as the final
 	// predicate; unsupported shapes fall back to the ordinary SELECT path.
 	candidatePredicateAdded := false
+	previousPrimaryKeyCandidates := ctx.PrimaryKeyCandidateLookupKeys
 	if hasSingleTable && len(selectStmt.From) == 1 && fullTextMatchInWhere(query, matchStart) &&
 		!sessionHasQueuedFullTextRefresh(ctx.Session, indexSchema, indexTable) {
 		if candidates, supported := e.fullTextCandidateIDs(indexSchema, indexTable, columns, term, booleanMode); supported {
 			if primaryKeyColumn, primaryKeyOK := singlePrimaryKeyColumn(indexSchema, indexTable, "id", e); primaryKeyOK {
-				values := make(sqlparser.ValTuple, 0, len(candidates))
-				for _, candidate := range candidates {
-					values = append(values, sqlparser.NewStrVal([]byte(candidate)))
+				if tableMeta, metaErr := (&SelectExecutor{}).loadTableMetaFromFrm(e.getDataDir(), indexSchema, indexTable); metaErr == nil {
+					lookupKeys := make([]interface{}, 0, len(candidates))
+					lookupSupported := true
+					for _, candidate := range candidates {
+						lookupKey, lookupErr := vectorSearchPrimaryKeyLookupKey([]byte(candidate), tableMeta)
+						if lookupErr != nil {
+							lookupSupported = false
+							break
+						}
+						lookupKeys = append(lookupKeys, lookupKey)
+					}
+					if lookupSupported {
+						values := make(sqlparser.ValTuple, 0, len(candidates))
+						for _, candidate := range candidates {
+							values = append(values, sqlparser.NewStrVal([]byte(candidate)))
+						}
+						right := sqlparser.ValTuple(values)
+						if len(right) == 0 {
+							right = sqlparser.ValTuple{&sqlparser.NullVal{}}
+						}
+						candidatePredicate := &sqlparser.ComparisonExpr{
+							Operator: sqlparser.InStr,
+							Left:     &sqlparser.ColName{Name: sqlparser.NewColIdent(primaryKeyColumn)},
+							Right:    right,
+						}
+						if selectStmt.Where == nil {
+							selectStmt.Where = sqlparser.NewWhere(sqlparser.WhereStr, candidatePredicate)
+						} else {
+							selectStmt.Where.Expr = &sqlparser.AndExpr{Left: selectStmt.Where.Expr, Right: candidatePredicate}
+						}
+						ctx.PrimaryKeyCandidateLookupKeys = lookupKeys
+						executionQuery = sqlparser.String(selectStmt)
+						candidatePredicateAdded = true
+					}
 				}
-				right := sqlparser.ValTuple(values)
-				if len(right) == 0 {
-					right = sqlparser.ValTuple{&sqlparser.NullVal{}}
-				}
-				candidatePredicate := &sqlparser.ComparisonExpr{
-					Operator: sqlparser.InStr,
-					Left:     &sqlparser.ColName{Name: sqlparser.NewColIdent(primaryKeyColumn)},
-					Right:    right,
-				}
-				if selectStmt.Where == nil {
-					selectStmt.Where = sqlparser.NewWhere(sqlparser.WhereStr, candidatePredicate)
-				} else {
-					selectStmt.Where.Expr = &sqlparser.AndExpr{Left: selectStmt.Where.Expr, Right: candidatePredicate}
-				}
-				executionQuery = sqlparser.String(selectStmt)
-				candidatePredicateAdded = true
 			}
 		}
 	}
+	defer func() { ctx.PrimaryKeyCandidateLookupKeys = previousPrimaryKeyCandidates }()
 	if !candidatePredicateAdded {
 		e.fullTextIndexMu.RUnlock()
 		fullTextReadLockHeld = false

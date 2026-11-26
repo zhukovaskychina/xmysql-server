@@ -84,6 +84,7 @@ type SelectExecutor struct {
 	expressionError           error
 	projectionExpressionCache map[string]projectionExpressionCacheEntry
 	candidateStorageKeys      map[string]struct{}
+	candidatePrimaryKeys      []interface{}
 	sessionValues             map[string]interface{}
 	rowsExamined              int64
 	selectScan                int64
@@ -101,12 +102,12 @@ type projectionExpressionCacheEntry struct {
 const contentSourceRowContextKey = "__xmysql_content_source_row"
 
 type contentSourceRowContext struct {
-	Schema          string
-	Table           string
-	PrimaryKey      []byte
+	Schema              string
+	Table               string
+	PrimaryKey          []byte
 	SourceColumnAliases map[string]string
-	ColumnSemantics map[string]metadata.ColumnSemanticDefinition
-	TableSemantics  *metadata.TableSemanticDefinition
+	ColumnSemantics     map[string]metadata.ColumnSemanticDefinition
+	TableSemantics      *metadata.TableSemanticDefinition
 }
 
 func contentSourcePhysicalColumnName(rowContext contentSourceRowContext, column string) string {
@@ -543,10 +544,12 @@ func (se *SelectExecutor) scanStorageRows(ctx context.Context, tableMeta *metada
 	}
 	pendingChanges := pendingClientTransactionChangesForTable(ctx, se.schemaName, se.tableName)
 	hasPendingClientChanges := len(pendingChanges) > 0
-	if se.candidateStorageKeys == nil && !hasPendingClientChanges {
+	if se.candidateStorageKeys == nil && se.candidatePrimaryKeys == nil && !hasPendingClientChanges {
 		if used, err := se.scanSecondaryIndexRows(ctx, tableMeta); err != nil || used {
 			return err
 		}
+	} else if se.candidatePrimaryKeys != nil {
+		se.lastAccessPath = "fulltext_primary_key_lookup"
 	} else {
 		se.lastAccessPath = "spatial_mbr_candidate_scan"
 	}
@@ -594,8 +597,9 @@ func (se *SelectExecutor) scanStorageRows(ctx context.Context, tableMeta *metada
 		// secondary-index key. Rebuild the committed view from the clustered
 		// scan, then apply the original predicate to the reconstructed rows.
 		se.candidateStorageKeys = nil
+		se.candidatePrimaryKeys = nil
 	}
-	if deferApplyWhere {
+	if deferApplyWhere || se.candidatePrimaryKeys != nil {
 		scanConditions = nil
 	}
 	projectionColumns, useProjection, err := se.determineStorageProjectionColumns(tableMeta)
@@ -605,6 +609,10 @@ func (se *SelectExecutor) scanStorageRows(ctx context.Context, tableMeta *metada
 	if hasPendingClientChanges {
 		useProjection = false
 	}
+	if se.candidatePrimaryKeys != nil {
+		useProjection = false
+		deferApplyWhere = true
+	}
 	if useProjection {
 		// The projected row contains every identifier found in WHERE, so apply
 		// the predicate after the storage decoder has produced that reduced row.
@@ -613,7 +621,18 @@ func (se *SelectExecutor) scanStorageRows(ctx context.Context, tableMeta *metada
 		deferApplyWhere = true
 	}
 	var rows []*InsertRowData
-	if len(se.candidateStorageKeys) > 0 {
+	if se.candidatePrimaryKeys != nil {
+		rows = make([]*InsertRowData, 0, len(se.candidatePrimaryKeys))
+		for _, key := range se.candidatePrimaryKeys {
+			row, _, found, lookupErr := scanner.FindByKey(ctx, key)
+			if lookupErr != nil {
+				return fmt.Errorf("clustered primary-key candidate lookup failed: %w", lookupErr)
+			}
+			if found {
+				rows = append(rows, row)
+			}
+		}
+	} else if len(se.candidateStorageKeys) > 0 {
 		var scannedRows []clusteredScannedRow
 		if useProjection {
 			scannedRows, err = scanner.scanWithProjection(ctx, scanConditions, projectionColumns)
@@ -632,6 +651,9 @@ func (se *SelectExecutor) scanStorageRows(ctx context.Context, tableMeta *metada
 		return fmt.Errorf("scan clustered index failed: %w", err)
 	}
 	se.rowsExamined = scanner.RowsExamined()
+	if se.candidatePrimaryKeys != nil {
+		se.rowsExamined = int64(len(se.candidatePrimaryKeys))
+	}
 	rows = se.applyPartitionPruning(rows)
 	rows = applyPendingClientTransactionVisibility(ctx, se.schemaName, se.tableName, rows, tableMeta)
 

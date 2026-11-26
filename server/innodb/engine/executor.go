@@ -7116,6 +7116,9 @@ func (e *XMySQLExecutor) executeSelectStatement(ctx *ExecutionContext, stmt *sql
 	if ctx != nil && ctx.SpatialCandidateKeys != nil {
 		selectExecutor.candidateStorageKeys = cloneStringSet(ctx.SpatialCandidateKeys)
 	}
+	if ctx != nil && ctx.PrimaryKeyCandidateLookupKeys != nil {
+		selectExecutor.candidatePrimaryKeys = append([]interface{}{}, ctx.PrimaryKeyCandidateLookupKeys...)
+	}
 	selectExecutor.setStoredFunctionAuthorizer(func(object persistedStoredObject) error {
 		if object.Definer != "" {
 			if err := e.validateStoredObjectAccount(object.Definer); err != nil {
