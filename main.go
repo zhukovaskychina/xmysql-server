@@ -3,10 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/content"
 	"github.com/zhukovaskychina/xmysql-server/server/net"
 )
 
@@ -30,6 +32,13 @@ const help = `
 `
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "--xmysql-internal-pdf-worker" {
+		if err := content.RunPDFWorker(os.Stdin, os.Stdout); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		return
+	}
 	fmt.Println("Starting XMySQL Server...")
 
 	// 解析命令行参数

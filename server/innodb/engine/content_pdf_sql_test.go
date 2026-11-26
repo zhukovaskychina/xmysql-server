@@ -7,11 +7,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/content"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 func TestContentParsePDFTableFunctionReturnsPageTextAndOCRStatus(t *testing.T) {
 	engine := newTestStorageIntegratedExecutor(t, t.TempDir())
+	engine.QueryExecutor.SetContentPDFPageParser(content.InProcessPDFPageParser{})
 	mustExecSQL(t, engine, "", "create database app")
 	mustExecSQL(t, engine, "app", "create table pdf_docs (id int primary key, body CONTENT)")
 	insert := fmt.Sprintf("insert into pdf_docs values (1, CONTENT_FROM_BYTES(X'%s','application/pdf'))", hex.EncodeToString(testSQLPDF([]string{"page one words", ""})))

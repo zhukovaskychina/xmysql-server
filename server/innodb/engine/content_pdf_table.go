@@ -10,7 +10,7 @@ import (
 )
 
 // TABLE(CONTENT_PARSE_PDF(content_column)) exposes one row per original page.
-func visitContentPDFPagesTable(ctx context.Context, function *sqlparser.FuncExpr, values map[string]interface{}, visit func(derivedRow) error) (int, error) {
+func visitContentPDFPagesTable(ctx context.Context, parser content.PDFPageParser, function *sqlparser.FuncExpr, values map[string]interface{}, visit func(derivedRow) error) (int, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -56,7 +56,10 @@ func visitContentPDFPagesTable(ctx context.Context, function *sqlparser.FuncExpr
 	if err != nil {
 		return 0, err
 	}
-	blocks, err := content.ParsePDFPages(ctx, store, sourceValue, source, content.PDFOptions{})
+	if parser == nil {
+		return 0, fmt.Errorf("CONTENT_PARSE_PDF worker is unavailable")
+	}
+	blocks, err := parser.ParsePDFPages(ctx, store, sourceValue, source, content.PDFOptions{})
 	if err != nil {
 		return 0, fmt.Errorf("CONTENT_PARSE_PDF failed: %w", err)
 	}
@@ -103,7 +106,7 @@ func contentPDFPagesFunctionInExpr(expression sqlparser.TableExpr) (*sqlparser.A
 	return table, ok
 }
 
-func lateralContentPDFPages(ctx context.Context, left *derivedJoinSource, table *sqlparser.AliasedTableExpr, dataDir string) (*derivedJoinSource, error) {
+func lateralContentPDFPages(ctx context.Context, left *derivedJoinSource, table *sqlparser.AliasedTableExpr, executor *XMySQLExecutor) (*derivedJoinSource, error) {
 	function, alias, ok := contentPDFPagesFunction(table)
 	if !ok {
 		return nil, fmt.Errorf("unsupported table-valued function")
@@ -123,8 +126,10 @@ func lateralContentPDFPages(ctx context.Context, left *derivedJoinSource, table 
 	result.qualifiedCols[strings.ToLower(alias)] = append([]string(nil), pageSource.columns...)
 	result.visitRows = func(visit func(derivedRow) error) error {
 		for _, row := range left.rows {
-			row.values[storedFunctionDataDirKey] = dataDir
-			_, err := visitContentPDFPagesTable(ctx, function, row.values, func(page derivedRow) error {
+			if executor != nil {
+				row.values[storedFunctionDataDirKey] = executor.getDataDir()
+			}
+			_, err := visitContentPDFPagesTable(ctx, executor.contentPDFPageParserSnapshot(), function, row.values, func(page derivedRow) error {
 				values := cloneDerivedValues(page.values)
 				for key, value := range values {
 					values[alias+"."+key] = value

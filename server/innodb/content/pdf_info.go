@@ -30,32 +30,23 @@ type PDFOptions struct {
 	MaxMemoryBytes int64
 }
 
+type PDFPageParser interface {
+	ParsePDFPages(context.Context, *SegmentStore, Value, SourceRef, PDFOptions) ([]Block, error)
+}
+
+type InProcessPDFPageParser struct{}
+
+func (InProcessPDFPageParser) ParsePDFPages(ctx context.Context, store *SegmentStore, value Value, source SourceRef, options PDFOptions) ([]Block, error) {
+	return ParsePDFPages(ctx, store, value, source, options)
+}
+
 // ParsePDFPages extracts a PDF text layer into one source-bound block per
 // page. Its ReaderAt adapter reads external CONTENT in bounded ranges, so the
 // source object is not copied into an unmanaged temporary file.
 func ParsePDFPages(ctx context.Context, store *SegmentStore, value Value, source SourceRef, options PDFOptions) ([]Block, error) {
-	if err := value.Validate(); err != nil {
+	options, err := validatePDFInput(value, source, options)
+	if err != nil {
 		return nil, err
-	}
-	if err := source.Validate(); err != nil {
-		return nil, err
-	}
-	if source.Revision != value.Revision || source.Digest != value.Digest {
-		return nil, fmt.Errorf("%w: PDF source does not match the CONTENT revision and digest", ErrInvalidBlock)
-	}
-	mediaType, _, err := mime.ParseMediaType(value.MIMEType)
-	if err != nil || !strings.EqualFold(mediaType, "application/pdf") {
-		return nil, fmt.Errorf("PDF parser requires application/pdf MIME type")
-	}
-	options = normalizePDFOptions(options)
-	if options.MaxSourceBytes > defaultPDFMaxBytes || options.MaxPages > defaultPDFMaxPages ||
-		options.MaxPageBytes > defaultPDFPageBytes || options.MaxTextBytes > defaultPDFTextBytes ||
-		options.MaxMemoryBytes > defaultPDFMemory || options.MaxSourceBytes == 0 || options.MaxPages < 1 ||
-		options.MaxPageBytes < 1 || options.MaxTextBytes < 1 || options.MaxMemoryBytes < 1 {
-		return nil, fmt.Errorf("PDF limits must be positive and cannot exceed the built-in resource ceilings")
-	}
-	if value.Size() == 0 || value.Size() > options.MaxSourceBytes {
-		return nil, fmt.Errorf("PDF source size %d is outside the supported range 1..%d", value.Size(), options.MaxSourceBytes)
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -111,6 +102,33 @@ func ParsePDFPages(ctx context.Context, store *SegmentStore, value Value, source
 		blocks = append(blocks, block)
 	}
 	return blocks, nil
+}
+
+func validatePDFInput(value Value, source SourceRef, options PDFOptions) (PDFOptions, error) {
+	if err := value.Validate(); err != nil {
+		return PDFOptions{}, err
+	}
+	if err := source.Validate(); err != nil {
+		return PDFOptions{}, err
+	}
+	if source.Revision != value.Revision || source.Digest != value.Digest {
+		return PDFOptions{}, fmt.Errorf("%w: PDF source does not match the CONTENT revision and digest", ErrInvalidBlock)
+	}
+	mediaType, _, err := mime.ParseMediaType(value.MIMEType)
+	if err != nil || !strings.EqualFold(mediaType, "application/pdf") {
+		return PDFOptions{}, fmt.Errorf("PDF parser requires application/pdf MIME type")
+	}
+	options = normalizePDFOptions(options)
+	if options.MaxSourceBytes > defaultPDFMaxBytes || options.MaxPages > defaultPDFMaxPages ||
+		options.MaxPageBytes > defaultPDFPageBytes || options.MaxTextBytes > defaultPDFTextBytes ||
+		options.MaxMemoryBytes > defaultPDFMemory || options.MaxSourceBytes == 0 || options.MaxPages < 1 ||
+		options.MaxPageBytes < 1 || options.MaxTextBytes < 1 || options.MaxMemoryBytes < 1 {
+		return PDFOptions{}, fmt.Errorf("PDF limits must be positive and cannot exceed the built-in resource ceilings")
+	}
+	if value.Size() == 0 || value.Size() > options.MaxSourceBytes {
+		return PDFOptions{}, fmt.Errorf("PDF source size %d is outside the supported range 1..%d", value.Size(), options.MaxSourceBytes)
+	}
+	return options, nil
 }
 
 func normalizePDFOptions(options PDFOptions) PDFOptions {

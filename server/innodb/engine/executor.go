@@ -67,6 +67,8 @@ type XMySQLExecutor struct {
 	infosSchemaManager   metadata.InfoSchemaManager // 信息模式管理器
 	conf                 *conf.Cfg                  // 配置项
 	embeddingRuntimeMu   sync.RWMutex
+	pdfPageParserMu      sync.RWMutex
+	pdfPageParser        content.PDFPageParser
 	embeddingRuntime     EmbeddingRuntime
 	generationRuntime    GenerationRuntime
 	modelExecutionPolicy ModelExecutionPolicy

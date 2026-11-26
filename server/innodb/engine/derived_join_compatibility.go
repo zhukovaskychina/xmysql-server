@@ -145,7 +145,7 @@ func (e *XMySQLExecutor) executeDerivedJoinSelectWithMaterialized(ctx *Execution
 			if source == nil {
 				return nil, fmt.Errorf("CONTENT_PARSE_PDF requires a preceding row source")
 			}
-			joined, err := lateralContentPDFPages(executionContextBase(ctx), source, table, e.getDataDir())
+			joined, err := lateralContentPDFPages(executionContextBase(ctx), source, table, e)
 			if err != nil {
 				return nil, err
 			}
@@ -469,7 +469,7 @@ func (e *XMySQLExecutor) executeDerivedJoinTableExprWithMaterialized(ctx *Execut
 			if !supportsCrossTableFunctionJoin(table) {
 				return nil, fmt.Errorf("CONTENT_PARSE_PDF supports CROSS JOIN or comma join only")
 			}
-			return lateralContentPDFPages(executionContextBase(ctx), left, functionTable, e.getDataDir())
+			return lateralContentPDFPages(executionContextBase(ctx), left, functionTable, e)
 		}
 		if functionTable, ok := fullTextTokensFunctionInExpr(table.RightExpr); ok {
 			if !supportsCrossTableFunctionJoin(table) {
