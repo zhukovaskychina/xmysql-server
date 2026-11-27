@@ -326,6 +326,8 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 				return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, IsNullable: false}
 			}
 		}
+	case *sqlparser.NullVal:
+		return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: metadata.TypeNull, IsNullable: true}
 	case *sqlparser.BinaryExpr:
 		numericShape, known := d.preparedNumericExpressionShape(expression, shape, 0)
 		if !known {
@@ -1247,7 +1249,7 @@ func (d *preparedSelectDescriber) expressionType(expression sqlparser.Expr, shap
 			return metadata.TypeVarBinary, nil
 		}
 	case *sqlparser.NullVal:
-		return metadata.TypeVarchar, nil
+		return metadata.TypeNull, nil
 	case *sqlparser.ExtractExpr:
 		return metadata.TypeBigInt, nil
 	case *sqlparser.MatchExpr:

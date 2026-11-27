@@ -10,6 +10,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 // mysqlSetOperationColumnType resolves the result metadata for one column of a
@@ -22,6 +23,14 @@ func mysqlSetOperationColumnType(left, right metadata.DataType) (metadata.DataTy
 	right = normalizeSetOperationType(right)
 	if left == "" || right == "" {
 		return "", fmt.Errorf("set-operation result type is unknown")
+	}
+	// MySQL ignores NULL-typed expressions while aggregating set-operation
+	// column types. Keep NULL only when every branch for the column is NULL.
+	if left == metadata.TypeNull {
+		return right, nil
+	}
+	if right == metadata.TypeNull {
+		return left, nil
 	}
 	if left == right {
 		return left, nil
@@ -217,6 +226,9 @@ func setOperationExactNumericShape(column *metadata.ColumnMeta) (int, int) {
 		return 10, 0
 	}
 	typ := normalizeSetOperationType(column.Type)
+	if typ == metadata.TypeNull {
+		return 0, 0
+	}
 	if typ == metadata.TypeDecimal {
 		precision := column.Length
 		if precision < 1 {
@@ -418,6 +430,17 @@ func canonicalSetOperationNumber(value interface{}, typ metadata.DataType) (stri
 
 func normalizeSetOperationType(typ metadata.DataType) metadata.DataType {
 	return metadata.DataType(strings.ToUpper(strings.TrimSpace(string(typ))))
+}
+
+func isNullLiteralExpression(expression sqlparser.Expr) bool {
+	switch node := expression.(type) {
+	case *sqlparser.NullVal:
+		return true
+	case *sqlparser.ParenExpr:
+		return isNullLiteralExpression(node.Expr)
+	default:
+		return false
+	}
 }
 
 func isNativeSetOperationType(typ metadata.DataType) bool {

@@ -7346,7 +7346,11 @@ func executeConstantSelectWithEvaluator(stmt *sqlparser.Select, evaluate func(sq
 		}
 		if value == nil {
 			values = append(values, basic.NewNull())
-			types = append(types, "varchar")
+			columnType := metadata.TypeVarchar
+			if isNullLiteralExpression(aliased.Expr) {
+				columnType = metadata.TypeNull
+			}
+			types = append(types, strings.ToLower(string(columnType)))
 		} else {
 			values = append(values, basic.NewStringValue(projectionValueString(value)))
 			types = append(types, string(projectionValueType(value)))
@@ -7359,7 +7363,12 @@ func executeConstantSelectWithEvaluator(stmt *sqlparser.Select, evaluate func(sq
 			name = aliased.As.String()
 		}
 		columns = append(columns, name)
-		meta.Columns = append(meta.Columns, &metadata.ColumnMeta{Name: name, Type: metadata.TypeVarchar})
+		columnType := metadata.TypeVarchar
+		isNullable := false
+		if isNullLiteralExpression(aliased.Expr) {
+			columnType, isNullable = metadata.TypeNull, true
+		}
+		meta.Columns = append(meta.Columns, &metadata.ColumnMeta{Name: name, Type: columnType, IsNullable: isNullable})
 	}
 	return &SelectResult{
 		Records:     []Record{NewExecutorRecord(values, meta)},

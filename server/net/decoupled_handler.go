@@ -3446,6 +3446,8 @@ func createColumnDefinitionForType(encoder *protocol.MySQLResultSetEncoder, name
 		typeName = typeName[:separator]
 	}
 	switch typeName {
+	case "null":
+		return encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_NULL, 0)
 	case "tinyint":
 		return encoder.CreateColumnDefinition(name, common.COLUMN_TYPE_TINY, 0)
 	case "smallint":

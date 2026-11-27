@@ -30,6 +30,7 @@ type DataType string
 
 // Common SQL data types
 const (
+	TypeNull       DataType = "NULL"
 	TypeTinyInt    DataType = "TINYINT"
 	TypeSmallInt   DataType = "SMALLINT"
 	TypeMediumInt  DataType = "MEDIUMINT"
