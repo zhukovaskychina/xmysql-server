@@ -361,6 +361,8 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 			return d.preparedConcatMetadata(expression, shape, resultType, name, arguments)
 		}
 		switch name {
+		case "NOW", "CURRENT_TIMESTAMP", "LOCALTIMESTAMP", "SYSDATE", "UTC_TIMESTAMP", "CURTIME", "CURRENT_TIME", "LOCALTIME", "UTC_TIME", "CURDATE", "CURRENT_DATE", "UTC_DATE":
+			return preparedCurrentTemporalMetadata(expression, resultType, arguments)
 		case "COUNT":
 			if len(arguments) == 0 {
 				return nil
@@ -572,6 +574,47 @@ func (d *preparedSelectDescriber) preparedNumericRoundingMetadata(expression sql
 		column.Scale = 0
 	}
 	return column
+}
+
+func preparedCurrentTemporalMetadata(expression sqlparser.Expr, resultType metadata.DataType, arguments []sqlparser.Expr) *metadata.ColumnMeta {
+	fsp := int64(0)
+	allowPrecision := resultType == metadata.TypeDateTime || resultType == metadata.TypeTime
+	if !allowPrecision && len(arguments) != 0 {
+		return nil
+	}
+	if allowPrecision {
+		if len(arguments) > 1 {
+			return nil
+		}
+		if len(arguments) == 1 {
+			var known bool
+			fsp, known = preparedStaticInteger(arguments[0])
+			if !known || fsp < 0 || fsp > 6 {
+				return nil
+			}
+		}
+	}
+	length := 10
+	scale := 0
+	switch resultType {
+	case metadata.TypeDateTime:
+		length = 19
+		if fsp > 0 {
+			length += int(fsp) + 1
+			scale = int(fsp)
+		}
+	case metadata.TypeTime:
+		length = 8
+		if fsp > 0 {
+			length += int(fsp) + 1
+			scale = int(fsp)
+		}
+	case metadata.TypeDate:
+		length = 10
+	default:
+		return nil
+	}
+	return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: length, Scale: scale, IsNullable: false}
 }
 
 // preparedExpressionDefinitelyNonNull is deliberately proof-based: unknown
@@ -1867,11 +1910,38 @@ func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.
 		return metadata.TypeVarchar, true, nil
 	case "INET6_ATON", "UUID_TO_BIN", "RANDOM_BYTES":
 		return metadata.TypeVarBinary, true, nil
-	case "CURRENT_TIMESTAMP", "NOW", "LOCALTIMESTAMP", "SYSDATE", "UTC_TIMESTAMP", "TIMESTAMP", "STR_TO_DATE", "CONVERT_TZ", "FROM_UNIXTIME":
+	case "CURRENT_TIMESTAMP", "NOW", "LOCALTIME", "LOCALTIMESTAMP", "SYSDATE", "UTC_TIMESTAMP":
+		if len(arguments) > 1 {
+			return "", true, fmt.Errorf("prepared function %s accepts at most one fractional-seconds precision", name)
+		}
+		if len(arguments) == 1 {
+			fsp, known := preparedStaticInteger(arguments[0])
+			if !known || fsp < 0 || fsp > 6 {
+				return "", true, fmt.Errorf("prepared function %s requires fractional-seconds precision from 0 through 6", name)
+			}
+		}
 		return metadata.TypeDateTime, true, nil
-	case "CURRENT_DATE", "CURDATE", "UTC_DATE", "DATE", "LAST_DAY":
+	case "TIMESTAMP", "STR_TO_DATE", "CONVERT_TZ", "FROM_UNIXTIME":
+		return metadata.TypeDateTime, true, nil
+	case "CURRENT_DATE", "CURDATE", "UTC_DATE":
+		if len(arguments) != 0 {
+			return "", true, fmt.Errorf("prepared function %s does not accept arguments", name)
+		}
 		return metadata.TypeDate, true, nil
-	case "CURRENT_TIME", "CURTIME", "UTC_TIME", "TIME", "TIMEDIFF", "ADDTIME", "SUBTIME", "SEC_TO_TIME", "MAKETIME":
+	case "DATE", "LAST_DAY":
+		return metadata.TypeDate, true, nil
+	case "CURRENT_TIME", "CURTIME", "UTC_TIME":
+		if len(arguments) > 1 {
+			return "", true, fmt.Errorf("prepared function %s accepts at most one fractional-seconds precision", name)
+		}
+		if len(arguments) == 1 {
+			fsp, known := preparedStaticInteger(arguments[0])
+			if !known || fsp < 0 || fsp > 6 {
+				return "", true, fmt.Errorf("prepared function %s requires fractional-seconds precision from 0 through 6", name)
+			}
+		}
+		return metadata.TypeTime, true, nil
+	case "TIME", "TIMEDIFF", "ADDTIME", "SUBTIME", "SEC_TO_TIME", "MAKETIME":
 		return metadata.TypeTime, true, nil
 	case "JSON_ARRAY", "JSON_OBJECT", "JSON_EXTRACT", "JSON_ARRAYAGG", "JSON_OBJECTAGG", "JSON_KEYS", "JSON_PRETTY", "JSON_MERGE", "JSON_MERGE_PATCH", "JSON_MERGE_PRESERVE", "JSON_ARRAY_APPEND", "JSON_ARRAY_INSERT", "JSON_INSERT", "JSON_SET", "JSON_REPLACE", "JSON_REMOVE", "JSON_SEARCH":
 		return metadata.TypeJSON, true, nil
