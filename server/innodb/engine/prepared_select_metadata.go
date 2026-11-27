@@ -394,6 +394,21 @@ func (d *preparedSelectDescriber) expressionType(expression sqlparser.Expr, shap
 		}
 	case *sqlparser.NullVal:
 		return metadata.TypeVarchar, nil
+	case *sqlparser.ExtractExpr:
+		return metadata.TypeBigInt, nil
+	case *sqlparser.MatchExpr:
+		return metadata.TypeDouble, nil
+	case *sqlparser.GroupConcatExpr:
+		return metadata.TypeLongText, nil
+	case *sqlparser.SubstrExpr:
+		source, err := d.expressionType(expr.Name, shape, ctes, depth+1)
+		if err != nil {
+			return "", err
+		}
+		if isSetOperationBinary(source) {
+			return metadata.TypeVarBinary, nil
+		}
+		return metadata.TypeVarchar, nil
 	case *sqlparser.BinaryExpr:
 		left, err := d.expressionType(expr.Left, shape, ctes, depth+1)
 		if err != nil {
