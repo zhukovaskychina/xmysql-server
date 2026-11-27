@@ -905,12 +905,16 @@ func (se *SelectExecutor) projectJoinedRows(stmt *sqlparser.Select, rows []joine
 				if err != nil {
 					return nil, nil, nil, nil, err
 				}
-				typ = projectionValueType(value)
+				typ = projectionExpressionValueType(se.selectExprASTs[i], value)
 			}
 			typ = mysqlSortedJoinMaterializationType(stmt, se.selectExprASTs[i], typ)
 		}
 		columnTypes[i] = strings.ToLower(string(typ))
-		projectedColumns = append(projectedColumns, &metadata.ColumnMeta{Name: col, Type: typ, Collation: collation, IsNullable: true})
+		var scale int
+		if i < len(se.selectExprASTs) {
+			scale = projectionExpressionScale(se.selectExprASTs[i])
+		}
+		projectedColumns = append(projectedColumns, &metadata.ColumnMeta{Name: col, Type: typ, Scale: scale, Collation: collation, IsNullable: true})
 	}
 	records := make([]Record, 0, len(rows))
 	for _, row := range rows {

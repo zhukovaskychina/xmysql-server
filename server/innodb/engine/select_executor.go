@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 
@@ -4169,9 +4170,10 @@ func (se *SelectExecutor) projectRecord(record Record, selectExprs []string) (Re
 						projectedValues = append(projectedValues, basic.NewBytes(encoded))
 					}
 				} else {
-					projectedValues = append(projectedValues, basic.NewStringValue(projectionValueString(value)))
+					projectedValues = append(projectedValues, basic.NewStringValue(projectionExpressionValueString(selectExpressionAST(se, exprIdx), value)))
 				}
-				projectedColumns = append(projectedColumns, &metadata.ColumnMeta{Name: outputName, Type: projectionValueType(value)})
+				expressionAST := selectExpressionAST(se, exprIdx)
+				projectedColumns = append(projectedColumns, &metadata.ColumnMeta{Name: outputName, Type: projectionExpressionValueType(expressionAST, value), Scale: projectionExpressionScale(expressionAST)})
 				continue
 			} else if isMySQLSemanticError(evalErr) || isStoredFunctionAuthorizationError(evalErr) || isNativeTypedValueFunction(selectExpressionAST(se, exprIdx)) {
 				se.expressionError = evalErr
@@ -4583,9 +4585,87 @@ func projectionValueType(value interface{}) metadata.DataType {
 		return metadata.TypeDouble
 	case bool:
 		return metadata.TypeTinyInt
+	case time.Time:
+		return metadata.TypeDateTime
 	default:
 		return metadata.TypeVarchar
 	}
+}
+
+func projectionExpressionValueType(expression sqlparser.Expr, value interface{}) metadata.DataType {
+	function, ok := expression.(*sqlparser.FuncExpr)
+	if !ok || function == nil {
+		return projectionValueType(value)
+	}
+	switch strings.ToUpper(strings.Trim(function.Name.String(), "` ")) {
+	case "CURDATE", "CURRENT_DATE", "UTC_DATE":
+		return metadata.TypeDate
+	case "CURTIME", "CURRENT_TIME", "UTC_TIME":
+		return metadata.TypeTime
+	case "NOW", "CURRENT_TIMESTAMP", "LOCALTIME", "LOCALTIMESTAMP", "SYSDATE", "UTC_TIMESTAMP":
+		return metadata.TypeDateTime
+	default:
+		return projectionValueType(value)
+	}
+}
+
+func projectionExpressionValueString(expression sqlparser.Expr, value interface{}) string {
+	timestamp, ok := value.(time.Time)
+	if !ok {
+		return projectionValueString(value)
+	}
+	layout := "2006-01-02 15:04:05.999999"
+	function, isFunction := expression.(*sqlparser.FuncExpr)
+	if isFunction && function != nil {
+		name := strings.ToUpper(strings.Trim(function.Name.String(), "` "))
+		switch name {
+		case "CURDATE", "CURRENT_DATE", "UTC_DATE":
+			return timestamp.Format("2006-01-02")
+		case "CURTIME", "CURRENT_TIME", "UTC_TIME":
+			layout = "15:04:05.999999"
+		case "NOW", "CURRENT_TIMESTAMP", "LOCALTIME", "LOCALTIMESTAMP", "SYSDATE", "UTC_TIMESTAMP":
+			if fsp, known := temporalFunctionPrecisionFromAST(function); known {
+				layout = "2006-01-02 15:04:05"
+				if fsp > 0 {
+					layout += "." + strings.Repeat("0", fsp)
+				}
+			}
+		}
+	}
+	return timestamp.Format(layout)
+}
+
+func temporalFunctionPrecisionFromAST(function *sqlparser.FuncExpr) (int, bool) {
+	if function == nil || len(function.Exprs) == 0 {
+		return 0, true
+	}
+	aliased, ok := function.Exprs[0].(*sqlparser.AliasedExpr)
+	if !ok {
+		return 0, false
+	}
+	literal, ok := aliased.Expr.(*sqlparser.SQLVal)
+	if !ok {
+		return 0, false
+	}
+	fsp, err := strconv.Atoi(string(literal.Val))
+	if err != nil || fsp < 0 || fsp > 6 {
+		return 0, false
+	}
+	return fsp, true
+}
+
+func projectionExpressionScale(expression sqlparser.Expr) int {
+	function, ok := expression.(*sqlparser.FuncExpr)
+	if !ok || function == nil {
+		return 0
+	}
+	switch strings.ToUpper(strings.Trim(function.Name.String(), "` ")) {
+	case "NOW", "CURRENT_TIMESTAMP", "LOCALTIME", "LOCALTIMESTAMP", "SYSDATE", "UTC_TIMESTAMP", "CURTIME", "CURRENT_TIME", "UTC_TIME":
+		if fsp, known := temporalFunctionPrecisionFromAST(function); known {
+			return fsp
+		}
+	}
+	return 0
 }
 
 func selectExpressionAST(executor *SelectExecutor, index int) sqlparser.Expr {
@@ -4609,6 +4689,8 @@ func projectionValueString(value interface{}) string {
 		return string(bytes)
 	}
 	switch typed := value.(type) {
+	case time.Time:
+		return typed.Format("2006-01-02 15:04:05.999999")
 	case bool:
 		if typed {
 			return "1"

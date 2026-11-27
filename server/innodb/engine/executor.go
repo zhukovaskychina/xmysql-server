@@ -7351,31 +7351,29 @@ func executeConstantSelectWithEvaluator(stmt *sqlparser.Select, evaluate func(sq
 		if err != nil {
 			return nil, err
 		}
+		columnType := metadata.TypeVarchar
+		isNullable := false
 		if value == nil {
 			values = append(values, basic.NewNull())
-			columnType := metadata.TypeVarchar
 			if isNullLiteralExpression(aliased.Expr) {
-				columnType = metadata.TypeNull
+				columnType, isNullable = metadata.TypeNull, true
 			}
 			types = append(types, strings.ToLower(string(columnType)))
 		} else {
-			values = append(values, basic.NewStringValue(projectionValueString(value)))
-			types = append(types, string(projectionValueType(value)))
+			columnType = projectionExpressionValueType(aliased.Expr, value)
+			values = append(values, basic.NewStringValue(projectionExpressionValueString(aliased.Expr, value)))
+			types = append(types, string(columnType))
 		}
 		if booleanSQLExpression(aliased.Expr) {
-			types[len(types)-1] = strings.ToLower(string(metadata.TypeBigInt))
+			columnType = metadata.TypeBigInt
+			types[len(types)-1] = strings.ToLower(string(columnType))
 		}
 		name := sqlparser.String(aliased.Expr)
 		if !aliased.As.IsEmpty() {
 			name = aliased.As.String()
 		}
 		columns = append(columns, name)
-		columnType := metadata.TypeVarchar
-		isNullable := false
-		if isNullLiteralExpression(aliased.Expr) {
-			columnType, isNullable = metadata.TypeNull, true
-		}
-		meta.Columns = append(meta.Columns, &metadata.ColumnMeta{Name: name, Type: columnType, IsNullable: isNullable})
+		meta.Columns = append(meta.Columns, &metadata.ColumnMeta{Name: name, Type: columnType, Scale: projectionExpressionScale(aliased.Expr), IsNullable: isNullable})
 	}
 	return &SelectResult{
 		Records:     []Record{NewExecutorRecord(values, meta)},

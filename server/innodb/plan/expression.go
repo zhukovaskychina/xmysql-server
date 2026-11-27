@@ -747,38 +747,38 @@ func (f *Function) Eval(ctx *EvalContext) (interface{}, error) {
 			return nil, fmt.Errorf("%s requires no arguments", f.FuncName)
 		}
 		return statementTime(ctx).UTC().Format("2006-01-02"), nil
-	case "CURTIME", "CURRENT_TIME", "LOCALTIME":
-		if len(args) != 0 {
-			return nil, fmt.Errorf("%s requires no arguments", f.FuncName)
+	case "CURTIME", "CURRENT_TIME":
+		fsp, err := temporalFunctionPrecision(args, f.FuncName)
+		if err != nil {
+			return nil, err
 		}
-		return statementTime(ctx).Format("15:04:05"), nil
+		return formatTimeFunctionValue(statementTime(ctx), fsp), nil
 	case "UTC_TIME":
-		if len(args) != 0 {
-			return nil, fmt.Errorf("%s requires no arguments", f.FuncName)
+		fsp, err := temporalFunctionPrecision(args, f.FuncName)
+		if err != nil {
+			return nil, err
 		}
-		return statementTime(ctx).UTC().Format("15:04:05"), nil
+		return formatTimeFunctionValue(statementTime(ctx).UTC(), fsp), nil
 	case "SYSDATE":
-		if len(args) > 1 {
-			return nil, fmt.Errorf("%s accepts zero or one argument", f.FuncName)
+		fsp, err := temporalFunctionPrecision(args, f.FuncName)
+		if err != nil {
+			return nil, err
 		}
-		now := currentTime(ctx)
-		if len(args) == 1 && args[0] != nil {
-			fsp, err := integerArg(args[0])
-			if err != nil || fsp < 0 || fsp > 6 {
-				if err == nil {
-					err = fmt.Errorf("fractional seconds precision must be between 0 and 6")
-				}
-				return nil, err
-			}
-			now = truncateTimeFraction(now, fsp)
-		}
-		return now, nil
+		return truncateTimeFraction(currentTime(ctx), fsp), nil
 	case "TO_DAYS", "FROM_DAYS", "TO_SECONDS", "PERIOD_ADD", "PERIOD_DIFF":
 		return evalCalendarFunction(strings.ToUpper(f.FuncName), args)
-	case "NOW", "CURRENT_TIMESTAMP", "LOCALTIMESTAMP":
-		return statementTime(ctx), nil
+	case "NOW", "CURRENT_TIMESTAMP", "LOCALTIME", "LOCALTIMESTAMP":
+		fsp, err := temporalFunctionPrecision(args, f.FuncName)
+		if err != nil {
+			return nil, err
+		}
+		return truncateTimeFraction(statementTime(ctx), fsp), nil
 	case "UTC_TIMESTAMP":
-		return statementTime(ctx).UTC(), nil
+		fsp, err := temporalFunctionPrecision(args, f.FuncName)
+		if err != nil {
+			return nil, err
+		}
+		return truncateTimeFraction(statementTime(ctx).UTC(), fsp), nil
 	case "RAND":
 		if len(args) == 0 {
 			return mathrand.Float64(), nil
@@ -1075,6 +1075,34 @@ func statementTime(ctx *EvalContext) time.Time {
 
 func currentTime(ctx *EvalContext) time.Time {
 	return time.Now().In(sessionTimeLocation(ctx))
+}
+
+func temporalFunctionPrecision(args []interface{}, functionName string) (int64, error) {
+	if len(args) > 1 {
+		return 0, fmt.Errorf("%s accepts zero or one fractional-seconds precision", functionName)
+	}
+	if len(args) == 0 {
+		return 0, nil
+	}
+	if args[0] == nil {
+		return 0, fmt.Errorf("%s fractional-seconds precision cannot be NULL", functionName)
+	}
+	fsp, err := integerArg(args[0])
+	if err != nil {
+		return 0, err
+	}
+	if fsp < 0 || fsp > 6 {
+		return 0, fmt.Errorf("%s fractional-seconds precision must be between 0 and 6", functionName)
+	}
+	return fsp, nil
+}
+
+func formatTimeFunctionValue(value time.Time, fsp int64) string {
+	layout := "15:04:05"
+	if fsp > 0 {
+		layout += "." + strings.Repeat("0", int(fsp))
+	}
+	return truncateTimeFraction(value, fsp).Format(layout)
 }
 
 func sessionTimeLocation(ctx *EvalContext) *time.Location {
