@@ -345,6 +345,27 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 			if len(arguments) == 3 {
 				return d.preparedMergedExpressionMetadata(expression, shape, resultType, arguments[1:])
 			}
+		case "SUM", "AVG":
+			if len(arguments) != 1 || resultType != metadata.TypeDecimal {
+				return nil
+			}
+			argumentType, err := d.expressionType(arguments[0], shape, nil, 0)
+			if err != nil || !isSetOperationNumeric(argumentType) {
+				return nil
+			}
+			argumentShape, known := d.preparedNumericExpressionShape(arguments[0], shape, 0)
+			if !known {
+				return nil
+			}
+			precision, scale := argumentShape.precision, argumentShape.scale
+			if name == "SUM" {
+				precision = preparedMinInt(precision+21, 65)
+			} else {
+				increment := d.divisionPrecisionIncrement()
+				precision = preparedMinInt(precision+increment, 65)
+				scale = preparedCapDecimalScale(scale + increment)
+			}
+			return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: precision, Scale: scale, IsNullable: true}
 		case "IFNULL", "COALESCE", "GREATEST", "LEAST":
 			return d.preparedMergedExpressionMetadata(expression, shape, resultType, arguments)
 		case "NULLIF", "MIN", "MAX", "ANY_VALUE", "ABS":
