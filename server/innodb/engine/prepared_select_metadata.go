@@ -405,6 +405,9 @@ func (d *preparedSelectDescriber) expressionType(expression sqlparser.Expr, shap
 			return columns[0].typ, nil
 		}
 	case *sqlparser.FuncExpr:
+		if typ, known, err := d.builtinFunctionResultType(expr, shape, ctes, depth+1); known || err != nil {
+			return typ, err
+		}
 		switch strings.ToUpper(strings.Trim(expr.Name.String(), "` ")) {
 		case "COUNT", "ROW_NUMBER", "RANK", "DENSE_RANK", "LENGTH", "OCTET_LENGTH", "CHAR_LENGTH", "CONTENT_REVISION", "CONTENT_LENGTH", "FULLTEXT_TOKEN_COUNT", "VECTOR_DIMENSION":
 			return metadata.TypeBigInt, nil
@@ -425,4 +428,165 @@ func (d *preparedSelectDescriber) expressionType(expression sqlparser.Expr, shap
 		}
 	}
 	return "", fmt.Errorf("prepared expression requires execution-time metadata: %s", sqlparser.String(expression))
+}
+
+func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.FuncExpr, shape joinResultShape, ctes map[string][]joinOutputColumn, depth int) (metadata.DataType, bool, error) {
+	name := strings.ToUpper(strings.Trim(function.Name.String(), "` "))
+	arguments := make([]sqlparser.Expr, 0, len(function.Exprs))
+	for _, expression := range function.Exprs {
+		aliased, ok := expression.(*sqlparser.AliasedExpr)
+		if !ok || aliased == nil || aliased.Expr == nil {
+			return "", true, fmt.Errorf("prepared function %s has an unsupported argument shape", name)
+		}
+		arguments = append(arguments, aliased.Expr)
+	}
+	argumentType := func(index int) (metadata.DataType, error) {
+		if index < 0 || index >= len(arguments) {
+			return "", fmt.Errorf("prepared function %s has too few arguments", name)
+		}
+		return d.expressionType(arguments[index], shape, ctes, depth+1)
+	}
+	mergeArguments := func(start int) (metadata.DataType, error) {
+		var result metadata.DataType
+		for index := start; index < len(arguments); index++ {
+			if _, isNull := arguments[index].(*sqlparser.NullVal); isNull {
+				continue
+			}
+			typ, err := d.expressionType(arguments[index], shape, ctes, depth+1)
+			if err != nil {
+				return "", err
+			}
+			if result == "" {
+				result = typ
+				continue
+			}
+			result, err = mysqlSetOperationColumnType(result, typ)
+			if err != nil {
+				return "", err
+			}
+		}
+		if result == "" {
+			return metadata.TypeVarchar, nil
+		}
+		return result, nil
+	}
+	switch name {
+	case "COALESCE", "GREATEST", "LEAST":
+		typ, err := mergeArguments(0)
+		return typ, true, err
+	case "IF":
+		if len(arguments) != 3 {
+			return "", true, fmt.Errorf("prepared function IF requires 3 arguments")
+		}
+		if _, thenNull := arguments[1].(*sqlparser.NullVal); thenNull {
+			typ, err := argumentType(2)
+			return typ, true, err
+		}
+		if _, elseNull := arguments[2].(*sqlparser.NullVal); elseNull {
+			typ, err := argumentType(1)
+			return typ, true, err
+		}
+		typ, err := mergeArguments(1)
+		return typ, true, err
+	case "IFNULL":
+		if len(arguments) != 2 {
+			return "", true, fmt.Errorf("prepared function IFNULL requires 2 arguments")
+		}
+		if _, firstNull := arguments[0].(*sqlparser.NullVal); firstNull {
+			typ, err := argumentType(1)
+			return typ, true, err
+		}
+		if _, secondNull := arguments[1].(*sqlparser.NullVal); secondNull {
+			typ, err := argumentType(0)
+			return typ, true, err
+		}
+		typ, mergeErr := mergeArguments(0)
+		return typ, true, mergeErr
+	case "NULLIF":
+		typ, err := argumentType(0)
+		return typ, true, err
+	case "ABS":
+		typ, err := argumentType(0)
+		if err == nil && !isSetOperationNumeric(typ) {
+			typ = metadata.TypeDouble
+		}
+		return typ, true, err
+	case "ROUND", "TRUNCATE":
+		typ, err := argumentType(0)
+		if err != nil {
+			return "", true, err
+		}
+		switch typ {
+		case metadata.TypeTinyInt, metadata.TypeSmallInt, metadata.TypeMediumInt, metadata.TypeInt, metadata.TypeBigInt, metadata.TypeBit, metadata.TypeYear:
+			return metadata.TypeBigInt, true, nil
+		case metadata.TypeDecimal:
+			return metadata.TypeDecimal, true, nil
+		default:
+			return metadata.TypeDouble, true, nil
+		}
+	case "CEIL", "CEILING", "FLOOR":
+		typ, err := argumentType(0)
+		if err != nil {
+			return "", true, err
+		}
+		if !isSetOperationNumeric(typ) {
+			return metadata.TypeDouble, true, nil
+		}
+		if _, integer := setOperationIntegerRank(typ); integer {
+			return metadata.TypeBigInt, true, nil
+		}
+		return typ, true, nil
+	case "SQRT", "POWER", "POW", "EXP", "LN", "LOG", "LOG2", "LOG10", "SIN", "COS", "TAN", "COT", "ASIN", "ACOS", "ATAN", "ATAN2", "RADIANS", "DEGREES", "PI", "RAND":
+		return metadata.TypeDouble, true, nil
+	case "SUM", "MIN", "MAX", "ANY_VALUE":
+		typ, err := argumentType(0)
+		if name == "SUM" && err == nil {
+			if typ == metadata.TypeFloat || typ == metadata.TypeDouble {
+				return metadata.TypeDouble, true, nil
+			}
+			if isSetOperationNumeric(typ) {
+				return metadata.TypeDecimal, true, nil
+			}
+		}
+		return typ, true, err
+	case "AVG":
+		typ, err := argumentType(0)
+		if err != nil {
+			return "", true, err
+		}
+		if typ == metadata.TypeFloat || typ == metadata.TypeDouble {
+			return metadata.TypeDouble, true, nil
+		}
+		if isSetOperationNumeric(typ) {
+			return metadata.TypeDecimal, true, nil
+		}
+		return metadata.TypeDouble, true, nil
+	case "STD", "STDDEV", "STDDEV_POP", "STDDEV_SAMP", "VAR_POP", "VAR_SAMP", "VARIANCE":
+		return metadata.TypeDouble, true, nil
+	case "BIT_AND", "BIT_OR", "BIT_XOR", "SIGN", "ASCII", "ORD", "FIND_IN_SET", "INSTR", "LOCATE", "BIT_LENGTH", "BIT_COUNT", "STRCMP", "CRC32", "INET_ATON", "UUID_SHORT", "IS_IPV4", "IS_IPV6", "IS_IPV4_COMPAT", "IS_IPV4_MAPPED", "IS_UUID", "YEAR", "MONTH", "DAY", "DAYOFMONTH", "HOUR", "MINUTE", "SECOND", "MICROSECOND", "QUARTER", "WEEK", "YEARWEEK", "WEEKOFYEAR", "WEEKDAY", "DAYOFWEEK", "DAYOFYEAR", "LAST_INSERT_ID", "CONNECTION_ID":
+		return metadata.TypeBigInt, true, nil
+	case "GROUP_CONCAT":
+		return metadata.TypeLongText, true, nil
+	case "CONCAT", "CONCAT_WS", "SUBSTRING", "SUBSTR", "SUBSTRING_INDEX", "LEFT", "RIGHT", "REPLACE", "REVERSE", "LOWER", "UPPER", "TRIM", "LTRIM", "RTRIM", "LPAD", "RPAD", "REPEAT", "SPACE", "FORMAT", "QUOTE", "HEX", "BIN", "OCT", "CONV", "SOUNDEX", "MD5", "SHA", "SHA1", "SHA2", "UUID", "BIN_TO_UUID", "INET_NTOA", "INET6_NTOA", "DATE_FORMAT", "TIME_FORMAT", "GET_FORMAT", "DAYNAME", "MONTHNAME":
+		return metadata.TypeVarchar, true, nil
+	case "INET6_ATON", "UUID_TO_BIN", "RANDOM_BYTES":
+		return metadata.TypeVarBinary, true, nil
+	case "CURRENT_TIMESTAMP", "NOW", "LOCALTIMESTAMP", "SYSDATE", "UTC_TIMESTAMP", "TIMESTAMP", "STR_TO_DATE", "CONVERT_TZ", "FROM_UNIXTIME":
+		return metadata.TypeDateTime, true, nil
+	case "CURRENT_DATE", "CURDATE", "UTC_DATE", "DATE", "LAST_DAY":
+		return metadata.TypeDate, true, nil
+	case "CURRENT_TIME", "CURTIME", "UTC_TIME", "TIME", "TIMEDIFF", "ADDTIME", "SUBTIME", "SEC_TO_TIME", "MAKETIME":
+		return metadata.TypeTime, true, nil
+	case "JSON_ARRAY", "JSON_OBJECT", "JSON_EXTRACT", "JSON_ARRAYAGG", "JSON_OBJECTAGG", "JSON_KEYS", "JSON_PRETTY", "JSON_MERGE", "JSON_MERGE_PATCH", "JSON_MERGE_PRESERVE", "JSON_ARRAY_APPEND", "JSON_ARRAY_INSERT", "JSON_INSERT", "JSON_SET", "JSON_REPLACE", "JSON_REMOVE", "JSON_SEARCH":
+		return metadata.TypeJSON, true, nil
+	case "JSON_CONTAINS", "JSON_CONTAINS_PATH", "JSON_OVERLAPS", "JSON_VALID", "JSON_SCHEMA_VALID":
+		return metadata.TypeBigInt, true, nil
+	case "JSON_LENGTH", "JSON_DEPTH", "JSON_STORAGE_SIZE", "JSON_STORAGE_FREE":
+		return metadata.TypeBigInt, true, nil
+	case "JSON_TYPE", "JSON_UNQUOTE", "JSON_QUOTE", "JSON_SCHEMA_VALIDATION_REPORT":
+		return metadata.TypeVarchar, true, nil
+	case "JSON_VALUE":
+		return metadata.TypeVarchar, true, nil
+	}
+	return "", false, nil
 }
