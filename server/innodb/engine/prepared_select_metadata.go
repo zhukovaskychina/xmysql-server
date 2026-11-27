@@ -371,6 +371,8 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 			return d.preparedFromUnixTimeMetadata(expression, shape, resultType, arguments)
 		case "STR_TO_DATE":
 			return preparedStrToDateMetadata(expression, resultType, arguments)
+		case "TIME", "TIMEDIFF", "SEC_TO_TIME", "MAKETIME":
+			return d.preparedTimeFunctionMetadata(expression, shape, resultType, name, arguments)
 		case "NOW", "CURRENT_TIMESTAMP", "LOCALTIMESTAMP", "SYSDATE", "UTC_TIMESTAMP", "CURTIME", "CURRENT_TIME", "LOCALTIME", "UTC_TIME", "CURDATE", "CURRENT_DATE", "UTC_DATE":
 			return preparedCurrentTemporalMetadata(expression, resultType, arguments)
 		case "COUNT":
@@ -859,6 +861,49 @@ func preparedStrToDateShape(arguments []sqlparser.Expr) (metadata.DataType, int)
 		return metadata.TypeTime, 0
 	}
 	return metadata.TypeDate, 0
+}
+
+func (d *preparedSelectDescriber) preparedTimeFunctionMetadata(expression sqlparser.Expr, shape joinResultShape, resultType metadata.DataType, name string, arguments []sqlparser.Expr) *metadata.ColumnMeta {
+	if resultType != metadata.TypeTime {
+		return nil
+	}
+	wantArguments := 1
+	switch name {
+	case "TIMEDIFF":
+		wantArguments = 2
+	case "MAKETIME":
+		wantArguments = 3
+	}
+	if len(arguments) != wantArguments {
+		return nil
+	}
+	precisionOf := func(argument sqlparser.Expr) int {
+		if numericShape, known := d.preparedNumericExpressionShape(argument, shape, 0); known {
+			return min(max(numericShape.scale, 0), 6)
+		}
+		argumentType, err := d.expressionType(argument, shape, nil, 0)
+		if err != nil {
+			return 0
+		}
+		if column := d.preparedExpressionMetadata(argument, shape, argumentType); column != nil {
+			return min(max(column.Scale, 0), 6)
+		}
+		return 0
+	}
+	precision := 0
+	switch name {
+	case "TIMEDIFF":
+		precision = max(precisionOf(arguments[0]), precisionOf(arguments[1]))
+	case "MAKETIME":
+		precision = precisionOf(arguments[2])
+	default:
+		precision = precisionOf(arguments[0])
+	}
+	length := 8
+	if precision > 0 {
+		length += precision + 1
+	}
+	return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: length, Scale: precision, IsNullable: true}
 }
 
 func (d *preparedSelectDescriber) preparedDateArithmeticIntervalPrecision(interval *sqlparser.IntervalExpr, shape joinResultShape) int {
@@ -2241,7 +2286,20 @@ func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.
 			}
 		}
 		return metadata.TypeTime, true, nil
-	case "TIME", "TIMEDIFF", "SEC_TO_TIME", "MAKETIME":
+	case "TIME", "SEC_TO_TIME":
+		if len(arguments) != 1 {
+			return "", true, fmt.Errorf("prepared function %s requires 1 argument", name)
+		}
+		return metadata.TypeTime, true, nil
+	case "TIMEDIFF":
+		if len(arguments) != 2 {
+			return "", true, fmt.Errorf("prepared function TIMEDIFF requires 2 arguments")
+		}
+		return metadata.TypeTime, true, nil
+	case "MAKETIME":
+		if len(arguments) != 3 {
+			return "", true, fmt.Errorf("prepared function MAKETIME requires 3 arguments")
+		}
 		return metadata.TypeTime, true, nil
 	case "JSON_ARRAY", "JSON_OBJECT", "JSON_EXTRACT", "JSON_ARRAYAGG", "JSON_OBJECTAGG", "JSON_KEYS", "JSON_PRETTY", "JSON_MERGE", "JSON_MERGE_PATCH", "JSON_MERGE_PRESERVE", "JSON_ARRAY_APPEND", "JSON_ARRAY_INSERT", "JSON_INSERT", "JSON_SET", "JSON_REPLACE", "JSON_REMOVE", "JSON_SEARCH":
 		return metadata.TypeJSON, true, nil
