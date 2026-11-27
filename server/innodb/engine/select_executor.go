@@ -5158,6 +5158,7 @@ type aggregateAccumulator struct {
 	orderDesc      bool
 	orderCollation string
 	valueCollation string
+	maxBytes       int64
 	seen           map[string]struct{}
 	sumSq          float64
 	bits           uint64
@@ -5311,9 +5312,9 @@ func (a *aggregateAccumulator) value() interface{} {
 			for _, index := range indices {
 				ordered = append(ordered, a.values[index])
 			}
-			return strings.Join(ordered, separator)
+			return truncateGroupConcatResult(strings.Join(ordered, separator), a.maxBytes, a.valueCollation)
 		}
-		return strings.Join(a.values, separator)
+		return truncateGroupConcatResult(strings.Join(a.values, separator), a.maxBytes, a.valueCollation)
 	case "JSON_ARRAYAGG":
 		if !a.hasData {
 			return nil

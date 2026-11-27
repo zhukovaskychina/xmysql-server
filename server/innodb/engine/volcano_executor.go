@@ -2363,7 +2363,7 @@ func (g *GroupConcatAgg) Result() basic.Value {
 	if separator == "" {
 		separator = ","
 	}
-	return basic.NewString(strings.Join(g.values, separator))
+	return basic.NewString(truncateGroupConcatResult(strings.Join(g.values, separator), defaultGroupConcatMaxBytes, "utf8mb4_general_ci"))
 }
 
 func (g *GroupConcatAgg) Name() string                  { return "GROUP_CONCAT" }
