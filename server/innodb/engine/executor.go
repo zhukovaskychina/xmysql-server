@@ -27551,11 +27551,12 @@ func explainPlanRowsJSON(rows [][]interface{}, statements ...*sqlparser.Select) 
 		return encoded, err
 	}
 	statement := statements[0]
+	distinctOperation := statement.Distinct != "" && len(statement.GroupBy) == 0 && len(statement.From) > 0
 	windows, err := explainJSONWindowSteps(statement)
 	if err != nil {
 		return "", err
 	}
-	if len(windows) == 0 && len(statement.GroupBy) == 0 && len(statement.OrderBy) == 0 {
+	if len(windows) == 0 && len(statement.GroupBy) == 0 && !distinctOperation && len(statement.OrderBy) == 0 {
 		return encoded, nil
 	}
 	var envelope struct {
@@ -27577,7 +27578,7 @@ func explainPlanRowsJSON(rows [][]interface{}, statements ...*sqlparser.Select) 
 	}
 	if len(statement.GroupBy) > 0 {
 		grouping := map[string]interface{}{
-			"using_temporary_table": explainJSONRowsHaveExtra(rows, "using temporary"),
+			"using_temporary_table": true,
 			"using_filesort":        len(statement.OrderBy) == 0 && explainJSONRowsHaveExtra(rows, "using filesort"),
 		}
 		attachExplainJSONPlanChild(grouping, planNode)
@@ -27588,8 +27589,16 @@ func explainPlanRowsJSON(rows [][]interface{}, statements ...*sqlparser.Select) 
 		attachExplainJSONPlanChild(windowing, planNode)
 		planNode = map[string]interface{}{"windowing": windowing}
 	}
+	if distinctOperation {
+		duplicates := map[string]interface{}{
+			"using_temporary_table": true,
+			"using_filesort":        len(statement.OrderBy) == 0 && explainJSONRowsHaveExtra(rows, "using filesort"),
+		}
+		attachExplainJSONPlanChild(duplicates, planNode)
+		planNode = map[string]interface{}{"duplicates_removal": duplicates}
+	}
 	if len(statement.OrderBy) > 0 {
-		ordering := map[string]interface{}{"using_filesort": explainJSONRowsHaveExtra(rows, "using filesort")}
+		ordering := map[string]interface{}{"using_filesort": true}
 		attachExplainJSONPlanChild(ordering, planNode)
 		planNode = map[string]interface{}{"ordering_operation": ordering}
 	}
@@ -27616,7 +27625,7 @@ func stripExplainJSONOperationFlags(node map[string]interface{}) {
 			}
 		}
 	}
-	for _, key := range []string{"grouping_operation", "windowing", "ordering_operation"} {
+	for _, key := range []string{"grouping_operation", "windowing", "duplicates_removal", "ordering_operation"} {
 		if operation, ok := node[key].(map[string]interface{}); ok {
 			stripExplainJSONOperationFlags(operation)
 		}
@@ -27624,7 +27633,7 @@ func stripExplainJSONOperationFlags(node map[string]interface{}) {
 }
 
 func attachExplainJSONPlanChild(operation, child map[string]interface{}) {
-	for _, key := range []string{"table", "nested_loop", "message", "grouping_operation", "windowing"} {
+	for _, key := range []string{"table", "nested_loop", "message", "grouping_operation", "windowing", "duplicates_removal"} {
 		if value, exists := child[key]; exists {
 			operation[key] = value
 		}

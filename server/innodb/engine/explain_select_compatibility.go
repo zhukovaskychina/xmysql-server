@@ -145,7 +145,7 @@ func (e *XMySQLExecutor) explainSelectTableRows(ctx *ExecutionContext, statement
 		}
 		// MySQL reports final sort/materialization work on the last table row.
 		if sourceIndex == len(sources)-1 {
-			if len(statement.GroupBy) > 0 {
+			if len(statement.GroupBy) > 0 || statement.Distinct != "" {
 				extra = appendExplainExtra(extra, "Using temporary")
 			}
 			if len(statement.OrderBy) > 0 {
