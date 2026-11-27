@@ -54,14 +54,14 @@ func Parse(sql string) (Statement, error) {
 			if stmt, err := parseWithCompatibility(sql); err != nil {
 				return nil, err
 			} else if stmt != nil {
-				return stmt, nil
+				return validateTemporalFunctionSyntax(stmt)
 			}
 		}
 		if strings.Contains(strings.ToLower(sql), " over") {
 			if stmt, err := parseWindowCompatibility(sql); err != nil {
 				return nil, err
 			} else if stmt != nil {
-				return stmt, nil
+				return validateTemporalFunctionSyntax(stmt)
 			}
 		}
 		if stmt, ok := parseCreateTableWithForeignKeys(sql); ok {
@@ -74,7 +74,52 @@ func Parse(sql string) (Statement, error) {
 		}
 		return nil, tokenizer.LastError
 	}
-	return tokenizer.ParseTree, nil
+	return validateTemporalFunctionSyntax(tokenizer.ParseTree)
+}
+
+func validateTemporalFunctionSyntax(stmt Statement) (Statement, error) {
+	var validationErr error
+	err := Walk(func(node SQLNode) (bool, error) {
+		function, ok := node.(*FuncExpr)
+		if !ok || function == nil || validationErr != nil {
+			return validationErr == nil, nil
+		}
+		name := strings.ToUpper(strings.Trim(function.Name.String(), "` "))
+		switch name {
+		case "CURDATE", "CURRENT_DATE", "UTC_DATE":
+			if len(function.Exprs) != 0 {
+				validationErr = fmt.Errorf("%s does not accept arguments", name)
+			}
+		case "NOW", "CURRENT_TIMESTAMP", "LOCALTIME", "LOCALTIMESTAMP", "SYSDATE", "UTC_TIMESTAMP", "CURTIME", "CURRENT_TIME", "UTC_TIME":
+			if function.Distinct {
+				validationErr = fmt.Errorf("%s does not accept DISTINCT", name)
+				break
+			}
+			if len(function.Exprs) > 1 {
+				validationErr = fmt.Errorf("%s accepts at most one fractional-seconds precision", name)
+				break
+			}
+			if len(function.Exprs) == 1 {
+				aliased, ok := function.Exprs[0].(*AliasedExpr)
+				if !ok {
+					validationErr = fmt.Errorf("%s fractional-seconds precision must be an integer literal", name)
+					break
+				}
+				literal, ok := aliased.Expr.(*SQLVal)
+				if !ok || literal.Type != IntVal {
+					validationErr = fmt.Errorf("%s fractional-seconds precision must be an integer literal", name)
+				}
+			}
+		}
+		return validationErr == nil, nil
+	}, stmt)
+	if err != nil {
+		return nil, err
+	}
+	if validationErr != nil {
+		return nil, validationErr
+	}
+	return stmt, nil
 }
 
 // With is the structured AST for a WITH/​​WITH RECURSIVE statement. The
@@ -994,7 +1039,7 @@ func ParseStrictDDL(sql string) (Statement, error) {
 		}
 		return nil, tokenizer.LastError
 	}
-	return tokenizer.ParseTree, nil
+	return validateTemporalFunctionSyntax(tokenizer.ParseTree)
 }
 
 // ParseNext parses a single SQL statement from the tokenizer
@@ -1020,7 +1065,7 @@ func ParseNext(tokenizer *Tokenizer) (Statement, error) {
 		}
 		return nil, tokenizer.LastError
 	}
-	return tokenizer.ParseTree, nil
+	return validateTemporalFunctionSyntax(tokenizer.ParseTree)
 }
 
 // SplitStatement returns the first sql statement up to either a ; or EOF

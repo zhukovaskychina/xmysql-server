@@ -208,6 +208,7 @@ func forceEOF(yylex interface{}) {
 %type <str> distinct_opt straight_join_opt cache_opt match_option separator_opt
 %type <expr> like_escape_opt
 %type <selectExprs> select_expression_list select_expression_list_opt
+%type <selectExprs> func_datetime_precision_opt func_empty_parens_opt
 %type <selectExpr> select_expression
 %type <expr> expression
 %type <tableExprs> from_opt table_references
@@ -2397,44 +2398,64 @@ function_call_keyword:
 function_call_nonkeyword:
   CURRENT_TIMESTAMP func_datetime_precision_opt
   {
-    $$ = &FuncExpr{Name:NewColIdent("current_timestamp")}
+    $$ = &FuncExpr{Name:NewColIdent("current_timestamp"), Exprs: $2}
   }
 | UTC_TIMESTAMP func_datetime_precision_opt
   {
-    $$ = &FuncExpr{Name:NewColIdent("utc_timestamp")}
+    $$ = &FuncExpr{Name:NewColIdent("utc_timestamp"), Exprs: $2}
   }
 | UTC_TIME func_datetime_precision_opt
   {
-    $$ = &FuncExpr{Name:NewColIdent("utc_time")}
+    $$ = &FuncExpr{Name:NewColIdent("utc_time"), Exprs: $2}
   }
-| UTC_DATE func_datetime_precision_opt
+| UTC_DATE func_empty_parens_opt
   {
     $$ = &FuncExpr{Name:NewColIdent("utc_date")}
   }
   // now
 | LOCALTIME func_datetime_precision_opt
   {
-    $$ = &FuncExpr{Name:NewColIdent("localtime")}
+    $$ = &FuncExpr{Name:NewColIdent("localtime"), Exprs: $2}
   }
   // now
 | LOCALTIMESTAMP func_datetime_precision_opt
   {
-    $$ = &FuncExpr{Name:NewColIdent("localtimestamp")}
+    $$ = &FuncExpr{Name:NewColIdent("localtimestamp"), Exprs: $2}
   }
   // curdate
-| CURRENT_DATE func_datetime_precision_opt
+| CURRENT_DATE func_empty_parens_opt
   {
     $$ = &FuncExpr{Name:NewColIdent("current_date")}
   }
   // curtime
 | CURRENT_TIME func_datetime_precision_opt
   {
-    $$ = &FuncExpr{Name:NewColIdent("current_time")}
+    $$ = &FuncExpr{Name:NewColIdent("current_time"), Exprs: $2}
   }
 
 func_datetime_precision_opt:
   /* empty */
+  {
+    $$ = nil
+  }
 | openb closeb
+  {
+    $$ = nil
+  }
+| openb INTEGRAL closeb
+  {
+    $$ = SelectExprs{&AliasedExpr{Expr: NewIntVal($2)}}
+  }
+
+func_empty_parens_opt:
+  /* empty */
+  {
+    $$ = nil
+  }
+| openb closeb
+  {
+    $$ = nil
+  }
 
 /*
   Function calls using non reserved keywords with *normal* syntax forms. Because
