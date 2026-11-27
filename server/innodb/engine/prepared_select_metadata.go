@@ -1239,8 +1239,16 @@ func (d *preparedSelectDescriber) preparedStringFunctionMetadata(expression sqlp
 			return nil
 		}
 		count, known := preparedStaticInteger(arguments[0])
-		if !known || count <= 0 || count > int64(int(^uint(0)>>1)) {
+		if _, isNull := arguments[0].(*sqlparser.NullVal); isNull {
+			count, known = 0, true
+		}
+		if !known {
 			return nil
+		}
+		if count < 0 {
+			count = 0
+		} else if count > (1<<31)-1 {
+			count = (1 << 31) - 1
 		}
 		column := &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: int(count), IsNullable: true}
 		if d != nil && d.ctx != nil && d.ctx.Session != nil {
