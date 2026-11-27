@@ -1346,19 +1346,21 @@ func (d *preparedSelectDescriber) preparedStringFunctionMetadata(expression sqlp
 			return nil
 		}
 		count, known := preparedStaticInteger(arguments[1])
-		if !known || count <= 0 || count > int64(int(^uint(0)>>1)) {
+		if !known {
 			return nil
 		}
-		padType, typeErr := d.expressionType(arguments[2], shape, nil, 0)
-		pad := d.preparedExpressionMetadata(arguments[2], shape, padType)
-		if typeErr != nil || pad == nil {
+		if count < 0 || count > (1<<31)-1 {
+			count = (1 << 31) - 1
+		}
+		_, typeErr := d.expressionType(arguments[2], shape, nil, 0)
+		if typeErr != nil {
 			return nil
 		}
 		if resultType == metadata.TypeVarBinary {
-			if !isSetOperationBinary(firstType) || !isSetOperationBinary(padType) {
+			if !isSetOperationBinary(firstType) {
 				return nil
 			}
-		} else if !strings.EqualFold(column.Charset, pad.Charset) || !strings.EqualFold(column.Collation, pad.Collation) || column.Charset == "" {
+		} else if column.Charset == "" || column.Collation == "" {
 			return nil
 		}
 		column.Length = int(count)
@@ -2186,7 +2188,7 @@ func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.
 			return "", true, fmt.Errorf("prepared function %s requires arguments", name)
 		}
 		binaryArguments := []int{0}
-		if name == "LPAD" || name == "RPAD" || name == "TRIM" {
+		if name == "TRIM" {
 			for index := 1; index < len(arguments); index++ {
 				binaryArguments = append(binaryArguments, index)
 			}
