@@ -309,23 +309,11 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 		if resultType != metadata.TypeDecimal {
 			return nil
 		}
-		leftScale, leftKnown := d.preparedNumericExpressionScale(node.Left, shape, 0)
-		rightScale, rightKnown := d.preparedNumericExpressionScale(node.Right, shape, 0)
-		if !leftKnown || !rightKnown {
+		numericShape, known := d.preparedNumericExpressionShape(expression, shape, 0)
+		if !known {
 			return nil
 		}
-		scale := 0
-		switch strings.ToLower(strings.TrimSpace(node.Operator)) {
-		case "+", "-", "%":
-			scale = maxInt(leftScale, rightScale)
-		case "*":
-			scale = preparedCapDecimalScale(leftScale + rightScale)
-		case "/":
-			scale = preparedCapDecimalScale(leftScale + d.divisionPrecisionIncrement())
-		default:
-			return nil
-		}
-		return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Scale: scale, IsNullable: true}
+		return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: numericShape.precision, Scale: numericShape.scale, IsNullable: true}
 	case *sqlparser.FuncExpr:
 		name := strings.ToUpper(strings.Trim(node.Name.String(), "` "))
 		arguments := make([]sqlparser.Expr, 0, len(node.Exprs))
@@ -759,28 +747,80 @@ func preparedExactDecimalLiteralShape(value []byte) (precision, scale int, ok bo
 	return precision, scale, true
 }
 
-func (d *preparedSelectDescriber) preparedNumericExpressionScale(expression sqlparser.Expr, shape joinResultShape, depth int) (int, bool) {
+type preparedNumericShape struct {
+	precision int
+	scale     int
+}
+
+func (d *preparedSelectDescriber) preparedNumericExpressionShape(expression sqlparser.Expr, shape joinResultShape, depth int) (preparedNumericShape, bool) {
 	if expression == nil || depth > 64 {
-		return 0, false
+		return preparedNumericShape{}, false
 	}
 	typ, err := d.expressionType(expression, shape, nil, depth+1)
 	if err != nil {
-		return 0, false
-	}
-	if typ == metadata.TypeTinyInt || typ == metadata.TypeSmallInt || typ == metadata.TypeMediumInt || typ == metadata.TypeInt || typ == metadata.TypeBigInt || typ == metadata.TypeBit || typ == metadata.TypeYear {
-		return 0, true
+		return preparedNumericShape{}, false
 	}
 	if typ != metadata.TypeDecimal {
-		return 0, false
+		if _, integer := preparedIntegerPrecision(typ, false); !integer {
+			return preparedNumericShape{}, false
+		}
+		switch node := expression.(type) {
+		case *sqlparser.SQLVal:
+			if node.Type != sqlparser.IntVal {
+				return preparedNumericShape{}, false
+			}
+			digits := strings.TrimLeft(string(node.Val), "+-")
+			if digits == "" {
+				return preparedNumericShape{}, false
+			}
+			return preparedNumericShape{precision: preparedMinInt(len(digits), 65)}, true
+		case *sqlparser.ColName:
+			columns := shape.columns
+			if !node.Qualifier.IsEmpty() {
+				columns = shape.qualified[strings.ToLower(node.Qualifier.Name.String())]
+			}
+			for _, column := range columns {
+				if !strings.EqualFold(column.name, node.Name.String()) {
+					continue
+				}
+				unsigned := column.meta != nil && column.meta.IsUnsigned
+				precision, ok := preparedIntegerPrecision(typ, unsigned)
+				return preparedNumericShape{precision: precision}, ok
+			}
+		case *sqlparser.ParenExpr:
+			return d.preparedNumericExpressionShape(node.Expr, shape, depth+1)
+		case *sqlparser.UnaryExpr:
+			switch strings.ToLower(strings.TrimSpace(node.Operator)) {
+			case "+", "-":
+				return d.preparedNumericExpressionShape(node.Expr, shape, depth+1)
+			}
+		case *sqlparser.ConvertExpr:
+			if node.Type == nil {
+				return preparedNumericShape{}, false
+			}
+			unsigned := strings.Contains(strings.ToUpper(node.Type.Type), "UNSIGNED")
+			switch strings.ToUpper(strings.TrimSpace(node.Type.Type)) {
+			case "SIGNED", "SIGNED INTEGER":
+				return preparedNumericShape{precision: 19}, true
+			case "UNSIGNED", "UNSIGNED INTEGER":
+				return preparedNumericShape{precision: 20}, true
+			case "INT", "INTEGER":
+				return preparedNumericShape{precision: 10}, true
+			case "BIGINT":
+				precision := 19
+				if unsigned || strings.EqualFold(strings.TrimSpace(node.Type.Type), "UNSIGNED") {
+					precision = 20
+				}
+				return preparedNumericShape{precision: precision}, true
+			}
+		}
+		return preparedNumericShape{}, false
 	}
 	switch node := expression.(type) {
 	case *sqlparser.SQLVal:
-		if node.Type == sqlparser.IntVal {
-			return 0, true
-		}
 		if node.Type == sqlparser.FloatVal {
-			_, scale, ok := preparedExactDecimalLiteralShape(node.Val)
-			return scale, ok
+			precision, scale, ok := preparedExactDecimalLiteralShape(node.Val)
+			return preparedNumericShape{precision: precision, scale: scale}, ok
 		}
 	case *sqlparser.ColName:
 		columns := shape.columns
@@ -789,41 +829,94 @@ func (d *preparedSelectDescriber) preparedNumericExpressionScale(expression sqlp
 		}
 		for _, column := range columns {
 			if strings.EqualFold(column.name, node.Name.String()) && column.typ == metadata.TypeDecimal && column.meta != nil {
-				return column.meta.Scale, true
+				if column.meta.Length > 0 && column.meta.Scale >= 0 && column.meta.Scale <= 30 {
+					return preparedNumericShape{precision: column.meta.Length, scale: column.meta.Scale}, true
+				}
+				return preparedNumericShape{}, false
 			}
 		}
 	case *sqlparser.ParenExpr:
-		return d.preparedNumericExpressionScale(node.Expr, shape, depth+1)
+		return d.preparedNumericExpressionShape(node.Expr, shape, depth+1)
 	case *sqlparser.UnaryExpr:
 		switch strings.ToLower(strings.TrimSpace(node.Operator)) {
 		case "+", "-":
-			return d.preparedNumericExpressionScale(node.Expr, shape, depth+1)
+			return d.preparedNumericExpressionShape(node.Expr, shape, depth+1)
 		}
 	case *sqlparser.ConvertExpr:
 		if node.Type == nil || !strings.EqualFold(strings.TrimSpace(node.Type.Type), "DECIMAL") && !strings.EqualFold(strings.TrimSpace(node.Type.Type), "NUMERIC") {
-			return 0, false
+			return preparedNumericShape{}, false
 		}
-		if node.Type.Scale == nil {
-			return 0, true
+		precision, scale := 10, 0
+		if node.Type.Length != nil {
+			parsed, parseErr := strconv.Atoi(string(node.Type.Length.Val))
+			if parseErr != nil || parsed < 1 || parsed > 65 {
+				return preparedNumericShape{}, false
+			}
+			precision = parsed
 		}
-		scale, err := strconv.Atoi(string(node.Type.Scale.Val))
-		return scale, err == nil && scale >= 0 && scale <= 30
+		if node.Type.Scale != nil {
+			parsed, parseErr := strconv.Atoi(string(node.Type.Scale.Val))
+			if parseErr != nil || parsed < 0 || parsed > 30 || parsed > precision {
+				return preparedNumericShape{}, false
+			}
+			scale = parsed
+		}
+		return preparedNumericShape{precision: precision, scale: scale}, true
 	case *sqlparser.BinaryExpr:
-		leftScale, leftKnown := d.preparedNumericExpressionScale(node.Left, shape, depth+1)
-		rightScale, rightKnown := d.preparedNumericExpressionScale(node.Right, shape, depth+1)
+		left, leftKnown := d.preparedNumericExpressionShape(node.Left, shape, depth+1)
+		right, rightKnown := d.preparedNumericExpressionShape(node.Right, shape, depth+1)
 		if !leftKnown || !rightKnown {
-			return 0, false
+			return preparedNumericShape{}, false
 		}
-		switch strings.ToLower(strings.TrimSpace(node.Operator)) {
+		operator := strings.ToLower(strings.TrimSpace(node.Operator))
+		switch operator {
 		case "+", "-", "%":
-			return maxInt(leftScale, rightScale), true
+			scale := maxInt(left.scale, right.scale)
+			if operator == "%" {
+				return preparedNumericShape{precision: preparedMinInt(maxInt(left.precision, right.precision), 65), scale: scale}, true
+			}
+			precision := maxInt(left.precision-left.scale, right.precision-right.scale) + 1 + scale
+			return preparedNumericShape{precision: preparedMinInt(precision, 65), scale: scale}, true
 		case "*":
-			return preparedCapDecimalScale(leftScale + rightScale), true
+			return preparedNumericShape{precision: preparedMinInt(left.precision+right.precision, 65), scale: preparedCapDecimalScale(left.scale + right.scale)}, true
 		case "/":
-			return preparedCapDecimalScale(leftScale + d.divisionPrecisionIncrement()), true
+			increment := d.divisionPrecisionIncrement()
+			return preparedNumericShape{precision: preparedMinInt(left.precision+right.scale+increment, 65), scale: preparedCapDecimalScale(left.scale + increment)}, true
 		}
 	}
-	return 0, false
+	return preparedNumericShape{}, false
+}
+
+func preparedIntegerPrecision(typ metadata.DataType, unsigned bool) (int, bool) {
+	switch typ {
+	case metadata.TypeTinyInt:
+		return 3, true
+	case metadata.TypeSmallInt:
+		return 5, true
+	case metadata.TypeMediumInt:
+		if unsigned {
+			return 8, true
+		}
+		return 7, true
+	case metadata.TypeInt:
+		return 10, true
+	case metadata.TypeBigInt:
+		if unsigned {
+			return 20, true
+		}
+		return 19, true
+	case metadata.TypeYear:
+		return 4, true
+	default:
+		return 0, false
+	}
+}
+
+func preparedMinInt(value, maximum int) int {
+	if value > maximum {
+		return maximum
+	}
+	return value
 }
 
 func (d *preparedSelectDescriber) divisionPrecisionIncrement() int {

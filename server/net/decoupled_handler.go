@@ -3205,7 +3205,9 @@ func createColumnDefinitionForMetadata(encoder *protocol.MySQLResultSetEncoder, 
 			}
 		case "decimal", "numeric":
 			applyLength = true
-			length++ // decimal point
+			if metadata.Scale > 0 {
+				length++ // decimal point
+			}
 			if !metadata.Unsigned {
 				length++ // sign
 			}
