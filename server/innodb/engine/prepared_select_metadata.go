@@ -363,6 +363,8 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 		switch name {
 		case "DATE_ADD", "DATE_SUB", "ADDDATE", "SUBDATE":
 			return d.preparedDateArithmeticMetadata(expression, shape, resultType, arguments)
+		case "TIMESTAMP", "ADDTIME", "SUBTIME":
+			return d.preparedAddTimeMetadata(expression, shape, resultType, name, arguments)
 		case "NOW", "CURRENT_TIMESTAMP", "LOCALTIMESTAMP", "SYSDATE", "UTC_TIMESTAMP", "CURTIME", "CURRENT_TIME", "LOCALTIME", "UTC_TIME", "CURDATE", "CURRENT_DATE", "UTC_DATE":
 			return preparedCurrentTemporalMetadata(expression, resultType, arguments)
 		case "COUNT":
@@ -646,6 +648,91 @@ func (d *preparedSelectDescriber) preparedDateArithmeticMetadata(expression sqlp
 	switch resultType {
 	case metadata.TypeDate:
 		length = 10
+	case metadata.TypeDateTime:
+		length = 19
+		if precision > 0 {
+			length += precision + 1
+			scale = precision
+		}
+	case metadata.TypeTime:
+		length = 8
+		if precision > 0 {
+			length += precision + 1
+			scale = precision
+		}
+	case metadata.TypeVarchar:
+		precision = 0
+	default:
+		return nil
+	}
+	return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: length, Scale: scale, IsNullable: true}
+}
+
+func (d *preparedSelectDescriber) preparedAddTimeMetadata(expression sqlparser.Expr, shape joinResultShape, resultType metadata.DataType, name string, arguments []sqlparser.Expr) *metadata.ColumnMeta {
+	if name == "TIMESTAMP" && len(arguments) == 1 {
+		firstType, err := d.expressionType(arguments[0], shape, nil, 0)
+		if err != nil {
+			firstType = metadata.TypeDateTime
+		}
+		precision := 0
+		if column := d.preparedExpressionMetadata(arguments[0], shape, firstType); column != nil {
+			precision = min(max(column.Scale, 0), 6)
+		}
+		length := 19
+		if precision > 0 {
+			length += precision + 1
+		}
+		return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: metadata.TypeDateTime, Length: length, Scale: precision, IsNullable: true}
+	}
+	if len(arguments) != 2 {
+		return nil
+	}
+	firstType, err := d.expressionType(arguments[0], shape, nil, 0)
+	if err != nil {
+		if parameter, isParameter := arguments[0].(*sqlparser.SQLVal); !isParameter || parameter.Type != sqlparser.ValArg {
+			return nil
+		}
+		// MySQL resolves an untyped first parameter as DATETIME for TIMESTAMP,
+		// and TIME for ADDTIME/SUBTIME.
+		if name == "TIMESTAMP" {
+			firstType = metadata.TypeDateTime
+		} else {
+			firstType = metadata.TypeTime
+		}
+	}
+	if name == "TIMESTAMP" {
+		resultType = metadata.TypeDateTime
+	} else {
+		switch firstType {
+		case metadata.TypeDate, metadata.TypeDateTime, metadata.TypeTimestamp:
+			resultType = metadata.TypeDateTime
+		case metadata.TypeTime:
+			resultType = metadata.TypeTime
+		default:
+			resultType = metadata.TypeVarchar
+		}
+	}
+	precisionOf := func(expression sqlparser.Expr, typ metadata.DataType) int {
+		if typ == metadata.TypeDate {
+			return 0
+		}
+		if column := d.preparedExpressionMetadata(expression, shape, typ); column != nil {
+			return min(max(column.Scale, 0), 6)
+		}
+		return 0
+	}
+	firstPrecision := precisionOf(arguments[0], firstType)
+	secondType, secondErr := d.expressionType(arguments[1], shape, nil, 0)
+	if secondErr != nil {
+		if parameter, isParameter := arguments[1].(*sqlparser.SQLVal); !isParameter || parameter.Type != sqlparser.ValArg {
+			return nil
+		}
+		secondType = metadata.TypeTime
+	}
+	precision := max(firstPrecision, precisionOf(arguments[1], secondType))
+	length := 26
+	scale := 0
+	switch resultType {
 	case metadata.TypeDateTime:
 		length = 19
 		if precision > 0 {
@@ -1985,7 +2072,31 @@ func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.
 			}
 		}
 		return metadata.TypeDateTime, true, nil
-	case "TIMESTAMP", "STR_TO_DATE", "CONVERT_TZ", "FROM_UNIXTIME":
+	case "TIMESTAMP":
+		if len(arguments) < 1 || len(arguments) > 2 {
+			return "", true, fmt.Errorf("prepared function TIMESTAMP requires 1 or 2 arguments")
+		}
+		return metadata.TypeDateTime, true, nil
+	case "ADDTIME", "SUBTIME":
+		if len(arguments) != 2 {
+			return "", true, fmt.Errorf("prepared function %s requires 2 arguments", name)
+		}
+		firstType, err := argumentType(0)
+		if err != nil {
+			if parameter, ok := arguments[0].(*sqlparser.SQLVal); !ok || parameter.Type != sqlparser.ValArg {
+				return "", true, err
+			}
+			firstType = metadata.TypeTime
+		}
+		switch firstType {
+		case metadata.TypeDate, metadata.TypeDateTime, metadata.TypeTimestamp:
+			return metadata.TypeDateTime, true, nil
+		case metadata.TypeTime:
+			return metadata.TypeTime, true, nil
+		default:
+			return metadata.TypeVarchar, true, nil
+		}
+	case "STR_TO_DATE", "CONVERT_TZ", "FROM_UNIXTIME":
 		return metadata.TypeDateTime, true, nil
 	case "CURRENT_DATE", "CURDATE", "UTC_DATE":
 		if len(arguments) != 0 {
@@ -2005,7 +2116,7 @@ func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.
 			}
 		}
 		return metadata.TypeTime, true, nil
-	case "TIME", "TIMEDIFF", "ADDTIME", "SUBTIME", "SEC_TO_TIME", "MAKETIME":
+	case "TIME", "TIMEDIFF", "SEC_TO_TIME", "MAKETIME":
 		return metadata.TypeTime, true, nil
 	case "JSON_ARRAY", "JSON_OBJECT", "JSON_EXTRACT", "JSON_ARRAYAGG", "JSON_OBJECTAGG", "JSON_KEYS", "JSON_PRETTY", "JSON_MERGE", "JSON_MERGE_PATCH", "JSON_MERGE_PRESERVE", "JSON_ARRAY_APPEND", "JSON_ARRAY_INSERT", "JSON_INSERT", "JSON_SET", "JSON_REPLACE", "JSON_REMOVE", "JSON_SEARCH":
 		return metadata.TypeJSON, true, nil
