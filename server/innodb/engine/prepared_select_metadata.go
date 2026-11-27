@@ -278,6 +278,8 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 			}
 		}
 		return column
+	case *sqlparser.GroupConcatExpr:
+		return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: metadata.TypeLongText, IsNullable: true}
 	case *sqlparser.CaseExpr:
 		values := make([]sqlparser.Expr, 0, len(node.Whens)+1)
 		for _, when := range node.Whens {
@@ -357,11 +359,17 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 				return d.preparedMergedExpressionMetadata(expression, shape, resultType, arguments[1:])
 			}
 		case "SUM", "AVG":
-			if len(arguments) != 1 || resultType != metadata.TypeDecimal {
+			if len(arguments) != 1 {
 				return nil
 			}
 			argumentType, err := d.expressionType(arguments[0], shape, nil, 0)
 			if err != nil || !isSetOperationNumeric(argumentType) {
+				return nil
+			}
+			if resultType == metadata.TypeDouble {
+				return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, IsNullable: true}
+			}
+			if resultType != metadata.TypeDecimal {
 				return nil
 			}
 			argumentShape, known := d.preparedNumericExpressionShape(arguments[0], shape, 0)
@@ -377,6 +385,8 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 				scale = preparedCapDecimalScale(scale + increment)
 			}
 			return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: precision, Scale: scale, IsNullable: true}
+		case "JSON_ARRAYAGG", "JSON_OBJECTAGG":
+			return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: metadata.TypeJSON, IsNullable: true}
 		case "IFNULL", "COALESCE", "GREATEST", "LEAST":
 			return d.preparedMergedExpressionMetadata(expression, shape, resultType, arguments)
 		case "NULLIF", "MIN", "MAX", "ANY_VALUE", "ABS":
