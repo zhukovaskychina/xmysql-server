@@ -27550,29 +27550,98 @@ func explainPlanRowsJSON(rows [][]interface{}, statements ...*sqlparser.Select) 
 	if err != nil || len(statements) == 0 || statements[0] == nil {
 		return encoded, err
 	}
-	windows, err := explainJSONWindowSteps(statements[0])
+	statement := statements[0]
+	windows, err := explainJSONWindowSteps(statement)
 	if err != nil {
 		return "", err
 	}
-	if len(windows) == 0 {
+	if len(windows) == 0 && len(statement.GroupBy) == 0 && len(statement.OrderBy) == 0 {
 		return encoded, nil
 	}
 	var envelope struct {
 		QueryBlock map[string]interface{} `json:"query_block"`
 	}
 	if err := json.Unmarshal([]byte(encoded), &envelope); err != nil || envelope.QueryBlock == nil {
-		return "", fmt.Errorf("EXPLAIN FORMAT=JSON could not decode the query block for windowing")
+		return "", fmt.Errorf("EXPLAIN FORMAT=JSON could not decode the query block for query operations")
 	}
-	windowing := map[string]interface{}{"windows": windows}
+	planNode := make(map[string]interface{})
 	for _, key := range []string{"table", "nested_loop"} {
 		if value, exists := envelope.QueryBlock[key]; exists {
-			windowing[key] = value
+			planNode[key] = value
 			delete(envelope.QueryBlock, key)
 		}
 	}
-	envelope.QueryBlock["windowing"] = windowing
+	if message, exists := envelope.QueryBlock["message"]; exists {
+		planNode["message"] = message
+		delete(envelope.QueryBlock, "message")
+	}
+	if len(statement.GroupBy) > 0 {
+		grouping := map[string]interface{}{
+			"using_temporary_table": explainJSONRowsHaveExtra(rows, "using temporary"),
+			"using_filesort":        len(statement.OrderBy) == 0 && explainJSONRowsHaveExtra(rows, "using filesort"),
+		}
+		attachExplainJSONPlanChild(grouping, planNode)
+		planNode = map[string]interface{}{"grouping_operation": grouping}
+	}
+	if len(windows) > 0 {
+		windowing := map[string]interface{}{"windows": windows}
+		attachExplainJSONPlanChild(windowing, planNode)
+		planNode = map[string]interface{}{"windowing": windowing}
+	}
+	if len(statement.OrderBy) > 0 {
+		ordering := map[string]interface{}{"using_filesort": explainJSONRowsHaveExtra(rows, "using filesort")}
+		attachExplainJSONPlanChild(ordering, planNode)
+		planNode = map[string]interface{}{"ordering_operation": ordering}
+	}
+	stripExplainJSONOperationFlags(planNode)
+	for key, value := range planNode {
+		envelope.QueryBlock[key] = value
+	}
 	windowedPlan, err := json.Marshal(map[string]interface{}{"query_block": envelope.QueryBlock})
 	return string(windowedPlan), err
+}
+
+func stripExplainJSONOperationFlags(node map[string]interface{}) {
+	stripTable := func(table interface{}) {
+		if entry, ok := table.(map[string]interface{}); ok {
+			delete(entry, "using_temporary_table")
+			delete(entry, "using_filesort")
+		}
+	}
+	stripTable(node["table"])
+	if nestedLoop, ok := node["nested_loop"].([]interface{}); ok {
+		for _, item := range nestedLoop {
+			if join, ok := item.(map[string]interface{}); ok {
+				stripTable(join["table"])
+			}
+		}
+	}
+	for _, key := range []string{"grouping_operation", "windowing", "ordering_operation"} {
+		if operation, ok := node[key].(map[string]interface{}); ok {
+			stripExplainJSONOperationFlags(operation)
+		}
+	}
+}
+
+func attachExplainJSONPlanChild(operation, child map[string]interface{}) {
+	for _, key := range []string{"table", "nested_loop", "message", "grouping_operation", "windowing"} {
+		if value, exists := child[key]; exists {
+			operation[key] = value
+		}
+	}
+}
+
+func explainJSONRowsHaveExtra(rows [][]interface{}, fragment string) bool {
+	fragment = strings.ToLower(fragment)
+	for _, row := range rows {
+		if len(row) < 12 {
+			continue
+		}
+		if extra, ok := row[11].(string); ok && strings.Contains(strings.ToLower(extra), fragment) {
+			return true
+		}
+	}
+	return false
 }
 
 func explainJSONWindowSteps(statement *sqlparser.Select) ([]map[string]interface{}, error) {
