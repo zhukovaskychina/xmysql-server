@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
@@ -241,6 +242,76 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 		}
 		column.Type = resultType
 		column.Charset = strings.TrimSpace(node.Type)
+		return column
+	case *sqlparser.SQLVal:
+		if node.Type != sqlparser.StrVal {
+			return nil
+		}
+		column := &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: utf8.RuneCount(node.Val), IsNullable: true}
+		if d != nil && d.ctx != nil && d.ctx.Session != nil {
+			if collation, ok := d.ctx.Session.GetParamByName("collation_connection").(string); ok {
+				if info, found := common.CollationMetadataByName(collation); found {
+					column.Charset, column.Collation = info.Charset, info.Name
+				}
+			}
+		}
+		return column
+	case *sqlparser.FuncExpr:
+		name := strings.ToUpper(strings.Trim(node.Name.String(), "` "))
+		if name != "CONCAT" && name != "CONCAT_WS" {
+			return nil
+		}
+		lengths := make([]int, 0, len(node.Exprs))
+		charset, collation := "", ""
+		for _, selectExpression := range node.Exprs {
+			aliased, ok := selectExpression.(*sqlparser.AliasedExpr)
+			if !ok || aliased == nil || aliased.Expr == nil {
+				return nil
+			}
+			argumentType, err := d.expressionType(aliased.Expr, shape, nil, 0)
+			if err != nil || resultType == metadata.TypeVarBinary && !isSetOperationBinary(argumentType) || resultType != metadata.TypeVarBinary && !isSetOperationString(argumentType) {
+				return nil
+			}
+			argument := d.preparedExpressionMetadata(aliased.Expr, shape, argumentType)
+			if argument == nil || argument.Length <= 0 {
+				return nil
+			}
+			if resultType != metadata.TypeVarBinary {
+				if strings.TrimSpace(argument.Charset) == "" || strings.TrimSpace(argument.Collation) == "" {
+					return nil
+				}
+				if charset == "" {
+					charset, collation = argument.Charset, argument.Collation
+				} else if !strings.EqualFold(charset, argument.Charset) || !strings.EqualFold(collation, argument.Collation) {
+					return nil
+				}
+			}
+			lengths = append(lengths, argument.Length)
+		}
+		if len(lengths) == 0 {
+			return nil
+		}
+		length := 0
+		for _, argumentLength := range lengths {
+			if argumentLength > int(^uint(0)>>1)-length {
+				return nil
+			}
+			length += argumentLength
+		}
+		if name == "CONCAT_WS" && len(lengths) > 2 {
+			separatorLength := lengths[0]
+			separatorCount := len(lengths) - 2
+			if separatorLength > (int(^uint(0)>>1)-length)/separatorCount {
+				return nil
+			}
+			length += separatorLength * separatorCount
+		}
+		column := &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: length, IsNullable: true}
+		if resultType == metadata.TypeVarBinary {
+			column.Charset, column.Collation = "binary", "binary"
+		} else {
+			column.Charset, column.Collation = charset, collation
+		}
 		return column
 	}
 	return nil
