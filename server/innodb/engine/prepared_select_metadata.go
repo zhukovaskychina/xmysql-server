@@ -265,6 +265,17 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 			}
 		}
 		return column
+	case *sqlparser.CaseExpr:
+		values := make([]sqlparser.Expr, 0, len(node.Whens)+1)
+		for _, when := range node.Whens {
+			if when != nil && when.Val != nil {
+				values = append(values, when.Val)
+			}
+		}
+		if node.Else != nil {
+			values = append(values, node.Else)
+		}
+		return d.preparedMergedStringMetadata(expression, shape, resultType, values)
 	case *sqlparser.SQLVal:
 		if node.Type != sqlparser.StrVal {
 			return nil
@@ -291,9 +302,70 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 		if name == "CONCAT" || name == "CONCAT_WS" {
 			return d.preparedConcatMetadata(expression, shape, resultType, name, arguments)
 		}
+		switch name {
+		case "IF":
+			if len(arguments) == 3 {
+				return d.preparedMergedStringMetadata(expression, shape, resultType, arguments[1:])
+			}
+		case "IFNULL", "COALESCE", "GREATEST", "LEAST":
+			return d.preparedMergedStringMetadata(expression, shape, resultType, arguments)
+		case "NULLIF", "MIN", "MAX", "ANY_VALUE", "ABS":
+			if len(arguments) == 0 {
+				return nil
+			}
+			argumentType, err := d.expressionType(arguments[0], shape, nil, 0)
+			if err != nil || name == "ABS" && !isSetOperationNumeric(argumentType) {
+				return nil
+			}
+			return d.preparedExpressionMetadata(arguments[0], shape, resultType)
+		}
 		return d.preparedStringFunctionMetadata(expression, shape, resultType, name, arguments)
 	}
 	return nil
+}
+
+func (d *preparedSelectDescriber) preparedMergedStringMetadata(expression sqlparser.Expr, shape joinResultShape, resultType metadata.DataType, values []sqlparser.Expr) *metadata.ColumnMeta {
+	maximumLength := 0
+	charset, collation := "", ""
+	for _, value := range values {
+		if value == nil {
+			continue
+		}
+		if _, isNull := value.(*sqlparser.NullVal); isNull {
+			continue
+		}
+		valueType, err := d.expressionType(value, shape, nil, 0)
+		if err != nil || resultType == metadata.TypeVarBinary && !isSetOperationBinary(valueType) || resultType != metadata.TypeVarBinary && !isSetOperationString(valueType) {
+			return nil
+		}
+		column := d.preparedExpressionMetadata(value, shape, valueType)
+		if column == nil || column.Length <= 0 {
+			return nil
+		}
+		if resultType != metadata.TypeVarBinary {
+			if column.Charset == "" || column.Collation == "" {
+				return nil
+			}
+			if charset == "" {
+				charset, collation = column.Charset, column.Collation
+			} else if !strings.EqualFold(charset, column.Charset) || !strings.EqualFold(collation, column.Collation) {
+				return nil
+			}
+		}
+		if column.Length > maximumLength {
+			maximumLength = column.Length
+		}
+	}
+	if maximumLength <= 0 {
+		return nil
+	}
+	column := &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: maximumLength, IsNullable: true}
+	if resultType == metadata.TypeVarBinary {
+		column.Charset, column.Collation = "binary", "binary"
+	} else {
+		column.Charset, column.Collation = charset, collation
+	}
+	return column
 }
 
 func (d *preparedSelectDescriber) preparedConcatMetadata(expression sqlparser.Expr, shape joinResultShape, resultType metadata.DataType, name string, arguments []sqlparser.Expr) *metadata.ColumnMeta {
