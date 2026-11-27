@@ -243,6 +243,28 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 		column.Type = resultType
 		column.Charset = strings.TrimSpace(node.Type)
 		return column
+	case *sqlparser.SubstrExpr:
+		sourceType, err := d.expressionType(node.Name, shape, nil, 0)
+		if err != nil {
+			return nil
+		}
+		column := d.preparedExpressionMetadata(node.Name, shape, sourceType)
+		if column == nil || resultType == metadata.TypeVarBinary && !isSetOperationBinary(sourceType) {
+			return nil
+		}
+		column.Type = resultType
+		column.Name = sqlparser.String(expression)
+		if node.To != nil {
+			if count, known := preparedStaticInteger(node.To); known {
+				if count <= 0 {
+					return nil
+				}
+				if count < int64(column.Length) {
+					column.Length = int(count)
+				}
+			}
+		}
+		return column
 	case *sqlparser.SQLVal:
 		if node.Type != sqlparser.StrVal {
 			return nil
@@ -258,63 +280,186 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 		return column
 	case *sqlparser.FuncExpr:
 		name := strings.ToUpper(strings.Trim(node.Name.String(), "` "))
-		if name != "CONCAT" && name != "CONCAT_WS" {
-			return nil
-		}
-		lengths := make([]int, 0, len(node.Exprs))
-		charset, collation := "", ""
+		arguments := make([]sqlparser.Expr, 0, len(node.Exprs))
 		for _, selectExpression := range node.Exprs {
 			aliased, ok := selectExpression.(*sqlparser.AliasedExpr)
 			if !ok || aliased == nil || aliased.Expr == nil {
 				return nil
 			}
-			argumentType, err := d.expressionType(aliased.Expr, shape, nil, 0)
-			if err != nil || resultType == metadata.TypeVarBinary && !isSetOperationBinary(argumentType) || resultType != metadata.TypeVarBinary && !isSetOperationString(argumentType) {
-				return nil
-			}
-			argument := d.preparedExpressionMetadata(aliased.Expr, shape, argumentType)
-			if argument == nil || argument.Length <= 0 {
-				return nil
-			}
-			if resultType != metadata.TypeVarBinary {
-				if strings.TrimSpace(argument.Charset) == "" || strings.TrimSpace(argument.Collation) == "" {
-					return nil
-				}
-				if charset == "" {
-					charset, collation = argument.Charset, argument.Collation
-				} else if !strings.EqualFold(charset, argument.Charset) || !strings.EqualFold(collation, argument.Collation) {
-					return nil
-				}
-			}
-			lengths = append(lengths, argument.Length)
+			arguments = append(arguments, aliased.Expr)
 		}
-		if len(lengths) == 0 {
+		if name == "CONCAT" || name == "CONCAT_WS" {
+			return d.preparedConcatMetadata(expression, shape, resultType, name, arguments)
+		}
+		return d.preparedStringFunctionMetadata(expression, shape, resultType, name, arguments)
+	}
+	return nil
+}
+
+func (d *preparedSelectDescriber) preparedConcatMetadata(expression sqlparser.Expr, shape joinResultShape, resultType metadata.DataType, name string, arguments []sqlparser.Expr) *metadata.ColumnMeta {
+	lengths := make([]int, 0, len(arguments))
+	charset, collation := "", ""
+	for _, value := range arguments {
+		argumentType, err := d.expressionType(value, shape, nil, 0)
+		if err != nil || resultType == metadata.TypeVarBinary && !isSetOperationBinary(argumentType) || resultType != metadata.TypeVarBinary && !isSetOperationString(argumentType) {
 			return nil
 		}
-		length := 0
-		for _, argumentLength := range lengths {
-			if argumentLength > int(^uint(0)>>1)-length {
+		argument := d.preparedExpressionMetadata(value, shape, argumentType)
+		if argument == nil || argument.Length <= 0 {
+			return nil
+		}
+		if resultType != metadata.TypeVarBinary {
+			if strings.TrimSpace(argument.Charset) == "" || strings.TrimSpace(argument.Collation) == "" {
 				return nil
 			}
-			length += argumentLength
-		}
-		if name == "CONCAT_WS" && len(lengths) > 2 {
-			separatorLength := lengths[0]
-			separatorCount := len(lengths) - 2
-			if separatorLength > (int(^uint(0)>>1)-length)/separatorCount {
+			if charset == "" {
+				charset, collation = argument.Charset, argument.Collation
+			} else if !strings.EqualFold(charset, argument.Charset) || !strings.EqualFold(collation, argument.Collation) {
 				return nil
 			}
-			length += separatorLength * separatorCount
 		}
-		column := &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: length, IsNullable: true}
-		if resultType == metadata.TypeVarBinary {
-			column.Charset, column.Collation = "binary", "binary"
-		} else {
-			column.Charset, column.Collation = charset, collation
+		lengths = append(lengths, argument.Length)
+	}
+	if len(lengths) == 0 {
+		return nil
+	}
+	length := 0
+	for _, argumentLength := range lengths {
+		if argumentLength > int(^uint(0)>>1)-length {
+			return nil
+		}
+		length += argumentLength
+	}
+	if name == "CONCAT_WS" && len(lengths) > 2 {
+		separatorLength := lengths[0]
+		separatorCount := len(lengths) - 2
+		if separatorLength > (int(^uint(0)>>1)-length)/separatorCount {
+			return nil
+		}
+		length += separatorLength * separatorCount
+	}
+	column := &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: length, IsNullable: true}
+	if resultType == metadata.TypeVarBinary {
+		column.Charset, column.Collation = "binary", "binary"
+	} else {
+		column.Charset, column.Collation = charset, collation
+	}
+	return column
+}
+
+func (d *preparedSelectDescriber) preparedStringFunctionMetadata(expression sqlparser.Expr, shape joinResultShape, resultType metadata.DataType, name string, arguments []sqlparser.Expr) *metadata.ColumnMeta {
+	if name == "SPACE" {
+		if len(arguments) != 1 {
+			return nil
+		}
+		count, known := preparedStaticInteger(arguments[0])
+		if !known || count <= 0 || count > int64(int(^uint(0)>>1)) {
+			return nil
+		}
+		column := &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: int(count), IsNullable: true}
+		if d != nil && d.ctx != nil && d.ctx.Session != nil {
+			if collation, ok := d.ctx.Session.GetParamByName("collation_connection").(string); ok {
+				if info, found := common.CollationMetadataByName(collation); found {
+					column.Charset, column.Collation = info.Charset, info.Name
+				}
+			}
 		}
 		return column
 	}
-	return nil
+	if len(arguments) == 0 {
+		return nil
+	}
+	firstType, err := d.expressionType(arguments[0], shape, nil, 0)
+	if err != nil || !isSetOperationString(firstType) && !isSetOperationBinary(firstType) {
+		return nil
+	}
+	first := d.preparedExpressionMetadata(arguments[0], shape, firstType)
+	if first == nil || first.Length <= 0 && name != "LPAD" && name != "RPAD" {
+		return nil
+	}
+	if resultType == metadata.TypeVarBinary && !isSetOperationBinary(firstType) {
+		return nil
+	}
+	if resultType != metadata.TypeVarBinary && (strings.TrimSpace(first.Charset) == "" || strings.TrimSpace(first.Collation) == "") {
+		return nil
+	}
+	column := *first
+	column.Name, column.Type, column.IsNullable = sqlparser.String(expression), resultType, true
+	switch name {
+	case "LOWER", "UPPER", "LCASE", "UCASE", "TRIM", "LTRIM", "RTRIM", "REVERSE", "SUBSTRING", "SUBSTR", "MID", "SUBSTRING_INDEX":
+	case "LEFT", "RIGHT":
+		if len(arguments) != 2 {
+			return nil
+		}
+		if count, known := preparedStaticInteger(arguments[1]); known {
+			if count <= 0 {
+				return nil
+			}
+			if count < int64(column.Length) {
+				column.Length = int(count)
+			}
+		}
+	case "REPEAT":
+		if len(arguments) != 2 {
+			return nil
+		}
+		if count, known := preparedStaticInteger(arguments[1]); known {
+			if count <= 0 || count > int64(int(^uint(0)>>1))/int64(column.Length) {
+				return nil
+			}
+			column.Length *= int(count)
+		}
+	case "LPAD", "RPAD":
+		if len(arguments) != 3 {
+			return nil
+		}
+		count, known := preparedStaticInteger(arguments[1])
+		if !known || count <= 0 || count > int64(int(^uint(0)>>1)) {
+			return nil
+		}
+		padType, typeErr := d.expressionType(arguments[2], shape, nil, 0)
+		pad := d.preparedExpressionMetadata(arguments[2], shape, padType)
+		if typeErr != nil || pad == nil {
+			return nil
+		}
+		if resultType == metadata.TypeVarBinary {
+			if !isSetOperationBinary(firstType) || !isSetOperationBinary(padType) {
+				return nil
+			}
+		} else if !strings.EqualFold(column.Charset, pad.Charset) || !strings.EqualFold(column.Collation, pad.Collation) || column.Charset == "" {
+			return nil
+		}
+		column.Length = int(count)
+	default:
+		return nil
+	}
+	return &column
+}
+
+func preparedStaticInteger(expression sqlparser.Expr) (int64, bool) {
+	switch node := expression.(type) {
+	case *sqlparser.SQLVal:
+		if node.Type != sqlparser.IntVal {
+			return 0, false
+		}
+		value, err := strconv.ParseInt(string(node.Val), 10, 64)
+		return value, err == nil
+	case *sqlparser.UnaryExpr:
+		value, ok := preparedStaticInteger(node.Expr)
+		if !ok {
+			return 0, false
+		}
+		switch strings.TrimSpace(node.Operator) {
+		case "+":
+			return value, true
+		case "-":
+			if value == -1<<63 {
+				return 0, false
+			}
+			return -value, true
+		}
+	}
+	return 0, false
 }
 
 // MySQL 8.4 reports boolean projections from JOIN queries with ORDER BY as
@@ -728,6 +873,37 @@ func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.
 		}
 		return metadata.TypeVarchar, true, nil
 	}
+	if name == "SUBSTRING_INDEX" {
+		if len(arguments) != 3 {
+			return "", true, fmt.Errorf("prepared function SUBSTRING_INDEX requires 3 arguments")
+		}
+		return metadata.TypeVarBinary, true, nil
+	}
+	switch name {
+	case "LEFT", "RIGHT", "SUBSTRING", "SUBSTR", "MID", "REPEAT", "LOWER", "UPPER", "LCASE", "UCASE", "TRIM", "LTRIM", "RTRIM", "REVERSE", "LPAD", "RPAD":
+		if len(arguments) == 0 {
+			return "", true, fmt.Errorf("prepared function %s requires arguments", name)
+		}
+		binaryArguments := []int{0}
+		if name == "LPAD" || name == "RPAD" || name == "TRIM" {
+			for index := 1; index < len(arguments); index++ {
+				binaryArguments = append(binaryArguments, index)
+			}
+		}
+		for _, index := range binaryArguments {
+			if index >= len(arguments) {
+				continue
+			}
+			typ, err := argumentType(index)
+			if err != nil {
+				return "", true, err
+			}
+			if isSetOperationBinary(typ) {
+				return metadata.TypeVarBinary, true, nil
+			}
+		}
+		return metadata.TypeVarchar, true, nil
+	}
 	if name == "DATE_ADD" || name == "DATE_SUB" || name == "ADDDATE" || name == "SUBDATE" {
 		if len(arguments) != 2 {
 			return "", true, fmt.Errorf("prepared function %s requires 2 arguments", name)
@@ -866,7 +1042,7 @@ func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.
 		return metadata.TypeBigInt, true, nil
 	case "GROUP_CONCAT":
 		return metadata.TypeLongText, true, nil
-	case "SUBSTRING", "SUBSTR", "SUBSTRING_INDEX", "LEFT", "RIGHT", "REPLACE", "REVERSE", "LOWER", "UPPER", "TRIM", "LTRIM", "RTRIM", "LPAD", "RPAD", "REPEAT", "SPACE", "FORMAT", "QUOTE", "HEX", "BIN", "OCT", "CONV", "SOUNDEX", "MD5", "SHA", "SHA1", "SHA2", "UUID", "BIN_TO_UUID", "INET_NTOA", "INET6_NTOA", "DATE_FORMAT", "TIME_FORMAT", "GET_FORMAT", "DAYNAME", "MONTHNAME":
+	case "SUBSTRING", "SUBSTR", "MID", "SUBSTRING_INDEX", "LEFT", "RIGHT", "REPLACE", "REVERSE", "LOWER", "LCASE", "UPPER", "UCASE", "TRIM", "LTRIM", "RTRIM", "LPAD", "RPAD", "REPEAT", "SPACE", "FORMAT", "QUOTE", "HEX", "BIN", "OCT", "CONV", "SOUNDEX", "MD5", "SHA", "SHA1", "SHA2", "UUID", "BIN_TO_UUID", "INET_NTOA", "INET6_NTOA", "DATE_FORMAT", "TIME_FORMAT", "GET_FORMAT", "DAYNAME", "MONTHNAME":
 		return metadata.TypeVarchar, true, nil
 	case "INET6_ATON", "UUID_TO_BIN", "RANDOM_BYTES":
 		return metadata.TypeVarBinary, true, nil
