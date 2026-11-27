@@ -369,6 +369,8 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 			return d.preparedConvertTZMetadata(expression, shape, resultType, arguments)
 		case "FROM_UNIXTIME":
 			return d.preparedFromUnixTimeMetadata(expression, shape, resultType, arguments)
+		case "STR_TO_DATE":
+			return preparedStrToDateMetadata(expression, resultType, arguments)
 		case "NOW", "CURRENT_TIMESTAMP", "LOCALTIMESTAMP", "SYSDATE", "UTC_TIMESTAMP", "CURTIME", "CURRENT_TIME", "LOCALTIME", "UTC_TIME", "CURDATE", "CURRENT_DATE", "UTC_DATE":
 			return preparedCurrentTemporalMetadata(expression, resultType, arguments)
 		case "COUNT":
@@ -795,6 +797,68 @@ func (d *preparedSelectDescriber) preparedFromUnixTimeMetadata(expression sqlpar
 		length += precision + 1
 	}
 	return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: length, Scale: precision, IsNullable: true}
+}
+
+func preparedStrToDateMetadata(expression sqlparser.Expr, resultType metadata.DataType, arguments []sqlparser.Expr) *metadata.ColumnMeta {
+	if len(arguments) != 2 {
+		return nil
+	}
+	_, precision := preparedStrToDateShape(arguments)
+	length := 19
+	switch resultType {
+	case metadata.TypeDate:
+		length, precision = 10, 0
+	case metadata.TypeTime:
+		length = 8
+	case metadata.TypeDateTime:
+	default:
+		return nil
+	}
+	if precision > 0 {
+		length += precision + 1
+	}
+	return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: length, Scale: precision, IsNullable: true}
+}
+
+func preparedStrToDateShape(arguments []sqlparser.Expr) (metadata.DataType, int) {
+	// MySQL defaults to DATETIME(6) when the format is not a constant item.
+	if len(arguments) != 2 {
+		return metadata.TypeDateTime, 6
+	}
+	format, ok := arguments[1].(*sqlparser.SQLVal)
+	if !ok || format.Type != sqlparser.StrVal {
+		return metadata.TypeDateTime, 6
+	}
+	const timeDirectives = "HISThiklrs"
+	const dateDirectives = "MVUXYWabcjmvuxyw"
+	usesTime, usesDate, usesFraction := false, false, false
+	for index := 0; index < len(format.Val); index++ {
+		if format.Val[index] != '%' || index+1 >= len(format.Val) {
+			continue
+		}
+		index++
+		directive := format.Val[index]
+		if directive == 'f' {
+			usesTime, usesFraction = true, true
+		} else if !usesTime && strings.IndexByte(timeDirectives, directive) >= 0 {
+			usesTime = true
+		} else if !usesDate && strings.IndexByte(dateDirectives, directive) >= 0 {
+			usesDate = true
+		}
+		if usesDate && usesFraction {
+			return metadata.TypeDateTime, 6
+		}
+	}
+	if usesFraction {
+		return metadata.TypeTime, 6
+	}
+	if usesTime {
+		if usesDate {
+			return metadata.TypeDateTime, 0
+		}
+		return metadata.TypeTime, 0
+	}
+	return metadata.TypeDate, 0
 }
 
 func (d *preparedSelectDescriber) preparedDateArithmeticIntervalPrecision(interval *sqlparser.IntervalExpr, shape joinResultShape) int {
@@ -2154,7 +2218,11 @@ func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.
 		}
 		return "", true, fmt.Errorf("prepared function FROM_UNIXTIME requires 1 or 2 arguments")
 	case "STR_TO_DATE":
-		return metadata.TypeDateTime, true, nil
+		if len(arguments) != 2 {
+			return "", true, fmt.Errorf("prepared function STR_TO_DATE requires 2 arguments")
+		}
+		resultType, _ := preparedStrToDateShape(arguments)
+		return resultType, true, nil
 	case "CURRENT_DATE", "CURDATE", "UTC_DATE":
 		if len(arguments) != 0 {
 			return "", true, fmt.Errorf("prepared function %s does not accept arguments", name)
