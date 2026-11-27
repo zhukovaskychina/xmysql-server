@@ -396,6 +396,78 @@ func (d *preparedSelectDescriber) expressionType(expression sqlparser.Expr, shap
 		return metadata.TypeVarchar, nil
 	case *sqlparser.ParenExpr:
 		return d.expressionType(expr.Expr, shape, ctes, depth+1)
+	case *sqlparser.CollateExpr:
+		return d.expressionType(expr.Expr, shape, ctes, depth+1)
+	case *sqlparser.ConvertExpr:
+		if expr.Type == nil {
+			return "", fmt.Errorf("prepared CAST/CONVERT expression has no target type")
+		}
+		switch strings.ToUpper(strings.TrimSpace(expr.Type.Type)) {
+		case "SIGNED", "SIGNED INTEGER", "INT", "INTEGER", "BIGINT", "UNSIGNED", "UNSIGNED INTEGER":
+			return metadata.TypeBigInt, nil
+		case "DECIMAL", "NUMERIC":
+			return metadata.TypeDecimal, nil
+		case "FLOAT":
+			return metadata.TypeFloat, nil
+		case "DOUBLE", "REAL":
+			return metadata.TypeDouble, nil
+		case "CHAR", "NCHAR", "VARCHAR", "STRING":
+			return metadata.TypeVarchar, nil
+		case "BINARY":
+			return metadata.TypeVarBinary, nil
+		case "DATE":
+			return metadata.TypeDate, nil
+		case "DATETIME":
+			return metadata.TypeDateTime, nil
+		case "TIMESTAMP":
+			return metadata.TypeTimestamp, nil
+		case "TIME":
+			return metadata.TypeTime, nil
+		case "JSON":
+			return metadata.TypeJSON, nil
+		default:
+			return "", fmt.Errorf("prepared CAST/CONVERT target type %q is unsupported", expr.Type.Type)
+		}
+	case *sqlparser.ConvertUsingExpr:
+		if strings.EqualFold(strings.TrimSpace(expr.Type), "binary") {
+			return metadata.TypeVarBinary, nil
+		}
+		return metadata.TypeVarchar, nil
+	case *sqlparser.CaseExpr:
+		var result metadata.DataType
+		mergeResult := func(value sqlparser.Expr) error {
+			if value == nil {
+				return nil
+			}
+			if _, isNull := value.(*sqlparser.NullVal); isNull {
+				return nil
+			}
+			typ, err := d.expressionType(value, shape, ctes, depth+1)
+			if err != nil {
+				return err
+			}
+			if result == "" {
+				result = typ
+				return nil
+			}
+			result, err = mysqlSetOperationColumnType(result, typ)
+			return err
+		}
+		for _, when := range expr.Whens {
+			if when == nil {
+				continue
+			}
+			if err := mergeResult(when.Val); err != nil {
+				return "", err
+			}
+		}
+		if err := mergeResult(expr.Else); err != nil {
+			return "", err
+		}
+		if result == "" {
+			return metadata.TypeVarchar, nil
+		}
+		return result, nil
 	case *sqlparser.Subquery:
 		columns, err := d.describe(expr.Select, ctes, depth+1)
 		if err != nil {
