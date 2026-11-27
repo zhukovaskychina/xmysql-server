@@ -27053,6 +27053,9 @@ func explainSetOperationPlanRowsJSON(rows [][]interface{}, statement *sqlparser.
 	}
 	branches, supported := explainUnionBranches(statement)
 	if !supported || len(branches) < 2 {
+		if explainSetOperationPlanShapeSupported(statement) {
+			return explainNestedSetOperationPlanRowsJSON(rows, statement)
+		}
 		return "", fmt.Errorf("EXPLAIN FORMAT=JSON currently supports flat %s query blocks with SELECT branches", operator)
 	}
 	rowsBySelectID := make(map[int64][][]interface{}, len(branches))
@@ -27179,6 +27182,183 @@ func explainSetOperationPlanRowsJSON(rows [][]interface{}, statement *sqlparser.
 	encoded, err := json.Marshal(map[string]interface{}{"query_block": map[string]interface{}{
 		strings.ToLower(operator) + "_result": resultBlock,
 	}})
+	return string(encoded), err
+}
+
+func explainNestedSetOperationPlanRowsJSON(rows [][]interface{}, statement *sqlparser.Union) (string, error) {
+	tree, ok := buildExplainSetOperationTree(statement)
+	if !ok || tree == nil || tree.statement != nil || !explainSetOperationPlanShapeSupported(statement) {
+		return "", fmt.Errorf("EXPLAIN FORMAT=JSON does not support this nested set-operation shape")
+	}
+	leaves := make([]*explainSetOperationNode, 0)
+	explainSetOperationLeaves(tree, "PRIMARY", &leaves)
+	leafRowsByID := make(map[int64][][]interface{}, len(leaves))
+	derivedRowsByID := make(map[int64][][]interface{})
+	resultRowsByID := make(map[int64][]interface{})
+	leafIDs := make([]int64, 0, len(leaves))
+	for _, row := range rows {
+		if len(row) < 12 {
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON cannot encode a malformed set-operation plan row")
+		}
+		selectType, _ := row[1].(string)
+		selectID, validID := row[0].(int64)
+		switch selectType {
+		case "DERIVED":
+			if !validID || selectID < 1 {
+				return "", fmt.Errorf("EXPLAIN FORMAT=JSON derived query block has an invalid identifier")
+			}
+			derivedRowsByID[selectID] = append(derivedRowsByID[selectID], row)
+		case "UNION RESULT", "INTERSECT RESULT", "EXCEPT RESULT":
+			if !validID || selectID < 1 {
+				return "", fmt.Errorf("EXPLAIN FORMAT=JSON set-operation result has an invalid identifier")
+			}
+			if _, duplicate := resultRowsByID[selectID]; duplicate {
+				return "", fmt.Errorf("EXPLAIN FORMAT=JSON set-operation result has a duplicate identifier")
+			}
+			resultRowsByID[selectID] = row
+		case "PRIMARY", "UNION", "INTERSECT", "EXCEPT":
+			if !validID || selectID < 1 {
+				return "", fmt.Errorf("EXPLAIN FORMAT=JSON set-operation branch has an invalid identifier")
+			}
+			if _, exists := leafRowsByID[selectID]; !exists {
+				leafIDs = append(leafIDs, selectID)
+			}
+			leafRowsByID[selectID] = append(leafRowsByID[selectID], row)
+		default:
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON does not support %s rows inside nested set operations", selectType)
+		}
+	}
+	sort.Slice(leafIDs, func(left, right int) bool { return leafIDs[left] < leafIDs[right] })
+	if len(leafIDs) != len(leaves) {
+		return "", fmt.Errorf("EXPLAIN FORMAT=JSON set-operation leaf count does not match the plan")
+	}
+	for index, leaf := range leaves {
+		leaf.id = leafIDs[index]
+		leaf.rows = leafRowsByID[leaf.id]
+		if explainSelectContainsSubquery(leaf.statement) || len(explainSelectSubqueries(leaf.statement)) != 0 {
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON nested set-operation leaves with scalar or predicate subqueries are not supported")
+		}
+	}
+	resultNodes := make([]*explainSetOperationNode, 0, len(resultRowsByID))
+	var appendMaterializedNodes func(*explainSetOperationNode)
+	appendMaterializedNodes = func(node *explainSetOperationNode) {
+		if node == nil || node.statement != nil {
+			return
+		}
+		appendMaterializedNodes(node.left)
+		appendMaterializedNodes(node.right)
+		if !(node.operator == "UNION" && node.all && !node.filesort) {
+			resultNodes = append(resultNodes, node)
+		}
+	}
+	appendMaterializedNodes(tree)
+	resultIDs := make([]int64, 0, len(resultRowsByID))
+	for resultID := range resultRowsByID {
+		resultIDs = append(resultIDs, resultID)
+	}
+	sort.Slice(resultIDs, func(left, right int) bool { return resultIDs[left] < resultIDs[right] })
+	if len(resultIDs) != len(resultNodes) {
+		return "", fmt.Errorf("EXPLAIN FORMAT=JSON set-operation result count does not match the plan tree")
+	}
+	for index, node := range resultNodes {
+		resultID := resultIDs[index]
+		resultRow := resultRowsByID[resultID]
+		resultType, _ := resultRow[1].(string)
+		if resultType != node.operator+" RESULT" {
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON set-operation result order does not match the plan tree")
+		}
+		node.resultID = resultID
+	}
+	consumedDerivedIDs := make(map[int64]struct{}, len(derivedRowsByID))
+	leafBlocks := make(map[int64]map[string]interface{}, len(leaves))
+	for _, leaf := range leaves {
+		derivedSources := explainDirectDerivedSources(leaf.statement)
+		derivedIDs := make([]int64, 0, len(derivedSources))
+		rootRows := make([][]interface{}, len(leaf.rows))
+		for index, row := range leaf.rows {
+			rootRows[index] = append([]interface{}(nil), row...)
+			rootRows[index][1] = "PRIMARY"
+			tableName, _ := row[2].(string)
+			if !strings.HasPrefix(tableName, "<derived") || !strings.HasSuffix(tableName, ">") {
+				continue
+			}
+			derivedID, parseErr := strconv.ParseInt(strings.TrimSuffix(strings.TrimPrefix(tableName, "<derived"), ">"), 10, 64)
+			if parseErr != nil || derivedID < 1 {
+				return "", fmt.Errorf("EXPLAIN FORMAT=JSON nested set-operation branch has an invalid derived identifier")
+			}
+			derivedIDs = append(derivedIDs, derivedID)
+		}
+		if len(derivedIDs) != len(derivedSources) {
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON nested set-operation derived source count does not match the plan")
+		}
+		var blockJSON string
+		var err error
+		if len(derivedIDs) == 0 {
+			blockJSON, err = explainPlanRowsJSON(rootRows)
+		} else {
+			combinedRows := append([][]interface{}(nil), rootRows...)
+			for _, derivedID := range derivedIDs {
+				childRows := derivedRowsByID[derivedID]
+				if len(childRows) == 0 {
+					return "", fmt.Errorf("EXPLAIN FORMAT=JSON nested set-operation derived parent and child identifiers do not match")
+				}
+				if _, duplicate := consumedDerivedIDs[derivedID]; duplicate {
+					return "", fmt.Errorf("EXPLAIN FORMAT=JSON nested set-operation has a duplicate derived identifier")
+				}
+				consumedDerivedIDs[derivedID] = struct{}{}
+				combinedRows = append(combinedRows, childRows...)
+			}
+			blockJSON, err = explainMaterializedDerivedPlanRowsJSON(combinedRows, leaf.statement)
+		}
+		if err != nil {
+			return "", err
+		}
+		var envelope struct {
+			QueryBlock map[string]interface{} `json:"query_block"`
+		}
+		if err := json.Unmarshal([]byte(blockJSON), &envelope); err != nil || envelope.QueryBlock == nil {
+			return "", fmt.Errorf("EXPLAIN FORMAT=JSON could not decode a nested set-operation leaf")
+		}
+		envelope.QueryBlock["select_id"] = leaf.id
+		leafBlocks[leaf.id] = envelope.QueryBlock
+	}
+	if len(consumedDerivedIDs) != len(derivedRowsByID) {
+		return "", fmt.Errorf("EXPLAIN FORMAT=JSON nested set-operation has orphan derived blocks")
+	}
+	var encodeNode func(*explainSetOperationNode) (map[string]interface{}, error)
+	encodeNode = func(node *explainSetOperationNode) (map[string]interface{}, error) {
+		if node.statement != nil {
+			block := leafBlocks[node.id]
+			if block == nil {
+				return nil, fmt.Errorf("EXPLAIN FORMAT=JSON nested set-operation leaf is missing")
+			}
+			return map[string]interface{}{"dependent": false, "cacheable": true, "query_block": block}, nil
+		}
+		left, err := encodeNode(node.left)
+		if err != nil {
+			return nil, err
+		}
+		right, err := encodeNode(node.right)
+		if err != nil {
+			return nil, err
+		}
+		result := map[string]interface{}{
+			"using_temporary_table": node.resultID != 0,
+			"query_specifications":  []interface{}{left, right},
+		}
+		if node.resultID != 0 {
+			row := resultRowsByID[node.resultID]
+			result["select_id"] = node.resultID
+			result["table_name"] = row[2]
+			result["access_type"] = row[4]
+		}
+		return map[string]interface{}{strings.ToLower(node.operator) + "_result": result}, nil
+	}
+	root, err := encodeNode(tree)
+	if err != nil {
+		return "", err
+	}
+	encoded, err := json.Marshal(map[string]interface{}{"query_block": root})
 	return string(encoded), err
 }
 
