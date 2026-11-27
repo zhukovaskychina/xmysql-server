@@ -198,7 +198,7 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 	case *sqlparser.ParenExpr:
 		return d.preparedExpressionMetadata(node.Expr, shape, resultType)
 	case *sqlparser.UnaryExpr:
-		if resultType != metadata.TypeDecimal {
+		if resultType != metadata.TypeDecimal && resultType != metadata.TypeBigInt {
 			return nil
 		}
 		column := d.preparedExpressionMetadata(node.Expr, shape, resultType)
@@ -291,6 +291,13 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 		return d.preparedMergedStringMetadata(expression, shape, resultType, values)
 	case *sqlparser.SQLVal:
 		switch node.Type {
+		case sqlparser.IntVal:
+			if precision, unsigned, ok := preparedIntegerLiteralShape(node.Val); ok {
+				if resultType == metadata.TypeDecimal {
+					return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: precision, IsNullable: true}
+				}
+				return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: preparedIntegerMetadataLength(unsigned), IsUnsigned: unsigned, IsNullable: true}
+			}
 		case sqlparser.StrVal:
 			column := &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: utf8.RuneCount(node.Val), IsNullable: true}
 			if d != nil && d.ctx != nil && d.ctx.Session != nil {
@@ -830,6 +837,11 @@ func (d *preparedSelectDescriber) preparedNumericExpressionShape(expression sqlp
 	}
 	switch node := expression.(type) {
 	case *sqlparser.SQLVal:
+		if node.Type == sqlparser.IntVal {
+			if precision, unsigned, ok := preparedIntegerLiteralShape(node.Val); ok && preparedIntegerLiteralNeedsDecimal(node.Val) {
+				return preparedNumericShape{precision: precision, unsigned: unsigned}, true
+			}
+		}
 		if node.Type == sqlparser.FloatVal {
 			precision, scale, ok := preparedExactDecimalLiteralShape(node.Val)
 			return preparedNumericShape{precision: precision, scale: scale}, ok
@@ -947,6 +959,41 @@ func preparedIntegerLiteralUnsigned(digits string) (bool, bool) {
 	return value > uint64(1<<63-1), true
 }
 
+func preparedIntegerLiteralShape(value []byte) (precision int, unsigned bool, known bool) {
+	digits := strings.TrimLeft(string(value), "0")
+	if digits == "" {
+		return 1, false, true
+	}
+	precision = preparedMinInt(len(digits), 65)
+	if len(digits) > 20 {
+		return precision, false, true
+	}
+	parsed, err := strconv.ParseUint(digits, 10, 64)
+	if err != nil {
+		return precision, false, true
+	}
+	return precision, parsed > uint64(1<<63-1), true
+}
+
+func preparedIntegerLiteralNeedsDecimal(value []byte) bool {
+	digits := strings.TrimLeft(string(value), "0")
+	if digits == "" {
+		return false
+	}
+	if len(digits) > 20 {
+		return true
+	}
+	_, err := strconv.ParseUint(digits, 10, 64)
+	return err != nil
+}
+
+func preparedIntegerMetadataLength(unsigned bool) int {
+	if unsigned {
+		return 20
+	}
+	return 19
+}
+
 func (d *preparedSelectDescriber) noUnsignedSubtractionMode() bool {
 	if d == nil || d.ctx == nil || d.ctx.Session == nil {
 		return false
@@ -1022,6 +1069,9 @@ func (d *preparedSelectDescriber) expressionType(expression sqlparser.Expr, shap
 	case *sqlparser.SQLVal:
 		switch expr.Type {
 		case sqlparser.IntVal:
+			if preparedIntegerLiteralNeedsDecimal(expr.Val) {
+				return metadata.TypeDecimal, nil
+			}
 			return metadata.TypeBigInt, nil
 		case sqlparser.FloatVal:
 			if strings.ContainsAny(string(expr.Val), "eE") {
