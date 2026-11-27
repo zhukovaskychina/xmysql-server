@@ -2886,7 +2886,23 @@ func evalStringCompatibilityFunction(name string, args []interface{}) (interface
 			if err != nil {
 				return nil, err
 			}
-			out.WriteByte(byte(n))
+			value := uint32(int32(n))
+			switch {
+			case value&0xff000000 != 0:
+				out.WriteByte(byte(value))
+				out.WriteByte(byte(value >> 8))
+				out.WriteByte(byte(value >> 16))
+				out.WriteByte(byte(value >> 24))
+			case value&0x00ff0000 != 0:
+				out.WriteByte(byte(value))
+				out.WriteByte(byte(value >> 8))
+				out.WriteByte(byte(value >> 16))
+			case value&0x0000ff00 != 0:
+				out.WriteByte(byte(value))
+				out.WriteByte(byte(value >> 8))
+			default:
+				out.WriteByte(byte(value))
+			}
 		}
 		return out.String(), nil
 	}

@@ -360,6 +360,12 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 		if name == "CONCAT" || name == "CONCAT_WS" {
 			return d.preparedConcatMetadata(expression, shape, resultType, name, arguments)
 		}
+		if name == "CHAR" {
+			if len(arguments) > int(^uint(0)>>1)/4 {
+				return nil
+			}
+			return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: metadata.TypeVarBinary, Length: len(arguments) * 4, Charset: "binary", Collation: "binary", IsNullable: false}
+		}
 		switch name {
 		case "DATE_ADD", "DATE_SUB", "ADDDATE", "SUBDATE":
 			return d.preparedDateArithmeticMetadata(expression, shape, resultType, arguments)
@@ -2181,6 +2187,9 @@ func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.
 			return metadata.TypeVarBinary, true, nil
 		}
 		return metadata.TypeVarchar, true, nil
+	}
+	if name == "CHAR" {
+		return metadata.TypeVarBinary, true, nil
 	}
 	switch name {
 	case "LEFT", "RIGHT", "SUBSTRING", "SUBSTR", "MID", "REPEAT", "LOWER", "UPPER", "LCASE", "UCASE", "TRIM", "LTRIM", "RTRIM", "REVERSE", "LPAD", "RPAD":
