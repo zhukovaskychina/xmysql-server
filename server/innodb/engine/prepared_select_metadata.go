@@ -1272,7 +1272,39 @@ func (d *preparedSelectDescriber) preparedStringFunctionMetadata(expression sqlp
 	column := *first
 	column.Name, column.Type, column.IsNullable = sqlparser.String(expression), resultType, true
 	switch name {
-	case "LOWER", "UPPER", "LCASE", "UCASE", "TRIM", "LTRIM", "RTRIM", "REVERSE", "SUBSTRING", "SUBSTR", "MID", "SUBSTRING_INDEX":
+	case "LOWER", "UPPER", "LCASE", "UCASE", "TRIM", "LTRIM", "RTRIM", "REVERSE", "SUBSTRING_INDEX":
+	case "SUBSTRING", "SUBSTR", "MID":
+		if len(arguments) < 2 || len(arguments) > 3 {
+			return nil
+		}
+		if position, known := preparedStaticInteger(arguments[1]); known && position > -(1<<31) && position <= (1<<31)-1 {
+			switch {
+			case position < 0:
+				if -position > int64(column.Length) {
+					column.Length = 0
+				} else {
+					column.Length = int(-position)
+				}
+			case position == 0:
+				column.Length = 0
+			default:
+				remaining := int64(column.Length) - (position - 1)
+				if remaining <= 0 {
+					column.Length = 0
+				} else {
+					column.Length = int(remaining)
+				}
+			}
+		}
+		if len(arguments) == 3 {
+			if length, known := preparedStaticInteger(arguments[2]); known {
+				if length <= 0 {
+					column.Length = 0
+				} else if length < int64(column.Length) {
+					column.Length = int(length)
+				}
+			}
+		}
 	case "LEFT", "RIGHT":
 		if len(arguments) != 2 {
 			return nil
