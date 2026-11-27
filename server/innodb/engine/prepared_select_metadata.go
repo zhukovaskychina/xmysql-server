@@ -365,6 +365,8 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 			return d.preparedDateArithmeticMetadata(expression, shape, resultType, arguments)
 		case "TIMESTAMP", "ADDTIME", "SUBTIME":
 			return d.preparedAddTimeMetadata(expression, shape, resultType, name, arguments)
+		case "CONVERT_TZ":
+			return d.preparedConvertTZMetadata(expression, shape, resultType, arguments)
 		case "NOW", "CURRENT_TIMESTAMP", "LOCALTIMESTAMP", "SYSDATE", "UTC_TIMESTAMP", "CURTIME", "CURRENT_TIME", "LOCALTIME", "UTC_TIME", "CURDATE", "CURRENT_DATE", "UTC_DATE":
 			return preparedCurrentTemporalMetadata(expression, resultType, arguments)
 		case "COUNT":
@@ -751,6 +753,28 @@ func (d *preparedSelectDescriber) preparedAddTimeMetadata(expression sqlparser.E
 		return nil
 	}
 	return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: length, Scale: scale, IsNullable: true}
+}
+
+func (d *preparedSelectDescriber) preparedConvertTZMetadata(expression sqlparser.Expr, shape joinResultShape, resultType metadata.DataType, arguments []sqlparser.Expr) *metadata.ColumnMeta {
+	if len(arguments) != 3 || resultType != metadata.TypeDateTime {
+		return nil
+	}
+	inputType, err := d.expressionType(arguments[0], shape, nil, 0)
+	if err != nil {
+		if parameter, isParameter := arguments[0].(*sqlparser.SQLVal); !isParameter || parameter.Type != sqlparser.ValArg {
+			return nil
+		}
+		inputType = metadata.TypeDateTime
+	}
+	precision := 0
+	if input := d.preparedExpressionMetadata(arguments[0], shape, inputType); input != nil {
+		precision = min(max(input.Scale, 0), 6)
+	}
+	length := 19
+	if precision > 0 {
+		length += precision + 1
+	}
+	return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: length, Scale: precision, IsNullable: true}
 }
 
 func (d *preparedSelectDescriber) preparedDateArithmeticIntervalPrecision(interval *sqlparser.IntervalExpr, shape joinResultShape) int {
@@ -2096,7 +2120,12 @@ func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.
 		default:
 			return metadata.TypeVarchar, true, nil
 		}
-	case "STR_TO_DATE", "CONVERT_TZ", "FROM_UNIXTIME":
+	case "CONVERT_TZ":
+		if len(arguments) != 3 {
+			return "", true, fmt.Errorf("prepared function CONVERT_TZ requires 3 arguments")
+		}
+		return metadata.TypeDateTime, true, nil
+	case "STR_TO_DATE", "FROM_UNIXTIME":
 		return metadata.TypeDateTime, true, nil
 	case "CURRENT_DATE", "CURDATE", "UTC_DATE":
 		if len(arguments) != 0 {
