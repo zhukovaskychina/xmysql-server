@@ -373,6 +373,8 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 			return preparedStrToDateMetadata(expression, resultType, arguments)
 		case "TIME", "TIMEDIFF", "SEC_TO_TIME", "MAKETIME":
 			return d.preparedTimeFunctionMetadata(expression, shape, resultType, name, arguments)
+		case "UNIX_TIMESTAMP":
+			return d.preparedUnixTimestampMetadata(expression, shape, resultType, arguments)
 		case "NOW", "CURRENT_TIMESTAMP", "LOCALTIMESTAMP", "SYSDATE", "UTC_TIMESTAMP", "CURTIME", "CURRENT_TIME", "LOCALTIME", "UTC_TIME", "CURDATE", "CURRENT_DATE", "UTC_DATE":
 			return preparedCurrentTemporalMetadata(expression, resultType, arguments)
 		case "COUNT":
@@ -904,6 +906,34 @@ func (d *preparedSelectDescriber) preparedTimeFunctionMetadata(expression sqlpar
 		length += precision + 1
 	}
 	return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: length, Scale: precision, IsNullable: true}
+}
+
+func (d *preparedSelectDescriber) preparedUnixTimestampMetadata(expression sqlparser.Expr, shape joinResultShape, resultType metadata.DataType, arguments []sqlparser.Expr) *metadata.ColumnMeta {
+	if len(arguments) == 0 {
+		if resultType != metadata.TypeBigInt {
+			return nil
+		}
+		return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: preparedIntegerMetadataLength(false), IsNullable: false}
+	}
+	if len(arguments) != 1 {
+		return nil
+	}
+	precision := 0
+	if argumentType, err := d.expressionType(arguments[0], shape, nil, 0); err == nil {
+		if argument := d.preparedExpressionMetadata(arguments[0], shape, argumentType); argument != nil {
+			precision = min(max(argument.Scale, 0), 6)
+		}
+	}
+	if precision > 0 {
+		if resultType != metadata.TypeDecimal {
+			return nil
+		}
+		return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: 11 + precision, Scale: precision, IsNullable: true}
+	}
+	if resultType != metadata.TypeBigInt {
+		return nil
+	}
+	return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: preparedIntegerMetadataLength(false), IsNullable: true}
 }
 
 func (d *preparedSelectDescriber) preparedDateArithmeticIntervalPrecision(interval *sqlparser.IntervalExpr, shape joinResultShape) int {
@@ -2262,6 +2292,28 @@ func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.
 			return metadata.TypeVarchar, true, nil
 		}
 		return "", true, fmt.Errorf("prepared function FROM_UNIXTIME requires 1 or 2 arguments")
+	case "UNIX_TIMESTAMP":
+		if len(arguments) > 1 {
+			return "", true, fmt.Errorf("prepared function UNIX_TIMESTAMP accepts at most 1 argument")
+		}
+		if len(arguments) == 1 {
+			argumentType, err := argumentType(0)
+			if err != nil {
+				if parameter, ok := arguments[0].(*sqlparser.SQLVal); !ok || parameter.Type != sqlparser.ValArg {
+					return "", true, err
+				}
+			}
+			precision := 0
+			if err == nil {
+				if argument := d.preparedExpressionMetadata(arguments[0], shape, argumentType); argument != nil {
+					precision = min(max(argument.Scale, 0), 6)
+				}
+			}
+			if precision > 0 {
+				return metadata.TypeDecimal, true, nil
+			}
+		}
+		return metadata.TypeBigInt, true, nil
 	case "STR_TO_DATE":
 		if len(arguments) != 2 {
 			return "", true, fmt.Errorf("prepared function STR_TO_DATE requires 2 arguments")
