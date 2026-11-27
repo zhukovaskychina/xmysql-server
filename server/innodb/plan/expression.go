@@ -67,6 +67,9 @@ type EvalContext struct {
 	// NOW()/CURRENT_TIMESTAMP family uses this value, while SYSDATE() remains
 	// evaluated at the time the function executes.
 	StatementTime time.Time
+	// TimeZone is the current session time_zone used by local temporal
+	// functions. UTC_* functions deliberately ignore it.
+	TimeZone string
 	// SessionValues carries statement/session state needed by scalar
 	// compatibility functions. It is intentionally a plain map so the plan
 	// package does not depend on the wire/session implementation.
@@ -758,7 +761,7 @@ func (f *Function) Eval(ctx *EvalContext) (interface{}, error) {
 		if len(args) > 1 {
 			return nil, fmt.Errorf("%s accepts zero or one argument", f.FuncName)
 		}
-		now := time.Now()
+		now := currentTime(ctx)
 		if len(args) == 1 && args[0] != nil {
 			fsp, err := integerArg(args[0])
 			if err != nil || fsp < 0 || fsp > 6 {
@@ -1063,10 +1066,38 @@ func (f *Function) Eval(ctx *EvalContext) (interface{}, error) {
 }
 
 func statementTime(ctx *EvalContext) time.Time {
+	value := time.Now()
 	if ctx != nil && !ctx.StatementTime.IsZero() {
-		return ctx.StatementTime
+		value = ctx.StatementTime
 	}
-	return time.Now()
+	return value.In(sessionTimeLocation(ctx))
+}
+
+func currentTime(ctx *EvalContext) time.Time {
+	return time.Now().In(sessionTimeLocation(ctx))
+}
+
+func sessionTimeLocation(ctx *EvalContext) *time.Location {
+	if ctx == nil || strings.TrimSpace(ctx.TimeZone) == "" || strings.EqualFold(strings.TrimSpace(ctx.TimeZone), "SYSTEM") {
+		return time.Local
+	}
+	name := strings.TrimSpace(ctx.TimeZone)
+	if len(name) == 6 && (name[0] == '+' || name[0] == '-') && name[3] == ':' {
+		hours, hourErr := strconv.Atoi(name[1:3])
+		minutes, minuteErr := strconv.Atoi(name[4:6])
+		if hourErr == nil && minuteErr == nil && minutes < 60 && (hours < 14 || (hours == 14 && minutes == 0)) {
+			offset := hours*3600 + minutes*60
+			if name[0] == '-' {
+				offset = -offset
+			}
+			return time.FixedZone(name, offset)
+		}
+	}
+	location, err := time.LoadLocation(name)
+	if err != nil {
+		return time.Local
+	}
+	return location
 }
 
 func evalLastInsertID(args []interface{}, ctx *EvalContext) (interface{}, error) {

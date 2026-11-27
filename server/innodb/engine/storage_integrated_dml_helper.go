@@ -4325,6 +4325,7 @@ func planEvalContextWithRow(values map[string]interface{}) *plan.EvalContext {
 		if statementTime, ok := ctx.SessionValues[statementTimeExpressionValue].(time.Time); ok {
 			ctx.StatementTime = statementTime
 		}
+		ctx.TimeZone, _ = ctx.SessionValues["time_zone"].(string)
 	}
 	return ctx
 }

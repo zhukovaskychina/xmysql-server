@@ -94,6 +94,9 @@ func newSessionExpressionValues(session server.MySQLServerSession) map[string]in
 	if statementTime, ok := session.GetParamByName(statementTimeSessionParam).(time.Time); ok {
 		values[statementTimeExpressionValue] = statementTime
 	}
+	if timeZone, ok := session.GetParamByName("time_zone").(string); ok {
+		values["time_zone"] = timeZone
+	}
 	values["last_insert_id"] = sessionLastInsertID(session)
 	values["row_count"] = sessionRowCount(session)
 	if version := sessionStringParam(session, "version"); version != "" {
