@@ -387,6 +387,10 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 			return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: precision, Scale: scale, IsNullable: true}
 		case "JSON_ARRAYAGG", "JSON_OBJECTAGG":
 			return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: metadata.TypeJSON, IsNullable: true}
+		case "STD", "STDDEV", "STDDEV_POP", "STDDEV_SAMP", "VAR_POP", "VAR_SAMP", "VARIANCE":
+			if len(arguments) == 1 && resultType == metadata.TypeDouble {
+				return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, IsNullable: true}
+			}
 		case "IFNULL", "COALESCE", "GREATEST", "LEAST":
 			return d.preparedMergedExpressionMetadata(expression, shape, resultType, arguments)
 		case "NULLIF", "MIN", "MAX", "ANY_VALUE", "ABS":
