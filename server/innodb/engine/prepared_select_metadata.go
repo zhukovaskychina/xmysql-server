@@ -361,6 +361,8 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 			return d.preparedConcatMetadata(expression, shape, resultType, name, arguments)
 		}
 		switch name {
+		case "DATE_ADD", "DATE_SUB", "ADDDATE", "SUBDATE":
+			return d.preparedDateArithmeticMetadata(expression, shape, resultType, arguments)
 		case "NOW", "CURRENT_TIMESTAMP", "LOCALTIMESTAMP", "SYSDATE", "UTC_TIMESTAMP", "CURTIME", "CURRENT_TIME", "LOCALTIME", "UTC_TIME", "CURDATE", "CURRENT_DATE", "UTC_DATE":
 			return preparedCurrentTemporalMetadata(expression, resultType, arguments)
 		case "COUNT":
@@ -615,6 +617,68 @@ func preparedCurrentTemporalMetadata(expression sqlparser.Expr, resultType metad
 		return nil
 	}
 	return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: length, Scale: scale, IsNullable: false}
+}
+
+func (d *preparedSelectDescriber) preparedDateArithmeticMetadata(expression sqlparser.Expr, shape joinResultShape, resultType metadata.DataType, arguments []sqlparser.Expr) *metadata.ColumnMeta {
+	if len(arguments) != 2 {
+		return nil
+	}
+	interval, ok := arguments[1].(*sqlparser.IntervalExpr)
+	if !ok || interval == nil {
+		return nil
+	}
+	inputType, err := d.expressionType(arguments[0], shape, nil, 0)
+	if err != nil {
+		if parameter, isParameter := arguments[0].(*sqlparser.SQLVal); !isParameter || parameter.Type != sqlparser.ValArg {
+			return nil
+		}
+	}
+	inputPrecision := 0
+	if err == nil {
+		if input := d.preparedExpressionMetadata(arguments[0], shape, inputType); input != nil {
+			inputPrecision = input.Scale
+		}
+	}
+	intervalPrecision := d.preparedDateArithmeticIntervalPrecision(interval, shape)
+	precision := max(inputPrecision, intervalPrecision)
+	length := 26
+	scale := 0
+	switch resultType {
+	case metadata.TypeDate:
+		length = 10
+	case metadata.TypeDateTime:
+		length = 19
+		if precision > 0 {
+			length += precision + 1
+			scale = precision
+		}
+	case metadata.TypeTime:
+		length = 8
+		if precision > 0 {
+			length += precision + 1
+			scale = precision
+		}
+	case metadata.TypeVarchar:
+		precision = 0
+	default:
+		return nil
+	}
+	return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: length, Scale: scale, IsNullable: true}
+}
+
+func (d *preparedSelectDescriber) preparedDateArithmeticIntervalPrecision(interval *sqlparser.IntervalExpr, shape joinResultShape) int {
+	unit := strings.ToUpper(strings.TrimSpace(interval.Unit))
+	if unit == "MICROSECOND" || strings.HasSuffix(unit, "_MICROSECOND") {
+		return 6
+	}
+	if unit != "SECOND" {
+		return 0
+	}
+	shapeResult, known := d.preparedNumericExpressionShape(interval.Expr, shape, 0)
+	if !known {
+		return 0
+	}
+	return min(shapeResult.scale, 6)
 }
 
 // preparedExpressionDefinitelyNonNull is deliberately proof-based: unknown
