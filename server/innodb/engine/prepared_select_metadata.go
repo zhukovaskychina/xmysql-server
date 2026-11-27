@@ -1329,7 +1329,14 @@ func (d *preparedSelectDescriber) preparedStringFunctionMetadata(expression sqlp
 			return nil
 		}
 		if count, known := preparedStaticInteger(arguments[1]); known {
-			if count <= 0 || count > int64(int(^uint(0)>>1))/int64(column.Length) {
+			if count == 0 {
+				column.Length = 0
+				break
+			}
+			if count < 0 || count > (1<<31)-1 {
+				count = (1 << 31) - 1
+			}
+			if count > int64(int(^uint(0)>>1))/int64(column.Length) {
 				return nil
 			}
 			column.Length *= int(count)
