@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
@@ -167,7 +168,7 @@ func (d *preparedSelectDescriber) projection(node *sqlparser.Select, shape joinR
 			if !expr.As.IsEmpty() {
 				name = expr.As.String()
 			}
-			output = append(output, joinOutputColumn{name: name, typ: typ, meta: joinOutputMetadata(expr.Expr, shape)})
+			output = append(output, joinOutputColumn{name: name, typ: typ, meta: d.preparedExpressionMetadata(expr.Expr, shape, typ)})
 		default:
 			return nil, fmt.Errorf("unsupported prepared projection %T", expression)
 		}
@@ -175,24 +176,72 @@ func (d *preparedSelectDescriber) projection(node *sqlparser.Select, shape joinR
 	return output, nil
 }
 
-func joinOutputMetadata(expression sqlparser.Expr, shape joinResultShape) *metadata.ColumnMeta {
-	column, ok := expression.(*sqlparser.ColName)
-	if !ok || column == nil {
-		return nil
-	}
-	candidates := shape.columns
-	if !column.Qualifier.IsEmpty() {
-		if qualified, found := shape.qualified[strings.ToLower(column.Qualifier.Name.String())]; found {
-			candidates = qualified
+func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparser.Expr, shape joinResultShape, resultType metadata.DataType) *metadata.ColumnMeta {
+	switch node := expression.(type) {
+	case *sqlparser.ColName:
+		candidates := shape.columns
+		if !node.Qualifier.IsEmpty() {
+			if qualified, found := shape.qualified[strings.ToLower(node.Qualifier.Name.String())]; found {
+				candidates = qualified
+			}
 		}
-	}
-	for _, candidate := range candidates {
-		if !strings.EqualFold(candidate.name, column.Name.String()) || candidate.meta == nil {
-			continue
+		for _, candidate := range candidates {
+			if !strings.EqualFold(candidate.name, node.Name.String()) || candidate.meta == nil {
+				continue
+			}
+			copyColumn := *candidate.meta
+			copyColumn.Name, copyColumn.Type = candidate.name, resultType
+			copyColumn.EnumValues = append([]string(nil), candidate.meta.EnumValues...)
+			return &copyColumn
 		}
-		copyColumn := *candidate.meta
-		copyColumn.EnumValues = append([]string(nil), candidate.meta.EnumValues...)
-		return &copyColumn
+	case *sqlparser.ParenExpr:
+		return d.preparedExpressionMetadata(node.Expr, shape, resultType)
+	case *sqlparser.CollateExpr:
+		column := d.preparedExpressionMetadata(node.Expr, shape, resultType)
+		if column == nil {
+			return nil
+		}
+		if collation, found := common.CollationMetadataByName(node.Charset); found {
+			column.Collation = collation.Name
+			column.Charset = collation.Charset
+		}
+		return column
+	case *sqlparser.ConvertExpr:
+		if node.Type == nil {
+			return nil
+		}
+		column := &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, IsNullable: true}
+		if node.Type.Length != nil {
+			if length, err := strconv.Atoi(string(node.Type.Length.Val)); err == nil && length > 0 {
+				column.Length = length
+			}
+		}
+		if node.Type.Scale != nil {
+			if scale, err := strconv.Atoi(string(node.Type.Scale.Val)); err == nil && scale >= 0 {
+				column.Scale = scale
+			}
+		}
+		column.IsUnsigned = strings.Contains(strings.ToUpper(node.Type.Type), "UNSIGNED")
+		if resultType == metadata.TypeChar || resultType == metadata.TypeVarchar {
+			if explicitCharset := strings.TrimSpace(node.Type.Charset); explicitCharset != "" {
+				column.Charset = explicitCharset
+			} else if d != nil && d.ctx != nil && d.ctx.Session != nil {
+				if collation, ok := d.ctx.Session.GetParamByName("collation_connection").(string); ok {
+					if info, found := common.CollationMetadataByName(collation); found {
+						column.Charset, column.Collation = info.Charset, info.Name
+					}
+				}
+			}
+		}
+		return column
+	case *sqlparser.ConvertUsingExpr:
+		column := d.preparedExpressionMetadata(node.Expr, shape, resultType)
+		if column == nil {
+			column = &metadata.ColumnMeta{Name: sqlparser.String(expression), IsNullable: true}
+		}
+		column.Type = resultType
+		column.Charset = strings.TrimSpace(node.Type)
+		return column
 	}
 	return nil
 }
