@@ -296,7 +296,11 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 		if node.Else != nil {
 			values = append(values, node.Else)
 		}
-		return d.preparedMergedExpressionMetadata(expression, shape, resultType, values)
+		nullable := node.Else == nil
+		for _, value := range values {
+			nullable = nullable || !d.preparedExpressionDefinitelyNonNull(value, shape)
+		}
+		return d.preparedConditionalExpressionMetadata(expression, shape, resultType, values, nullable)
 	case *sqlparser.SQLVal:
 		switch node.Type {
 		case sqlparser.IntVal:
@@ -364,7 +368,28 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 			return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, IsNullable: false}
 		case "IF":
 			if len(arguments) == 3 {
-				return d.preparedMergedExpressionMetadata(expression, shape, resultType, arguments[1:])
+				branches := arguments[1:]
+				nullable := !d.preparedExpressionDefinitelyNonNull(branches[0], shape) || !d.preparedExpressionDefinitelyNonNull(branches[1], shape)
+				return d.preparedConditionalExpressionMetadata(expression, shape, resultType, branches, nullable)
+			}
+		case "IFNULL", "COALESCE":
+			if len(arguments) >= 2 && (name != "IFNULL" || len(arguments) == 2) {
+				nullable := true
+				for _, argument := range arguments {
+					if d.preparedExpressionDefinitelyNonNull(argument, shape) {
+						nullable = false
+						break
+					}
+				}
+				return d.preparedConditionalExpressionMetadata(expression, shape, resultType, arguments, nullable)
+			}
+		case "GREATEST", "LEAST":
+			if len(arguments) >= 2 {
+				nullable := false
+				for _, argument := range arguments {
+					nullable = nullable || !d.preparedExpressionDefinitelyNonNull(argument, shape)
+				}
+				return d.preparedConditionalExpressionMetadata(expression, shape, resultType, arguments, nullable)
 			}
 		case "SUM", "AVG":
 			if len(arguments) != 1 {
@@ -399,8 +424,6 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 			if len(arguments) == 1 && resultType == metadata.TypeDouble {
 				return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, IsNullable: true}
 			}
-		case "IFNULL", "COALESCE", "GREATEST", "LEAST":
-			return d.preparedMergedExpressionMetadata(expression, shape, resultType, arguments)
 		case "NULLIF", "MIN", "MAX", "ANY_VALUE", "ABS":
 			if len(arguments) == 0 {
 				return nil
@@ -444,6 +467,85 @@ func preparedBooleanExpressionNullable(expression sqlparser.Expr) bool {
 	default:
 		return true
 	}
+}
+
+func (d *preparedSelectDescriber) preparedConditionalExpressionMetadata(expression sqlparser.Expr, shape joinResultShape, resultType metadata.DataType, values []sqlparser.Expr, nullable bool) *metadata.ColumnMeta {
+	column := d.preparedMergedExpressionMetadata(expression, shape, resultType, values)
+	if column == nil {
+		column = &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType}
+	}
+	column.Name, column.Type, column.IsNullable = sqlparser.String(expression), resultType, nullable
+	return column
+}
+
+// preparedExpressionDefinitelyNonNull is deliberately proof-based: unknown
+// expressions remain nullable instead of making PREPARE metadata optimistic.
+func (d *preparedSelectDescriber) preparedExpressionDefinitelyNonNull(expression sqlparser.Expr, shape joinResultShape) bool {
+	if expression == nil {
+		return false
+	}
+	if booleanSQLExpression(expression) {
+		return !preparedBooleanExpressionNullable(expression)
+	}
+	switch node := expression.(type) {
+	case *sqlparser.NullVal:
+		return false
+	case *sqlparser.SQLVal:
+		return node.Type != sqlparser.ValArg
+	case sqlparser.BoolVal:
+		return true
+	case *sqlparser.ParenExpr:
+		return d.preparedExpressionDefinitelyNonNull(node.Expr, shape)
+	case *sqlparser.CaseExpr:
+		if node.Else == nil || !d.preparedExpressionDefinitelyNonNull(node.Else, shape) {
+			return false
+		}
+		for _, when := range node.Whens {
+			if when == nil || when.Val == nil || !d.preparedExpressionDefinitelyNonNull(when.Val, shape) {
+				return false
+			}
+		}
+		return true
+	case *sqlparser.FuncExpr:
+		name := strings.ToUpper(strings.Trim(node.Name.String(), "` "))
+		arguments := make([]sqlparser.Expr, 0, len(node.Exprs))
+		for _, selectExpression := range node.Exprs {
+			aliased, ok := selectExpression.(*sqlparser.AliasedExpr)
+			if !ok || aliased == nil || aliased.Expr == nil {
+				return false
+			}
+			arguments = append(arguments, aliased.Expr)
+		}
+		switch name {
+		case "IF":
+			return len(arguments) == 3 && d.preparedExpressionDefinitelyNonNull(arguments[1], shape) && d.preparedExpressionDefinitelyNonNull(arguments[2], shape)
+		case "IFNULL", "COALESCE":
+			for _, argument := range arguments {
+				if d.preparedExpressionDefinitelyNonNull(argument, shape) {
+					return true
+				}
+			}
+			return false
+		case "GREATEST", "LEAST":
+			if len(arguments) < 2 {
+				return false
+			}
+			for _, argument := range arguments {
+				if !d.preparedExpressionDefinitelyNonNull(argument, shape) {
+					return false
+				}
+			}
+			return true
+		case "NULLIF":
+			return false
+		}
+	}
+	resultType, err := d.expressionType(expression, shape, nil, 0)
+	if err != nil {
+		return false
+	}
+	column := d.preparedExpressionMetadata(expression, shape, resultType)
+	return column != nil && !column.IsNullable
 }
 
 func (d *preparedSelectDescriber) preparedMergedExpressionMetadata(expression sqlparser.Expr, shape joinResultShape, resultType metadata.DataType, values []sqlparser.Expr) *metadata.ColumnMeta {
