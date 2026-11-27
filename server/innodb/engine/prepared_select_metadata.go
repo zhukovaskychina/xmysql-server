@@ -586,6 +586,23 @@ func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.
 		}
 		return d.expressionType(arguments[index], shape, ctes, depth+1)
 	}
+	if name == "DATE_ADD" || name == "DATE_SUB" || name == "ADDDATE" || name == "SUBDATE" {
+		if len(arguments) != 2 {
+			return "", true, fmt.Errorf("prepared function %s requires 2 arguments", name)
+		}
+		unit := ""
+		if interval, ok := arguments[1].(*sqlparser.IntervalExpr); ok && interval != nil {
+			unit = interval.Unit
+		}
+		firstType, err := argumentType(0)
+		if err != nil {
+			if parameter, ok := arguments[0].(*sqlparser.SQLVal); ok && parameter.Type == sqlparser.ValArg {
+				return mysqlDateArithmeticParameterType(unit), true, nil
+			}
+			return "", true, err
+		}
+		return mysqlDateArithmeticResultType(firstType, unit), true, nil
+	}
 	mergeArguments := func(start int) (metadata.DataType, error) {
 		var result metadata.DataType
 		for index := start; index < len(arguments); index++ {
@@ -729,4 +746,35 @@ func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.
 		return metadata.TypeVarchar, true, nil
 	}
 	return "", false, nil
+}
+
+func mysqlDateArithmeticResultType(dateType metadata.DataType, unit string) metadata.DataType {
+	unit = strings.ToUpper(strings.TrimSpace(unit))
+	usesTimeParts := strings.Contains(unit, "HOUR") || strings.Contains(unit, "MINUTE") || strings.Contains(unit, "SECOND") || strings.Contains(unit, "MICROSECOND")
+	usesDateParts := strings.Contains(unit, "YEAR") || strings.Contains(unit, "QUARTER") || strings.Contains(unit, "MONTH") || strings.Contains(unit, "WEEK") || strings.Contains(unit, "DAY")
+	switch dateType {
+	case metadata.TypeDate:
+		if usesTimeParts {
+			return metadata.TypeDateTime
+		}
+		return metadata.TypeDate
+	case metadata.TypeTime:
+		if usesDateParts {
+			return metadata.TypeDateTime
+		}
+		return metadata.TypeTime
+	case metadata.TypeDateTime, metadata.TypeTimestamp:
+		return metadata.TypeDateTime
+	default:
+		return metadata.TypeVarchar
+	}
+}
+
+func mysqlDateArithmeticParameterType(unit string) metadata.DataType {
+	unit = strings.ToUpper(strings.TrimSpace(unit))
+	usesOnlyDateParts := unit != "" && !strings.Contains(unit, "HOUR") && !strings.Contains(unit, "MINUTE") && !strings.Contains(unit, "SECOND") && !strings.Contains(unit, "MICROSECOND")
+	if usesOnlyDateParts {
+		return metadata.TypeDate
+	}
+	return metadata.TypeDateTime
 }
