@@ -2125,7 +2125,14 @@ func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.
 		if len(arguments) != 3 {
 			return "", true, fmt.Errorf("prepared function SUBSTRING_INDEX requires 3 arguments")
 		}
-		return metadata.TypeVarBinary, true, nil
+		inputType, err := argumentType(0)
+		if err != nil {
+			return "", true, err
+		}
+		if isSetOperationBinary(inputType) {
+			return metadata.TypeVarBinary, true, nil
+		}
+		return metadata.TypeVarchar, true, nil
 	}
 	switch name {
 	case "LEFT", "RIGHT", "SUBSTRING", "SUBSTR", "MID", "REPEAT", "LOWER", "UPPER", "LCASE", "UCASE", "TRIM", "LTRIM", "RTRIM", "REVERSE", "LPAD", "RPAD":
