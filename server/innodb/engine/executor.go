@@ -26943,7 +26943,7 @@ func (e *XMySQLExecutor) executeExplainQuery(ctx *ExecutionContext, query, datab
 			} else if explainedSelect != nil && explainSelectHasDerivedSource(explainedSelect) {
 				encoded, encodeErr = explainMaterializedDerivedPlanRowsJSON(rows, explainedSelect)
 			} else {
-				encoded, encodeErr = explainPlanRowsJSON(rows)
+				encoded, encodeErr = explainPlanRowsJSON(rows, explainedSelect)
 			}
 			if encodeErr != nil {
 				ctx.Results <- &Result{Err: encodeErr, ResultType: common.RESULT_TYPE_QUERY}
@@ -27131,7 +27131,7 @@ func explainSetOperationPlanRowsJSON(rows [][]interface{}, statement *sqlparser.
 				// while the branch query_block uses the same shape as SIMPLE/PRIMARY.
 				jsonRows[index][1] = "PRIMARY"
 			}
-			encodedBlock, err = explainPlanRowsJSON(jsonRows)
+			encodedBlock, err = explainPlanRowsJSON(jsonRows, branches[branchIndex])
 		} else {
 			combinedRows := make([][]interface{}, 0, len(branchRows)+len(derivedIDs))
 			for _, row := range branchRows {
@@ -27294,7 +27294,7 @@ func explainNestedSetOperationPlanRowsJSON(rows [][]interface{}, statement *sqlp
 		var blockJSON string
 		var err error
 		if len(derivedIDs) == 0 {
-			blockJSON, err = explainPlanRowsJSON(rootRows)
+			blockJSON, err = explainPlanRowsJSON(rootRows, leaf.statement)
 		} else {
 			combinedRows := append([][]interface{}(nil), rootRows...)
 			for _, derivedID := range derivedIDs {
@@ -27409,7 +27409,7 @@ func explainMaterializedDerivedPlanRowsJSON(rows [][]interface{}, statement *sql
 	if len(rootRows) == 0 || len(derivedIDs) != len(derived) || len(childRows) != len(derivedIDs) {
 		return "", fmt.Errorf("EXPLAIN FORMAT=JSON derived-table plan is incomplete")
 	}
-	rootEncoded, err := explainPlanRowsJSON(rootRows)
+	rootEncoded, err := explainPlanRowsJSON(rootRows, statement)
 	if err != nil {
 		return "", err
 	}
@@ -27435,7 +27435,7 @@ func explainMaterializedDerivedPlanRowsJSON(rows [][]interface{}, statement *sql
 			childJSONRows[rowIndex] = append([]interface{}(nil), row...)
 			childJSONRows[rowIndex][1] = "PRIMARY"
 		}
-		childEncoded, err := explainPlanRowsJSON(childJSONRows)
+		childEncoded, err := explainPlanRowsJSON(childJSONRows, derived[index].statement)
 		if err != nil {
 			return "", err
 		}
@@ -27545,7 +27545,133 @@ type explainJSONTable struct {
 	Message             string      `json:"message,omitempty"`
 }
 
-func explainPlanRowsJSON(rows [][]interface{}) (string, error) {
+func explainPlanRowsJSON(rows [][]interface{}, statements ...*sqlparser.Select) (string, error) {
+	encoded, err := explainPlanRowsJSONBase(rows)
+	if err != nil || len(statements) == 0 || statements[0] == nil {
+		return encoded, err
+	}
+	windows, err := explainJSONWindowSteps(statements[0])
+	if err != nil {
+		return "", err
+	}
+	if len(windows) == 0 {
+		return encoded, nil
+	}
+	var envelope struct {
+		QueryBlock map[string]interface{} `json:"query_block"`
+	}
+	if err := json.Unmarshal([]byte(encoded), &envelope); err != nil || envelope.QueryBlock == nil {
+		return "", fmt.Errorf("EXPLAIN FORMAT=JSON could not decode the query block for windowing")
+	}
+	windowing := map[string]interface{}{"windows": windows}
+	for _, key := range []string{"table", "nested_loop"} {
+		if value, exists := envelope.QueryBlock[key]; exists {
+			windowing[key] = value
+			delete(envelope.QueryBlock, key)
+		}
+	}
+	envelope.QueryBlock["windowing"] = windowing
+	windowedPlan, err := json.Marshal(map[string]interface{}{"query_block": envelope.QueryBlock})
+	return string(windowedPlan), err
+}
+
+func explainJSONWindowSteps(statement *sqlparser.Select) ([]map[string]interface{}, error) {
+	if statement == nil {
+		return nil, nil
+	}
+	type windowStep struct {
+		name      string
+		spec      *sqlparser.WindowSpec
+		functions []string
+	}
+	steps := make([]windowStep, 0)
+	stepIndexes := make(map[string]int)
+	resolve := func(spec *sqlparser.WindowSpec) (*sqlparser.WindowSpec, string, error) {
+		if spec == nil {
+			return nil, "", nil
+		}
+		if spec.Name.IsEmpty() {
+			partition := make([]string, 0, len(spec.PartitionBy))
+			for _, expression := range spec.PartitionBy {
+				partition = append(partition, sqlparser.String(expression))
+			}
+			ordering := make([]string, 0, len(spec.OrderBy))
+			for _, order := range spec.OrderBy {
+				ordering = append(ordering, sqlparser.String(order.Expr)+" "+strings.ToLower(order.Direction))
+			}
+			frame := ""
+			if spec.Frame != nil {
+				frame = sqlparser.String(spec.Frame)
+			}
+			return spec, "inline:" + strings.Join(partition, ",") + "|" + strings.Join(ordering, ",") + "|" + frame, nil
+		}
+		for _, named := range statement.Windows {
+			if named != nil && strings.EqualFold(named.Name.String(), spec.Name.String()) && named.Spec != nil {
+				return named.Spec, "named:" + strings.ToLower(spec.Name.String()), nil
+			}
+		}
+		return nil, "", fmt.Errorf("EXPLAIN FORMAT=JSON cannot resolve named window %q", spec.Name.String())
+	}
+	collect := func(root sqlparser.SQLNode) error {
+		return sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+			function, ok := node.(*sqlparser.FuncExpr)
+			if !ok || function.Over == nil {
+				return true, nil
+			}
+			spec, key, err := resolve(function.Over)
+			if err != nil {
+				return false, err
+			}
+			index, exists := stepIndexes[key]
+			if !exists {
+				name := ""
+				if !function.Over.Name.IsEmpty() {
+					name = function.Over.Name.String()
+				}
+				index = len(steps)
+				stepIndexes[key] = index
+				steps = append(steps, windowStep{name: name, spec: spec})
+			}
+			steps[index].functions = append(steps[index].functions, strings.ToLower(function.Name.String()))
+			return true, nil
+		}, root)
+	}
+	for _, expression := range statement.SelectExprs {
+		if err := collect(expression); err != nil {
+			return nil, err
+		}
+	}
+	for _, order := range statement.OrderBy {
+		if err := collect(order); err != nil {
+			return nil, err
+		}
+	}
+	result := make([]map[string]interface{}, 0, len(steps))
+	for _, step := range steps {
+		filesortKeys := make([]string, 0)
+		for _, expression := range step.spec.PartitionBy {
+			filesortKeys = append(filesortKeys, sqlparser.String(expression))
+		}
+		for _, order := range step.spec.OrderBy {
+			filesortKeys = append(filesortKeys, sqlparser.String(order.Expr))
+		}
+		usingFilesort := len(filesortKeys) > 0
+		usingTemporaryTable := usingFilesort || step.spec.Frame != nil
+		window := map[string]interface{}{
+			"name":                  step.name,
+			"using_temporary_table": usingTemporaryTable,
+			"using_filesort":        usingFilesort,
+			"functions":             step.functions,
+		}
+		if usingFilesort {
+			window["filesort_key"] = filesortKeys
+		}
+		result = append(result, window)
+	}
+	return result, nil
+}
+
+func explainPlanRowsJSONBase(rows [][]interface{}) (string, error) {
 	if len(rows) == 0 {
 		encoded, err := json.Marshal(map[string]interface{}{"query_block": map[string]interface{}{"select_id": 1, "message": "No tables used"}})
 		return string(encoded), err
