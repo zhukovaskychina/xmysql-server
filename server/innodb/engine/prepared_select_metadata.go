@@ -288,7 +288,7 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 		if node.Else != nil {
 			values = append(values, node.Else)
 		}
-		return d.preparedMergedStringMetadata(expression, shape, resultType, values)
+		return d.preparedMergedExpressionMetadata(expression, shape, resultType, values)
 	case *sqlparser.SQLVal:
 		switch node.Type {
 		case sqlparser.IntVal:
@@ -343,10 +343,10 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 		switch name {
 		case "IF":
 			if len(arguments) == 3 {
-				return d.preparedMergedStringMetadata(expression, shape, resultType, arguments[1:])
+				return d.preparedMergedExpressionMetadata(expression, shape, resultType, arguments[1:])
 			}
 		case "IFNULL", "COALESCE", "GREATEST", "LEAST":
-			return d.preparedMergedStringMetadata(expression, shape, resultType, arguments)
+			return d.preparedMergedExpressionMetadata(expression, shape, resultType, arguments)
 		case "NULLIF", "MIN", "MAX", "ANY_VALUE", "ABS":
 			if len(arguments) == 0 {
 				return nil
@@ -360,6 +360,41 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 		return d.preparedStringFunctionMetadata(expression, shape, resultType, name, arguments)
 	}
 	return nil
+}
+
+func (d *preparedSelectDescriber) preparedMergedExpressionMetadata(expression sqlparser.Expr, shape joinResultShape, resultType metadata.DataType, values []sqlparser.Expr) *metadata.ColumnMeta {
+	if resultType != metadata.TypeDecimal {
+		return d.preparedMergedStringMetadata(expression, shape, resultType, values)
+	}
+	maximumIntegerDigits, maximumScale := 0, 0
+	for _, value := range values {
+		if value == nil {
+			continue
+		}
+		if _, isNull := value.(*sqlparser.NullVal); isNull {
+			continue
+		}
+		valueType, err := d.expressionType(value, shape, nil, 0)
+		if err != nil || !isSetOperationNumeric(valueType) {
+			return nil
+		}
+		numericShape, known := d.preparedNumericExpressionShape(value, shape, 0)
+		if !known {
+			return nil
+		}
+		integerDigits := numericShape.precision - numericShape.scale
+		if integerDigits > maximumIntegerDigits {
+			maximumIntegerDigits = integerDigits
+		}
+		if numericShape.scale > maximumScale {
+			maximumScale = numericShape.scale
+		}
+	}
+	precision := maximumIntegerDigits + maximumScale
+	if precision <= 0 {
+		return nil
+	}
+	return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: preparedMinInt(precision, 65), Scale: maximumScale, IsNullable: true}
 }
 
 func (d *preparedSelectDescriber) preparedMergedStringMetadata(expression sqlparser.Expr, shape joinResultShape, resultType metadata.DataType, values []sqlparser.Expr) *metadata.ColumnMeta {
