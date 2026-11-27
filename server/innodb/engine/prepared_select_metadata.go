@@ -294,12 +294,12 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 		case sqlparser.IntVal:
 			if precision, unsigned, ok := preparedIntegerLiteralShape(node.Val); ok {
 				if resultType == metadata.TypeDecimal {
-					return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: precision, IsNullable: true}
+					return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: precision, IsNullable: false}
 				}
-				return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: preparedIntegerMetadataLength(unsigned), IsUnsigned: unsigned, IsNullable: true}
+				return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: preparedIntegerMetadataLength(unsigned), IsUnsigned: unsigned, IsNullable: false}
 			}
 		case sqlparser.StrVal:
-			column := &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: utf8.RuneCount(node.Val), IsNullable: true}
+			column := &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: utf8.RuneCount(node.Val), IsNullable: false}
 			if d != nil && d.ctx != nil && d.ctx.Session != nil {
 				if collation, ok := d.ctx.Session.GetParamByName("collation_connection").(string); ok {
 					if info, found := common.CollationMetadataByName(collation); found {
@@ -311,8 +311,11 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 		case sqlparser.FloatVal:
 			if resultType == metadata.TypeDecimal {
 				if precision, scale, ok := preparedExactDecimalLiteralShape(node.Val); ok {
-					return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: precision, Scale: scale, IsNullable: true}
+					return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: precision, Scale: scale, IsNullable: false}
 				}
+			}
+			if resultType == metadata.TypeDouble {
+				return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, IsNullable: false}
 			}
 		}
 	case *sqlparser.BinaryExpr:
