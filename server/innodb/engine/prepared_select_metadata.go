@@ -364,14 +364,18 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 			if len(arguments) > int(^uint(0)>>1)/4 {
 				return nil
 			}
+			nullable := false
+			for _, argument := range arguments {
+				nullable = nullable || !d.preparedExpressionDefinitelyNonNull(argument, shape)
+			}
 			if node.Charset != "" {
 				charset, collation, ok := common.DefaultCollationForCharset(node.Charset)
 				if !ok {
 					return nil
 				}
-				return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: metadata.TypeVarchar, Length: len(arguments) * 4, Charset: charset, Collation: collation, IsNullable: false}
+				return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: metadata.TypeVarchar, Length: len(arguments) * 4, Charset: charset, Collation: collation, IsNullable: nullable}
 			}
-			return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: metadata.TypeVarBinary, Length: len(arguments) * 4, Charset: "binary", Collation: "binary", IsNullable: false}
+			return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: metadata.TypeVarBinary, Length: len(arguments) * 4, Charset: "binary", Collation: "binary", IsNullable: nullable}
 		}
 		switch name {
 		case "DATE_ADD", "DATE_SUB", "ADDDATE", "SUBDATE":
@@ -1263,7 +1267,7 @@ func (d *preparedSelectDescriber) preparedStringFunctionMetadata(expression sqlp
 		} else if count > (1<<31)-1 {
 			count = (1 << 31) - 1
 		}
-		column := &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: int(count), IsNullable: true}
+		column := &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: int(count), IsNullable: !d.preparedExpressionDefinitelyNonNull(arguments[0], shape)}
 		if d != nil && d.ctx != nil && d.ctx.Session != nil {
 			if collation, ok := d.ctx.Session.GetParamByName("collation_connection").(string); ok {
 				if info, found := common.CollationMetadataByName(collation); found {
@@ -1291,7 +1295,11 @@ func (d *preparedSelectDescriber) preparedStringFunctionMetadata(expression sqlp
 		return nil
 	}
 	column := *first
-	column.Name, column.Type, column.IsNullable = sqlparser.String(expression), resultType, true
+	nullable := false
+	for _, argument := range arguments {
+		nullable = nullable || !d.preparedExpressionDefinitelyNonNull(argument, shape)
+	}
+	column.Name, column.Type, column.IsNullable = sqlparser.String(expression), resultType, nullable
 	switch name {
 	case "LOWER", "UPPER", "LCASE", "UCASE", "TRIM", "LTRIM", "RTRIM", "REVERSE", "SUBSTRING_INDEX":
 	case "SUBSTRING", "SUBSTR", "MID":
