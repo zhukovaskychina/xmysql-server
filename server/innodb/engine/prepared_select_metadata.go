@@ -387,7 +387,18 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 			if err != nil || name == "ABS" && !isSetOperationNumeric(argumentType) {
 				return nil
 			}
-			return d.preparedExpressionMetadata(arguments[0], shape, resultType)
+			column := d.preparedExpressionMetadata(arguments[0], shape, resultType)
+			if column == nil || name != "NULLIF" && name != "MIN" && name != "MAX" {
+				return column
+			}
+			copyColumn := *column
+			copyColumn.Name = sqlparser.String(expression)
+			copyColumn.EnumValues = append([]string(nil), column.EnumValues...)
+			// NULLIF can return NULL when its arguments compare equal. MIN/MAX
+			// can return NULL when the aggregate input is empty, even when their
+			// argument is statically non-null.
+			copyColumn.IsNullable = true
+			return &copyColumn
 		}
 		return d.preparedStringFunctionMetadata(expression, shape, resultType, name, arguments)
 	}
