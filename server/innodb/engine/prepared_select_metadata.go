@@ -206,6 +206,9 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 			return nil
 		}
 		column.Name, column.Type = sqlparser.String(expression), resultType
+		if strings.TrimSpace(node.Operator) == "-" {
+			column.IsUnsigned = false
+		}
 		return column
 	case *sqlparser.CollateExpr:
 		column := d.preparedExpressionMetadata(node.Expr, shape, resultType)
@@ -313,7 +316,7 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 		if !known {
 			return nil
 		}
-		return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: numericShape.precision, Scale: numericShape.scale, IsNullable: true}
+		return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: numericShape.precision, Scale: numericShape.scale, IsUnsigned: numericShape.unsigned, IsNullable: true}
 	case *sqlparser.FuncExpr:
 		name := strings.ToUpper(strings.Trim(node.Name.String(), "` "))
 		arguments := make([]sqlparser.Expr, 0, len(node.Exprs))
@@ -750,6 +753,7 @@ func preparedExactDecimalLiteralShape(value []byte) (precision, scale int, ok bo
 type preparedNumericShape struct {
 	precision int
 	scale     int
+	unsigned  bool
 }
 
 func (d *preparedSelectDescriber) preparedNumericExpressionShape(expression sqlparser.Expr, shape joinResultShape, depth int) (preparedNumericShape, bool) {
@@ -773,7 +777,11 @@ func (d *preparedSelectDescriber) preparedNumericExpressionShape(expression sqlp
 			if digits == "" {
 				return preparedNumericShape{}, false
 			}
-			return preparedNumericShape{precision: preparedMinInt(len(digits), 65)}, true
+			unsigned, known := preparedIntegerLiteralUnsigned(digits)
+			if !known {
+				return preparedNumericShape{}, false
+			}
+			return preparedNumericShape{precision: preparedMinInt(len(digits), 65), unsigned: unsigned}, true
 		case *sqlparser.ColName:
 			columns := shape.columns
 			if !node.Qualifier.IsEmpty() {
@@ -785,14 +793,18 @@ func (d *preparedSelectDescriber) preparedNumericExpressionShape(expression sqlp
 				}
 				unsigned := column.meta != nil && column.meta.IsUnsigned
 				precision, ok := preparedIntegerPrecision(typ, unsigned)
-				return preparedNumericShape{precision: precision}, ok
+				return preparedNumericShape{precision: precision, unsigned: unsigned}, ok
 			}
 		case *sqlparser.ParenExpr:
 			return d.preparedNumericExpressionShape(node.Expr, shape, depth+1)
 		case *sqlparser.UnaryExpr:
 			switch strings.ToLower(strings.TrimSpace(node.Operator)) {
 			case "+", "-":
-				return d.preparedNumericExpressionShape(node.Expr, shape, depth+1)
+				numericShape, known := d.preparedNumericExpressionShape(node.Expr, shape, depth+1)
+				if strings.TrimSpace(node.Operator) == "-" {
+					numericShape.unsigned = false
+				}
+				return numericShape, known
 			}
 		case *sqlparser.ConvertExpr:
 			if node.Type == nil {
@@ -803,15 +815,15 @@ func (d *preparedSelectDescriber) preparedNumericExpressionShape(expression sqlp
 			case "SIGNED", "SIGNED INTEGER":
 				return preparedNumericShape{precision: 19}, true
 			case "UNSIGNED", "UNSIGNED INTEGER":
-				return preparedNumericShape{precision: 20}, true
+				return preparedNumericShape{precision: 20, unsigned: true}, true
 			case "INT", "INTEGER":
-				return preparedNumericShape{precision: 10}, true
+				return preparedNumericShape{precision: 10, unsigned: unsigned}, true
 			case "BIGINT":
 				precision := 19
 				if unsigned || strings.EqualFold(strings.TrimSpace(node.Type.Type), "UNSIGNED") {
 					precision = 20
 				}
-				return preparedNumericShape{precision: precision}, true
+				return preparedNumericShape{precision: precision, unsigned: unsigned}, true
 			}
 		}
 		return preparedNumericShape{}, false
@@ -830,7 +842,7 @@ func (d *preparedSelectDescriber) preparedNumericExpressionShape(expression sqlp
 		for _, column := range columns {
 			if strings.EqualFold(column.name, node.Name.String()) && column.typ == metadata.TypeDecimal && column.meta != nil {
 				if column.meta.Length > 0 && column.meta.Scale >= 0 && column.meta.Scale <= 30 {
-					return preparedNumericShape{precision: column.meta.Length, scale: column.meta.Scale}, true
+					return preparedNumericShape{precision: column.meta.Length, scale: column.meta.Scale, unsigned: column.meta.IsUnsigned}, true
 				}
 				return preparedNumericShape{}, false
 			}
@@ -840,7 +852,11 @@ func (d *preparedSelectDescriber) preparedNumericExpressionShape(expression sqlp
 	case *sqlparser.UnaryExpr:
 		switch strings.ToLower(strings.TrimSpace(node.Operator)) {
 		case "+", "-":
-			return d.preparedNumericExpressionShape(node.Expr, shape, depth+1)
+			numericShape, known := d.preparedNumericExpressionShape(node.Expr, shape, depth+1)
+			if strings.TrimSpace(node.Operator) == "-" {
+				numericShape.unsigned = false
+			}
+			return numericShape, known
 		}
 	case *sqlparser.ConvertExpr:
 		if node.Type == nil || !strings.EqualFold(strings.TrimSpace(node.Type.Type), "DECIMAL") && !strings.EqualFold(strings.TrimSpace(node.Type.Type), "NUMERIC") {
@@ -861,7 +877,7 @@ func (d *preparedSelectDescriber) preparedNumericExpressionShape(expression sqlp
 			}
 			scale = parsed
 		}
-		return preparedNumericShape{precision: precision, scale: scale}, true
+		return preparedNumericShape{precision: precision, scale: scale, unsigned: strings.Contains(strings.ToUpper(node.Type.Type), "UNSIGNED")}, true
 	case *sqlparser.BinaryExpr:
 		left, leftKnown := d.preparedNumericExpressionShape(node.Left, shape, depth+1)
 		right, rightKnown := d.preparedNumericExpressionShape(node.Right, shape, depth+1)
@@ -873,15 +889,19 @@ func (d *preparedSelectDescriber) preparedNumericExpressionShape(expression sqlp
 		case "+", "-", "%":
 			scale := maxInt(left.scale, right.scale)
 			if operator == "%" {
-				return preparedNumericShape{precision: preparedMinInt(maxInt(left.precision, right.precision), 65), scale: scale}, true
+				return preparedNumericShape{precision: preparedMinInt(maxInt(left.precision, right.precision), 65), scale: scale, unsigned: left.unsigned}, true
 			}
 			precision := maxInt(left.precision-left.scale, right.precision-right.scale) + 1 + scale
-			return preparedNumericShape{precision: preparedMinInt(precision, 65), scale: scale}, true
+			unsigned := left.unsigned && right.unsigned
+			if operator == "-" && d.noUnsignedSubtractionMode() {
+				unsigned = false
+			}
+			return preparedNumericShape{precision: preparedMinInt(precision, 65), scale: scale, unsigned: unsigned}, true
 		case "*":
-			return preparedNumericShape{precision: preparedMinInt(left.precision+right.precision, 65), scale: preparedCapDecimalScale(left.scale + right.scale)}, true
+			return preparedNumericShape{precision: preparedMinInt(left.precision+right.precision, 65), scale: preparedCapDecimalScale(left.scale + right.scale), unsigned: left.unsigned && right.unsigned}, true
 		case "/":
 			increment := d.divisionPrecisionIncrement()
-			return preparedNumericShape{precision: preparedMinInt(left.precision+right.scale+increment, 65), scale: preparedCapDecimalScale(left.scale + increment)}, true
+			return preparedNumericShape{precision: preparedMinInt(left.precision+right.scale+increment, 65), scale: preparedCapDecimalScale(left.scale + increment), unsigned: left.unsigned && right.unsigned}, true
 		}
 	}
 	return preparedNumericShape{}, false
@@ -917,6 +937,27 @@ func preparedMinInt(value, maximum int) int {
 		return maximum
 	}
 	return value
+}
+
+func preparedIntegerLiteralUnsigned(digits string) (bool, bool) {
+	value, err := strconv.ParseUint(digits, 10, 64)
+	if err != nil {
+		return false, false
+	}
+	return value > uint64(1<<63-1), true
+}
+
+func (d *preparedSelectDescriber) noUnsignedSubtractionMode() bool {
+	if d == nil || d.ctx == nil || d.ctx.Session == nil {
+		return false
+	}
+	mode, _ := d.ctx.Session.GetParamByName("sql_mode").(string)
+	for _, name := range strings.Split(mode, ",") {
+		if strings.EqualFold(strings.TrimSpace(name), "NO_UNSIGNED_SUBTRACTION") {
+			return true
+		}
+	}
+	return false
 }
 
 func (d *preparedSelectDescriber) divisionPrecisionIncrement() int {
