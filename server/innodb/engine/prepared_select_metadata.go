@@ -285,7 +285,42 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 		}
 		return column
 	case *sqlparser.GroupConcatExpr:
-		return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: metadata.TypeLongText, IsNullable: true}
+		column := &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, IsNullable: true}
+		if isSetOperationBinary(resultType) {
+			column.Charset, column.Collation = "binary", "binary"
+			return column
+		}
+		charset, collation := "", ""
+		for _, selectExpression := range node.Exprs {
+			aliased, ok := selectExpression.(*sqlparser.AliasedExpr)
+			if !ok || aliased == nil || aliased.Expr == nil {
+				return column
+			}
+			argumentType, err := d.expressionType(aliased.Expr, shape, nil, 0)
+			if err != nil || argumentType == metadata.TypeNull || isSetOperationBinary(argumentType) {
+				continue
+			}
+			argument := d.preparedExpressionMetadata(aliased.Expr, shape, argumentType)
+			if argument == nil || strings.TrimSpace(argument.Charset) == "" || strings.TrimSpace(argument.Collation) == "" {
+				continue
+			}
+			if charset == "" {
+				charset, collation = argument.Charset, argument.Collation
+				continue
+			}
+			if !strings.EqualFold(charset, argument.Charset) || !strings.EqualFold(collation, argument.Collation) {
+				return column
+			}
+		}
+		if charset == "" && d != nil && d.ctx != nil && d.ctx.Session != nil {
+			if connectionCollation, ok := d.ctx.Session.GetParamByName("collation_connection").(string); ok {
+				if info, found := common.CollationMetadataByName(connectionCollation); found {
+					charset, collation = info.Charset, info.Name
+				}
+			}
+		}
+		column.Charset, column.Collation = charset, collation
+		return column
 	case *sqlparser.CaseExpr:
 		values := make([]sqlparser.Expr, 0, len(node.Whens)+1)
 		for _, when := range node.Whens {
@@ -1993,6 +2028,19 @@ func (d *preparedSelectDescriber) expressionType(expression sqlparser.Expr, shap
 	case *sqlparser.MatchExpr:
 		return metadata.TypeDouble, nil
 	case *sqlparser.GroupConcatExpr:
+		for _, selectExpression := range expr.Exprs {
+			aliased, ok := selectExpression.(*sqlparser.AliasedExpr)
+			if !ok || aliased == nil || aliased.Expr == nil {
+				return "", fmt.Errorf("prepared GROUP_CONCAT has an unsupported argument shape")
+			}
+			argumentType, err := d.expressionType(aliased.Expr, shape, ctes, depth+1)
+			if err != nil {
+				return "", err
+			}
+			if isSetOperationBinary(argumentType) {
+				return metadata.TypeLongBlob, nil
+			}
+		}
 		return metadata.TypeLongText, nil
 	case *sqlparser.SubstrExpr:
 		source, err := d.expressionType(expr.Name, shape, ctes, depth+1)
