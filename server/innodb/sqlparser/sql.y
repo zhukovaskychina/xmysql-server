@@ -2312,6 +2312,13 @@ function_call_generic:
   {
     $$ = &FuncExpr{Name: $1, Distinct: true, Exprs: $4}
   }
+| sql_id openb select_expression_list USING charset closeb
+  {
+    if !$1.EqualString("char") {
+      yylex.Error("USING charset is only supported for CHAR")
+    }
+    $$ = &FuncExpr{Name: $1, Exprs: $3, Charset: $5}
+  }
 | table_id '.' reserved_sql_id openb select_expression_list_opt closeb
   {
     $$ = &FuncExpr{Qualifier: $1, Name: $3, Exprs: $5}

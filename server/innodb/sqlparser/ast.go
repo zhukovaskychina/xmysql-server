@@ -3855,6 +3855,7 @@ type FuncExpr struct {
 	Name      ColIdent
 	Distinct  bool
 	Exprs     SelectExprs
+	Charset   string
 	Over      *WindowSpec
 }
 
@@ -3902,7 +3903,11 @@ func (node *FuncExpr) Format(buf *TrackedBuffer) {
 	// Function names should not be back-quoted even
 	// if they match a reserved word. So, print the
 	// name as is.
-	buf.Myprintf("%s(%s%v)", node.Name.String(), distinct, node.Exprs)
+	buf.Myprintf("%s(%s%v", node.Name.String(), distinct, node.Exprs)
+	if node.Charset != "" {
+		buf.Myprintf(" using %s", node.Charset)
+	}
+	buf.Myprintf(")")
 	if node.Over != nil {
 		buf.Myprintf(" over %v", node.Over)
 	}

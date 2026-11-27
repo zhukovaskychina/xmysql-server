@@ -364,6 +364,13 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 			if len(arguments) > int(^uint(0)>>1)/4 {
 				return nil
 			}
+			if node.Charset != "" {
+				charset, collation, ok := common.DefaultCollationForCharset(node.Charset)
+				if !ok {
+					return nil
+				}
+				return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: metadata.TypeVarchar, Length: len(arguments) * 4, Charset: charset, Collation: collation, IsNullable: false}
+			}
 			return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: metadata.TypeVarBinary, Length: len(arguments) * 4, Charset: "binary", Collation: "binary", IsNullable: false}
 		}
 		switch name {
@@ -2189,6 +2196,12 @@ func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.
 		return metadata.TypeVarchar, true, nil
 	}
 	if name == "CHAR" {
+		if function.Charset != "" {
+			if _, _, ok := common.DefaultCollationForCharset(function.Charset); !ok {
+				return "", true, fmt.Errorf("unknown character set: %s", function.Charset)
+			}
+			return metadata.TypeVarchar, true, nil
+		}
 		return metadata.TypeVarBinary, true, nil
 	}
 	switch name {

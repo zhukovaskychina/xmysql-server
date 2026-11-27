@@ -340,6 +340,34 @@ func CollationMetadataByName(name string) (CollationMetadata, bool) {
 	return CollationMetadata{}, false
 }
 
+// DefaultCollationForCharset returns the catalog charset name and its default
+// collation. utf8mb3 is kept as a metadata alias of the utf8 catalog entry.
+func DefaultCollationForCharset(name string) (charsetName, collationName string, ok bool) {
+	name = strings.ToLower(strings.TrimSpace(name))
+	alias := name == utf8MB3CharsetAlias
+	if alias {
+		name = UTF8Charset
+	}
+	for _, charset := range charsetCatalog {
+		if charset.Name != name {
+			continue
+		}
+		id := charset.MetadataCollationID
+		if id == 0 {
+			id = charset.ProtocolCollationID
+		}
+		collation := collationByID(id)
+		charsetName = charset.Name
+		collationName = collation.Name
+		if alias {
+			charsetName = utf8MB3CharsetAlias
+			collationName = strings.Replace(collationName, UTF8Charset+"_", utf8MB3CharsetAlias+"_", 1)
+		}
+		return charsetName, collationName, true
+	}
+	return "", "", false
+}
+
 func collationByID(id uint8) CollationMetadata {
 	for _, collation := range collationCatalog {
 		if collation.ID == id {
