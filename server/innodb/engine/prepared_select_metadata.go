@@ -1310,10 +1310,9 @@ func (d *preparedSelectDescriber) preparedStringFunctionMetadata(expression sqlp
 			return nil
 		}
 		if count, known := preparedStaticInteger(arguments[1]); known {
-			if count <= 0 {
-				return nil
-			}
-			if count < int64(column.Length) {
+			if count < 0 {
+				column.Length = 0
+			} else if count <= (1<<31)-1 && count < int64(column.Length) {
 				column.Length = int(count)
 			}
 		}
