@@ -366,6 +366,8 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 				return nil
 			}
 			return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, IsNullable: false}
+		case "ROUND", "TRUNCATE", "CEIL", "CEILING", "FLOOR":
+			return d.preparedNumericRoundingMetadata(expression, shape, resultType, name, arguments)
 		case "IF":
 			if len(arguments) == 3 {
 				branches := arguments[1:]
@@ -483,6 +485,95 @@ func (d *preparedSelectDescriber) preparedConditionalExpressionMetadata(expressi
 	return column
 }
 
+func (d *preparedSelectDescriber) preparedNumericRoundingMetadata(expression sqlparser.Expr, shape joinResultShape, resultType metadata.DataType, name string, arguments []sqlparser.Expr) *metadata.ColumnMeta {
+	if len(arguments) == 0 {
+		return nil
+	}
+	nullable := false
+	for _, argument := range arguments {
+		nullable = nullable || !d.preparedExpressionDefinitelyNonNull(argument, shape)
+	}
+	column := d.preparedExpressionMetadata(arguments[0], shape, resultType)
+	if column == nil {
+		column = &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType}
+	}
+	column.Name, column.Type, column.IsNullable = sqlparser.String(expression), resultType, nullable
+	if resultType == metadata.TypeDouble {
+		column.Length, column.Scale, column.IsUnsigned = 0, 0, false
+		column.Charset, column.Collation, column.EnumValues = "", "", nil
+		return column
+	}
+
+	argumentType, err := d.expressionType(arguments[0], shape, nil, 0)
+	if err != nil {
+		return column
+	}
+	if resultType == metadata.TypeDecimal && argumentType == metadata.TypeDecimal {
+		numericShape, known := d.preparedNumericExpressionShape(arguments[0], shape, 0)
+		if !known {
+			return column
+		}
+		decimals := int64(0)
+		if len(arguments) > 1 {
+			if staticDecimals, known := preparedStaticInteger(arguments[1]); known {
+				decimals = staticDecimals
+			} else {
+				decimals = int64(numericShape.scale)
+			}
+		}
+		if decimals > 30 {
+			decimals = 30
+		} else if decimals < -30 {
+			decimals = -30
+		}
+		precision, scale := numericShape.precision, numericShape.scale
+		if decimals <= 0 {
+			precision -= scale
+			if name == "ROUND" || name != "TRUNCATE" && scale != 0 {
+				precision++
+			}
+			scale = 0
+		} else if decimals < int64(scale) {
+			precision -= scale - int(decimals)
+			if name != "TRUNCATE" {
+				precision++
+			}
+			scale = int(decimals)
+		}
+		if precision < 1 {
+			precision = 1
+		}
+		column.Length, column.Scale, column.IsUnsigned = preparedMinInt(precision, 65), scale, false
+		return column
+	}
+
+	if (name == "CEIL" || name == "CEILING" || name == "FLOOR") && argumentType == metadata.TypeDecimal {
+		numericShape, known := d.preparedNumericExpressionShape(arguments[0], shape, 0)
+		if !known {
+			return column
+		}
+		precision := numericShape.precision - numericShape.scale
+		if numericShape.scale != 0 {
+			precision++
+		}
+		if precision <= 18 {
+			column.Type = metadata.TypeBigInt
+			column.Length, column.Scale = preparedIntegerMetadataLength(false), 0
+		} else {
+			column.Type = metadata.TypeDecimal
+			column.Length, column.Scale = preparedMinInt(precision, 65), 0
+		}
+		column.IsUnsigned = false
+		return column
+	}
+
+	if resultType == metadata.TypeBigInt {
+		column.Length = preparedIntegerMetadataLength(column.IsUnsigned)
+		column.Scale = 0
+	}
+	return column
+}
+
 // preparedExpressionDefinitelyNonNull is deliberately proof-based: unknown
 // expressions remain nullable instead of making PREPARE metadata optimistic.
 func (d *preparedSelectDescriber) preparedExpressionDefinitelyNonNull(expression sqlparser.Expr, shape joinResultShape) bool {
@@ -543,6 +634,16 @@ func (d *preparedSelectDescriber) preparedExpressionDefinitelyNonNull(expression
 			return true
 		case "NULLIF":
 			return false
+		case "ROUND", "TRUNCATE", "CEIL", "CEILING", "FLOOR":
+			if len(arguments) == 0 {
+				return false
+			}
+			for _, argument := range arguments {
+				if !d.preparedExpressionDefinitelyNonNull(argument, shape) {
+					return false
+				}
+			}
+			return true
 		}
 	}
 	resultType, err := d.expressionType(expression, shape, nil, 0)
@@ -1691,6 +1792,9 @@ func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.
 		}
 		return typ, true, err
 	case "ROUND", "TRUNCATE":
+		if name == "ROUND" && (len(arguments) < 1 || len(arguments) > 2) || name == "TRUNCATE" && len(arguments) != 2 {
+			return "", true, fmt.Errorf("prepared function %s has an invalid argument count", name)
+		}
 		typ, err := argumentType(0)
 		if err != nil {
 			return "", true, err
@@ -1704,17 +1808,30 @@ func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.
 			return metadata.TypeDouble, true, nil
 		}
 	case "CEIL", "CEILING", "FLOOR":
+		if len(arguments) != 1 {
+			return "", true, fmt.Errorf("prepared function %s requires 1 argument", name)
+		}
 		typ, err := argumentType(0)
 		if err != nil {
 			return "", true, err
 		}
-		if !isSetOperationNumeric(typ) {
-			return metadata.TypeDouble, true, nil
+		if typ == metadata.TypeDecimal {
+			numericShape, known := d.preparedNumericExpressionShape(arguments[0], shape, depth+1)
+			if known {
+				precision := numericShape.precision - numericShape.scale
+				if numericShape.scale != 0 {
+					precision++
+				}
+				if precision <= 18 {
+					return metadata.TypeBigInt, true, nil
+				}
+			}
+			return metadata.TypeDecimal, true, nil
 		}
 		if _, integer := setOperationIntegerRank(typ); integer {
 			return metadata.TypeBigInt, true, nil
 		}
-		return typ, true, nil
+		return metadata.TypeDouble, true, nil
 	case "SQRT", "POWER", "POW", "EXP", "LN", "LOG", "LOG2", "LOG10", "SIN", "COS", "TAN", "COT", "ASIN", "ACOS", "ATAN", "ATAN2", "RADIANS", "DEGREES", "PI", "RAND":
 		return metadata.TypeDouble, true, nil
 	case "SUM", "MIN", "MAX", "ANY_VALUE":
