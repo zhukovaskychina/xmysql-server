@@ -178,6 +178,12 @@ func (d *preparedSelectDescriber) projection(node *sqlparser.Select, shape joinR
 }
 
 func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparser.Expr, shape joinResultShape, resultType metadata.DataType) *metadata.ColumnMeta {
+	if booleanSQLExpression(expression) {
+		return &metadata.ColumnMeta{
+			Name: sqlparser.String(expression), Type: resultType,
+			IsNullable: preparedBooleanExpressionNullable(expression),
+		}
+	}
 	switch node := expression.(type) {
 	case *sqlparser.ColName:
 		candidates := shape.columns
@@ -417,6 +423,25 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 		return d.preparedStringFunctionMetadata(expression, shape, resultType, name, arguments)
 	}
 	return nil
+}
+
+func preparedBooleanExpressionNullable(expression sqlparser.Expr) bool {
+	switch node := expression.(type) {
+	case *sqlparser.IsExpr, *sqlparser.ExistsExpr, sqlparser.BoolVal:
+		return false
+	case *sqlparser.ComparisonExpr:
+		return !strings.EqualFold(strings.TrimSpace(node.Operator), sqlparser.NullSafeEqualStr)
+	case *sqlparser.ParenExpr:
+		return preparedBooleanExpressionNullable(node.Expr)
+	case *sqlparser.NotExpr:
+		return preparedBooleanExpressionNullable(node.Expr)
+	case *sqlparser.AndExpr:
+		return preparedBooleanExpressionNullable(node.Left) || preparedBooleanExpressionNullable(node.Right)
+	case *sqlparser.OrExpr:
+		return preparedBooleanExpressionNullable(node.Left) || preparedBooleanExpressionNullable(node.Right)
+	default:
+		return true
+	}
 }
 
 func (d *preparedSelectDescriber) preparedMergedExpressionMetadata(expression sqlparser.Expr, shape joinResultShape, resultType metadata.DataType, values []sqlparser.Expr) *metadata.ColumnMeta {
