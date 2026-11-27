@@ -2188,11 +2188,6 @@ func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.
 			return "", true, fmt.Errorf("prepared function %s requires arguments", name)
 		}
 		binaryArguments := []int{0}
-		if name == "TRIM" {
-			for index := 1; index < len(arguments); index++ {
-				binaryArguments = append(binaryArguments, index)
-			}
-		}
 		for _, index := range binaryArguments {
 			if index >= len(arguments) {
 				continue

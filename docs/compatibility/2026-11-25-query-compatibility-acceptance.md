@@ -208,7 +208,6 @@ Fresh complete package run: engine passed in 550.711s (1970 top-level passes, 2 
 
 The evidence proves this stopped-engine CONTENT backup/restore workflow and restored dependency behavior. It does not establish online backup consistency, interrupted transfer/restore recovery, logical dump/PITR integration, vector-index backup restoration, all media families or general backup/recovery completion. Stage 1's combined catalog/recovery work item and the overall AI/multimodal goal remain open.
 
-
 ## 2026-11-26: model-free JOIN typing and schema-only SELECT preparation
 
 Fixed two distinct sources of unintended inference:
@@ -450,5 +449,6 @@ This does not yet provide explicit controlled execution, durable request audit r
 
 2026-11-27 PREPARE REPEAT-width follow-up: static zero count yields zero-width metadata; positive counts are capped at `INT_MAX32` before width multiplication, matching MySQL 8.4.11. Negative constants follow its unsigned-count conversion for type resolution; host-width overflow remains unspecified. Build-only; no tests or live MySQL comparison were run at the user's direction. Reference: [MySQL 8.4.11 `Item_func_repeat::resolve_type`](https://raw.githubusercontent.com/mysql/mysql-server/mysql-8.4.11/sql/item_strfunc.cc).
 
-
 2026-11-27 PREPARE LPAD/RPAD metadata follow-up: result family and charset/collation now follow only the first argument; binary padding no longer forces VARBINARY, and differing pad charset metadata does not block a result description. Static target lengths use MySQL's `INT_MAX32` cap. Build-only; no tests or live MySQL comparison were run at the user's direction. Reference: [MySQL 8.4.11 `Item_func_lpad::resolve_type`](https://raw.githubusercontent.com/mysql/mysql-server/mysql-8.4.11/sql/item_strfunc.cc).
+
+2026-11-27 PREPARE TRIM metadata follow-up: `TRIM()` now reports result family and character set from the trimmed string argument only; a binary removal substring no longer changes the output to VARBINARY. Build-only; no tests or live MySQL comparison were run at the user's direction. Reference: [MySQL 8.4.11 `Item_func_trim::resolve_type`](https://raw.githubusercontent.com/mysql/mysql-server/mysql-8.4.11/sql/item_strfunc.cc).
