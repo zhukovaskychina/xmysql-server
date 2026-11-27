@@ -1241,7 +1241,13 @@ func (d *preparedSelectDescriber) preparedConcatMetadata(expression sqlparser.Ex
 		}
 		length += separatorLength * separatorCount
 	}
-	column := &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: length, IsNullable: true}
+	nullable := !d.preparedExpressionDefinitelyNonNull(arguments[0], shape)
+	if name == "CONCAT" {
+		for _, argument := range arguments[1:] {
+			nullable = nullable || !d.preparedExpressionDefinitelyNonNull(argument, shape)
+		}
+	}
+	column := &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: length, IsNullable: nullable}
 	if resultType == metadata.TypeVarBinary {
 		column.Charset, column.Collation = "binary", "binary"
 	} else {
