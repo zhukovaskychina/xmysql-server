@@ -1001,7 +1001,7 @@ func (f *Function) Eval(ctx *EvalContext) (interface{}, error) {
 		if len(args) != 3 || args[0] == nil || args[1] == nil || args[2] == nil {
 			return nil, nil
 		}
-		unit := strings.ToUpper(strings.TrimSpace(compatString(args[0])))
+		unit := normalizeCompatTimestampUnit(compatString(args[0]))
 		amount, err := integerArg(args[1])
 		if err != nil {
 			return nil, err
@@ -1723,7 +1723,12 @@ func parseCompatInterval(value interface{}) (int64, string, error) {
 	if err != nil {
 		return 0, "", fmt.Errorf("invalid interval amount %q", parts[0])
 	}
-	return amount, strings.ToUpper(parts[1]), nil
+	return amount, normalizeCompatTimestampUnit(parts[1]), nil
+}
+
+func normalizeCompatTimestampUnit(unit string) string {
+	unit = strings.ToUpper(strings.TrimSpace(unit))
+	return strings.TrimPrefix(unit, "SQL_TSI_")
 }
 
 func formatCompatDateResult(value interface{}, parsed time.Time) string {
@@ -1938,7 +1943,7 @@ func evalTimestampDiff(args []interface{}) (interface{}, error) {
 	if len(args) != 3 || args[0] == nil || args[1] == nil || args[2] == nil {
 		return nil, nil
 	}
-	unit := strings.ToUpper(strings.TrimSpace(compatString(args[0])))
+	unit := normalizeCompatTimestampUnit(compatString(args[0]))
 	start, err := parseCompatTime(args[1])
 	if err != nil {
 		return nil, err

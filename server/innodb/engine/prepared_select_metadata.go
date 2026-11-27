@@ -375,6 +375,12 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 			return d.preparedTimeFunctionMetadata(expression, shape, resultType, name, arguments)
 		case "UNIX_TIMESTAMP":
 			return d.preparedUnixTimestampMetadata(expression, shape, resultType, arguments)
+		case "TIMESTAMPADD":
+			return d.preparedTimestampAddMetadata(expression, shape, resultType, arguments)
+		case "TIMESTAMPDIFF":
+			if len(arguments) == 3 && resultType == metadata.TypeBigInt {
+				return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: preparedIntegerMetadataLength(false), IsNullable: true}
+			}
 		case "NOW", "CURRENT_TIMESTAMP", "LOCALTIMESTAMP", "SYSDATE", "UTC_TIMESTAMP", "CURTIME", "CURRENT_TIME", "LOCALTIME", "UTC_TIME", "CURDATE", "CURRENT_DATE", "UTC_DATE":
 			return preparedCurrentTemporalMetadata(expression, resultType, arguments)
 		case "COUNT":
@@ -934,6 +940,64 @@ func (d *preparedSelectDescriber) preparedUnixTimestampMetadata(expression sqlpa
 		return nil
 	}
 	return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: preparedIntegerMetadataLength(false), IsNullable: true}
+}
+
+func (d *preparedSelectDescriber) preparedTimestampAddMetadata(expression sqlparser.Expr, shape joinResultShape, resultType metadata.DataType, arguments []sqlparser.Expr) *metadata.ColumnMeta {
+	if len(arguments) != 3 {
+		return nil
+	}
+	unit, known := preparedTimestampIntervalUnit(arguments[0])
+	if !known {
+		return nil
+	}
+	inputType, err := d.expressionType(arguments[2], shape, nil, 0)
+	if err != nil {
+		if parameter, isParameter := arguments[2].(*sqlparser.SQLVal); !isParameter || parameter.Type != sqlparser.ValArg {
+			return nil
+		}
+		inputType = mysqlDateArithmeticParameterType(unit)
+	}
+	precision := 0
+	if input := d.preparedExpressionMetadata(arguments[2], shape, inputType); input != nil {
+		precision = min(max(input.Scale, 0), 6)
+	}
+	if unit == "MICROSECOND" {
+		precision = max(precision, 6)
+	}
+	length := 26
+	scale := 0
+	switch resultType {
+	case metadata.TypeDate:
+		length, precision = 10, 0
+	case metadata.TypeDateTime:
+		length = 19
+		if precision > 0 {
+			length += precision + 1
+			scale = precision
+		}
+	case metadata.TypeTime:
+		length = 8
+		if precision > 0 {
+			length += precision + 1
+			scale = precision
+		}
+	case metadata.TypeVarchar:
+		precision = 0
+	default:
+		return nil
+	}
+	return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: length, Scale: scale, IsNullable: true}
+}
+
+func preparedTimestampIntervalUnit(expression sqlparser.Expr) (string, bool) {
+	unit := strings.ToUpper(strings.Trim(strings.TrimSpace(sqlparser.String(expression)), "`'\" "))
+	unit = strings.TrimPrefix(unit, "SQL_TSI_")
+	switch unit {
+	case "MICROSECOND", "SECOND", "MINUTE", "HOUR", "DAY", "WEEK", "MONTH", "QUARTER", "YEAR":
+		return unit, true
+	default:
+		return "", false
+	}
 }
 
 func (d *preparedSelectDescriber) preparedDateArithmeticIntervalPrecision(interval *sqlparser.IntervalExpr, shape joinResultShape) int {
@@ -2314,6 +2378,30 @@ func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.
 			}
 		}
 		return metadata.TypeBigInt, true, nil
+	case "TIMESTAMPDIFF":
+		if len(arguments) != 3 {
+			return "", true, fmt.Errorf("prepared function TIMESTAMPDIFF requires 3 arguments")
+		}
+		if _, known := preparedTimestampIntervalUnit(arguments[0]); !known {
+			return "", true, fmt.Errorf("prepared function TIMESTAMPDIFF has an unsupported interval unit")
+		}
+		return metadata.TypeBigInt, true, nil
+	case "TIMESTAMPADD":
+		if len(arguments) != 3 {
+			return "", true, fmt.Errorf("prepared function TIMESTAMPADD requires 3 arguments")
+		}
+		unit, known := preparedTimestampIntervalUnit(arguments[0])
+		if !known {
+			return "", true, fmt.Errorf("prepared function TIMESTAMPADD has an unsupported interval unit")
+		}
+		dateType, err := argumentType(2)
+		if err != nil {
+			if parameter, ok := arguments[2].(*sqlparser.SQLVal); !ok || parameter.Type != sqlparser.ValArg {
+				return "", true, err
+			}
+			dateType = mysqlDateArithmeticParameterType(unit)
+		}
+		return mysqlDateArithmeticResultType(dateType, unit), true, nil
 	case "STR_TO_DATE":
 		if len(arguments) != 2 {
 			return "", true, fmt.Errorf("prepared function STR_TO_DATE requires 2 arguments")

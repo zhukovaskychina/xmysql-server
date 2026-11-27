@@ -4019,7 +4019,7 @@ func evaluateExpressionWithRow(expr sqlparser.Expr, values map[string]interface{
 				args = append(args, sqlparser.String(interval))
 				continue
 			}
-			if functionName == "TIMESTAMPDIFF" && index == 0 {
+			if (functionName == "TIMESTAMPDIFF" || functionName == "TIMESTAMPADD") && index == 0 {
 				if unit, ok := aliased.Expr.(*sqlparser.ColName); ok {
 					args = append(args, unit.Name.String())
 					continue
