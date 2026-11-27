@@ -635,6 +635,28 @@ func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.
 		}
 		return d.expressionType(arguments[index], shape, ctes, depth+1)
 	}
+	if name == "CONCAT" || name == "CONCAT_WS" {
+		minimumArguments := 1
+		if name == "CONCAT_WS" {
+			minimumArguments = 2
+		}
+		if len(arguments) < minimumArguments {
+			return "", true, fmt.Errorf("prepared function %s requires at least %d arguments", name, minimumArguments)
+		}
+		for index := range arguments {
+			if _, isNull := arguments[index].(*sqlparser.NullVal); isNull {
+				continue
+			}
+			typ, err := argumentType(index)
+			if err != nil {
+				return "", true, err
+			}
+			if isSetOperationBinary(typ) {
+				return metadata.TypeVarBinary, true, nil
+			}
+		}
+		return metadata.TypeVarchar, true, nil
+	}
 	if name == "DATE_ADD" || name == "DATE_SUB" || name == "ADDDATE" || name == "SUBDATE" {
 		if len(arguments) != 2 {
 			return "", true, fmt.Errorf("prepared function %s requires 2 arguments", name)
@@ -773,7 +795,7 @@ func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.
 		return metadata.TypeBigInt, true, nil
 	case "GROUP_CONCAT":
 		return metadata.TypeLongText, true, nil
-	case "CONCAT", "CONCAT_WS", "SUBSTRING", "SUBSTR", "SUBSTRING_INDEX", "LEFT", "RIGHT", "REPLACE", "REVERSE", "LOWER", "UPPER", "TRIM", "LTRIM", "RTRIM", "LPAD", "RPAD", "REPEAT", "SPACE", "FORMAT", "QUOTE", "HEX", "BIN", "OCT", "CONV", "SOUNDEX", "MD5", "SHA", "SHA1", "SHA2", "UUID", "BIN_TO_UUID", "INET_NTOA", "INET6_NTOA", "DATE_FORMAT", "TIME_FORMAT", "GET_FORMAT", "DAYNAME", "MONTHNAME":
+	case "SUBSTRING", "SUBSTR", "SUBSTRING_INDEX", "LEFT", "RIGHT", "REPLACE", "REVERSE", "LOWER", "UPPER", "TRIM", "LTRIM", "RTRIM", "LPAD", "RPAD", "REPEAT", "SPACE", "FORMAT", "QUOTE", "HEX", "BIN", "OCT", "CONV", "SOUNDEX", "MD5", "SHA", "SHA1", "SHA2", "UUID", "BIN_TO_UUID", "INET_NTOA", "INET6_NTOA", "DATE_FORMAT", "TIME_FORMAT", "GET_FORMAT", "DAYNAME", "MONTHNAME":
 		return metadata.TypeVarchar, true, nil
 	case "INET6_ATON", "UUID_TO_BIN", "RANDOM_BYTES":
 		return metadata.TypeVarBinary, true, nil
