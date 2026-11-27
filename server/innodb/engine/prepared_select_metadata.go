@@ -367,6 +367,8 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 			return d.preparedAddTimeMetadata(expression, shape, resultType, name, arguments)
 		case "CONVERT_TZ":
 			return d.preparedConvertTZMetadata(expression, shape, resultType, arguments)
+		case "FROM_UNIXTIME":
+			return d.preparedFromUnixTimeMetadata(expression, shape, resultType, arguments)
 		case "NOW", "CURRENT_TIMESTAMP", "LOCALTIMESTAMP", "SYSDATE", "UTC_TIMESTAMP", "CURTIME", "CURRENT_TIME", "LOCALTIME", "UTC_TIME", "CURDATE", "CURRENT_DATE", "UTC_DATE":
 			return preparedCurrentTemporalMetadata(expression, resultType, arguments)
 		case "COUNT":
@@ -769,6 +771,24 @@ func (d *preparedSelectDescriber) preparedConvertTZMetadata(expression sqlparser
 	precision := 0
 	if input := d.preparedExpressionMetadata(arguments[0], shape, inputType); input != nil {
 		precision = min(max(input.Scale, 0), 6)
+	}
+	length := 19
+	if precision > 0 {
+		length += precision + 1
+	}
+	return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: length, Scale: precision, IsNullable: true}
+}
+
+func (d *preparedSelectDescriber) preparedFromUnixTimeMetadata(expression sqlparser.Expr, shape joinResultShape, resultType metadata.DataType, arguments []sqlparser.Expr) *metadata.ColumnMeta {
+	if len(arguments) == 2 && resultType == metadata.TypeVarchar {
+		return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, IsNullable: true}
+	}
+	if len(arguments) != 1 || resultType != metadata.TypeDateTime {
+		return nil
+	}
+	precision := 0
+	if numericShape, known := d.preparedNumericExpressionShape(arguments[0], shape, 0); known {
+		precision = min(max(numericShape.scale, 0), 6)
 	}
 	length := 19
 	if precision > 0 {
@@ -2125,7 +2145,15 @@ func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.
 			return "", true, fmt.Errorf("prepared function CONVERT_TZ requires 3 arguments")
 		}
 		return metadata.TypeDateTime, true, nil
-	case "STR_TO_DATE", "FROM_UNIXTIME":
+	case "FROM_UNIXTIME":
+		if len(arguments) == 1 {
+			return metadata.TypeDateTime, true, nil
+		}
+		if len(arguments) == 2 {
+			return metadata.TypeVarchar, true, nil
+		}
+		return "", true, fmt.Errorf("prepared function FROM_UNIXTIME requires 1 or 2 arguments")
+	case "STR_TO_DATE":
 		return metadata.TypeDateTime, true, nil
 	case "CURRENT_DATE", "CURDATE", "UTC_DATE":
 		if len(arguments) != 0 {
