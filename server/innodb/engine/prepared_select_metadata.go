@@ -364,18 +364,14 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 			if len(arguments) > int(^uint(0)>>1)/4 {
 				return nil
 			}
-			nullable := false
-			for _, argument := range arguments {
-				nullable = nullable || !d.preparedExpressionDefinitelyNonNull(argument, shape)
-			}
 			if node.Charset != "" {
 				charset, collation, ok := common.DefaultCollationForCharset(node.Charset)
 				if !ok {
 					return nil
 				}
-				return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: metadata.TypeVarchar, Length: len(arguments) * 4, Charset: charset, Collation: collation, IsNullable: nullable}
+				return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: metadata.TypeVarchar, Length: len(arguments) * 4, Charset: charset, Collation: collation, IsNullable: false}
 			}
-			return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: metadata.TypeVarBinary, Length: len(arguments) * 4, Charset: "binary", Collation: "binary", IsNullable: nullable}
+			return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: metadata.TypeVarBinary, Length: len(arguments) * 4, Charset: "binary", Collation: "binary", IsNullable: false}
 		}
 		switch name {
 		case "DATE_ADD", "DATE_SUB", "ADDDATE", "SUBDATE":
@@ -1203,6 +1199,10 @@ func (d *preparedSelectDescriber) preparedConcatMetadata(expression sqlparser.Ex
 	lengths := make([]int, 0, len(arguments))
 	charset, collation := "", ""
 	for _, value := range arguments {
+		if _, isNull := value.(*sqlparser.NullVal); isNull {
+			lengths = append(lengths, 0)
+			continue
+		}
 		argumentType, err := d.expressionType(value, shape, nil, 0)
 		if err != nil || resultType == metadata.TypeVarBinary && !isSetOperationBinary(argumentType) || resultType != metadata.TypeVarBinary && !isSetOperationString(argumentType) {
 			return nil
@@ -1227,7 +1227,11 @@ func (d *preparedSelectDescriber) preparedConcatMetadata(expression sqlparser.Ex
 		return nil
 	}
 	length := 0
-	for _, argumentLength := range lengths {
+	lengthArguments := lengths
+	if name == "CONCAT_WS" {
+		lengthArguments = lengths[1:]
+	}
+	for _, argumentLength := range lengthArguments {
 		if argumentLength > int(^uint(0)>>1)-length {
 			return nil
 		}
@@ -1235,11 +1239,19 @@ func (d *preparedSelectDescriber) preparedConcatMetadata(expression sqlparser.Ex
 	}
 	if name == "CONCAT_WS" && len(lengths) > 2 {
 		separatorLength := lengths[0]
-		separatorCount := len(lengths) - 2
-		if separatorLength > (int(^uint(0)>>1)-length)/separatorCount {
-			return nil
+		valueCount := 0
+		for _, value := range arguments[1:] {
+			if _, isNull := value.(*sqlparser.NullVal); !isNull {
+				valueCount++
+			}
 		}
-		length += separatorLength * separatorCount
+		separatorCount := max(valueCount-1, 0)
+		if separatorCount > 0 {
+			if separatorLength > (int(^uint(0)>>1)-length)/separatorCount {
+				return nil
+			}
+			length += separatorLength * separatorCount
+		}
 	}
 	nullable := !d.preparedExpressionDefinitelyNonNull(arguments[0], shape)
 	if name == "CONCAT" {
