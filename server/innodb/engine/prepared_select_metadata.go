@@ -1344,6 +1344,8 @@ func preparedStaticInteger(expression sqlparser.Expr) (int64, bool) {
 			}
 			return -value, true
 		}
+	case *sqlparser.ParenExpr:
+		return preparedStaticInteger(node.Expr)
 	}
 	return 0, false
 }

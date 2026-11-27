@@ -4643,15 +4643,11 @@ func temporalFunctionPrecisionFromAST(function *sqlparser.FuncExpr) (int, bool) 
 	if !ok {
 		return 0, false
 	}
-	literal, ok := aliased.Expr.(*sqlparser.SQLVal)
-	if !ok {
+	fsp, known := preparedStaticInteger(aliased.Expr)
+	if !known || fsp < 0 || fsp > 6 {
 		return 0, false
 	}
-	fsp, err := strconv.Atoi(string(literal.Val))
-	if err != nil || fsp < 0 || fsp > 6 {
-		return 0, false
-	}
-	return fsp, true
+	return int(fsp), true
 }
 
 func projectionExpressionScale(expression sqlparser.Expr) int {
