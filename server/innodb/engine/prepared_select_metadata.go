@@ -394,6 +394,59 @@ func (d *preparedSelectDescriber) expressionType(expression sqlparser.Expr, shap
 		}
 	case *sqlparser.NullVal:
 		return metadata.TypeVarchar, nil
+	case *sqlparser.BinaryExpr:
+		left, err := d.expressionType(expr.Left, shape, ctes, depth+1)
+		if err != nil {
+			return "", err
+		}
+		right, err := d.expressionType(expr.Right, shape, ctes, depth+1)
+		if err != nil {
+			return "", err
+		}
+		operator := strings.ToLower(strings.TrimSpace(expr.Operator))
+		switch operator {
+		case "&", "|", "^", "<<", ">>", "div":
+			return metadata.TypeBigInt, nil
+		case "/":
+			if left == metadata.TypeFloat || left == metadata.TypeDouble || right == metadata.TypeFloat || right == metadata.TypeDouble {
+				return metadata.TypeDouble, nil
+			}
+			if isSetOperationNumeric(left) && isSetOperationNumeric(right) {
+				return metadata.TypeDecimal, nil
+			}
+			return metadata.TypeDouble, nil
+		case "+", "-", "*", "%":
+			if !isSetOperationNumeric(left) || !isSetOperationNumeric(right) {
+				return metadata.TypeDouble, nil
+			}
+			if left == metadata.TypeDouble || right == metadata.TypeDouble || left == metadata.TypeFloat || right == metadata.TypeFloat {
+				return metadata.TypeDouble, nil
+			}
+			if left == metadata.TypeDecimal || right == metadata.TypeDecimal {
+				return metadata.TypeDecimal, nil
+			}
+			return metadata.TypeBigInt, nil
+		default:
+			return "", fmt.Errorf("prepared arithmetic operator %q is unsupported", expr.Operator)
+		}
+	case *sqlparser.UnaryExpr:
+		operand, err := d.expressionType(expr.Expr, shape, ctes, depth+1)
+		if err != nil {
+			return "", err
+		}
+		switch strings.ToLower(strings.TrimSpace(expr.Operator)) {
+		case "+", "-":
+			if isSetOperationNumeric(operand) {
+				return operand, nil
+			}
+			return metadata.TypeDouble, nil
+		case "~", "!":
+			return metadata.TypeBigInt, nil
+		case "binary", "binary ", "_binary", "_binary ":
+			return metadata.TypeVarBinary, nil
+		default:
+			return "", fmt.Errorf("prepared unary operator %q is unsupported", expr.Operator)
+		}
 	case *sqlparser.ParenExpr:
 		return d.expressionType(expr.Expr, shape, ctes, depth+1)
 	case *sqlparser.CollateExpr:
