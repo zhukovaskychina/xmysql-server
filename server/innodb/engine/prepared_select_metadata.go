@@ -181,7 +181,7 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 	if booleanSQLExpression(expression) {
 		return &metadata.ColumnMeta{
 			Name: sqlparser.String(expression), Type: resultType,
-			IsNullable: preparedBooleanExpressionNullable(expression),
+			IsNullable: d.preparedBooleanExpressionNullable(expression, shape),
 		}
 	}
 	switch node := expression.(type) {
@@ -450,20 +450,25 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 	return nil
 }
 
-func preparedBooleanExpressionNullable(expression sqlparser.Expr) bool {
+func (d *preparedSelectDescriber) preparedBooleanExpressionNullable(expression sqlparser.Expr, shape joinResultShape) bool {
 	switch node := expression.(type) {
 	case *sqlparser.IsExpr, *sqlparser.ExistsExpr, sqlparser.BoolVal:
 		return false
 	case *sqlparser.ComparisonExpr:
-		return !strings.EqualFold(strings.TrimSpace(node.Operator), sqlparser.NullSafeEqualStr)
+		if strings.EqualFold(strings.TrimSpace(node.Operator), sqlparser.NullSafeEqualStr) {
+			return false
+		}
+		return !d.preparedExpressionDefinitelyNonNull(node.Left, shape) || !d.preparedExpressionDefinitelyNonNull(node.Right, shape)
+	case *sqlparser.RangeCond:
+		return !d.preparedExpressionDefinitelyNonNull(node.Left, shape) || !d.preparedExpressionDefinitelyNonNull(node.From, shape) || !d.preparedExpressionDefinitelyNonNull(node.To, shape)
 	case *sqlparser.ParenExpr:
-		return preparedBooleanExpressionNullable(node.Expr)
+		return d.preparedBooleanExpressionNullable(node.Expr, shape)
 	case *sqlparser.NotExpr:
-		return preparedBooleanExpressionNullable(node.Expr)
+		return d.preparedBooleanExpressionNullable(node.Expr, shape)
 	case *sqlparser.AndExpr:
-		return preparedBooleanExpressionNullable(node.Left) || preparedBooleanExpressionNullable(node.Right)
+		return d.preparedBooleanExpressionNullable(node.Left, shape) || d.preparedBooleanExpressionNullable(node.Right, shape)
 	case *sqlparser.OrExpr:
-		return preparedBooleanExpressionNullable(node.Left) || preparedBooleanExpressionNullable(node.Right)
+		return d.preparedBooleanExpressionNullable(node.Left, shape) || d.preparedBooleanExpressionNullable(node.Right, shape)
 	default:
 		return true
 	}
@@ -485,7 +490,7 @@ func (d *preparedSelectDescriber) preparedExpressionDefinitelyNonNull(expression
 		return false
 	}
 	if booleanSQLExpression(expression) {
-		return !preparedBooleanExpressionNullable(expression)
+		return !d.preparedBooleanExpressionNullable(expression, shape)
 	}
 	switch node := expression.(type) {
 	case *sqlparser.NullVal:
