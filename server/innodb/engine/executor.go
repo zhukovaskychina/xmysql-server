@@ -2835,6 +2835,13 @@ func (e *XMySQLExecutor) executeQuery(ctx *ExecutionContext, mysqlSession server
 		ctx.Session = mysqlSession
 	}
 	startedAt := time.Now()
+	if mysqlSession != nil {
+		previousStatementTime := mysqlSession.GetParamByName(statementTimeSessionParam)
+		if _, inherited := previousStatementTime.(time.Time); !inherited {
+			mysqlSession.SetParamByName(statementTimeSessionParam, startedAt)
+			defer mysqlSession.SetParamByName(statementTimeSessionParam, previousStatementTime)
+		}
+	}
 	metricStatus := "success"
 	if e.metricsRecorder != nil {
 		threadID := int64(0)

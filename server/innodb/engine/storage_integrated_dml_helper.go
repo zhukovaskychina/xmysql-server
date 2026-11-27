@@ -4322,6 +4322,9 @@ func planEvalContextWithRow(values map[string]interface{}) *plan.EvalContext {
 	ctx := &plan.EvalContext{Row: values}
 	if values != nil {
 		ctx.SessionValues, _ = values[sessionExpressionValuesKey].(map[string]interface{})
+		if statementTime, ok := ctx.SessionValues[statementTimeExpressionValue].(time.Time); ok {
+			ctx.StatementTime = statementTime
+		}
 	}
 	return ctx
 }

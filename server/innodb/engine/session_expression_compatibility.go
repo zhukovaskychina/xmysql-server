@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/common"
 )
 
 const sessionExpressionValuesKey = "__xmysql_session_values"
+const statementTimeSessionParam = "__xmysql_statement_time"
+const statementTimeExpressionValue = "__xmysql_statement_time"
 
 // PreparedContentParamsSessionParam carries one statement's opaque streamed
 // CONTENT values. It is cleared by the protocol handler after that execution.
@@ -87,6 +90,9 @@ func newSessionExpressionValues(session server.MySQLServerSession) map[string]in
 	}
 	if session == nil {
 		return values
+	}
+	if statementTime, ok := session.GetParamByName(statementTimeSessionParam).(time.Time); ok {
+		values[statementTimeExpressionValue] = statementTime
 	}
 	values["last_insert_id"] = sessionLastInsertID(session)
 	values["row_count"] = sessionRowCount(session)

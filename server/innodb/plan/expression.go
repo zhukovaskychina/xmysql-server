@@ -63,6 +63,10 @@ type Expression interface {
 type EvalContext struct {
 	Row                map[string]interface{}
 	UUIDShortGenerator *UUIDShortGenerator
+	// StatementTime is fixed for the duration of one SQL statement. MySQL's
+	// NOW()/CURRENT_TIMESTAMP family uses this value, while SYSDATE() remains
+	// evaluated at the time the function executes.
+	StatementTime time.Time
 	// SessionValues carries statement/session state needed by scalar
 	// compatibility functions. It is intentionally a plain map so the plan
 	// package does not depend on the wire/session implementation.
@@ -734,22 +738,22 @@ func (f *Function) Eval(ctx *EvalContext) (interface{}, error) {
 		if len(args) != 0 {
 			return nil, fmt.Errorf("%s requires no arguments", f.FuncName)
 		}
-		return time.Now().Format("2006-01-02"), nil
+		return statementTime(ctx).Format("2006-01-02"), nil
 	case "UTC_DATE":
 		if len(args) != 0 {
 			return nil, fmt.Errorf("%s requires no arguments", f.FuncName)
 		}
-		return time.Now().UTC().Format("2006-01-02"), nil
+		return statementTime(ctx).UTC().Format("2006-01-02"), nil
 	case "CURTIME", "CURRENT_TIME", "LOCALTIME":
 		if len(args) != 0 {
 			return nil, fmt.Errorf("%s requires no arguments", f.FuncName)
 		}
-		return time.Now().Format("15:04:05"), nil
+		return statementTime(ctx).Format("15:04:05"), nil
 	case "UTC_TIME":
 		if len(args) != 0 {
 			return nil, fmt.Errorf("%s requires no arguments", f.FuncName)
 		}
-		return time.Now().UTC().Format("15:04:05"), nil
+		return statementTime(ctx).UTC().Format("15:04:05"), nil
 	case "SYSDATE":
 		if len(args) > 1 {
 			return nil, fmt.Errorf("%s accepts zero or one argument", f.FuncName)
@@ -769,9 +773,9 @@ func (f *Function) Eval(ctx *EvalContext) (interface{}, error) {
 	case "TO_DAYS", "FROM_DAYS", "TO_SECONDS", "PERIOD_ADD", "PERIOD_DIFF":
 		return evalCalendarFunction(strings.ToUpper(f.FuncName), args)
 	case "NOW", "CURRENT_TIMESTAMP", "LOCALTIMESTAMP":
-		return time.Now(), nil
+		return statementTime(ctx), nil
 	case "UTC_TIMESTAMP":
-		return time.Now().UTC(), nil
+		return statementTime(ctx).UTC(), nil
 	case "RAND":
 		if len(args) == 0 {
 			return mathrand.Float64(), nil
@@ -1056,6 +1060,13 @@ func (f *Function) Eval(ctx *EvalContext) (interface{}, error) {
 	default:
 		return nil, fmt.Errorf("unknown function: %s", f.FuncName)
 	}
+}
+
+func statementTime(ctx *EvalContext) time.Time {
+	if ctx != nil && !ctx.StatementTime.IsZero() {
+		return ctx.StatementTime
+	}
+	return time.Now()
 }
 
 func evalLastInsertID(args []interface{}, ctx *EvalContext) (interface{}, error) {
