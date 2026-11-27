@@ -197,6 +197,16 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 		}
 	case *sqlparser.ParenExpr:
 		return d.preparedExpressionMetadata(node.Expr, shape, resultType)
+	case *sqlparser.UnaryExpr:
+		if resultType != metadata.TypeDecimal {
+			return nil
+		}
+		column := d.preparedExpressionMetadata(node.Expr, shape, resultType)
+		if column == nil {
+			return nil
+		}
+		column.Name, column.Type = sqlparser.String(expression), resultType
+		return column
 	case *sqlparser.CollateExpr:
 		column := d.preparedExpressionMetadata(node.Expr, shape, resultType)
 		if column == nil {
@@ -277,18 +287,24 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 		}
 		return d.preparedMergedStringMetadata(expression, shape, resultType, values)
 	case *sqlparser.SQLVal:
-		if node.Type != sqlparser.StrVal {
-			return nil
-		}
-		column := &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: utf8.RuneCount(node.Val), IsNullable: true}
-		if d != nil && d.ctx != nil && d.ctx.Session != nil {
-			if collation, ok := d.ctx.Session.GetParamByName("collation_connection").(string); ok {
-				if info, found := common.CollationMetadataByName(collation); found {
-					column.Charset, column.Collation = info.Charset, info.Name
+		switch node.Type {
+		case sqlparser.StrVal:
+			column := &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: utf8.RuneCount(node.Val), IsNullable: true}
+			if d != nil && d.ctx != nil && d.ctx.Session != nil {
+				if collation, ok := d.ctx.Session.GetParamByName("collation_connection").(string); ok {
+					if info, found := common.CollationMetadataByName(collation); found {
+						column.Charset, column.Collation = info.Charset, info.Name
+					}
+				}
+			}
+			return column
+		case sqlparser.FloatVal:
+			if resultType == metadata.TypeDecimal {
+				if precision, scale, ok := preparedExactDecimalLiteralShape(node.Val); ok {
+					return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: precision, Scale: scale, IsNullable: true}
 				}
 			}
 		}
-		return column
 	case *sqlparser.FuncExpr:
 		name := strings.ToUpper(strings.Trim(node.Name.String(), "` "))
 		arguments := make([]sqlparser.Expr, 0, len(node.Exprs))
@@ -690,6 +706,38 @@ func (d *preparedSelectDescriber) source(expression sqlparser.TableExpr, ctes ma
 	}
 }
 
+func preparedExactDecimalLiteralShape(value []byte) (precision, scale int, ok bool) {
+	token := strings.TrimSpace(string(value))
+	if token == "" || strings.ContainsAny(token, "eE") {
+		return 0, 0, false
+	}
+	if token[0] == '+' || token[0] == '-' {
+		token = token[1:]
+	}
+	if token == "" {
+		return 0, 0, false
+	}
+	dotSeen := false
+	for index := 0; index < len(token); index++ {
+		character := token[index]
+		switch {
+		case character >= '0' && character <= '9':
+			precision++
+			if dotSeen {
+				scale++
+			}
+		case character == '.' && !dotSeen:
+			dotSeen = true
+		default:
+			return 0, 0, false
+		}
+	}
+	if precision == 0 || precision > 65 || scale > 30 {
+		return 0, 0, false
+	}
+	return precision, scale, true
+}
+
 func (d *preparedSelectDescriber) expressionType(expression sqlparser.Expr, shape joinResultShape, ctes map[string][]joinOutputColumn, depth int) (metadata.DataType, error) {
 	if depth > 64 {
 		return "", fmt.Errorf("prepared SELECT metadata nesting exceeds 64")
@@ -723,7 +771,10 @@ func (d *preparedSelectDescriber) expressionType(expression sqlparser.Expr, shap
 		case sqlparser.IntVal:
 			return metadata.TypeBigInt, nil
 		case sqlparser.FloatVal:
-			return metadata.TypeDouble, nil
+			if strings.ContainsAny(string(expr.Val), "eE") {
+				return metadata.TypeDouble, nil
+			}
+			return metadata.TypeDecimal, nil
 		case sqlparser.StrVal:
 			return metadata.TypeVarchar, nil
 		case sqlparser.HexVal, sqlparser.HexNum, sqlparser.BitVal:
