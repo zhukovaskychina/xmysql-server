@@ -3,3 +3,5 @@
 
 # Local drill logs (do not commit)
 reports/crash_recovery_drill_*.log
+# Local InnoDB data files
+*.[iI][bB][dD]

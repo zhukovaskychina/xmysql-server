@@ -6,6 +6,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -140,6 +141,9 @@ func (sm *SpaceManagerImpl) CreateSpace(spaceID uint32, name string, isSystem bo
 	sm.spaces[spaceID] = ibdSpace
 	sm.ibdFiles[spaceID] = ibdFile
 	sm.nameToID[name] = spaceID
+	if spaceID != 0 && spaceID >= sm.nextID {
+		sm.nextID = spaceID + 1
+	}
 
 	return ibdSpace, nil
 }
@@ -153,6 +157,22 @@ func (sm *SpaceManagerImpl) GetSpace(spaceID uint32) (basic.Space, error) {
 		return nil, fmt.Errorf("tablespace %d not found", spaceID)
 	}
 	return space, nil
+}
+
+// ListSpaceIDs returns a stable snapshot of all tablespaces currently loaded
+// by the manager. It is intentionally an optional capability rather than an
+// addition to basic.SpaceManager, so existing embedders keep source
+// compatibility while lifecycle decorators can migrate every discovered
+// space during startup.
+func (sm *SpaceManagerImpl) ListSpaceIDs() []uint32 {
+	sm.RLock()
+	defer sm.RUnlock()
+	ids := make([]uint32, 0, len(sm.spaces))
+	for id := range sm.spaces {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	return ids
 }
 
 func (sm *SpaceManagerImpl) DropSpace(spaceID uint32) error {
@@ -287,6 +307,80 @@ func (sm *SpaceManagerImpl) CreateTableSpace(name string) (uint32, error) {
 	sm.nameToID[name] = spaceID
 
 	return spaceID, nil
+}
+
+// RenameTableSpace moves a user tablespace file and updates the in-memory
+// name index while preserving its space ID. The file handle must be closed
+// before the move on Windows; the replacement IBDSpace then reconstructs its
+// allocation state from the renamed file.
+func (sm *SpaceManagerImpl) RenameTableSpace(oldName, newName string) error {
+	sm.Lock()
+	defer sm.Unlock()
+
+	if oldName == newName {
+		return nil
+	}
+	spaceID, exists := sm.nameToID[oldName]
+	if !exists {
+		return fmt.Errorf("tablespace %s not found", oldName)
+	}
+	if _, exists := sm.nameToID[newName]; exists {
+		return fmt.Errorf("tablespace %s already exists", newName)
+	}
+	oldSpace, exists := sm.spaces[spaceID]
+	if !exists || oldSpace == nil {
+		return fmt.Errorf("tablespace %s is not loaded", oldName)
+	}
+	isSystem := oldSpace.IsSystem()
+	oldPath := filepath.Join(sm.dataDir, oldName+".ibd")
+	newPath := filepath.Join(sm.dataDir, newName+".ibd")
+	if _, err := os.Stat(newPath); err == nil {
+		return fmt.Errorf("tablespace %s already exists", newName)
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("check destination tablespace failed: %v", err)
+	}
+	if err := oldSpace.Close(); err != nil {
+		return fmt.Errorf("close tablespace %s failed: %v", oldName, err)
+	}
+	reopenOld := func() {
+		file := ibd.NewIBDFile(sm.dataDir, oldName, spaceID)
+		if err := file.Open(); err != nil {
+			return
+		}
+		restored := space.NewIBDSpace(file, isSystem)
+		if err := restored.RecoverAllocationsFromFileSize(); err != nil {
+			_ = file.Close()
+			return
+		}
+		sm.spaces[spaceID] = restored
+		sm.ibdFiles[spaceID] = file
+	}
+	if err := os.MkdirAll(filepath.Dir(newPath), 0755); err != nil {
+		reopenOld()
+		return fmt.Errorf("create destination tablespace directory failed: %v", err)
+	}
+	if err := os.Rename(oldPath, newPath); err != nil {
+		reopenOld()
+		return fmt.Errorf("rename tablespace file failed: %v", err)
+	}
+	newFile := ibd.NewIBDFile(sm.dataDir, newName, spaceID)
+	if err := newFile.Open(); err != nil {
+		_ = os.Rename(newPath, oldPath)
+		reopenOld()
+		return fmt.Errorf("reopen renamed tablespace failed: %v", err)
+	}
+	newSpace := space.NewIBDSpace(newFile, isSystem)
+	if err := newSpace.RecoverAllocationsFromFileSize(); err != nil {
+		_ = newFile.Close()
+		_ = os.Rename(newPath, oldPath)
+		reopenOld()
+		return fmt.Errorf("recover renamed tablespace failed: %v", err)
+	}
+	delete(sm.nameToID, oldName)
+	sm.nameToID[newName] = spaceID
+	sm.spaces[spaceID] = newSpace
+	sm.ibdFiles[spaceID] = newFile
+	return nil
 }
 
 func (sm *SpaceManagerImpl) GetTableSpace(spaceID uint32) (basic.FileTableSpace, error) {
@@ -482,7 +576,7 @@ func (sm *SpaceManagerImpl) scanDirectory(dirPath, relativePath string) error {
 			}
 		} else if strings.HasSuffix(entry.Name(), ".ibd") {
 			// 找到IBD文件，尝试加载
-			tableName := strings.TrimSuffix(currentRelativePath, ".ibd")
+			tableName := filepath.ToSlash(strings.TrimSuffix(currentRelativePath, ".ibd"))
 			if tableName != "ibdata1" && (strings.HasPrefix(tableName, "mysql/") ||
 				strings.HasPrefix(tableName, "information_schema/") ||
 				strings.HasPrefix(tableName, "performance_schema/")) {
@@ -498,7 +592,11 @@ func (sm *SpaceManagerImpl) scanDirectory(dirPath, relativePath string) error {
 			var spaceID uint32
 			if tableName == "ibdata1" {
 				spaceID = 0 // 系统表空间固定为Space ID 0
+			} else if reservedID, ok := reservedSystemSpaceID(tableName); ok {
+				spaceID = reservedID
 			} else if persistedID, ok := persistedTablespaceID(strings.TrimSuffix(fullPath, ".ibd") + ".frm"); ok {
+				spaceID = persistedID
+			} else if persistedID, ok := persistedPartitionTablespaceID(sm.dataDir, tableName); ok {
 				spaceID = persistedID
 			} else {
 				spaceID = sm.getNextAvailableSpaceID()
@@ -520,6 +618,11 @@ func (sm *SpaceManagerImpl) scanDirectory(dirPath, relativePath string) error {
 				tableName == "ibdata1"
 
 			ibdSpace := space.NewIBDSpace(ibdFile, isSystem)
+			if err := ibdSpace.RecoverAllocationsFromFileSize(); err != nil {
+				logger.Debugf("Warning: failed to recover allocations for %s: %v", tableName, err)
+				_ = ibdFile.Close()
+				continue
+			}
 
 			// 注册到管理器
 			sm.spaces[spaceID] = ibdSpace
@@ -536,18 +639,113 @@ func (sm *SpaceManagerImpl) scanDirectory(dirPath, relativePath string) error {
 	return nil
 }
 
+func reservedSystemSpaceID(tableName string) (uint32, bool) {
+	mysqlTables := []string{
+		"mysql/user", "mysql/db", "mysql/tables_priv", "mysql/columns_priv", "mysql/procs_priv",
+		"mysql/proxies_priv", "mysql/role_edges", "mysql/default_roles", "mysql/global_grants",
+		"mysql/password_history", "mysql/component", "mysql/server_cost", "mysql/engine_cost",
+		"mysql/time_zone", "mysql/time_zone_name", "mysql/time_zone_transition",
+		"mysql/time_zone_transition_type", "mysql/help_topic", "mysql/help_category",
+		"mysql/help_relation", "mysql/help_keyword", "mysql/plugin", "mysql/servers",
+		"mysql/func", "mysql/general_log", "mysql/slow_log",
+	}
+	for i, name := range mysqlTables {
+		if tableName == name {
+			return uint32(i + 1), true
+		}
+	}
+	infoTables := []string{
+		"information_schema/schemata", "information_schema/tables", "information_schema/columns",
+		"information_schema/statistics", "information_schema/key_column_usage",
+		"information_schema/table_constraints", "information_schema/referential_constraints",
+		"information_schema/views", "information_schema/triggers", "information_schema/routines",
+		"information_schema/parameters", "information_schema/events", "information_schema/partitions",
+		"information_schema/engines", "information_schema/plugins", "information_schema/processlist",
+		"information_schema/user_privileges", "information_schema/schema_privileges",
+		"information_schema/table_privileges", "information_schema/column_privileges",
+	}
+	for i, name := range infoTables {
+		if tableName == name {
+			return uint32(100 + i), true
+		}
+	}
+	performanceTables := []string{
+		"performance_schema/accounts", "performance_schema/cond_instances",
+		"performance_schema/events_stages_current", "performance_schema/events_stages_history",
+		"performance_schema/events_stages_history_long", "performance_schema/events_statements_current",
+		"performance_schema/events_statements_history", "performance_schema/events_statements_history_long",
+		"performance_schema/events_waits_current", "performance_schema/events_waits_history",
+		"performance_schema/events_waits_history_long", "performance_schema/file_instances",
+		"performance_schema/file_summary_by_event_name", "performance_schema/file_summary_by_instance",
+		"performance_schema/host_cache", "performance_schema/hosts", "performance_schema/mutex_instances",
+		"performance_schema/objects_summary_global_by_type", "performance_schema/performance_timers",
+		"performance_schema/rwlock_instances", "performance_schema/setup_actors",
+		"performance_schema/setup_consumers", "performance_schema/setup_instruments",
+		"performance_schema/setup_objects", "performance_schema/setup_timers",
+		"performance_schema/socket_instances", "performance_schema/socket_summary_by_event_name",
+		"performance_schema/socket_summary_by_instance", "performance_schema/table_io_waits_summary_by_index_usage",
+		"performance_schema/table_io_waits_summary_by_table", "performance_schema/table_lock_waits_summary_by_table",
+		"performance_schema/threads", "performance_schema/users",
+	}
+	for i, name := range performanceTables {
+		if tableName == name {
+			return uint32(200 + i), true
+		}
+	}
+	return 0, false
+}
+
 func persistedTablespaceID(frmPath string) (uint32, bool) {
 	raw, err := os.ReadFile(frmPath)
 	if err != nil {
 		return 0, false
 	}
 	var definition struct {
-		StorageSpaceID uint32 `json:"storage_space_id"`
+		StorageSpaceID   uint32 `json:"storage_space_id"`
+		DiscardedSpaceID uint32 `json:"discarded_space_id"`
+		Discarded        bool   `json:"tablespace_discarded"`
 	}
-	if err := json.Unmarshal(raw, &definition); err != nil || definition.StorageSpaceID == 0 {
+	if err := json.Unmarshal(raw, &definition); err != nil {
 		return 0, false
 	}
-	return definition.StorageSpaceID, true
+	if definition.StorageSpaceID != 0 {
+		return definition.StorageSpaceID, true
+	}
+	if definition.Discarded && definition.DiscardedSpaceID != 0 {
+		return definition.DiscardedSpaceID, true
+	}
+	return 0, false
+}
+
+func persistedPartitionTablespaceID(dataDir, tablespaceName string) (uint32, bool) {
+	separator := strings.LastIndex(tablespaceName, "#")
+	if separator <= 0 || separator == len(tablespaceName)-1 {
+		return 0, false
+	}
+	tableName := tablespaceName[:separator]
+	partitionName := tablespaceName[separator+1:]
+	frmPath := filepath.Join(dataDir, filepath.FromSlash(tableName)+".frm")
+	raw, err := os.ReadFile(frmPath)
+	if err != nil {
+		return 0, false
+	}
+	var definition struct {
+		Partitioning struct {
+			Partitions []struct {
+				Name           string `json:"name"`
+				StorageSpaceID uint32 `json:"storage_space_id"`
+			} `json:"partitions"`
+		} `json:"partitioning"`
+	}
+	if err := json.Unmarshal(raw, &definition); err != nil {
+		return 0, false
+	}
+	for _, partition := range definition.Partitioning.Partitions {
+		if strings.EqualFold(strings.TrimSpace(partition.Name), strings.TrimSpace(partitionName)) && partition.StorageSpaceID != 0 {
+			return partition.StorageSpaceID, true
+		}
+	}
+	return 0, false
 }
 
 // getNextAvailableSpaceID 获取下一个可用的Space ID

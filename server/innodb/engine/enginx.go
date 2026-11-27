@@ -8,10 +8,15 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
@@ -19,10 +24,15 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 
 	"github.com/zhukovaskychina/xmysql-server/server"
+	"github.com/zhukovaskychina/xmysql-server/server/backup"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/ibd"
+	observabilitymetrics "github.com/zhukovaskychina/xmysql-server/server/observability/metrics"
+	"github.com/zhukovaskychina/xmysql-server/server/replication"
 )
 
 // XMySQLEngine is the unified SQL engine coordinating all submodules.
@@ -51,12 +61,18 @@ type XMySQLEngine struct {
 	slowQueryLogger *SlowQueryLogger
 
 	// Reliability & Recovery
-	checkpointManager *CheckpointManager
-	crashRecovery     *manager.CrashRecovery
+	checkpointManager  *CheckpointManager
+	crashRecovery      *manager.CrashRecovery
+	replicationRuntime *replication.Runtime
+	replicaRegistry    *replication.ReplicaRegistry
+	ready              atomic.Bool
+	startupErr         error
+	doublewrite        *ibd.Doublewrite
+	doublewriteDir     string
 }
 
 func NewXMySQLEngine(conf *conf.Cfg) *XMySQLEngine {
-	engine := &XMySQLEngine{conf: conf}
+	engine := &XMySQLEngine{conf: conf, replicaRegistry: replication.NewReplicaRegistry()}
 
 	// 初始化各核心模块
 	engine.initStorageLayer()
@@ -65,6 +81,7 @@ func NewXMySQLEngine(conf *conf.Cfg) *XMySQLEngine {
 	engine.initMetaLayer()
 	engine.initUtilityManagers()
 	engine.initQueryExecutor()
+	engine.initReplicationLayer()
 	engine.initSlowQueryLogger()
 
 	// 初始化恢复与检查点层
@@ -75,7 +92,19 @@ func NewXMySQLEngine(conf *conf.Cfg) *XMySQLEngine {
 
 // Start 启动引擎，执行崩溃恢复并启动后台服务
 func (e *XMySQLEngine) Start(ctx context.Context) error {
+	if e == nil {
+		return fmt.Errorf("engine is not initialized")
+	}
+	e.ready.Store(false)
+	if e.startupErr != nil {
+		return e.startupErr
+	}
 	logger.Info("🚀 Starting XMySQL Engine...")
+	if e.doublewrite != nil && e.doublewriteDir != "" {
+		if err := ibd.Restore(e.doublewriteDir); err != nil {
+			return fmt.Errorf("doublewrite restore failed: %w", err)
+		}
+	}
 
 	// 1. 执行崩溃恢复
 	if e.crashRecovery != nil {
@@ -87,6 +116,20 @@ func (e *XMySQLEngine) Start(ctx context.Context) error {
 	} else {
 		logger.Warnf("crash recovery unavailable, skip recovery step for degraded mode")
 	}
+	if e.QueryExecutor != nil {
+		if err := e.QueryExecutor.loadPreparedXATransactions(); err != nil {
+			return fmt.Errorf("prepared XA recovery metadata load failed: %v", err)
+		}
+		if err := e.QueryExecutor.loadSuspendedXATransactions(); err != nil {
+			return fmt.Errorf("suspended XA recovery metadata load failed: %v", err)
+		}
+		if err := e.QueryExecutor.RecoverOrphanedTransactions(); err != nil {
+			return fmt.Errorf("orphan transaction recovery failed: %v", err)
+		}
+		if err := e.QueryExecutor.CleanupOrphanedTemporaryTables(); err != nil {
+			return fmt.Errorf("orphan temporary table cleanup failed: %v", err)
+		}
+	}
 
 	// 2. 启动检查点管理器
 	if e.checkpointManager != nil {
@@ -95,9 +138,40 @@ func (e *XMySQLEngine) Start(ctx context.Context) error {
 			return fmt.Errorf("failed to start checkpoint manager: %v", err)
 		}
 	}
+	if e.replicationRuntime != nil {
+		if err := e.replicationRuntime.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start replication runtime: %v", err)
+		}
+	}
+	if e.QueryExecutor != nil {
+		e.QueryExecutor.markServerStarted()
+	}
 
 	logger.Info("✅ XMySQL Engine started successfully")
+	e.ready.Store(true)
 	return nil
+}
+
+// SetEventScheduler exposes the explicit SQL EVENT scheduler through the
+// engine facade used by integration tests and server wiring.
+func (e *XMySQLEngine) SetEventScheduler(scheduler *EventScheduler) {
+	if e != nil && e.QueryExecutor != nil {
+		e.QueryExecutor.SetEventScheduler(scheduler)
+	}
+}
+
+func (e *XMySQLEngine) StartEventScheduler(ctx context.Context) error {
+	if e == nil || e.QueryExecutor == nil {
+		return fmt.Errorf("query executor is not initialized")
+	}
+	return e.QueryExecutor.StartEventScheduler(ctx)
+}
+
+func (e *XMySQLEngine) StopEventScheduler() bool {
+	if e == nil || e.QueryExecutor == nil {
+		return false
+	}
+	return e.QueryExecutor.StopEventScheduler()
 }
 
 func (e *XMySQLEngine) initSlowQueryLogger() {
@@ -106,25 +180,149 @@ func (e *XMySQLEngine) initSlowQueryLogger() {
 
 // Close 关闭引擎
 func (e *XMySQLEngine) Close() error {
+	if e == nil {
+		return nil
+	}
+	e.ready.Store(false)
 	logger.Info("🛑 Stopping XMySQL Engine...")
+	var closeErr error
+	joinCloseErr := func(resource string, err error) {
+		if err != nil {
+			closeErr = errors.Join(closeErr, fmt.Errorf("failed to close %s: %w", resource, err))
+		}
+	}
+	if e.QueryExecutor != nil {
+		e.QueryExecutor.StopEventScheduler()
+	}
 
 	if e.checkpointManager != nil {
 		e.checkpointManager.Stop()
 	}
+	if e.replicationRuntime != nil {
+		joinCloseErr("replication runtime", e.replicationRuntime.Close())
+	}
 
 	if e.txManager != nil {
-		e.txManager.Close()
+		joinCloseErr("transaction manager", e.txManager.Close())
+	}
+	if e.QueryExecutor != nil {
+		e.QueryExecutor.closeTransactionJournals()
+	}
+	if e.QueryExecutor != nil && e.QueryExecutor.tableStorageManager != nil {
+		joinCloseErr("table btree managers", e.QueryExecutor.tableStorageManager.CloseBTreeManagers())
+	}
+	if e.ibufManager != nil {
+		joinCloseErr("insert buffer manager", e.ibufManager.Close())
+	}
+	if e.indexManager != nil {
+		joinCloseErr("index manager", e.indexManager.Close())
+	}
+	if e.dictManager != nil {
+		joinCloseErr("dictionary manager", e.dictManager.Close())
+	}
+	if e.infoSchemaManager != nil {
+		joinCloseErr("information schema manager", e.infoSchemaManager.Close())
+	}
+	if e.btreeMgr != nil {
+		if closer, ok := e.btreeMgr.(interface{ Close() error }); ok {
+			joinCloseErr("engine btree manager", closer.Close())
+		}
+	}
+	if e.encryptManager != nil {
+		joinCloseErr("encryption manager", e.encryptManager.Close())
+	}
+	if e.compressManager != nil {
+		joinCloseErr("compression manager", e.compressManager.Close())
 	}
 
 	if e.storageMgr != nil {
-		// storageMgr 没有 Close 方法，但如果有资源需释放可在此处理
+		joinCloseErr("storage manager", e.storageMgr.Close())
+	}
+	if e.doublewrite != nil {
+		ibd.ReleaseDoublewrite(e.doublewriteDir, e.doublewrite)
+		e.doublewrite = nil
 	}
 
-	return nil
+	return closeErr
+}
+
+// IsReady reports whether the engine completed its startup sequence and is
+// still available for serving traffic. It is intentionally separate from
+// listener liveness so orchestration can wait for recovery and replication
+// initialization before routing MySQL clients to the node.
+func (e *XMySQLEngine) IsReady() bool {
+	return e != nil && e.ready.Load()
+}
+
+// GetDataDir returns the durable data directory used by the engine. It is
+// exposed for authentication and administrative integrations that need to
+// reload persisted compatibility metadata.
+func (e *XMySQLEngine) GetDataDir() string {
+	if e == nil || e.QueryExecutor == nil {
+		return ""
+	}
+	return e.QueryExecutor.getDataDir()
+}
+
+// CreatePhysicalBackup flushes a sharp checkpoint when the engine has one,
+// then creates an integrity-checked XMySQL physical snapshot. Restoration is
+// intentionally exposed by server/backup and must be performed with the
+// engine stopped.
+func (e *XMySQLEngine) CreatePhysicalBackup(ctx context.Context, archivePath string) (backup.PhysicalBackupManifest, error) {
+	if e == nil {
+		return backup.PhysicalBackupManifest{}, fmt.Errorf("engine is not initialized")
+	}
+	dataDir := e.GetDataDir()
+	if dataDir == "" {
+		return backup.PhysicalBackupManifest{}, fmt.Errorf("engine data directory is not configured")
+	}
+	return backup.CreatePhysicalBackup(ctx, backup.PhysicalBackupOptions{
+		SourceDir:   dataDir,
+		ArchivePath: archivePath,
+		Sync: func() error {
+			if e.checkpointManager != nil {
+				stats := e.checkpointManager.GetStats()
+				if err := e.checkpointManager.WriteSharpCheckpoint(stats.LastCheckpointLSN); err != nil {
+					return fmt.Errorf("write sharp checkpoint before physical backup: %w", err)
+				}
+				return nil
+			}
+			if e.storageMgr == nil {
+				return fmt.Errorf("storage manager is not initialized")
+			}
+			return e.storageMgr.Flush()
+		},
+	})
 }
 
 func (e *XMySQLEngine) initStorageLayer() {
 	e.storageMgr = manager.NewStorageManager(e.conf)
+	if e.conf != nil && e.conf.InnodbCompression.Enabled {
+		e.startupErr = fmt.Errorf("innodb compression is not supported: compressed pages cannot be allocated")
+		return
+	}
+	if e.conf != nil && strings.TrimSpace(e.conf.InnodbEncryption.MasterKey) != "" {
+		e.startupErr = fmt.Errorf("innodb encryption is not supported: encrypted pages cannot be allocated")
+		return
+	}
+	if e.conf == nil || !e.conf.InnodbDoublewrite {
+		return
+	}
+	dir := strings.TrimSpace(e.conf.DataDir)
+	if dir == "" {
+		dir = strings.TrimSpace(e.conf.InnodbDataDir)
+	}
+	if dir == "" {
+		e.startupErr = fmt.Errorf("innodb_doublewrite is enabled but no data directory is configured")
+		return
+	}
+	buffer, err := ibd.EnableDoublewrite(dir)
+	if err != nil {
+		e.startupErr = fmt.Errorf("innodb_doublewrite is enabled but the doublewrite buffer could not be opened: %w", err)
+		return
+	}
+	e.doublewrite = buffer
+	e.doublewriteDir = dir
 }
 
 func (e *XMySQLEngine) initIndexLayer() {
@@ -157,11 +355,21 @@ func (e *XMySQLEngine) initTxnLayer() {
 	// 处理空目录：为测试与默认配置提供安全的临时目录
 	redoDir := e.conf.GetString("innodb.redo_log_dir")
 	undoDir := e.conf.GetString("innodb.undo_log_dir")
+	// Embedded callers commonly construct Cfg directly, without populating Raw.
+	// Honor the typed paths in that case so separate engine instances never
+	// share a process-global redo/undo stream and replay pages from another
+	// data directory during recovery.
 	if redoDir == "" {
-		redoDir = filepath.Join(os.TempDir(), "xmysql-server", "redo")
+		redoDir = e.conf.InnodbRedoLogDir
 	}
 	if undoDir == "" {
-		undoDir = filepath.Join(os.TempDir(), "xmysql-server", "undo")
+		undoDir = e.conf.InnodbUndoLogDir
+	}
+	if redoDir == "" {
+		redoDir = filepath.Join(e.conf.DataDir, "redo")
+	}
+	if undoDir == "" {
+		undoDir = filepath.Join(e.conf.DataDir, "undo")
 	}
 	_ = os.MkdirAll(redoDir, 0755)
 	_ = os.MkdirAll(undoDir, 0755)
@@ -216,6 +424,7 @@ func (e *XMySQLEngine) initRecoveryLayer() {
 
 	bufferPoolMgr := e.storageMgr.GetBufferPoolManager()
 	e.checkpointManager = NewCheckpointManager(dataDir, bufferPoolMgr)
+	e.checkpointManager.SetActiveTransactionProvider(e.txManager)
 
 	if e.txManager == nil {
 		logger.Warnf("transaction manager is not initialized, skip crash recovery initialization")
@@ -260,9 +469,27 @@ func (e *XMySQLEngine) initRecoveryLayer() {
 
 func (e *XMySQLEngine) initQueryExecutor() {
 	e.QueryExecutor = NewXMySQLExecutor(e.infoSchemaManager, e.conf)
+	e.infoSchemaManager.SetStatsLoader(func(ctx context.Context, schemaName, tableName string) (*metadata.InfoTableStats, error) {
+		info, err := e.QueryExecutor.readPersistedTableInfo(schemaName, tableName)
+		if err != nil || info == nil {
+			return nil, err
+		}
+		if stats, sidecarErr := e.QueryExecutor.readPersistedTableStatistics(schemaName, tableName, info); sidecarErr == nil && stats != nil {
+			return stats, nil
+		}
+		return info.Stats, nil
+	})
+	e.infoSchemaManager.SetStatsPersister(func(ctx context.Context, schemaName, tableName string, stats *metadata.InfoTableStats) error {
+		info, err := e.QueryExecutor.readPersistedTableInfo(schemaName, tableName)
+		if err != nil {
+			return err
+		}
+		return e.QueryExecutor.persistTableStatistics(schemaName, tableName, info, stats)
+	})
 
 	// 设置管理器组件
 	if e.QueryExecutor != nil {
+		e.QueryExecutor.SetReplicaRegistrationProvider(e.replicaRegistry.Snapshot)
 		// 创建优化器管理器
 		optimizerManager := manager.NewOptimizerManager(e.infoSchemaManager)
 
@@ -294,7 +521,10 @@ func (e *XMySQLEngine) initQueryExecutor() {
 			e.storageMgr,
 			tableStorageManager, // 创建新的表存储映射管理器
 		)
+		e.QueryExecutor.applyConfiguredPerformanceSchemaVariables()
 		e.QueryExecutor.SetTransactionManager(e.txManager)
+		e.QueryExecutor.applyPersistedSystemVariables()
+		e.QueryExecutor.syncPerformanceSchemaDigestSampleAge()
 
 		// 将管理器注入 StorageManager，供集成层等通过 GetTableManager/GetTableStorageManager 等统一获取
 		e.storageMgr.SetTableManager(tableManager)
@@ -307,25 +537,380 @@ func (e *XMySQLEngine) initQueryExecutor() {
 	}
 }
 
+func (e *XMySQLEngine) initReplicationLayer() {
+	if e == nil || e.conf == nil || e.QueryExecutor == nil {
+		return
+	}
+	role := e.conf.ReplicationRole
+	if role == "" {
+		role = replication.RoleStandalone
+	}
+	nativeEndpoint := strings.TrimRight(strings.TrimSpace(e.conf.ReplicationNativeEndpoint), "/")
+	if nativeEndpoint == "" {
+		nativeEndpoint = derivedNativeEndpoint(e.conf.BindAddress, e.conf.Port)
+	}
+	runtime, err := replication.NewRuntime(replication.RuntimeConfig{
+		Role:            role,
+		DataDir:         e.GetDataDir(),
+		UUID:            e.conf.ReplicationUUID,
+		ServerID:        e.conf.ReplicationServerID,
+		ListenAddr:      e.conf.ReplicationListenAddress,
+		SourceURL:       e.conf.ReplicationSourceURL,
+		NativeEndpoint:  nativeEndpoint,
+		Peers:           e.conf.ReplicationPeers,
+		AutoFailover:    e.conf.ReplicationAutoFailover,
+		FailureTimeout:  e.conf.ReplicationFailureTimeoutDuration,
+		PollInterval:    e.conf.ReplicationPollIntervalDuration,
+		ApplyRows:       e.applyReplicationRows,
+		ApplyRowsWithID: e.applyReplicationRowsWithID,
+		Apply:           e.applyReplicationStatements,
+		ApplyWithID:     e.applyReplicationStatementsWithID,
+	})
+	if err != nil {
+		logger.Warnf("replication runtime disabled: %v", err)
+		return
+	}
+	e.replicationRuntime = runtime
+	e.QueryExecutor.SetReplicationStatusProvider(runtime.Status)
+	e.QueryExecutor.SetReplicationChannelStatusProvider(runtime.ChannelStatuses)
+	e.QueryExecutor.SetReplicationChannelProviders(runtime.StatusForChannel, runtime.SourceForChannel, runtime.ReplicaForChannel)
+	e.QueryExecutor.SetReplicationSourceProvider(runtime.Source)
+	e.QueryExecutor.SetReplicationReplicaProvider(runtime.Replica)
+	e.QueryExecutor.SetReplicationControl(runtime.StartReplica, runtime.StopReplica)
+	e.QueryExecutor.SetReplicationChannelControl(runtime.StartReplicaForChannel, runtime.StopReplicaForChannel)
+	e.QueryExecutor.SetReplicationSourceControl(runtime.ChangeSource)
+	e.QueryExecutor.SetReplicationChannelSourceControl(runtime.ChangeSourceForChannel)
+	e.QueryExecutor.SetReplicationFilterControl(runtime.ChangeReplicationFilter)
+	e.QueryExecutor.SetReplicationChannelFilterControl(runtime.ChangeReplicationFilterForChannel)
+	e.QueryExecutor.SetReplicationResetControl(runtime.ResetReplica)
+	e.QueryExecutor.SetReplicationChannelResetControl(runtime.ResetReplicaForChannel)
+	e.QueryExecutor.SetReplicationResetAllControl(runtime.ResetReplicaAll)
+	e.QueryExecutor.SetReplicationChannelResetAllControl(runtime.ResetReplicaAllForChannel)
+	e.QueryExecutor.SetReplicationSourceAdminControl(runtime.FlushBinaryLogs, runtime.ResetMaster)
+	e.QueryExecutor.SetReplicationResetBinaryLogsAndGTIDsControl(runtime.ResetMasterTo)
+	e.QueryExecutor.SetReplicationSourcePurgeControl(runtime.PurgeBinaryLogsTo)
+	e.QueryExecutor.SetReplicationSourcePurgeBeforeControl(runtime.PurgeBinaryLogsBefore)
+	// Bind the hooks for source/replica runtimes. The callbacks re-check the
+	// runtime role on each commit, so a replica remains read-only before
+	// promotion while a runtime promotion can immediately publish subsequent
+	// SQL/XA commits into the new source binlog without rebuilding the engine.
+	// Standalone engines deliberately keep these hooks unset so embedders and
+	// tests can inject their own commit/XA publishers.
+	if runtime.Status().Role != replication.RoleStandalone {
+		e.QueryExecutor.SetReplicationCommitTransactionHook(e.appendReplicationTransaction)
+		e.QueryExecutor.SetReplicationCommitTransactionHookWithID(e.appendReplicationTransactionWithID)
+		e.QueryExecutor.SetReplicationXAPrepareHook(e.appendReplicationXAPrepare)
+		e.QueryExecutor.SetReplicationXAOnePhaseCommitHook(e.appendReplicationXAOnePhaseCommit)
+		e.QueryExecutor.SetReplicationXACommitHook(e.appendReplicationXACommit)
+		e.QueryExecutor.SetReplicationXARollbackHook(e.appendReplicationXARollback)
+	}
+}
+
+// derivedNativeEndpoint advertises the SQL listener as the native MySQL
+// replication endpoint when the listener is bound to a concrete address. A
+// wildcard bind address cannot be used by peers, so deployments using it must
+// provide replication.native_endpoint explicitly.
+func derivedNativeEndpoint(bindAddress string, port int) string {
+	host := strings.TrimSpace(bindAddress)
+	if port <= 0 || host == "" || host == "0.0.0.0" || host == "::" || host == "[::]" {
+		return ""
+	}
+	if parsed := net.ParseIP(strings.Trim(host, "[]")); parsed != nil && parsed.IsUnspecified() {
+		return ""
+	}
+	return "mysql://" + net.JoinHostPort(strings.Trim(host, "[]"), strconv.Itoa(port))
+}
+
+func (e *XMySQLEngine) appendReplicationStatements(statements []replication.Statement) error {
+	if e == nil || e.replicationRuntime == nil {
+		return nil
+	}
+	return e.replicationRuntime.AppendCommitted(statements)
+}
+
+func (e *XMySQLEngine) appendReplicationTransaction(changes []replication.RowChange, statements []replication.Statement) error {
+	if !e.replicationPublishEnabled() {
+		return nil
+	}
+	return e.replicationRuntime.AppendCommittedTransaction(changes, statements)
+}
+
+func (e *XMySQLEngine) appendReplicationTransactionWithID(transactionID string, changes []replication.RowChange, statements []replication.Statement) error {
+	if !e.replicationPublishEnabled() {
+		return nil
+	}
+	return e.replicationRuntime.AppendCommittedTransactionWithKey(transactionID, changes, statements)
+}
+
+func (e *XMySQLEngine) appendReplicationXAPrepare(transactionID string, xid replication.XAIdentity, changes []replication.RowChange, statements []replication.Statement) error {
+	if !e.replicationPublishEnabled() {
+		return nil
+	}
+	return e.replicationRuntime.PrepareXATransaction(transactionID, xid, changes, statements)
+}
+
+func (e *XMySQLEngine) appendReplicationXAOnePhaseCommit(transactionID string, xid replication.XAIdentity, changes []replication.RowChange, statements []replication.Statement) error {
+	if !e.replicationPublishEnabled() {
+		return nil
+	}
+	return e.replicationRuntime.AppendOnePhaseXATransaction(transactionID, xid, changes, statements)
+}
+
+func (e *XMySQLEngine) appendReplicationXACommit(transactionID string, xid replication.XAIdentity) error {
+	if !e.replicationPublishEnabled() {
+		return nil
+	}
+	return e.replicationRuntime.CommitXATransaction(transactionID, xid)
+}
+
+func (e *XMySQLEngine) appendReplicationXARollback(transactionID string, xid replication.XAIdentity) error {
+	if !e.replicationPublishEnabled() {
+		return nil
+	}
+	return e.replicationRuntime.RollbackXATransaction(transactionID, xid)
+}
+
+// replicationPublishEnabled keeps transaction hooks installed across a
+// runtime promotion without making replica-side local commits fail.  A
+// replica still needs the hooks available so the same engine can publish
+// immediately after promotion, but before promotion commit hooks are a
+// no-op rather than a source-role error.
+func (e *XMySQLEngine) replicationPublishEnabled() bool {
+	if e == nil || e.replicationRuntime == nil {
+		return false
+	}
+	return e.replicationRuntime.Status().Role == replication.RoleSource
+}
+
+// ReplicationStatus returns the local runtime status for operational probes.
+func (e *XMySQLEngine) ReplicationStatus() interface{} {
+	if e == nil || e.replicationRuntime == nil {
+		return nil
+	}
+	return e.replicationRuntime.Status()
+}
+
+// ReplicationSource exposes the local source stream to protocol adapters.
+func (e *XMySQLEngine) ReplicationSource() *replication.Source {
+	if e == nil || e.replicationRuntime == nil {
+		return nil
+	}
+	return e.replicationRuntime.Source()
+}
+
+// ReplicaRegistry exposes the listener-local native replication registrations
+// to the protocol handler without coupling the SQL engine to net.Session.
+func (e *XMySQLEngine) ReplicaRegistry() *replication.ReplicaRegistry {
+	if e == nil {
+		return nil
+	}
+	return e.replicaRegistry
+}
+
+// PromoteReplication promotes the local replica to a source. The caller is
+// responsible for routing writes to the promoted node after the response.
+func (e *XMySQLEngine) PromoteReplication() error {
+	if e == nil || e.replicationRuntime == nil {
+		return fmt.Errorf("replication runtime is not configured")
+	}
+	return e.replicationRuntime.Promote()
+}
+
 // GetStorageManager 获取存储管理器
 func (e *XMySQLEngine) GetStorageManager() *manager.StorageManager {
 	return e.storageMgr
 }
 
+// GetMandatoryRoles returns the configured mandatory roles that currently
+// resolve to real role accounts.  MySQL ignores configured names that do not
+// exist yet for role activation purposes.
+func (e *XMySQLEngine) GetMandatoryRoles() []string {
+	if e == nil || e.QueryExecutor == nil {
+		return nil
+	}
+	return e.QueryExecutor.allGrantedRolesForMandatoryRoles()
+}
+
+// ActivateAllRolesOnLogin reports whether login should activate every role
+// granted to the account, including existing mandatory roles.
+func (e *XMySQLEngine) ActivateAllRolesOnLogin() bool {
+	if e == nil || e.storageMgr == nil {
+		return false
+	}
+	value, err := e.storageMgr.GetSystemVariablesManager().GetVariable("", "activate_all_roles_on_login", manager.GlobalScope)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(fmt.Sprint(value), "on") || fmt.Sprint(value) == "1" || strings.EqualFold(fmt.Sprint(value), "true")
+}
+
 func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query string, databaseName string) <-chan *Result {
+	query = rewriteCharsetIntroducers(query)
+	metricsEnabled := e != nil && e.QueryExecutor != nil && e.QueryExecutor.metricsRecorder != nil && runtimeMetricsEnabled(session)
+	// ExecuteQuery normally produces one terminal result, but a few legacy
+	// branches can emit more than one. Collect the worker's results internally
+	// and expose them only after the worker's deferred metrics/slow-query
+	// bookkeeping has completed.
 	results := make(chan *Result)
+	workerResults := make(chan *Result)
+	statementSummary := make(chan statementExecutionSummary, 1)
 	go func() {
-		defer close(results)
+		pending := make([]*Result, 0, 1)
+		accounting := statementResultAccounting{}
+		for result := range workerResults {
+			persistDirectEngineSessionState(session, result)
+			if result != nil && result.Err != nil {
+				recordSessionError(session, result.Err)
+			} else if result != nil && e.QueryExecutor != nil {
+				e.QueryExecutor.recordInnoDBDMLMetric(metricStatementType(query), result.AffectedRows)
+			}
+			resultAccounting := statementResultAccountingFor(result)
+			accounting.rowsAffected += resultAccounting.rowsAffected
+			accounting.rowsSent += resultAccounting.rowsSent
+			accounting.warnings += resultAccounting.warnings
+			pending = append(pending, result)
+		}
+		summary := <-statementSummary
+		if metricsEnabled {
+			actorSetting := e.QueryExecutor.performanceSchemaStatementSettingForSession(session)
+			statementType := summary.statementType
+			if statementType == "" {
+				statementType = metricStatementType(query)
+			}
+			instrumentEnabled, instrumentTimed := e.QueryExecutor.performanceSchemaInstrumentSetting("statement/sql/" + strings.ToLower(statementType))
+			stageInstrumented, stageTimed := e.QueryExecutor.performanceSchemaInstrumentSetting("stage/sql/execute")
+			actorSetting.Enabled = actorSetting.Enabled && instrumentEnabled
+			e.QueryExecutor.metricsRecorder.RecordStatementWithThreadIDAndIdentityAndAccountingWithRowsExaminedAndScanAndIndexUsageAndSortRowsAndScanAndRangeAndJoinWithTimerAndCPUAndIndexNames(
+				summary.threadID, summary.user, summary.host, databaseName, strings.TrimSpace(query), statementType, summary.status, summary.latency,
+				accounting.rowsAffected, accounting.rowsSent, summary.rowsExamined, summary.selectScan, summary.selectRange, summary.selectFullJoin, summary.selectFullRangeJoin, summary.selectRangeCheck, summary.noIndexUsed, summary.noGoodIndexUsed, summary.sortRows, summary.sortScan, summary.sortRange, accounting.warnings, summary.cpuTime, summary.cpuTimeCaptured, actorSetting.Enabled, actorSetting.History, instrumentTimed, stageInstrumented, stageTimed, summary.indexNames,
+			)
+		}
+		for _, result := range pending {
+			results <- result
+		}
+		close(results)
+	}()
+	go func() {
+		results := workerResults
+		defer close(workerResults)
 
 		start := time.Now()
+		memoryThreadID := int64(0)
+		if session != nil {
+			memoryThreadID = int64(sessionConnectionID(session))
+		}
+		if metricsEnabled && e.QueryExecutor.performanceSchemaMemoryInstrumentEnabled() {
+			user := sessionStringParam(session, "user")
+			host := sessionStringParam(session, "host")
+			e.QueryExecutor.metricsRecorder.BeginStatementMemory(memoryThreadID)
+			e.QueryExecutor.metricsRecorder.RecordMemoryAllocationWithIdentity(memoryThreadID, user, host, "memory/sql/THD::main_mem_root", int64(len(query)))
+			defer func() {
+				e.QueryExecutor.metricsRecorder.RecordMemoryFreeWithIdentity(memoryThreadID, user, host, "memory/sql/THD::main_mem_root", int64(len(query)))
+				e.QueryExecutor.metricsRecorder.EndStatementMemory(memoryThreadID)
+			}()
+		}
 		rowsAffected := 0
 		txnID := uint64(0)
 		stage := "parse"
 		status := "success"
 		var execErr error
+		var statementContext *ExecutionContext
 
 		defer func() {
+			if execErr == nil && status == "success" && session != nil && e.QueryExecutor != nil && isReplicationDDLQuery(query) {
+				if statement, ok := session.GetParamByName("replication_current_statement").(replication.Statement); ok {
+					e.QueryExecutor.recordReplicationStatement(session, statement)
+				}
+			}
 			e.logSlowQuery(session, query, time.Since(start), rowsAffected, txnID, stage, status, execErr)
+			if metricsEnabled {
+				latency := time.Since(start)
+				e.QueryExecutor.metricsRecorder.RecordQuery(databaseName, metricStatementTypeForContext(statementContext, query), status, latency)
+				threadID := int64(0)
+				user, host := "", ""
+				if session != nil {
+					threadID = int64(sessionConnectionID(session))
+					user, _ = session.GetParamByName("user").(string)
+					host, _ = session.GetParamByName("host").(string)
+				}
+				if execErr != nil {
+					e.QueryExecutor.recordQueryErrorForSession(session, databaseName, execErr)
+				} else if status != "success" {
+					// Some legacy branches only set the status and put the error
+					// directly on Result.Err. Keep the runtime error counter honest
+					// even when that branch has not populated execErr yet.
+					e.QueryExecutor.recordQueryErrorCode(databaseName, string(ExecutionErrorCodeUnknown))
+				}
+				rowsExamined := int64(0)
+				selectScan := int64(0)
+				noIndexUsed := int64(0)
+				noGoodIndexUsed := int64(0)
+				sortRows := int64(0)
+				sortScan := int64(0)
+				if statementContext != nil {
+					rowsExamined = statementContext.statementRowsExamined.Load()
+					selectScan = statementContext.statementSelectScan.Load()
+					noIndexUsed = statementContext.statementNoIndexUsed.Load()
+					noGoodIndexUsed = statementContext.statementNoGoodIndexUsed.Load()
+					sortRows = statementContext.statementSortRows.Load()
+					sortScan = statementContext.statementSortScan.Load()
+				}
+				selectRange := int64(0)
+				sortRange := int64(0)
+				selectFullJoin := int64(0)
+				selectFullRangeJoin := int64(0)
+				selectRangeCheck := int64(0)
+				if statementContext != nil {
+					selectRange = statementContext.statementSelectRange.Load()
+					sortRange = statementContext.statementSortRange.Load()
+					selectFullJoin = statementContext.statementSelectFullJoin.Load()
+					selectFullRangeJoin = statementContext.statementSelectFullRangeJoin.Load()
+					selectRangeCheck = statementContext.statementSelectRangeCheck.Load()
+				}
+				cpuTime, cpuTimeCaptured := int64(0), false
+				if statementContext != nil {
+					cpuTime = statementContext.statementCPUTime.Load()
+					cpuTimeCaptured = statementContext.statementCPUTimeCaptured.Load()
+				}
+				var indexNames []string
+				if statementContext != nil {
+					indexNames = statementContext.indexNames()
+				}
+				statementSummary <- statementExecutionSummary{threadID: threadID, user: user, host: host, statementType: metricStatementTypeForContext(statementContext, query), status: status, latency: latency, rowsExamined: rowsExamined, selectScan: selectScan, selectRange: selectRange, selectFullJoin: selectFullJoin, selectFullRangeJoin: selectFullRangeJoin, selectRangeCheck: selectRangeCheck, noIndexUsed: noIndexUsed, noGoodIndexUsed: noGoodIndexUsed, sortRows: sortRows, sortScan: sortScan, sortRange: sortRange, cpuTime: cpuTime, cpuTimeCaptured: cpuTimeCaptured, indexNames: indexNames}
+			}
+			if !metricsEnabled {
+				rowsExamined := int64(0)
+				selectScan := int64(0)
+				noIndexUsed := int64(0)
+				noGoodIndexUsed := int64(0)
+				sortRows := int64(0)
+				sortScan := int64(0)
+				if statementContext != nil {
+					rowsExamined = statementContext.statementRowsExamined.Load()
+					selectScan = statementContext.statementSelectScan.Load()
+					noIndexUsed = statementContext.statementNoIndexUsed.Load()
+					noGoodIndexUsed = statementContext.statementNoGoodIndexUsed.Load()
+					sortRows = statementContext.statementSortRows.Load()
+					sortScan = statementContext.statementSortScan.Load()
+				}
+				selectRange := int64(0)
+				sortRange := int64(0)
+				selectFullJoin := int64(0)
+				selectFullRangeJoin := int64(0)
+				selectRangeCheck := int64(0)
+				if statementContext != nil {
+					selectRange = statementContext.statementSelectRange.Load()
+					sortRange = statementContext.statementSortRange.Load()
+					selectFullJoin = statementContext.statementSelectFullJoin.Load()
+					selectFullRangeJoin = statementContext.statementSelectFullRangeJoin.Load()
+					selectRangeCheck = statementContext.statementSelectRangeCheck.Load()
+				}
+				var indexNames []string
+				if statementContext != nil {
+					indexNames = statementContext.indexNames()
+				}
+				statementSummary <- statementExecutionSummary{statementType: metricStatementTypeForContext(statementContext, query), status: status, latency: time.Since(start), rowsExamined: rowsExamined, selectScan: selectScan, selectRange: selectRange, selectFullJoin: selectFullJoin, selectFullRangeJoin: selectFullRangeJoin, selectRangeCheck: selectRangeCheck, noIndexUsed: noIndexUsed, noGoodIndexUsed: noGoodIndexUsed, sortRows: sortRows, sortScan: sortScan, sortRange: sortRange, indexNames: indexNames}
+			}
 		}()
 
 		logger.Debugf(" [XMySQLEngine.ExecuteQuery] 开始执行查询: %s", query)
@@ -340,11 +925,312 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			Cfg:          e.conf,
 			DatabaseName: databaseName,
 			RawQuery:     query,
+			Session:      session,
+		}
+		statementContext = ctx
+		if family, classifyErr := sqlparser.ClassifyStatement(query); classifyErr == nil && (family == sqlparser.StatementFamilyPrepared || family == sqlparser.StatementFamilyComponent || family == sqlparser.StatementFamilyShow || family == sqlparser.StatementFamilyExplain || family == sqlparser.StatementFamilyAdmin) {
+			if parsed, parseErr := e.QueryExecutor.ensureParsedStatement(ctx, query); parseErr == nil {
+				ctx.Parsed = parsed
+			}
+		}
+		if ctx.Parsed == nil {
+			if parsed, parseErr := sqlparser.ParseForExecution(query); parseErr == nil && parsed.Family == sqlparser.StatementFamilyAccount {
+				if account, ok := parsed.AST.(*sqlparser.AccountStatement); ok {
+					kind := strings.ToLower(strings.TrimSpace(account.Kind))
+					grantLike := strings.HasPrefix(kind, "grant") || strings.HasPrefix(kind, "revoke")
+					if !grantLike || (account.Scope != "" && account.PrivilegeSpec != "" && len(account.Accounts) > 0) || (len(account.RoleSources) > 0 && len(account.Accounts) > 0) {
+						ctx.Parsed = parsed
+					}
+				}
+			}
+		}
+		if metricsEnabled && e.QueryExecutor != nil && e.QueryExecutor.performanceSchemaConsumerEnabled("events_statements_cpu") {
+			runtime.LockOSThread()
+			cpuStart, cpuSupported := observabilitymetrics.CurrentThreadCPUTimeNanos()
+			defer func() {
+				if cpuSupported {
+					cpuEnd, ok := observabilitymetrics.CurrentThreadCPUTimeNanos()
+					if ok && cpuEnd >= cpuStart {
+						cpuTime := (cpuEnd - cpuStart) * 1000
+						if cpuTime <= 0 {
+							cpuTime = 1
+						}
+						statementContext.statementCPUTime.Store(cpuTime)
+						statementContext.statementCPUTimeCaptured.Store(true)
+					}
+				}
+				runtime.UnlockOSThread()
+			}()
+		}
+		if session != nil {
+			previousProcesslistQuery := session.GetParamByName("processlist_query")
+			previousProcesslistStart := session.GetParamByName("processlist_start_time")
+			session.SetParamByName("processlist_query", query)
+			session.SetParamByName("processlist_start_time", time.Now())
+			defer session.SetParamByName("processlist_query", previousProcesslistQuery)
+			defer session.SetParamByName("processlist_start_time", previousProcesslistStart)
+		}
+		if e.QueryExecutor != nil {
+			queryContext, cleanup := e.QueryExecutor.beginActiveQuery(session)
+			defer cleanup()
+			ctx.Context = queryContext
+		}
+		if e.QueryExecutor != nil {
+			e.QueryExecutor.prepareRolesGraphMLSession(session)
+			if result, handled, err2 := e.QueryExecutor.executeDirectSystemVariableSelect(query, session); handled {
+				stage = "system-variable-compatibility"
+				if err2 != nil {
+					execErr = err2
+					status = "failed"
+					results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_QUERY, Message: err2.Error()}
+				} else {
+					results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Data: result, Message: "system variable query executed successfully"}
+				}
+				return
+			}
+			if rewritten := rewriteQualifiedSystemVariables(query); rewritten != query {
+				query = rewritten
+				ctx.RawQuery = rewritten
+			}
+		}
+		if effectiveSession, viewSecurityRequired, err := e.QueryExecutor.applyViewExecutionSecurity(session, query, databaseName); err != nil {
+			execErr = err
+			status = "failed"
+			results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY, Message: err.Error()}
+			return
+		} else if effectiveSession != session {
+			session = effectiveSession
+			ctx.Session = effectiveSession
+			ctx.ViewSecurityRequired = viewSecurityRequired
+		} else {
+			ctx.ViewSecurityRequired = viewSecurityRequired
+		}
+		if rewritten, err2 := rewriteJSONValueReturningQuery(query); err2 != nil {
+			execErr = err2
+			status = "failed"
+			results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_QUERY, Message: err2.Error()}
+			return
+		} else if rewritten != query {
+			query = rewritten
+			ctx.RawQuery = rewritten
+		}
+		if handled, err2 := e.QueryExecutor.executeRawJSONValueCompatibility(ctx, query, databaseName); handled {
+			stage = "json-value-returning-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_QUERY, Message: err2.Error()}
+			}
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeRawTemporaryTableCompatibility(ctx, query, databaseName); handled {
+			stage = "temporary-table-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_DDL, Message: err2.Error()}
+			}
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeTablespaceCompatibility(ctx, query); handled {
+			stage = "tablespace-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_DDL, Message: err2.Error()}
+			}
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeHandlerCompatibility(ctx, session, query, databaseName, results); handled {
+			stage = "handler-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_QUERY, Message: err2.Error()}
+			}
+			return
+		}
+		if rewritten := e.QueryExecutor.rewriteTemporaryTableReferences(session, query); rewritten != query {
+			query = rewritten
+			ctx.RawQuery = rewritten
+		}
+		if rewritten, err2 := rewriteExtractDateFunctions(query); err2 != nil {
+			execErr = err2
+			status = "failed"
+			results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_QUERY, Message: err2.Error()}
+			return
+		} else if rewritten != query {
+			query = rewritten
+			ctx.RawQuery = rewritten
+		}
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(query)), "select ") {
+			if rewritten := e.QueryExecutor.rewriteSessionUserVariables(query, session); rewritten != query {
+				query = rewritten
+				ctx.RawQuery = rewritten
+			}
+		}
+		if session != nil {
+			replaying, _ := session.GetParamByName("replication_replay").(bool)
+			if !replaying && (isReplicationDMLQuery(query) || isReplicationDDLQuery(query)) {
+				session.SetParamByName("replication_current_statement", replication.Statement{Database: databaseName, SQL: strings.TrimSpace(query)})
+			} else {
+				session.SetParamByName("replication_current_statement", replication.Statement{})
+			}
+		}
+		if reason := e.QueryExecutor.globalReadOnlyWriteBlockReason(session, query, databaseName); reason != "" {
+			err := fmt.Errorf("%s", reason)
+			results <- &Result{Err: err, ResultType: common.RESULT_TYPE_ERROR, Message: err.Error()}
+			return
+		}
+		if reason := e.replicationWriteBlockReason(session, query); reason != "" {
+			err := fmt.Errorf("%s", reason)
+			results <- &Result{Err: err, ResultType: common.RESULT_TYPE_ERROR, Message: err.Error()}
+			return
+		}
+		if rewritten, err2 := e.QueryExecutor.rewriteNestedCTESubqueries(query); err2 != nil {
+			execErr = err2
+			status = "failed"
+			results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+			return
+		} else if rewritten != "" {
+			query = rewritten
+			ctx.RawQuery = rewritten
+		}
+		if err := validateCTEQuerySyntax(query); err != nil {
+			execErr = err
+			status = "failed"
+			results <- &Result{Err: err, ResultType: common.RESULT_TYPE_ERROR, Message: err.Error()}
+			return
+		}
+		if unlock, err := e.QueryExecutor.acquireStatementTableLocks(ctx, session, query, databaseName); err != nil {
+			execErr = err
+			status = "failed"
+			results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY, Message: err.Error()}
+			return
+		} else {
+			defer unlock()
+		}
+		globalUnlock, globalErr := e.QueryExecutor.acquireGlobalReadLockForStatement(ctx.Context, session, query)
+		if globalErr != nil {
+			execErr = globalErr
+			status = "failed"
+			results <- &Result{Err: globalErr, ResultType: common.RESULT_TYPE_QUERY, Message: globalErr.Error()}
+			return
+		}
+		defer globalUnlock()
+		if shouldClearSessionWarnings(query) {
+			clearSessionWarnings(session)
+		}
+		if e.QueryExecutor.executeUserVariableAssignment(ctx, query, session) {
+			return
+		}
+		if ctx.Parsed != nil {
+			if prepared, ok := ctx.Parsed.AST.(*sqlparser.PreparedStatement); ok {
+				if handled, err2 := e.QueryExecutor.executeParsedPreparedStatement(ctx, session, prepared, databaseName, results); handled {
+					stage = "sql-prepared-statement-ast"
+					if err2 != nil {
+						execErr = err2
+						status = "failed"
+						results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_QUERY, Message: err2.Error()}
+					}
+					return
+				}
+			}
+			if component, ok := ctx.Parsed.AST.(*sqlparser.ComponentStatement); ok {
+				if handled, err2 := e.QueryExecutor.executeParsedComponentLifecycle(ctx, session, component); handled {
+					stage = "component-ast"
+					if err2 != nil {
+						execErr = err2
+						status = "failed"
+						results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_QUERY, Message: err2.Error()}
+					}
+					return
+				}
+			}
+			if admin, ok := ctx.Parsed.AST.(*sqlparser.AdminStatement); ok {
+				// The typed replication path must retain the same global privilege
+				// gate as the compatibility path. KILL/LOCK/UNLOCK stay on their
+				// established handlers until their complete authorization contract
+				// is represented by the AST adapter.
+				isTypedReplication := false
+				switch admin.Kind {
+				case "start", "stop", "reset", "purge", "flush", "change":
+					isTypedReplication = true
+				}
+				if !isTypedReplication {
+					// Leave non-replication admin statements to the compatibility
+					// path; parsing still rejects malformed trailing tokens.
+					admin = nil
+				}
+				if isTypedReplication {
+					requiredPrivilege := replicationControlRequiredPrivilege(strings.ToLower(strings.TrimSpace(query)))
+					if requiredPrivilege == "" {
+						requiredPrivilege = sourceBinlogRequiredPrivilege(strings.ToLower(strings.TrimSpace(query)))
+					}
+					if requiredPrivilege != "" {
+						if privilegeErr := e.QueryExecutor.checkGlobalPrivilege(ctx, requiredPrivilege); privilegeErr != nil {
+							stage = "admin-ast"
+							execErr = privilegeErr
+							status = "failed"
+							results <- &Result{Err: privilegeErr, ResultType: common.RESULT_TYPE_QUERY, Message: privilegeErr.Error()}
+							return
+						}
+					}
+				}
+				if admin != nil {
+					if parsedResult, parsedErr := e.QueryExecutor.executeParsedAdmin(ctx, admin, session); parsedResult != nil || parsedErr != nil {
+						stage = "admin-ast"
+						if parsedErr != nil {
+							execErr = parsedErr
+							status = "failed"
+							results <- &Result{Err: parsedErr, ResultType: common.RESULT_TYPE_QUERY, Message: parsedErr.Error()}
+						} else {
+							results <- parsedResult
+						}
+						return
+					}
+				}
+			}
+		}
+		if handled, err2 := e.QueryExecutor.executeSQLPreparedStatementCompatibility(ctx, session, query, databaseName, results); handled {
+			stage = "sql-prepared-statement-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_QUERY, Message: err2.Error()}
+			}
+			return
 		}
 
 		if cmd, name, ok := normalizedTransactionCommand(query); ok {
 			stage = "transaction"
 			e.QueryExecutor.executeTransactionCommand(ctx, cmd, name, session)
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeAdminCompatibility(ctx, session, query); handled {
+			stage = "admin-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_QUERY, Message: err2.Error()}
+				return
+			}
+			if ctx.AdminResult != nil {
+				results <- ctx.AdminResult
+				return
+			}
+			results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Message: "statement executed successfully"}
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeMySQLOptimizerCostMutation(ctx, session, query); handled {
+			stage = "mysql-optimizer-cost-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_QUERY, Message: err2.Error()}
+				return
+			}
+			results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Message: "statement executed successfully"}
 			return
 		}
 
@@ -354,14 +1240,315 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			results <- &Result{Err: err, ResultType: common.RESULT_TYPE_ERROR, Message: err.Error()}
 			return
 		}
+		if handled, err2 := e.QueryExecutor.executeShowCreateDatabaseCompatibility(ctx, query); handled {
+			stage = "show-create-database-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_QUERY, Message: err2.Error()}
+			}
+			return
+		}
 
-		if isShowFullTablesQuery(query) {
+		if isShowFullTablesQuery(query) && ctx.Parsed == nil {
 			stage = "show"
 			e.QueryExecutor.executeShowFullTablesRaw(ctx, session, query, databaseName)
 			return
 		}
+		if handled := e.QueryExecutor.executeAccountStatement(ctx, query); handled {
+			stage = "account"
+			return
+		}
+		if handled := e.QueryExecutor.executeStoredObjectCall(ctx, query, databaseName); handled {
+			stage = "stored-object-call"
+			return
+		}
+		if handled := e.QueryExecutor.executeStoredFunctionCall(ctx, query, databaseName); handled {
+			stage = "stored-function-call"
+			return
+		}
+		if handled := e.QueryExecutor.executeShowCreateStoredObject(ctx, query, databaseName); handled {
+			stage = "show-stored-object"
+			return
+		}
+		if handled := e.QueryExecutor.executeStoredObjectAlter(ctx, query, databaseName); handled {
+			stage = "stored-object-alter"
+			return
+		}
+		if handled := e.QueryExecutor.executeStoredObjectDDL(ctx, query, databaseName); handled {
+			stage = "stored-object-ddl"
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeRawCreateTableIndexVisibility(ctx, query, databaseName); handled {
+			stage = "create-table-index-visibility-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+			}
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeRawCreateTableLikeCompatibility(ctx, query, databaseName); handled {
+			stage = "create-table-like-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+			}
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeRawCreateTableAsSelectCompatibility(ctx, query, databaseName); handled {
+			stage = "create-table-as-select-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+			}
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeRawFullTextSpatialCreate(ctx, query, databaseName); handled {
+			stage = "advanced-index-create-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+			}
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeRawStandaloneIndexCompatibility(ctx, query, databaseName); handled {
+			stage = "standalone-index-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_DDL, Message: err2.Error()}
+			} else {
+				results <- &Result{ResultType: common.RESULT_TYPE_DDL, Message: "index executed successfully"}
+			}
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeRawCreatePartitionCompatibility(ctx, query, databaseName); handled {
+			stage = "partition-create-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+			}
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeRawPartitionMaintenance(ctx, query, databaseName); handled {
+			stage = "partition-maintenance"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_DDL, Message: err2.Error()}
+			}
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeFullTextQuery(ctx, query, databaseName); handled {
+			stage = "fulltext-query-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+			}
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeSpatialQuery(ctx, query, databaseName); handled {
+			stage = "spatial-query-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+			}
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeRawAlterCompatibility(ctx, query, databaseName); handled {
+			stage = "alter-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+				return
+			}
+			results <- &Result{ResultType: common.RESULT_TYPE_DDL, Message: "ALTER TABLE executed successfully"}
+			return
+		}
+		if handled, dropped, err2 := e.QueryExecutor.executeRawDropTableCompatibility(ctx, query, databaseName, session); handled {
+			stage = "drop-table-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+				return
+			}
+			rowsAffected = dropped
+			results <- &Result{ResultType: common.RESULT_TYPE_DDL, Message: fmt.Sprintf("%d table(s) dropped successfully", dropped)}
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeGeneralWindowQuery(ctx, query, databaseName); handled {
+			stage = "window-general-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_QUERY, Message: err2.Error()}
+			}
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeAdvancedWindowQuery(ctx, query, databaseName); handled {
+			stage = "window-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_QUERY, Message: err2.Error()}
+			}
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeCTECompatibility(ctx, query, databaseName); handled {
+			stage = "cte-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+			}
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeCorrelatedScalarSubqueryCompatibility(ctx, query, databaseName); handled {
+			stage = "correlated-scalar-subquery-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+			}
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeCorrelatedPredicateSubqueryCompatibility(ctx, query, databaseName); handled {
+			stage = "correlated-predicate-subquery-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+			}
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeCorrelatedDerivedOuterCompatibility(ctx, query, databaseName); handled {
+			stage = "correlated-derived-outer-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+			}
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeCorrelatedSubqueryCompatibility(ctx, query, databaseName); handled {
+			stage = "correlated-subquery-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+			}
+			return
+		}
+		if rewritten, handled, err2 := e.QueryExecutor.rewriteCorrelatedDMLSubquery(ctx, query, databaseName); handled {
+			stage = "correlated-dml-subquery-compatibility"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+				return
+			}
+			query = rewritten
+			ctx.RawQuery = rewritten
+		}
+		if handled, err2 := e.QueryExecutor.executeSimpleWindowQuery(ctx, query, databaseName); handled {
+			stage = "window"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+			}
+			return
+		}
+		if handled := e.QueryExecutor.executeViewDDL(ctx, query, databaseName); handled {
+			stage = "view-ddl"
+			return
+		}
+		if handled := e.QueryExecutor.executeShowCreateView(ctx, query, databaseName); handled {
+			stage = "show-create-view"
+			return
+		}
+		if rewritten, err2 := e.QueryExecutor.rewriteSimpleCTEQuery(query); err2 != nil {
+			execErr = err2
+			status = "failed"
+			results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+			return
+		} else if rewritten != "" {
+			query = rewritten
+			ctx.RawQuery = rewritten
+		}
+		if rewritten, err2 := e.QueryExecutor.rewriteViewQueryForExecution(query, databaseName); err2 != nil {
+			execErr = err2
+			status = "failed"
+			results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+			return
+		} else if rewritten != "" {
+			query = rewritten
+			ctx.RawQuery = rewritten
+		}
 
-		if result, handled, err2 := e.QueryExecutor.executeInformationSchemaMetadataSelect(query); handled {
+		if handled := e.QueryExecutor.executeAdminReadQuery(ctx, query, databaseName); handled {
+			stage = "admin-read"
+			return
+		}
+		if result, handled, err2 := e.QueryExecutor.executePerformanceSchemaThreadsUpdate(query, session); handled {
+			stage = "performance-schema-threads-update"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+				return
+			}
+			rowsAffected = result.AffectedRows
+			results <- result
+			return
+		}
+		if result, handled, err2 := e.QueryExecutor.executePerformanceSchemaSetupActorsMutation(query, session); handled {
+			stage = "performance-schema-setup-actors-mutation"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+				return
+			}
+			rowsAffected = result.AffectedRows
+			results <- result
+			return
+		}
+		if result, handled, err2 := e.QueryExecutor.executePerformanceSchemaSetupObjectsMutation(query, session); handled {
+			stage = "performance-schema-setup-objects-mutation"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+				return
+			}
+			rowsAffected = result.AffectedRows
+			results <- result
+			return
+		}
+		if result, handled, err2 := e.QueryExecutor.executePerformanceSchemaSetupUpdate(query, session); handled {
+			stage = "performance-schema-setup-update"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: err2.Error()}
+				return
+			}
+			rowsAffected = result.AffectedRows
+			results <- result
+			return
+		}
+
+		if result, handled, err2 := e.QueryExecutor.executeInformationSchemaMetadataSelect(query, session); handled {
 			stage = "metadata-select"
 			if err2 != nil {
 				execErr = err2
@@ -369,18 +1556,126 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: fmt.Sprintf("SELECT failed: %v", err2)}
 				return
 			}
+			result = normalizeInformationSchemaAggregate(query, result)
+			rowsAffected = result.RowCount
+			results <- &Result{Data: result, ResultType: common.RESULT_TYPE_SELECT}
+			return
+		}
+		if handled, err2 := e.QueryExecutor.executeDerivedTableCompatibility(ctx, query, databaseName); handled {
+			stage = "derived-table"
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: fmt.Sprintf("derived table failed: %v", err2)}
+			}
+			return
+		}
+		if !isInsertOrReplaceQuery(query) {
+			if branches, operators, ok := splitSetOperationQuery(query); ok && hasNonUnionSetOperator(operators) {
+				stage = "mixed-set-operation"
+				result, err2 := e.QueryExecutor.executeMixedSetOperationQuery(ctx, branches, operators, databaseName)
+				if err2 != nil {
+					execErr = err2
+					status = "failed"
+					results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: fmt.Sprintf("set operation failed: %v", err2)}
+					return
+				}
+				rowsAffected = result.RowCount
+				results <- &Result{Data: result, ResultType: common.RESULT_TYPE_SELECT}
+				return
+			}
+
+			if branches, unionAll, ok := splitUnionQuery(query); ok {
+				stage = "union"
+				result, err2 := e.QueryExecutor.executeUnionQuery(ctx, branches, unionAll, databaseName)
+				if err2 != nil {
+					execErr = err2
+					status = "failed"
+					results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: fmt.Sprintf("UNION failed: %v", err2)}
+					return
+				}
+				rowsAffected = result.RowCount
+				results <- &Result{Data: result, ResultType: common.RESULT_TYPE_SELECT}
+				return
+			}
+		}
+		if branches, operators, ok := splitIntersectExceptQuery(query); ok {
+			stage = "set-operation"
+			result, err2 := e.QueryExecutor.executeIntersectExceptQuery(ctx, branches, operators, databaseName)
+			if err2 != nil {
+				execErr = err2
+				status = "failed"
+				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: fmt.Sprintf("set operation failed: %v", err2)}
+				return
+			}
 			rowsAffected = result.RowCount
 			results <- &Result{Data: result, ResultType: common.RESULT_TYPE_SELECT}
 			return
 		}
 
-		stmt, err := sqlparser.Parse(query)
-		if err != nil {
-			logger.Errorf(" [XMySQLEngine.ExecuteQuery] SQL解析错误: %v", err)
-			execErr = fmt.Errorf("parse error: %v", err)
+		if rewritten, err2 := e.QueryExecutor.rewriteSimpleInSubquery(ctx, query, databaseName); err2 != nil {
+			execErr = err2
 			status = "failed"
-			results <- &Result{Err: execErr, ResultType: common.RESULT_TYPE_ERROR}
+			results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: fmt.Sprintf("subquery failed: %v", err2)}
 			return
+		} else if rewritten != "" {
+			query = rewritten
+			ctx.RawQuery = rewritten
+		}
+		if rewritten, err2 := e.QueryExecutor.rewriteSimpleQuantifiedSubqueries(ctx, query, databaseName); err2 != nil {
+			execErr = err2
+			status = "failed"
+			results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: fmt.Sprintf("quantified subquery failed: %v", err2)}
+			return
+		} else if rewritten != "" {
+			query = rewritten
+			ctx.RawQuery = rewritten
+		}
+		if rewritten, err2 := e.QueryExecutor.rewriteSimpleScalarSubqueries(ctx, query, databaseName); err2 != nil {
+			execErr = err2
+			status = "failed"
+			results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: fmt.Sprintf("scalar subquery failed: %v", err2)}
+			return
+		} else if rewritten != "" {
+			query = rewritten
+			ctx.RawQuery = rewritten
+		}
+		if rewritten := e.QueryExecutor.rewriteSessionUserVariables(query, session); rewritten != query {
+			query = rewritten
+			ctx.RawQuery = rewritten
+		}
+		if rewritten := rewriteSessionMetadataFunctions(query); rewritten != query {
+			query = rewritten
+			ctx.RawQuery = rewritten
+		}
+
+		if handled, err := e.QueryExecutor.executeXACompatibility(ctx, session, query); handled {
+			if err != nil {
+				execErr = err
+				status = "failed"
+				results <- &Result{Err: err, ResultType: common.RESULT_TYPE_QUERY, Message: err.Error()}
+			} else if !isXARecoverQuery(query) {
+				results <- &Result{ResultType: common.RESULT_TYPE_QUERY, Message: "XA statement executed successfully"}
+			}
+			return
+		}
+
+		var (
+			stmt sqlparser.Statement
+			err  error
+		)
+		if ctx.Parsed != nil && (ctx.Parsed.Family == sqlparser.StatementFamilyShow || ctx.Parsed.Family == sqlparser.StatementFamilyExplain) {
+			stmt = ctx.Parsed.AST
+		} else {
+			stmt, err = sqlparser.Parse(query)
+			if err != nil {
+				ctx.statementParseError = true
+				logger.Errorf(" [XMySQLEngine.ExecuteQuery] SQL解析错误: %v", err)
+				execErr = fmt.Errorf("parse error: %v", err)
+				status = "failed"
+				results <- &Result{Err: execErr, ResultType: common.RESULT_TYPE_ERROR}
+				return
+			}
 		}
 
 		logger.Debugf(" [XMySQLEngine.ExecuteQuery] SQL解析成功，语句类型: %T", stmt)
@@ -395,13 +1690,14 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 				status = "failed"
 				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: fmt.Sprintf("SELECT failed: %v", err2)}
 			} else {
+				e.QueryExecutor.recordInnoDBNonLockingAutocommitReadOnlyCommit(session, query, stmt)
 				rowsAffected = result.RowCount
 				results <- &Result{Data: result, ResultType: common.RESULT_TYPE_SELECT}
 			}
 
 		case *sqlparser.Union:
 			stage = "metadata-union"
-			result, handled, err2 := e.QueryExecutor.executeInformationSchemaMetadataSelect(query)
+			result, handled, err2 := e.QueryExecutor.executeInformationSchemaMetadataSelect(query, session)
 			if !handled {
 				execErr = fmt.Errorf("unsupported statement type")
 				status = "failed"
@@ -414,10 +1710,19 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 				results <- &Result{Err: err2, ResultType: common.RESULT_TYPE_ERROR, Message: fmt.Sprintf("SELECT failed: %v", err2)}
 				return
 			}
+			result = normalizeInformationSchemaAggregate(query, result)
 			rowsAffected = result.RowCount
 			results <- &Result{Data: result, ResultType: common.RESULT_TYPE_SELECT}
 
 		case *sqlparser.DDL:
+			releaseDDL, ddlLockErr := e.QueryExecutor.acquireSimpleDDLTableLock(ctx, session, stmt.Table, stmt.Action, databaseName)
+			if ddlLockErr != nil {
+				execErr = ddlLockErr
+				status = "failed"
+				results <- &Result{Err: ddlLockErr, ResultType: common.RESULT_TYPE_DDL, Message: ddlLockErr.Error()}
+				return
+			}
+			defer releaseDDL()
 			switch stmt.Action {
 			case "create":
 				// 从会话中获取当前数据库
@@ -444,7 +1749,7 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 					}
 				}
 				logger.Debugf("🗑️ DROP TABLE使用数据库: %s", currentDB)
-				e.QueryExecutor.executeDropTableStatement(ctx, currentDB, stmt)
+				e.QueryExecutor.executeDropTableStatement(ctx, currentDB, stmt, session)
 			case "truncate":
 				stage = "ddl-truncate-table"
 				currentDB := databaseName
@@ -468,7 +1773,7 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 					}
 				}
 				logger.Debugf("ALTER TABLE使用数据库: %s", currentDB)
-				e.QueryExecutor.executeAlterTableStatement(ctx, currentDB, stmt)
+				e.QueryExecutor.executeAlterTableStatement(ctx, currentDB, stmt, ctx.RawQuery)
 			default:
 				execErr = fmt.Errorf("unsupported DDL action: %s", stmt.Action)
 				status = "failed"
@@ -476,6 +1781,12 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			}
 
 		case *sqlparser.DBDDL:
+			if ddlCommitErr := e.QueryExecutor.prepareDDLImplicitCommit(session); ddlCommitErr != nil {
+				execErr = ddlCommitErr
+				status = "failed"
+				results <- &Result{Err: ddlCommitErr, ResultType: common.RESULT_TYPE_DDL, Message: ddlCommitErr.Error()}
+				return
+			}
 			switch stmt.Action {
 			case "create":
 				stage = "ddl-create-database"
@@ -547,10 +1858,16 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			} else {
 				txnID = result.TxnID
 				rowsAffected = result.AffectedRows
+				if session != nil {
+					session.SetParamByName("row_count", int64(result.AffectedRows))
+				}
 				results <- &Result{
-					Data:       result,
-					ResultType: common.RESULT_TYPE_QUERY,
-					Message:    result.Message,
+					Data:         result,
+					AffectedRows: result.AffectedRows,
+					LastInsertID: result.LastInsertId,
+					Warnings:     result.Warnings,
+					ResultType:   common.RESULT_TYPE_QUERY,
+					Message:      result.Message,
 				}
 			}
 
@@ -573,10 +1890,16 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			} else {
 				txnID = result.TxnID
 				rowsAffected = result.AffectedRows
+				if session != nil {
+					session.SetParamByName("row_count", int64(result.AffectedRows))
+				}
 				results <- &Result{
-					Data:       result,
-					ResultType: common.RESULT_TYPE_QUERY,
-					Message:    result.Message,
+					Data:         result,
+					AffectedRows: result.AffectedRows,
+					LastInsertID: result.LastInsertId,
+					Warnings:     result.Warnings,
+					ResultType:   common.RESULT_TYPE_QUERY,
+					Message:      result.Message,
 				}
 			}
 
@@ -599,10 +1922,16 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 			} else {
 				txnID = result.TxnID
 				rowsAffected = result.AffectedRows
+				if session != nil {
+					session.SetParamByName("row_count", int64(result.AffectedRows))
+				}
 				results <- &Result{
-					Data:       result,
-					ResultType: common.RESULT_TYPE_QUERY,
-					Message:    result.Message,
+					Data:         result,
+					AffectedRows: result.AffectedRows,
+					LastInsertID: result.LastInsertId,
+					Warnings:     result.Warnings,
+					ResultType:   common.RESULT_TYPE_QUERY,
+					Message:      result.Message,
 				}
 			}
 
@@ -614,6 +1943,55 @@ func (e *XMySQLEngine) ExecuteQuery(session server.MySQLServerSession, query str
 	}()
 
 	return results
+}
+
+// ExecuteParsedQuery forwards a dispatcher-validated AST to the query
+// executor. It preserves the existing result type while avoiding a second
+// parse at the engine boundary.
+func (e *XMySQLEngine) ExecuteParsedQuery(session server.MySQLServerSession, parsed *sqlparser.ParsedStatement, databaseName string) <-chan *Result {
+	if e == nil || e.QueryExecutor == nil {
+		results := make(chan *Result, 1)
+		results <- &Result{Err: fmt.Errorf("query executor is unavailable")}
+		close(results)
+		return results
+	}
+	// Keep the engine-owned lifecycle authoritative when statement metrics are
+	// enabled. In lightweight contexts the executor can consume the immutable
+	// AST directly; metric-enabled network sessions use the established outer
+	// lifecycle to avoid double or missing records.
+	if e.QueryExecutor.metricsRecorder == nil || !runtimeMetricsEnabled(session) {
+		return e.QueryExecutor.ExecuteParsedQuery(session, parsed, databaseName)
+	}
+	return e.ExecuteQuery(session, parsed.RawSQL, databaseName)
+}
+
+// runtimeMetricsEnabled distinguishes client statements from SQL issued by
+// internal subsystems such as authentication metadata lookup. Internal
+// queries still execute normally, but must not inflate client-facing
+// Questions, Com_* counters, statement history, or error summaries.
+func runtimeMetricsEnabled(session server.MySQLServerSession) bool {
+	if session == nil {
+		return true
+	}
+	enabled, ok := session.GetParamByName("__xmysql_internal_query").(bool)
+	return !ok || !enabled
+}
+
+// ResetSession applies the engine-side rollback and session-state reset used
+// by the wire-level COM_RESET_CONNECTION handlers.
+func (e *XMySQLEngine) ResetSession(session server.MySQLServerSession) error {
+	if e == nil || e.QueryExecutor == nil {
+		return nil
+	}
+	return e.QueryExecutor.ResetSession(session)
+}
+
+// CleanupTemporaryTables releases all connection-local temporary tables.
+func (e *XMySQLEngine) CleanupTemporaryTables(session server.MySQLServerSession) error {
+	if e == nil || e.QueryExecutor == nil {
+		return nil
+	}
+	return e.QueryExecutor.CleanupTemporaryTables(session)
 }
 
 func (e *XMySQLEngine) logSlowQuery(session server.MySQLServerSession, query string, duration time.Duration, rowsAffected int, txnID uint64, stage, status string, execErr error) {
@@ -713,14 +2091,11 @@ func (e *XMySQLEngine) getExecutionErrorCode(err error) string {
 	if err == nil {
 		return ""
 	}
-	var code ExecutionErrorCode
-	if execErr, ok := err.(*ExecutionError); ok && execErr != nil {
-		code = execErr.ErrorCode
+	var execErr *ExecutionError
+	if errors.As(err, &execErr) && execErr != nil && execErr.ErrorCode != "" {
+		return string(execErr.ErrorCode)
 	}
-	if code == "" {
-		code = ExecutionErrorCodeUnknown
-	}
-	return string(code)
+	return string(ExecutionErrorCodeUnknown)
 }
 
 // resolveDmlDatabaseName 根据 DML 语句返回最终数据库名：

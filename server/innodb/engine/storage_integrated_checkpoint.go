@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"os"
 	"path/filepath"
 	"sort"
@@ -53,11 +54,20 @@ type TableSpaceCheckpoint struct {
 	FlushLSN   uint64 `json:"flush_lsn"`    // 刷新LSN
 }
 
+// ActiveTransactionProvider supplies a point-in-time list of transaction IDs
+// for checkpoint metadata. It keeps CheckpointManager independent from the
+// transaction manager implementation while allowing production wiring.
+type ActiveTransactionProvider interface {
+	GetActiveTransactionIDs() []uint64
+}
+
 // CheckpointManager 检查点管理器
 type CheckpointManager struct {
 	dataDir           string
 	checkpointDir     string
 	bufferPoolManager *manager.OptimizedBufferPoolManager
+	activeTxnProvider ActiveTransactionProvider
+	activeTxnMutex    sync.RWMutex
 
 	// 检查点状态
 	isRunning       bool
@@ -96,6 +106,14 @@ func NewCheckpointManager(
 		checkpointPrefix:  "checkpoint",
 		writeUnblockCh:    make(chan struct{}),
 	}
+}
+
+// SetActiveTransactionProvider wires the transaction manager used by
+// checkpoint metadata collection. A nil provider is an explicit empty state.
+func (cm *CheckpointManager) SetActiveTransactionProvider(provider ActiveTransactionProvider) {
+	cm.activeTxnMutex.Lock()
+	defer cm.activeTxnMutex.Unlock()
+	cm.activeTxnProvider = provider
 }
 
 // WaitForWritePermit 等待写门控放行。
@@ -282,10 +300,8 @@ func (cm *CheckpointManager) ReadLatestCheckpoint() (*CheckpointRecord, error) {
 		return nil, fmt.Errorf("读取检查点文件失败: %v", err)
 	}
 
-	// 验证校验和
-	expectedChecksum := cm.calculateChecksum(checkpoint)
-	if checkpoint.Checksum != expectedChecksum {
-		return nil, fmt.Errorf("检查点校验和不匹配")
+	if err := cm.validateCheckpointChecksum(checkpoint); err != nil {
+		return nil, err
 	}
 
 	logger.Infof("📖 读取最新检查点成功: LSN=%d, 时间=%v",
@@ -310,6 +326,10 @@ func (cm *CheckpointManager) ReadCheckpointByLSN(lsn uint64) (*CheckpointRecord,
 		checkpoint, err := cm.readCheckpointFile(filePath)
 		if err != nil {
 			logger.Errorf(" 读取检查点文件失败: %s, Error: %v", filePath, err)
+			continue
+		}
+		if err := cm.validateCheckpointChecksum(checkpoint); err != nil {
+			logger.Errorf(" 检查点校验失败: %s, Error: %v", filePath, err)
 			continue
 		}
 
@@ -339,6 +359,10 @@ func (cm *CheckpointManager) ListCheckpoints() ([]*CheckpointRecord, error) {
 		checkpoint, err := cm.readCheckpointFile(filePath)
 		if err != nil {
 			logger.Errorf(" 读取检查点文件失败: %s, Error: %v", filePath, err)
+			continue
+		}
+		if err := cm.validateCheckpointChecksum(checkpoint); err != nil {
+			logger.Errorf(" 检查点校验失败: %s, Error: %v", filePath, err)
 			continue
 		}
 
@@ -398,10 +422,8 @@ func (cm *CheckpointManager) loadLatestCheckpoint() error {
 		return fmt.Errorf("读取检查点文件失败: %v", err)
 	}
 
-	// 验证校验和
-	expectedChecksum := cm.calculateChecksum(checkpoint)
-	if checkpoint.Checksum != expectedChecksum {
-		return fmt.Errorf("检查点校验和不匹配")
+	if err := cm.validateCheckpointChecksum(checkpoint); err != nil {
+		return err
 	}
 
 	logger.Infof("📖 加载最新检查点成功: LSN=%d, 时间=%v",
@@ -495,16 +517,51 @@ func (cm *CheckpointManager) getCheckpointFiles() ([]string, error) {
 
 // collectTableSpaceInfo 收集表空间信息
 func (cm *CheckpointManager) collectTableSpaceInfo() []TableSpaceCheckpoint {
-	// 简化实现：返回空列表
-	// 在实际实现中，应该从存储管理器获取表空间信息
-	return []TableSpaceCheckpoint{}
+	if cm.bufferPoolManager == nil {
+		return []TableSpaceCheckpoint{}
+	}
+
+	// The buffer pool is the authoritative set of pages touched by this
+	// checkpoint. Aggregate dirty pages by space so checkpoint metadata is
+	// useful even when a full tablespace catalog is not attached.
+	bySpace := make(map[uint32]*TableSpaceCheckpoint)
+	for _, page := range cm.bufferPoolManager.GetDirtyPages() {
+		if page == nil {
+			continue
+		}
+		entry := bySpace[page.GetSpaceID()]
+		if entry == nil {
+			entry = &TableSpaceCheckpoint{SpaceID: page.GetSpaceID()}
+			bySpace[page.GetSpaceID()] = entry
+		}
+		entry.PageCount++
+		if page.GetPageNo() > entry.LastPageNo {
+			entry.LastPageNo = page.GetPageNo()
+		}
+		if page.GetLSN() > entry.FlushLSN {
+			entry.FlushLSN = page.GetLSN()
+		}
+	}
+
+	spaces := make([]TableSpaceCheckpoint, 0, len(bySpace))
+	for _, entry := range bySpace {
+		spaces = append(spaces, *entry)
+	}
+	sort.Slice(spaces, func(i, j int) bool { return spaces[i].SpaceID < spaces[j].SpaceID })
+	return spaces
 }
 
 // collectActiveTxns 收集活跃事务信息
 func (cm *CheckpointManager) collectActiveTxns() []uint64 {
-	// 简化实现：返回空列表
-	// 在实际实现中，应该从事务管理器获取活跃事务
-	return []uint64{}
+	cm.activeTxnMutex.RLock()
+	provider := cm.activeTxnProvider
+	cm.activeTxnMutex.RUnlock()
+	if provider == nil {
+		return []uint64{}
+	}
+	ids := append([]uint64(nil), provider.GetActiveTransactionIDs()...)
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	return ids
 }
 
 // collectDirtyPages 收集脏页信息
@@ -524,7 +581,10 @@ func (cm *CheckpointManager) collectDirtyPages() []DirtyPageInfo {
 			SpaceID:     page.GetSpaceID(),
 			OldestLSN:   page.GetLSN(),
 			LatestLSN:   page.GetLSN(),
-			ModifyCount: 1, // 简化实现
+			ModifyCount: page.GetModifyCount(),
+		}
+		if info.ModifyCount == 0 {
+			info.ModifyCount = 1
 		}
 		dirtyPageInfos = append(dirtyPageInfos, info)
 	}
@@ -673,26 +733,58 @@ func (cm *CheckpointManager) calculateFlushScore(page *buffer_pool.BufferPage) f
 		score += lsnScore * 0.4
 	}
 
-	// 2. 访问频率得分（权重30%）：访问频率越低，得分越高
-	// 简化实现：使用固定得分
-	accessScore := 0.5
+	// 2. 访问新鲜度得分（权重30%）：越久未访问，越优先刷新。
+	accessScore := pageColdnessScore(page.GetAccessTime(), time.Minute)
 	score += accessScore * 0.3
 
-	// 3. 脏页年龄得分（权重30%）：年龄越大，得分越高
-	// 简化实现：使用LSN作为年龄的代理指标
-	ageScore := 1.0 - (float64(lsn) / 1000000.0)
-	if ageScore < 0 {
-		ageScore = 0
-	}
+	// 3. 脏页年龄得分（权重30%）：使用真实访问时间计算脏页冷度。
+	ageScore := pageColdnessScore(page.GetAccessTime(), 5*time.Minute)
 	score += ageScore * 0.3
 
 	return score
 }
 
+// pageColdnessScore converts a last-access timestamp into a bounded coldness
+// score. A zero timestamp means that no access was recorded and is treated as
+// maximally cold so it cannot remain indefinitely in the dirty set.
+func pageColdnessScore(accessTime uint64, fullColdness time.Duration) float64 {
+	if accessTime == 0 || fullColdness <= 0 {
+		return 1
+	}
+	accessedAt := time.Unix(0, int64(accessTime))
+	age := time.Since(accessedAt)
+	if age <= 0 {
+		return 0
+	}
+	score := age.Seconds() / fullColdness.Seconds()
+	if score > 1 {
+		return 1
+	}
+	return score
+}
+
+func (cm *CheckpointManager) validateCheckpointChecksum(checkpoint *CheckpointRecord) error {
+	if checkpoint == nil || checkpoint.Checksum != cm.calculateChecksum(checkpoint) {
+		return fmt.Errorf("检查点校验和不匹配")
+	}
+	return nil
+}
+
 // calculateChecksum 计算检查点校验和
 func (cm *CheckpointManager) calculateChecksum(checkpoint *CheckpointRecord) uint32 {
-	// 简化实现：使用LSN作为校验和
-	return uint32(checkpoint.LSN & 0xFFFFFFFF)
+	if checkpoint == nil {
+		return 0
+	}
+	// Hash the complete logical payload while excluding the checksum field
+	// itself. This detects changes to table-space, transaction, dirty-page,
+	// and WAL metadata instead of treating LSN as the checksum.
+	copyOfCheckpoint := *checkpoint
+	copyOfCheckpoint.Checksum = 0
+	data, err := json.Marshal(copyOfCheckpoint)
+	if err != nil {
+		return 0
+	}
+	return crc32.ChecksumIEEE(data)
 }
 
 // cleanupOldCheckpoints 清理旧检查点

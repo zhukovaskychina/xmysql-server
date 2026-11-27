@@ -99,7 +99,7 @@ func TestUndoPurgerDoesNotPurgeSegmentNeededByActiveSnapshot(t *testing.T) {
 		t.Fatalf("Prepare: %v", err)
 	}
 
-	readView := formatmvcc.NewReadView([]uint64{150}, 200, 201)
+	readView := formatmvcc.NewReadView([]uint64{101}, 200, 201)
 	token := purger.RegisterActiveReadView(readView)
 	purger.SchedulePurge(segment)
 	purger.purgeOldSegments()
@@ -119,5 +119,31 @@ func TestUndoPurgerDoesNotPurgeSegmentNeededByActiveSnapshot(t *testing.T) {
 	}
 	if segment.state != SEGMENT_CACHED {
 		t.Fatalf("segment state = %d, want SEGMENT_CACHED after purge", segment.state)
+	}
+}
+
+func TestUndoPurgerPurgesSegmentOlderThanSnapshotLowWaterMark(t *testing.T) {
+	purger := NewUndoPurger(NewUndoSegmentManager(1, 4096, 10))
+	purger.SetRetentionTime(0)
+
+	segment := NewUndoSegment(1, 2, 100, 4096)
+	if err := segment.Allocate(101); err != nil {
+		t.Fatalf("Allocate: %v", err)
+	}
+	if err := segment.AddUndoLog(&UndoLogEntry{TrxID: 101, LSN: 11, Type: LOG_TYPE_UPDATE, TableID: 1, RecordID: 1, Data: []byte("old")}); err != nil {
+		t.Fatalf("AddUndoLog: %v", err)
+	}
+	if err := segment.Prepare(); err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+
+	readView := formatmvcc.NewReadView([]uint64{150}, 200, 201)
+	token := purger.RegisterActiveReadView(readView)
+	defer purger.UnregisterActiveReadView(token)
+	purger.SchedulePurge(segment)
+	purger.purgeOldSegments()
+
+	if !segment.purged {
+		t.Fatal("segment older than the snapshot low watermark was not purged")
 	}
 }

@@ -16,28 +16,28 @@ var (
 
 // Index page header offsets (56 bytes total)
 const (
-	PAGE_N_DIR_SLOTS  = 0  // Number of directory slots (2 bytes)
-	PAGE_HEAP_TOP     = 2  // Top of heap (2 bytes)
-	PAGE_N_HEAP       = 4  // Number of records in heap (2 bytes)
-	PAGE_FREE         = 6  // Pointer to free list (2 bytes)
-	PAGE_GARBAGE      = 8  // Garbage bytes (2 bytes)
-	PAGE_LAST_INSERT  = 10 // Last insert position (2 bytes)
-	PAGE_DIRECTION    = 12 // Insert direction (2 bytes)
-	PAGE_N_DIRECTION  = 14 // Consecutive inserts in direction (2 bytes)
-	PAGE_N_RECS       = 16 // Number of user records (2 bytes)
-	PAGE_MAX_TRX_ID   = 18 // Max transaction ID (8 bytes)
-	PAGE_LEVEL        = 26 // B+tree level (2 bytes)
-	PAGE_INDEX_ID     = 28 // Index ID (8 bytes)
-	PAGE_BTR_SEG_LEAF = 36 // Leaf segment header (10 bytes)
-	PAGE_BTR_SEG_TOP  = 46 // Non-leaf segment header (10 bytes)
-	INDEX_HEADER_SIZE = 56 // Total index header size
+	PAGE_N_DIR_SLOTS  = 0                     // Number of directory slots (2 bytes)
+	PAGE_HEAP_TOP     = 2                     // Top of heap (2 bytes)
+	PAGE_N_HEAP       = 4                     // Number of records in heap (2 bytes)
+	PAGE_FREE         = 6                     // Pointer to free list (2 bytes)
+	PAGE_GARBAGE      = 8                     // Garbage bytes (2 bytes)
+	PAGE_LAST_INSERT  = 10                    // Last insert position (2 bytes)
+	PAGE_DIRECTION    = 12                    // Insert direction (2 bytes)
+	PAGE_N_DIRECTION  = 14                    // Consecutive inserts in direction (2 bytes)
+	PAGE_N_RECS       = 16                    // Number of user records (2 bytes)
+	PAGE_MAX_TRX_ID   = 18                    // Max transaction ID (8 bytes)
+	PAGE_LEVEL        = 26                    // B+tree level (2 bytes)
+	PAGE_INDEX_ID     = 28                    // Index ID (8 bytes)
+	PAGE_BTR_SEG_LEAF = 36                    // Leaf segment header (10 bytes)
+	PAGE_BTR_SEG_TOP  = 46                    // Non-leaf segment header (10 bytes)
+	INDEX_HEADER_SIZE = common.PageHeaderSize // Total index header size
 )
 
 // Infimum and supremum record constants
 const (
-	INFIMUM_SUPREMUM_SIZE = 26 // Size of infimum + supremum records
-	INFIMUM_OFFSET        = 0  // Offset of infimum record
-	SUPREMUM_OFFSET       = 13 // Offset of supremum record
+	INFIMUM_SUPREMUM_SIZE = common.InfimumSupremumSize // Size of infimum + supremum records
+	INFIMUM_OFFSET        = 0                          // Offset of infimum record
+	SUPREMUM_OFFSET       = 13                         // Offset of supremum record
 )
 
 // Insert direction constants
@@ -84,7 +84,7 @@ type IndexPage struct {
 func NewIndexPage(spaceID, pageNo uint32) *IndexPage {
 	ip := &IndexPage{
 		UnifiedPage:     NewUnifiedPage(spaceID, pageNo, common.FIL_PAGE_INDEX),
-		infimumSupremum: make([]byte, INFIMUM_SUPREMUM_SIZE),
+		infimumSupremum: make([]byte, common.InfimumSupremumSize),
 		userRecords:     make([]byte, 0),
 		freeSpace:       make([]byte, 0),
 		pageDirectory:   make([]byte, 0),
@@ -93,7 +93,7 @@ func NewIndexPage(spaceID, pageNo uint32) *IndexPage {
 	// Initialize index header with defaults
 	ip.indexHeader = IndexHeader{
 		NDirSlots:   2, // Minimum: infimum and supremum
-		HeapTop:     FileHeaderSize + INDEX_HEADER_SIZE + INFIMUM_SUPREMUM_SIZE,
+		HeapTop:     common.FileHeaderSize + common.PageHeaderSize + common.InfimumSupremumSize,
 		NHeap:       2, // Infimum and supremum
 		Free:        0, // No free list initially
 		Garbage:     0,
@@ -137,7 +137,7 @@ func (ip *IndexPage) initInfimumSupremum() {
 // serializeIndexHeader serializes the index header to the page body
 func (ip *IndexPage) serializeIndexHeader() {
 	body := ip.GetBody()
-	if len(body) < INDEX_HEADER_SIZE {
+	if len(body) < common.PageHeaderSize {
 		return
 	}
 
@@ -157,7 +157,7 @@ func (ip *IndexPage) serializeIndexHeader() {
 	copy(body[PAGE_BTR_SEG_TOP:], ip.indexHeader.BtrSegTop[:])
 
 	// Copy infimum and supremum
-	copy(body[INDEX_HEADER_SIZE:], ip.infimumSupremum)
+	copy(body[common.PageHeaderSize:], ip.infimumSupremum)
 
 	ip.SetBody(body)
 }
@@ -165,7 +165,7 @@ func (ip *IndexPage) serializeIndexHeader() {
 // deserializeIndexHeader deserializes the index header from the page body
 func (ip *IndexPage) deserializeIndexHeader() {
 	body := ip.GetBody()
-	if len(body) < INDEX_HEADER_SIZE {
+	if len(body) < common.PageHeaderSize {
 		return
 	}
 
@@ -185,7 +185,7 @@ func (ip *IndexPage) deserializeIndexHeader() {
 	copy(ip.indexHeader.BtrSegTop[:], body[PAGE_BTR_SEG_TOP:])
 
 	// Copy infimum and supremum
-	copy(ip.infimumSupremum, body[INDEX_HEADER_SIZE:INDEX_HEADER_SIZE+INFIMUM_SUPREMUM_SIZE])
+	copy(ip.infimumSupremum, body[common.PageHeaderSize:common.PageHeaderSize+common.InfimumSupremumSize])
 }
 
 // GetIndexHeader returns the index header
@@ -304,8 +304,8 @@ func (ip *IndexPage) GetRecordCount() uint16 {
 func (ip *IndexPage) GetFreeSpace() uint16 {
 	// Calculate free space
 	// Total page size - header - index header - infimum/supremum - used records - directory - trailer
-	usedSpace := FileHeaderSize + INDEX_HEADER_SIZE + INFIMUM_SUPREMUM_SIZE +
-		uint16(len(ip.userRecords)) + uint16(len(ip.pageDirectory)) + FileTrailerSize
+	usedSpace := common.FileHeaderSize + common.PageHeaderSize + common.InfimumSupremumSize +
+		uint16(len(ip.userRecords)) + uint16(len(ip.pageDirectory)) + common.FileTrailerSize
 
 	if usedSpace >= uint16(ip.GetSize()) {
 		return 0

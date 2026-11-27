@@ -13,83 +13,61 @@
 
 package common
 
-type lengthAndDecimal struct {
-	length  int
-	decimal int
+// fieldDefault owns DDL defaults and CAST applicability/overrides.
+// Shared CAST defaults refer to ddl instead of repeating values in a second table.
+type fieldDefault struct {
+	length, decimal int
+	integer, cast   bool
+	castOverride    *[2]int
 }
 
-// defaultLengthAndDecimal provides default flen and decimal for fields
-// from CREATE TABLE when they are unspecified.
-var defaultLengthAndDecimal = map[byte]lengthAndDecimal{
-	TypeBit:        {1, 0},
-	TypeTiny:       {4, 0},
-	TypeShort:      {6, 0},
-	TypeInt24:      {9, 0},
-	TypeLong:       {11, 0},
-	TypeLonglong:   {20, 0},
-	TypeDouble:     {22, -1},
-	TypeFloat:      {12, -1},
-	TypeNewDecimal: {10, 0},
-	TypeDuration:   {10, 0},
-	TypeDate:       {10, 0},
-	TypeTimestamp:  {19, 0},
-	TypeDatetime:   {19, 0},
-	TypeYear:       {4, 0},
-	TypeString:     {1, 0},
-	TypeVarchar:    {5, 0},
-	TypeVarString:  {5, 0},
-	TypeTinyBlob:   {255, 0},
-	TypeBlob:       {65535, 0},
-	TypeMediumBlob: {16777215, 0},
-	TypeLongBlob:   {4294967295, 0},
-	TypeJSON:       {4294967295, 0},
-	TypeNull:       {0, 0},
-	TypeSet:        {-1, 0},
-	TypeEnum:       {-1, 0},
+var fieldDefaults = map[byte]fieldDefault{
+	TypeBit:        {length: 1, decimal: 0},
+	TypeTiny:       {length: 4, decimal: 0, integer: true},
+	TypeShort:      {length: 6, decimal: 0, integer: true},
+	TypeInt24:      {length: 9, decimal: 0, integer: true},
+	TypeLong:       {length: 11, decimal: 0, integer: true},
+	TypeLonglong:   {length: 20, decimal: 0, integer: true, cast: true, castOverride: &[2]int{22, 0}},
+	TypeDouble:     {length: 22, decimal: -1, cast: true},
+	TypeFloat:      {length: 12, decimal: -1, cast: true},
+	TypeNewDecimal: {length: 10, decimal: 0, cast: true},
+	TypeDuration:   {length: 10, decimal: 0, cast: true},
+	TypeDate:       {length: 10, decimal: 0, cast: true},
+	TypeTimestamp:  {length: 19, decimal: 0},
+	TypeDatetime:   {length: 19, decimal: 0, cast: true},
+	TypeYear:       {length: 4, decimal: 0},
+	TypeString:     {length: 1, decimal: 0, cast: true, castOverride: &[2]int{0, -1}},
+	TypeVarchar:    {length: 5, decimal: 0},
+	TypeVarString:  {length: 5, decimal: 0},
+	TypeTinyBlob:   {length: 255, decimal: 0},
+	TypeBlob:       {length: 65535, decimal: 0},
+	TypeMediumBlob: {length: 16777215, decimal: 0},
+	TypeLongBlob:   {length: 4294967295, decimal: 0},
+	TypeJSON:       {length: 4294967295, decimal: 0, cast: true, castOverride: &[2]int{4194304, 0}},
+	TypeNull:       {length: 0, decimal: 0},
+	TypeSet:        {length: -1, decimal: 0},
+	TypeEnum:       {length: -1, decimal: 0},
 }
 
-// IsIntegerType indicate whether tp is an integer type.
-func IsIntegerType(tp byte) bool {
-	switch tp {
-	case TypeTiny, TypeShort, TypeInt24, TypeLong, TypeLonglong:
-		return true
-	}
-	return false
-}
+// IsIntegerType reports whether tp is an integer field type.
+func IsIntegerType(tp byte) bool { return fieldDefaults[tp].integer }
 
-// GetDefaultFieldLengthAndDecimal returns the default display length (flen) and decimal length for column.
-// Call this when no flen assigned in ddl.
-// or column value is calculated from an expression.
-// For example: "select count(*) from t;", the column type is int64 and flen in ResultField will be 21.
-// See https://dev.mysql.com/doc/refman/5.7/en/storage-requirements.html
+// GetDefaultFieldLengthAndDecimal preserves the public DDL default API.
 func GetDefaultFieldLengthAndDecimal(tp byte) (flen int, decimal int) {
-	val, ok := defaultLengthAndDecimal[tp]
-	if ok {
-		return val.length, val.decimal
+	if defaults, ok := fieldDefaults[tp]; ok {
+		return defaults.length, defaults.decimal
 	}
 	return -1, -1
 }
 
-// defaultLengthAndDecimal provides default flen and decimal for fields
-// from CAST when they are unspecified.
-var defaultLengthAndDecimalForCast = map[byte]lengthAndDecimal{
-	TypeString:     {0, -1}, // flen & decimal differs.
-	TypeDate:       {10, 0},
-	TypeDatetime:   {19, 0},
-	TypeNewDecimal: {10, 0},
-	TypeDuration:   {10, 0},
-	TypeLonglong:   {22, 0},
-	TypeDouble:     {22, -1},
-	TypeFloat:      {12, -1},
-	TypeJSON:       {4194304, 0}, // flen differs.
-}
-
-// GetDefaultFieldLengthAndDecimalForCast returns the default display length (flen) and decimal length for casted column
-// when flen or decimal is not specified.
+// GetDefaultFieldLengthAndDecimalForCast preserves the public CAST default API.
 func GetDefaultFieldLengthAndDecimalForCast(tp byte) (flen int, decimal int) {
-	val, ok := defaultLengthAndDecimalForCast[tp]
-	if ok {
-		return val.length, val.decimal
+	defaults, ok := fieldDefaults[tp]
+	if !ok || !defaults.cast {
+		return -1, -1
 	}
-	return -1, -1
+	if defaults.castOverride != nil {
+		return defaults.castOverride[0], defaults.castOverride[1]
+	}
+	return defaults.length, defaults.decimal
 }

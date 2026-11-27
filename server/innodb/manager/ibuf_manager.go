@@ -30,6 +30,7 @@ type IBufManager struct {
 	// 后台合并控制
 	stopChan chan struct{}
 	running  bool
+	backgroundWG sync.WaitGroup
 
 	// 统计信息
 	stats *IBufStats
@@ -384,7 +385,9 @@ func (im *IBufManager) StartBackgroundMerge() {
 	im.running = true
 	im.mu.Unlock()
 
+	im.backgroundWG.Add(1)
 	go func() {
+		defer im.backgroundWG.Done()
 		ticker := time.NewTicker(1 * time.Minute) // 每分钟检查一次
 		defer ticker.Stop()
 
@@ -407,9 +410,25 @@ func (im *IBufManager) StopBackgroundMerge() {
 		return
 	}
 	im.running = false
+	close(im.stopChan)
 	im.mu.Unlock()
 
-	close(im.stopChan)
+	// Do not return until the worker has stopped observing the manager.  This
+	// keeps engine shutdown deterministic and prevents a late merge from
+	// racing storage/table-space teardown.
+	im.backgroundWG.Wait()
+}
+
+// IsBackgroundMergeRunning reports whether the periodic merge worker is
+// still owned by this manager.  It is intentionally read-only so lifecycle
+// owners can verify that shutdown completed without reaching into internals.
+func (im *IBufManager) IsBackgroundMergeRunning() bool {
+	if im == nil {
+		return false
+	}
+	im.mu.RLock()
+	defer im.mu.RUnlock()
+	return im.running
 }
 
 // backgroundMerge 后台合并任务

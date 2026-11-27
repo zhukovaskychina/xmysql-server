@@ -21,6 +21,97 @@ func (m mockOptimizerForUnifiedError) Optimize(plan.LogicalPlan) (plan.PhysicalP
 	return nil, errors.New("mock optimize failed")
 }
 
+func TestUnifiedExecutorFindColumnIndexAcceptsQualifiedNames(t *testing.T) {
+	schema := metadata.NewQuerySchema()
+	schema.AddColumn(metadata.NewQueryColumn("id", metadata.TypeInt))
+	schema.AddColumn(metadata.NewQueryColumn("Name", metadata.TypeVarchar))
+
+	executor := &UnifiedExecutor{}
+	for _, name := range []string{"NAME", "users.name", "`users`.`name`"} {
+		if got := executor.findColumnIndex(schema, name); got != 1 {
+			t.Fatalf("findColumnIndex(%q) = %d, want 1", name, got)
+		}
+	}
+}
+
+func TestUnifiedPredicateValuesUsesParsedColumnsAndNulls(t *testing.T) {
+	schema := metadata.NewQuerySchema()
+	schema.AddColumn(metadata.NewQueryColumn("id", metadata.TypeInt))
+	schema.AddColumn(metadata.NewQueryColumn("active", metadata.TypeInt))
+	record := NewExecutorRecordFromValues([]basic.Value{
+		basic.NewInt64Value(7),
+		basic.NewNull(),
+	}, schema)
+	statement, err := sqlparser.Parse("select * from users where active is null and id = 7")
+	require.NoError(t, err)
+	selectStmt := statement.(*sqlparser.Select)
+	values, err := unifiedPredicateValues(record, selectStmt.Where.Expr)
+	require.NoError(t, err)
+	assert.Nil(t, values["active"])
+	assert.Equal(t, int64(7), values["id"])
+	matched, err := evalPredicate(selectStmt.Where.Expr, values)
+	require.NoError(t, err)
+	assert.True(t, matched)
+}
+
+func TestPredicateNegationPreservesUnknownTruthValue(t *testing.T) {
+	statement, err := sqlparser.Parse("select * from users where not (active = null)")
+	require.NoError(t, err)
+	selectStmt := statement.(*sqlparser.Select)
+
+	matched, err := evalPredicate(selectStmt.Where.Expr, map[string]interface{}{"active": int64(1)})
+	require.NoError(t, err)
+	assert.False(t, matched, "NOT UNKNOWN must remain UNKNOWN and fail in WHERE")
+}
+
+func TestRowMatchesWhereConditionsConjoinsAllPredicates(t *testing.T) {
+	matches, err := rowMatchesWhereConditions(
+		map[string]interface{}{"id": int64(1), "active": int64(0)},
+		[]string{"id = 1", "active = 1"},
+	)
+	require.NoError(t, err)
+	assert.False(t, matches, "separate WHERE conditions must be combined with AND")
+}
+
+func TestPredicateComparisonUsesMySQLNumericCoercion(t *testing.T) {
+	for query, values := range map[string]map[string]interface{}{
+		"select * from users where amount = '1'":  {"amount": int64(1)},
+		"select * from users where amount < '10'": {"amount": int64(2)},
+	} {
+		statement, err := sqlparser.Parse(query)
+		require.NoError(t, err)
+		matched, err := evalPredicate(statement.(*sqlparser.Select).Where.Expr, values)
+		require.NoError(t, err)
+		assert.True(t, matched, query)
+	}
+
+	statement, err := sqlparser.Parse("select * from users where amount < '2'")
+	require.NoError(t, err)
+	matched, err := evalPredicate(statement.(*sqlparser.Select).Where.Expr, map[string]interface{}{"amount": "10"})
+	require.NoError(t, err)
+	assert.True(t, matched, "two string operands retain lexical comparison")
+}
+
+func TestBareBooleanPredicateUsesSQLTruthSemantics(t *testing.T) {
+	tests := []struct {
+		query  string
+		values map[string]interface{}
+		want   bool
+	}{
+		{query: "select * from users where active", values: map[string]interface{}{"active": int64(1)}, want: true},
+		{query: "select * from users where active", values: map[string]interface{}{"active": int64(0)}, want: false},
+		{query: "select * from users where not active", values: map[string]interface{}{"active": int64(0)}, want: true},
+		{query: "select * from users where not active", values: map[string]interface{}{"active": nil}, want: false},
+	}
+	for _, test := range tests {
+		statement, err := sqlparser.Parse(test.query)
+		require.NoError(t, err)
+		matched, err := evalPredicate(statement.(*sqlparser.Select).Where.Expr, test.values)
+		require.NoError(t, err)
+		assert.Equal(t, test.want, matched, test.query)
+	}
+}
+
 type mockInfoSchemaForSortTest struct{}
 
 func (m *mockInfoSchemaForSortTest) GetSchemaByName(ctx context.Context, name string) (metadata.Schema, error) {
@@ -479,7 +570,7 @@ func TestUnifiedExecutor(t *testing.T) {
 		assert.Equal(t, int64(5), limitOp.limit)
 	})
 
-	t.Run("BuildSelectOperatorTreeRejectsWhereFilter", func(t *testing.T) {
+	t.Run("BuildSelectOperatorTreeAddsWhereFilter", func(t *testing.T) {
 		executor := &UnifiedExecutor{
 			storageAdapter: NewStorageAdapter(nil, nil, nil, nil),
 		}
@@ -490,11 +581,10 @@ func TestUnifiedExecutor(t *testing.T) {
 		selectStmt, ok := stmt.(*sqlparser.Select)
 		require.True(t, ok, "expected *sqlparser.Select, got %T", stmt)
 
-		_, err = executor.buildSelectOperatorTree(context.Background(), selectStmt, "testdb")
-		require.Error(t, err)
-		var execErr *ExecutionError
-		require.ErrorAs(t, err, &execErr)
-		assert.Equal(t, ExecutionErrorCodeValidation, execErr.ErrorCode)
+		op, err := executor.buildSelectOperatorTree(context.Background(), selectStmt, "testdb")
+		require.NoError(t, err)
+		_, ok = op.(*FilterOperator)
+		require.True(t, ok, "expected FilterOperator, got %T", op)
 	})
 
 	t.Run("BuildSelectOperatorTreeAddsOrderBySortOperator", func(t *testing.T) {

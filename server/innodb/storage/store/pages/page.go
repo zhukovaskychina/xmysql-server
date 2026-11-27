@@ -5,20 +5,21 @@ package pages
 
 import (
 	"errors"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
 // Common page size constants
 const (
-	CheckSumSize      = 4  // Size of page checksum in bytes
-	PageOffsetSize    = 4  // Size of page offset in bytes
-	PagePrevSize      = 4  // Size of previous page pointer in bytes
-	PageNextSize      = 4  // Size of next page pointer in bytes
-	PageLSNSize       = 8  // Size of LSN in bytes
-	PageTypeSize      = 2  // Size of page type in bytes
-	PageFileFlushSize = 8  // Size of file flush LSN in bytes
-	PageArchSize      = 4  // Size of page arch in bytes
-	FileHeaderSize    = 38 // Total size of file header
+	CheckSumSize      = common.InnoDBCheckSumSize      // Size of page checksum in bytes
+	PageOffsetSize    = common.InnoDBPageOffsetSize    // Size of page offset in bytes
+	PagePrevSize      = common.InnoDBPagePrevSize      // Size of previous page pointer in bytes
+	PageNextSize      = common.InnoDBPageNextSize      // Size of next page pointer in bytes
+	PageLSNSize       = common.InnoDBPageLSNSize       // Size of LSN in bytes
+	PageTypeSize      = common.InnoDBPageTypeSize      // Size of page type in bytes
+	PageFileFlushSize = common.InnoDBPageFileFlushSize // Size of file flush LSN in bytes
+	PageArchSize      = common.InnoDBPageArchSize      // Size of page arch in bytes
+	FileHeaderSize    = common.FileHeaderSize          // Total size of file header
 )
 
 // Common errors
@@ -33,14 +34,14 @@ var (
 
 // FileHeader represents the header structure of an InnoDB page
 type FileHeader struct {
-	FilePageSpaceOrCheckSum [CheckSumSize]byte      // Page checksum
-	FilePageOffset          [PageOffsetSize]byte    // Page number
-	FilePagePrev            [PagePrevSize]byte      // Previous page number
-	FilePageNext            [PageNextSize]byte      // Next page number
-	FilePageLSN             [PageLSNSize]byte       // Log Sequence Number when page was last modified
-	FilePageType            [PageTypeSize]byte      // Page type
-	FilePageFileFlushLSN    [PageFileFlushSize]byte // System tablespace first page flush LSN
-	FilePageArch            [PageArchSize]byte      // Tablespace identifier
+	FilePageSpaceOrCheckSum [common.InnoDBCheckSumSize]byte      // Page checksum
+	FilePageOffset          [common.InnoDBPageOffsetSize]byte    // Page number
+	FilePagePrev            [common.InnoDBPagePrevSize]byte      // Previous page number
+	FilePageNext            [common.InnoDBPageNextSize]byte      // Next page number
+	FilePageLSN             [common.InnoDBPageLSNSize]byte       // Log Sequence Number when page was last modified
+	FilePageType            [common.InnoDBPageTypeSize]byte      // Page type
+	FilePageFileFlushLSN    [common.InnoDBPageFileFlushSize]byte // System tablespace first page flush LSN
+	FilePageArch            [common.InnoDBPageArchSize]byte      // Tablespace identifier
 }
 
 // NewFileHeader creates a new initialized FileHeader
@@ -50,7 +51,7 @@ func NewFileHeader() FileHeader {
 
 // WritePageSpaceCheckSum writes the page checksum
 func (fh *FileHeader) WritePageSpaceCheckSum(checkSum []byte) error {
-	if len(checkSum) != CheckSumSize {
+	if len(checkSum) != common.InnoDBCheckSumSize {
 		return ErrInvalidHeaderSize
 	}
 	copy(fh.FilePageSpaceOrCheckSum[:], checkSum)
@@ -155,45 +156,45 @@ func (ft *FileTrailer) GetChecksum() uint64 {
 
 // ParseFileHeader parses the file header from a byte buffer
 func (fh *FileHeader) ParseFileHeader(buff []byte) error {
-	if len(buff) < FileHeaderSize {
+	if len(buff) < common.FileHeaderSize {
 		return ErrInvalidHeaderSize
 	}
-	copy(fh.FilePageSpaceOrCheckSum[:], buff[0:4])
-	copy(fh.FilePageOffset[:], buff[4:8])
-	copy(fh.FilePagePrev[:], buff[8:12])
-	copy(fh.FilePageNext[:], buff[12:16])
-	copy(fh.FilePageLSN[:], buff[16:24])
-	copy(fh.FilePageType[:], buff[24:26])
-	copy(fh.FilePageFileFlushLSN[:], buff[26:34])
-	copy(fh.FilePageArch[:], buff[34:38])
+	copy(fh.FilePageSpaceOrCheckSum[:], buff[common.InnoDBFileHeaderChecksumOffset:common.InnoDBFileHeaderPageNoOffset])
+	copy(fh.FilePageOffset[:], buff[common.InnoDBFileHeaderPageNoOffset:common.InnoDBFileHeaderPrevOffset])
+	copy(fh.FilePagePrev[:], buff[common.InnoDBFileHeaderPrevOffset:common.InnoDBFileHeaderNextOffset])
+	copy(fh.FilePageNext[:], buff[common.InnoDBFileHeaderNextOffset:common.InnoDBFileHeaderLSNOffset])
+	copy(fh.FilePageLSN[:], buff[common.InnoDBFileHeaderLSNOffset:common.InnoDBFileHeaderPageTypeOffset])
+	copy(fh.FilePageType[:], buff[common.InnoDBFileHeaderPageTypeOffset:common.InnoDBFileHeaderFlushLSNOffset])
+	copy(fh.FilePageFileFlushLSN[:], buff[common.InnoDBFileHeaderFlushLSNOffset:common.InnoDBFileHeaderSpaceIDOffset])
+	copy(fh.FilePageArch[:], buff[common.InnoDBFileHeaderSpaceIDOffset:common.FileHeaderSize])
 	return nil
 }
 
 // GetSerialBytes serializes the file header to bytes
 func (fh *FileHeader) GetSerialBytes() []byte {
-	buff := make([]byte, FileHeaderSize)
+	buff := make([]byte, common.FileHeaderSize)
 	offset := 0
 
 	copy(buff[offset:], fh.FilePageSpaceOrCheckSum[:])
-	offset += CheckSumSize
+	offset += common.InnoDBCheckSumSize
 
 	copy(buff[offset:], fh.FilePageOffset[:])
-	offset += PageOffsetSize
+	offset += common.InnoDBPageOffsetSize
 
 	copy(buff[offset:], fh.FilePagePrev[:])
-	offset += PagePrevSize
+	offset += common.InnoDBPagePrevSize
 
 	copy(buff[offset:], fh.FilePageNext[:])
-	offset += PageNextSize
+	offset += common.InnoDBPageNextSize
 
 	copy(buff[offset:], fh.FilePageLSN[:])
-	offset += PageLSNSize
+	offset += common.InnoDBPageLSNSize
 
 	copy(buff[offset:], fh.FilePageType[:])
-	offset += PageTypeSize
+	offset += common.InnoDBPageTypeSize
 
 	copy(buff[offset:], fh.FilePageFileFlushLSN[:])
-	offset += PageFileFlushSize
+	offset += common.InnoDBPageFileFlushSize
 
 	copy(buff[offset:], fh.FilePageArch[:])
 

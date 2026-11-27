@@ -1,8 +1,0 @@
-# 火山模型代码清理与重构实施总结（已合并）
-
-> **2026-04**：本文件与 [VOLCANO_CLEANUP_FINAL_REPORT.md](./VOLCANO_CLEANUP_FINAL_REPORT.md)（最终完成报告，**含量化成果与全阶段清单**）内容高度重复。  
-> **请阅读**：[VOLCANO_CLEANUP_FINAL_REPORT.md](./VOLCANO_CLEANUP_FINAL_REPORT.md)
-
----
-
-**索引**：[VOLCANO_DOCUMENTATION_INDEX.md](./VOLCANO_DOCUMENTATION_INDEX.md)

@@ -23,7 +23,7 @@ public class PerformanceTest extends BaseIntegrationTest {
         connection.createStatement().executeUpdate("USE " + TEST_DB);
         
         connection.createStatement().executeUpdate("""
-            CREATE TABLE performance_test (
+            CREATE TABLE IF NOT EXISTS performance_test (
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 name VARCHAR(100),
                 value INT,

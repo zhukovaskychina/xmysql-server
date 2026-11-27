@@ -27,7 +27,6 @@
 | [PROTO-003_PASSWORD_VERIFICATION_FIX.md](../protocol-reports/PROTO-003_PASSWORD_VERIFICATION_FIX.md)             | 密码验证                                                                                                     |
 | [PROTO-004_COLUMN_TYPE_MAPPING_FIX.md](../protocol-reports/PROTO-004_COLUMN_TYPE_MAPPING_FIX.md)                 | 列类型映射                                                                                                    |
 | [PROTO-005_ERROR_CODE_MAPPING_REPORT.md](../protocol-reports/PROTO-005_ERROR_CODE_MAPPING_REPORT.md)             | 错误码映射                                                                                                    |
-| [PREPARED_STATEMENT_IMPLEMENTATION_SUMMARY.md](../protocol-reports/PREPARED_STATEMENT_IMPLEMENTATION_SUMMARY.md) | **→ 跳转** 至 [NET-001-PREPARED-STATEMENT-SUMMARY.md](../development/NET-001-PREPARED-STATEMENT-SUMMARY.md) |
 
 
 ---

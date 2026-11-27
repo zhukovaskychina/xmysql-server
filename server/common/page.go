@@ -24,6 +24,12 @@ const (
 	PageStateFlushed
 )
 
+// Compatibility states used by the basic page implementation.
+const (
+	PageStateNew    PageState = 100
+	PageStateActive PageState = 101
+)
+
 // Page types defines the different types of pages in InnoDB
 const (
 	// FIL_PAGE_INDEX (0x0000) - B+Tree 索引页，用于存储记录和索引结构的主要页面

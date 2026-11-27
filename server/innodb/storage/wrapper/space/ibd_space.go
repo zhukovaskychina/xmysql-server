@@ -37,6 +37,7 @@ package space
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/ibd"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/extent"
@@ -57,10 +58,11 @@ type IBDSpace struct {
 	active   bool   // 活动状态
 
 	// Space management
-	nextExtent uint32                           // 下一个可用的区ID
-	nextPage   uint32                           // 下一个可用的页号
-	extents    map[uint32]*extent.UnifiedExtent // 区管理器 (使用 UnifiedExtent)
-	pageAllocs map[uint32]bool                  // 页面分配表
+	nextExtent         uint32                           // 下一个可用的区ID
+	nextPage           uint32                           // 下一个可用的页号
+	extents            map[uint32]*extent.UnifiedExtent // 区管理器 (使用 UnifiedExtent)
+	pageAllocs         map[uint32]bool                  // 页面分配表
+	pageManagedExtents map[uint32]bool                  // extents owned by page-level allocation
 
 	// Statistics
 	pageCount     uint32 // 已分配的页面数
@@ -93,7 +95,7 @@ func (s *IBDSpace) GetFragmentCount() uint32 {
 func (s *IBDSpace) GetUsedSpace() uint64 {
 	s.RLock()
 	defer s.RUnlock()
-	return uint64(s.pageCount) * PageSize
+	return uint64(s.pageCount) * common.PageSize
 }
 
 // IsActive returns whether the tablespace is active
@@ -113,15 +115,16 @@ func (s *IBDSpace) SetActive(active bool) {
 // NewIBDSpace creates a new IBD space
 func NewIBDSpace(ibdFile *ibd.IBD_File, isSystem bool) *IBDSpace {
 	return &IBDSpace{
-		ibdFile:    ibdFile,
-		id:         ibdFile.GetSpaceId(),
-		name:       ibdFile.GetTableName(),
-		isSystem:   isSystem,
-		active:     true,
-		nextExtent: 0,
-		nextPage:   0,
-		extents:    make(map[uint32]*extent.UnifiedExtent),
-		pageAllocs: make(map[uint32]bool),
+		ibdFile:            ibdFile,
+		id:                 ibdFile.GetSpaceId(),
+		name:               ibdFile.GetTableName(),
+		isSystem:           isSystem,
+		active:             true,
+		nextExtent:         0,
+		nextPage:           0,
+		extents:            make(map[uint32]*extent.UnifiedExtent),
+		pageAllocs:         make(map[uint32]bool),
+		pageManagedExtents: make(map[uint32]bool),
 		// Statistics
 		pageCount:     0,
 		extentCount:   0,
@@ -145,8 +148,8 @@ func (s *IBDSpace) RecoverAllocationsFromFileSize() error {
 		return nil
 	}
 
-	pageCount := uint32(size / PageSize)
-	if size%PageSize != 0 {
+	pageCount := uint32(size / common.PageSize)
+	if size%common.PageSize != 0 {
 		pageCount++
 	}
 
@@ -186,6 +189,32 @@ func (s *IBDSpace) AllocateExtent(purpose basic.ExtentPurpose) (basic.Extent, er
 	return s.allocateExtentLocked(purpose)
 }
 
+// AllocatePage returns a page from an existing extent whenever possible and
+// allocates a new extent only when all current extents are full.
+func (s *IBDSpace) AllocatePage() (uint32, error) {
+	s.Lock()
+	defer s.Unlock()
+
+	if !s.active {
+		return 0, fmt.Errorf("tablespace %d is not active", s.id)
+	}
+	for extentID, ext := range s.extents {
+		if !s.pageManagedExtents[extentID] {
+			continue
+		}
+		if pageNo, err := ext.AllocatePage(); err == nil {
+			return pageNo, nil
+		}
+	}
+
+	ext, err := s.allocateExtentLocked(basic.ExtentPurposeData)
+	if err != nil {
+		return 0, err
+	}
+	s.pageManagedExtents[uint32(s.nextExtent-1)] = true
+	return ext.AllocatePage()
+}
+
 func (s *IBDSpace) allocateExtentLocked(purpose basic.ExtentPurpose) (basic.Extent, error) {
 	if !s.active {
 		return nil, fmt.Errorf("tablespace %d is not active", s.id)
@@ -207,6 +236,15 @@ func (s *IBDSpace) allocateExtentLocked(purpose basic.ExtentPurpose) (basic.Exte
 
 	// Update next page number (each extent has 64 pages)
 	startPage := s.nextPage
+	lastPage := startPage + PagesPerExtent - 1
+	// Allocation metadata alone is not enough for a file-backed tablespace:
+	// readers must be able to load every page that has just been allocated.
+	// Extend the file before publishing the in-memory allocation state. The new
+	// range is zero-filled by the filesystem and is valid empty InnoDB page
+	// storage for this compatibility layer.
+	if err := s.ibdFile.EnsurePageCount(lastPage + 1); err != nil {
+		return nil, fmt.Errorf("failed to extend tablespace %d to page %d: %v", s.id, lastPage, err)
+	}
 	s.nextPage += PagesPerExtent
 
 	// Mark all pages in the extent as allocated
@@ -252,6 +290,38 @@ func (s *IBDSpace) FreeExtent(extentID uint32) error {
 	return nil
 }
 
+// FreePage releases one allocated page and updates the tablespace allocation
+// bitmap. It is intentionally an optional capability so older Space
+// implementations do not have to change their public interface at once.
+func (s *IBDSpace) FreePage(pageNo uint32) error {
+	s.Lock()
+	defer s.Unlock()
+
+	if !s.active {
+		return fmt.Errorf("tablespace %d is not active", s.id)
+	}
+	if !s.pageAllocs[pageNo] {
+		return fmt.Errorf("page %d is not allocated in tablespace %d", pageNo, s.id)
+	}
+
+	for _, ext := range s.extents {
+		startPage := uint32(ext.StartPage())
+		if pageNo < startPage || pageNo >= startPage+uint32(PagesPerExtent) {
+			continue
+		}
+		if err := ext.FreePage(pageNo); err != nil {
+			return err
+		}
+		delete(s.pageAllocs, pageNo)
+		if s.pageCount > 0 {
+			s.pageCount--
+		}
+		return nil
+	}
+
+	return fmt.Errorf("page %d has no owning extent in tablespace %d", pageNo, s.id)
+}
+
 // FileTableSpace interface implementation
 
 // FlushToDisk writes a page to disk
@@ -269,8 +339,8 @@ func (s *IBDSpace) FlushToDisk(pageNo uint32, content []byte) error {
 	}
 
 	// Validate content size
-	if len(content) != PageSize {
-		return fmt.Errorf("invalid page size: got %d, want %d", len(content), PageSize)
+	if len(content) != common.PageSize {
+		return fmt.Errorf("invalid page size: got %d, want %d", len(content), common.PageSize)
 	}
 
 	// Write to file
@@ -302,8 +372,8 @@ func (s *IBDSpace) LoadPageByPageNumber(pageNo uint32) ([]byte, error) {
 	}
 
 	// Validate content size
-	if len(content) != PageSize {
-		return nil, fmt.Errorf("invalid page size: got %d, want %d", len(content), PageSize)
+	if len(content) != common.PageSize {
+		return nil, fmt.Errorf("invalid page size: got %d, want %d", len(content), common.PageSize)
 	}
 
 	return content, nil
@@ -378,6 +448,7 @@ func (s *IBDSpace) DropTable() error {
 	// Clear all allocations and statistics
 	s.extents = make(map[uint32]*extent.UnifiedExtent)
 	s.pageAllocs = make(map[uint32]bool)
+	s.pageManagedExtents = make(map[uint32]bool)
 	s.pageCount = 0
 	s.extentCount = 0
 	s.fragmentCount = 0
@@ -401,6 +472,7 @@ func (s *IBDSpace) Close() error {
 	// Clear all allocations and statistics
 	s.extents = make(map[uint32]*extent.UnifiedExtent)
 	s.pageAllocs = make(map[uint32]bool)
+	s.pageManagedExtents = make(map[uint32]bool)
 	s.pageCount = 0
 	s.extentCount = 0
 	s.fragmentCount = 0
@@ -436,7 +508,7 @@ func (s *IBDSpace) GetTotalSize() uint64 {
 
 	// Total size = next page number * page size
 	// This represents the allocated space (not necessarily all used)
-	return uint64(s.nextPage) * PageSize
+	return uint64(s.nextPage) * common.PageSize
 }
 
 // GetFreeSpace returns the free space in bytes
@@ -449,9 +521,37 @@ func (s *IBDSpace) GetFreeSpace() uint64 {
 	usedPages := s.pageCount
 
 	if allocatedPages > usedPages {
-		return uint64(allocatedPages-usedPages) * PageSize
+		return uint64(allocatedPages-usedPages) * common.PageSize
 	}
 	return 0
+}
+
+// ShrinkToFit truncates only the physical tail that has no allocated pages.
+// The allocation check is performed while holding the tablespace lock so a
+// concurrent allocator cannot create a live page above the truncation point.
+func (s *IBDSpace) ShrinkToFit() error {
+	s.Lock()
+	defer s.Unlock()
+
+	if !s.active {
+		return fmt.Errorf("tablespace %d is not active", s.id)
+	}
+
+	// Extents are the allocation unit in this layer. Keep one full extent so
+	// the next allocation remains page-aligned even when the space is empty.
+	const minimumPages = uint32(PagesPerExtent)
+	targetPages := minimumPages
+	for pageNo, allocated := range s.pageAllocs {
+		if allocated && pageNo+1 > targetPages {
+			targetPages = pageNo + 1
+		}
+	}
+	if err := s.ibdFile.TruncateToPages(targetPages); err != nil {
+		return fmt.Errorf("failed to shrink tablespace %d to %d pages: %v", s.id, targetPages, err)
+	}
+	s.nextPage = targetPages
+	s.nextExtent = (targetPages + PagesPerExtent - 1) / PagesPerExtent
+	return nil
 }
 
 // GetSegmentCount returns the number of segments in the tablespace
@@ -530,8 +630,8 @@ func (s *IBDSpace) GetDetailedStats() *SpaceDetailedStats {
 		FreeExtents:    0,
 		PartialExtents: 0,
 		FullExtents:    0,
-		TotalSize:      uint64(s.nextPage) * PageSize,
-		UsedSize:       uint64(s.pageCount) * PageSize,
+		TotalSize:      uint64(s.nextPage) * common.PageSize,
+		UsedSize:       uint64(s.pageCount) * common.PageSize,
 		FreeSize:       0,
 		FragmentCount:  s.fragmentCount,
 	}
@@ -549,7 +649,7 @@ func (s *IBDSpace) GetDetailedStats() *SpaceDetailedStats {
 
 	// Calculate free size
 	if stats.TotalPages > stats.AllocatedPages {
-		stats.FreeSize = uint64(stats.TotalPages-stats.AllocatedPages) * PageSize
+		stats.FreeSize = uint64(stats.TotalPages-stats.AllocatedPages) * common.PageSize
 	}
 
 	return stats

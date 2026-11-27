@@ -19,6 +19,7 @@ package net
 
 import (
 	"crypto/tls"
+	"errors"
 	"net"
 	"strings"
 	"sync"
@@ -95,6 +96,9 @@ func (s *serverimpl) stop() {
 	default:
 		s.Once.Do(func() {
 			close(s.done)
+			if s.streamListener != nil {
+				_ = s.streamListener.Close()
+			}
 			if s.pktListener != nil {
 				s.pktListener.Close()
 				s.pktListener = nil
@@ -192,10 +196,17 @@ func (s *serverimpl) runTcpEventLoop(newSession NewSessionCallback) {
 				return
 			}
 			if delay != 0 {
-				<-wheel.After(delay)
+				select {
+				case <-s.done:
+					return
+				case <-wheel.After(delay):
+				}
 			}
 			client, err = s.accept(newSession)
 			if err != nil {
+				if s.IsClosed() || errors.Is(jerrors.Cause(err), net.ErrClosed) {
+					return
+				}
 				if netErr, ok := jerrors.Cause(err).(net.Error); ok && netErr.Temporary() {
 					if delay == 0 {
 						delay = 5 * time.Millisecond

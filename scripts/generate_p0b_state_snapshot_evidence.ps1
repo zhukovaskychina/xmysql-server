@@ -15,6 +15,7 @@ if ([string]::IsNullOrWhiteSpace($ReportDir)) {
 }
 
 New-Item -ItemType Directory -Force -Path $ReportDir | Out-Null
+$ReportDir = (Resolve-Path -LiteralPath $ReportDir).Path
 
 $Timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $RunId = "p0b_state_snapshot_evidence_$Timestamp"

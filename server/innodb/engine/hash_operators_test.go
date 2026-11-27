@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
 )
 
 // ========================================
@@ -86,6 +87,28 @@ func TestHashJoinOperator_InnerJoin(t *testing.T) {
 	// 关闭算子
 	err = hashJoin.Close()
 	assert.NoError(t, err)
+}
+
+func TestBuildHashKeyFunctionsUsesJoinColumns(t *testing.T) {
+	leftSchema := createTestSchema([]testColumn{
+		{Name: "name", Type: metadata.TypeVarchar},
+		{Name: "id", Type: metadata.TypeInt},
+	})
+	rightSchema := createTestSchema([]testColumn{
+		{Name: "label", Type: metadata.TypeVarchar},
+		{Name: "id", Type: metadata.TypeInt},
+	})
+	condition := &plan.BinaryOperation{
+		Op:    plan.OpEQ,
+		Left:  &plan.Column{Name: "id"},
+		Right: &plan.Column{Name: "id"},
+	}
+	buildKey, probeKey := (&VolcanoExecutor{}).buildHashKeyFunctions([]plan.Expression{condition}, nil, nil)
+	left := NewExecutorRecordFromValues([]basic.Value{basic.NewString("alice"), basic.NewInt64(42)}, leftSchema)
+	right := NewExecutorRecordFromValues([]basic.Value{basic.NewString("bob"), basic.NewInt64(42)}, rightSchema)
+	if buildKey(left) != probeKey(right) {
+		t.Fatalf("hash keys should use join column id, got build=%q probe=%q", buildKey(left), probeKey(right))
+	}
 }
 
 func TestHashJoinOperator_EmptyBuildSide(t *testing.T) {

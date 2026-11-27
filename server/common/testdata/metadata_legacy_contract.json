@@ -1,0 +1,2559 @@
+{
+  "charsetIDs": {
+    "armscii8": 32,
+    "ascii": 65,
+    "big5": 1,
+    "binary": 63,
+    "cp1250": 26,
+    "cp1251": 51,
+    "cp1256": 57,
+    "cp1257": 59,
+    "cp850": 4,
+    "cp852": 40,
+    "cp866": 36,
+    "cp932": 95,
+    "dec8": 3,
+    "eucjpms": 97,
+    "euckr": 19,
+    "gb2312": 24,
+    "gbk": 28,
+    "geostd8": 92,
+    "greek": 25,
+    "hebrew": 16,
+    "hp8": 6,
+    "keybcs2": 37,
+    "koi8r": 7,
+    "koi8u": 22,
+    "latin1": 47,
+    "latin2": 9,
+    "latin5": 30,
+    "latin7": 41,
+    "macce": 38,
+    "macroman": 39,
+    "sjis": 13,
+    "swe7": 10,
+    "tis620": 18,
+    "ucs2": 35,
+    "ujis": 12,
+    "utf16": 54,
+    "utf16le": 56,
+    "utf32": 60,
+    "utf8": 83,
+    "utf8mb4": 46
+  },
+  "col2PrivType": {
+    "Alter_priv": 16384,
+    "Alter_routine_priv": 16777216,
+    "Config_priv": 536870912,
+    "Create_priv": 2,
+    "Create_role_priv": 524288,
+    "Create_routine_priv": 8388608,
+    "Create_tablespace_priv": 1073741824,
+    "Create_tmp_table_priv": 2097152,
+    "Create_user_priv": 256,
+    "Create_view_priv": 131072,
+    "Delete_priv": 32,
+    "Drop_priv": 1024,
+    "Drop_role_priv": 1048576,
+    "Event_priv": 33554432,
+    "Execute_priv": 32768,
+    "File_priv": 268435456,
+    "Grant_priv": 4096,
+    "Index_priv": 65536,
+    "Insert_priv": 8,
+    "Lock_tables_priv": 4194304,
+    "Process_priv": 2048,
+    "References_priv": 8192,
+    "Reload_priv": 134217728,
+    "Repl_client_priv": 2147483648,
+    "Repl_slave_priv": 4294967296,
+    "Select_priv": 4,
+    "Show_db_priv": 64,
+    "Show_view_priv": 262144,
+    "Shutdown_priv": 67108864,
+    "Super_priv": 128,
+    "Trigger_priv": 512,
+    "Update_priv": 16
+  },
+  "collationNames": {
+    "armscii8_bin": 64,
+    "armscii8_general_ci": 32,
+    "ascii_bin": 65,
+    "ascii_general_ci": 11,
+    "big5_bin": 84,
+    "big5_chinese_ci": 1,
+    "binary": 63,
+    "cp1250_bin": 66,
+    "cp1250_croatian_ci": 44,
+    "cp1250_czech_cs": 34,
+    "cp1250_general_ci": 26,
+    "cp1250_polish_ci": 99,
+    "cp1251_bin": 50,
+    "cp1251_bulgarian_ci": 14,
+    "cp1251_general_ci": 51,
+    "cp1251_general_cs": 52,
+    "cp1251_ukrainian_ci": 23,
+    "cp1256_bin": 67,
+    "cp1256_general_ci": 57,
+    "cp1257_bin": 58,
+    "cp1257_general_ci": 59,
+    "cp1257_lithuanian_ci": 29,
+    "cp850_bin": 80,
+    "cp850_general_ci": 4,
+    "cp852_bin": 81,
+    "cp852_general_ci": 40,
+    "cp866_bin": 68,
+    "cp866_general_ci": 36,
+    "cp932_bin": 96,
+    "cp932_japanese_ci": 95,
+    "dec8_bin": 69,
+    "dec8_swedish_ci": 3,
+    "eucjpms_bin": 98,
+    "eucjpms_japanese_ci": 97,
+    "euckr_bin": 85,
+    "euckr_korean_ci": 19,
+    "gb2312_bin": 86,
+    "gb2312_chinese_ci": 24,
+    "gbk_bin": 87,
+    "gbk_chinese_ci": 28,
+    "geostd8_bin": 93,
+    "geostd8_general_ci": 92,
+    "greek_bin": 70,
+    "greek_general_ci": 25,
+    "hebrew_bin": 71,
+    "hebrew_general_ci": 16,
+    "hp8_bin": 72,
+    "hp8_english_ci": 6,
+    "keybcs2_bin": 73,
+    "keybcs2_general_ci": 37,
+    "koi8r_bin": 74,
+    "koi8r_general_ci": 7,
+    "koi8u_bin": 75,
+    "koi8u_general_ci": 22,
+    "latin1_bin": 47,
+    "latin1_danish_ci": 15,
+    "latin1_general_ci": 48,
+    "latin1_general_cs": 49,
+    "latin1_german1_ci": 5,
+    "latin1_german2_ci": 31,
+    "latin1_spanish_ci": 94,
+    "latin1_swedish_ci": 8,
+    "latin2_bin": 77,
+    "latin2_croatian_ci": 27,
+    "latin2_czech_cs": 2,
+    "latin2_general_ci": 9,
+    "latin2_hungarian_ci": 21,
+    "latin5_bin": 78,
+    "latin5_turkish_ci": 30,
+    "latin7_bin": 79,
+    "latin7_estonian_cs": 20,
+    "latin7_general_ci": 41,
+    "latin7_general_cs": 42,
+    "macce_bin": 43,
+    "macce_general_ci": 38,
+    "macroman_bin": 53,
+    "macroman_general_ci": 39,
+    "sjis_bin": 88,
+    "sjis_japanese_ci": 13,
+    "swe7_bin": 82,
+    "swe7_swedish_ci": 10,
+    "tis620_bin": 89,
+    "tis620_thai_ci": 18,
+    "ucs2_bin": 90,
+    "ucs2_croatian_ci": 149,
+    "ucs2_czech_ci": 138,
+    "ucs2_danish_ci": 139,
+    "ucs2_esperanto_ci": 145,
+    "ucs2_estonian_ci": 134,
+    "ucs2_general_ci": 35,
+    "ucs2_general_mysql500_ci": 159,
+    "ucs2_german2_ci": 148,
+    "ucs2_hungarian_ci": 146,
+    "ucs2_icelandic_ci": 129,
+    "ucs2_latvian_ci": 130,
+    "ucs2_lithuanian_ci": 140,
+    "ucs2_persian_ci": 144,
+    "ucs2_polish_ci": 133,
+    "ucs2_roman_ci": 143,
+    "ucs2_romanian_ci": 131,
+    "ucs2_sinhala_ci": 147,
+    "ucs2_slovak_ci": 141,
+    "ucs2_slovenian_ci": 132,
+    "ucs2_spanish2_ci": 142,
+    "ucs2_spanish_ci": 135,
+    "ucs2_swedish_ci": 136,
+    "ucs2_turkish_ci": 137,
+    "ucs2_unicode_520_ci": 150,
+    "ucs2_unicode_ci": 128,
+    "ucs2_vietnamese_ci": 151,
+    "ujis_bin": 91,
+    "ujis_japanese_ci": 12,
+    "utf16_bin": 55,
+    "utf16_croatian_ci": 122,
+    "utf16_czech_ci": 111,
+    "utf16_danish_ci": 112,
+    "utf16_esperanto_ci": 118,
+    "utf16_estonian_ci": 107,
+    "utf16_general_ci": 54,
+    "utf16_german2_ci": 121,
+    "utf16_hungarian_ci": 119,
+    "utf16_icelandic_ci": 102,
+    "utf16_latvian_ci": 103,
+    "utf16_lithuanian_ci": 113,
+    "utf16_persian_ci": 117,
+    "utf16_polish_ci": 106,
+    "utf16_roman_ci": 116,
+    "utf16_romanian_ci": 104,
+    "utf16_sinhala_ci": 120,
+    "utf16_slovak_ci": 114,
+    "utf16_slovenian_ci": 105,
+    "utf16_spanish2_ci": 115,
+    "utf16_spanish_ci": 108,
+    "utf16_swedish_ci": 109,
+    "utf16_turkish_ci": 110,
+    "utf16_unicode_520_ci": 123,
+    "utf16_unicode_ci": 101,
+    "utf16_vietnamese_ci": 124,
+    "utf16le_bin": 62,
+    "utf16le_general_ci": 56,
+    "utf32_bin": 61,
+    "utf32_croatian_ci": 181,
+    "utf32_czech_ci": 170,
+    "utf32_danish_ci": 171,
+    "utf32_esperanto_ci": 177,
+    "utf32_estonian_ci": 166,
+    "utf32_general_ci": 60,
+    "utf32_german2_ci": 180,
+    "utf32_hungarian_ci": 178,
+    "utf32_icelandic_ci": 161,
+    "utf32_latvian_ci": 162,
+    "utf32_lithuanian_ci": 172,
+    "utf32_persian_ci": 176,
+    "utf32_polish_ci": 165,
+    "utf32_roman_ci": 175,
+    "utf32_romanian_ci": 163,
+    "utf32_sinhala_ci": 179,
+    "utf32_slovak_ci": 173,
+    "utf32_slovenian_ci": 164,
+    "utf32_spanish2_ci": 174,
+    "utf32_spanish_ci": 167,
+    "utf32_swedish_ci": 168,
+    "utf32_turkish_ci": 169,
+    "utf32_unicode_520_ci": 182,
+    "utf32_unicode_ci": 160,
+    "utf32_vietnamese_ci": 183,
+    "utf8_bin": 83,
+    "utf8_croatian_ci": 213,
+    "utf8_czech_ci": 202,
+    "utf8_danish_ci": 203,
+    "utf8_esperanto_ci": 209,
+    "utf8_estonian_ci": 198,
+    "utf8_general_ci": 33,
+    "utf8_general_mysql500_ci": 223,
+    "utf8_german2_ci": 212,
+    "utf8_hungarian_ci": 210,
+    "utf8_icelandic_ci": 193,
+    "utf8_latvian_ci": 194,
+    "utf8_lithuanian_ci": 204,
+    "utf8_persian_ci": 208,
+    "utf8_polish_ci": 197,
+    "utf8_roman_ci": 207,
+    "utf8_romanian_ci": 195,
+    "utf8_sinhala_ci": 211,
+    "utf8_slovak_ci": 205,
+    "utf8_slovenian_ci": 196,
+    "utf8_spanish2_ci": 206,
+    "utf8_spanish_ci": 199,
+    "utf8_swedish_ci": 200,
+    "utf8_turkish_ci": 201,
+    "utf8_unicode_520_ci": 214,
+    "utf8_unicode_ci": 192,
+    "utf8_vietnamese_ci": 215,
+    "utf8mb4_0900_ai_ci": 255,
+    "utf8mb4_bin": 46,
+    "utf8mb4_croatian_ci": 245,
+    "utf8mb4_czech_ci": 234,
+    "utf8mb4_danish_ci": 235,
+    "utf8mb4_esperanto_ci": 241,
+    "utf8mb4_estonian_ci": 230,
+    "utf8mb4_general_ci": 45,
+    "utf8mb4_german2_ci": 244,
+    "utf8mb4_hungarian_ci": 242,
+    "utf8mb4_icelandic_ci": 225,
+    "utf8mb4_latvian_ci": 226,
+    "utf8mb4_lithuanian_ci": 236,
+    "utf8mb4_persian_ci": 240,
+    "utf8mb4_polish_ci": 229,
+    "utf8mb4_roman_ci": 239,
+    "utf8mb4_romanian_ci": 227,
+    "utf8mb4_sinhala_ci": 243,
+    "utf8mb4_slovak_ci": 237,
+    "utf8mb4_slovenian_ci": 228,
+    "utf8mb4_spanish2_ci": 238,
+    "utf8mb4_spanish_ci": 231,
+    "utf8mb4_swedish_ci": 232,
+    "utf8mb4_turkish_ci": 233,
+    "utf8mb4_unicode_520_ci": 246,
+    "utf8mb4_unicode_ci": 224,
+    "utf8mb4_vietnamese_ci": 247
+  },
+  "collations": {
+    "1": "big5_chinese_ci",
+    "10": "swe7_swedish_ci",
+    "101": "utf16_unicode_ci",
+    "102": "utf16_icelandic_ci",
+    "103": "utf16_latvian_ci",
+    "104": "utf16_romanian_ci",
+    "105": "utf16_slovenian_ci",
+    "106": "utf16_polish_ci",
+    "107": "utf16_estonian_ci",
+    "108": "utf16_spanish_ci",
+    "109": "utf16_swedish_ci",
+    "11": "ascii_general_ci",
+    "110": "utf16_turkish_ci",
+    "111": "utf16_czech_ci",
+    "112": "utf16_danish_ci",
+    "113": "utf16_lithuanian_ci",
+    "114": "utf16_slovak_ci",
+    "115": "utf16_spanish2_ci",
+    "116": "utf16_roman_ci",
+    "117": "utf16_persian_ci",
+    "118": "utf16_esperanto_ci",
+    "119": "utf16_hungarian_ci",
+    "12": "ujis_japanese_ci",
+    "120": "utf16_sinhala_ci",
+    "121": "utf16_german2_ci",
+    "122": "utf16_croatian_ci",
+    "123": "utf16_unicode_520_ci",
+    "124": "utf16_vietnamese_ci",
+    "128": "ucs2_unicode_ci",
+    "129": "ucs2_icelandic_ci",
+    "13": "sjis_japanese_ci",
+    "130": "ucs2_latvian_ci",
+    "131": "ucs2_romanian_ci",
+    "132": "ucs2_slovenian_ci",
+    "133": "ucs2_polish_ci",
+    "134": "ucs2_estonian_ci",
+    "135": "ucs2_spanish_ci",
+    "136": "ucs2_swedish_ci",
+    "137": "ucs2_turkish_ci",
+    "138": "ucs2_czech_ci",
+    "139": "ucs2_danish_ci",
+    "14": "cp1251_bulgarian_ci",
+    "140": "ucs2_lithuanian_ci",
+    "141": "ucs2_slovak_ci",
+    "142": "ucs2_spanish2_ci",
+    "143": "ucs2_roman_ci",
+    "144": "ucs2_persian_ci",
+    "145": "ucs2_esperanto_ci",
+    "146": "ucs2_hungarian_ci",
+    "147": "ucs2_sinhala_ci",
+    "148": "ucs2_german2_ci",
+    "149": "ucs2_croatian_ci",
+    "15": "latin1_danish_ci",
+    "150": "ucs2_unicode_520_ci",
+    "151": "ucs2_vietnamese_ci",
+    "159": "ucs2_general_mysql500_ci",
+    "16": "hebrew_general_ci",
+    "160": "utf32_unicode_ci",
+    "161": "utf32_icelandic_ci",
+    "162": "utf32_latvian_ci",
+    "163": "utf32_romanian_ci",
+    "164": "utf32_slovenian_ci",
+    "165": "utf32_polish_ci",
+    "166": "utf32_estonian_ci",
+    "167": "utf32_spanish_ci",
+    "168": "utf32_swedish_ci",
+    "169": "utf32_turkish_ci",
+    "170": "utf32_czech_ci",
+    "171": "utf32_danish_ci",
+    "172": "utf32_lithuanian_ci",
+    "173": "utf32_slovak_ci",
+    "174": "utf32_spanish2_ci",
+    "175": "utf32_roman_ci",
+    "176": "utf32_persian_ci",
+    "177": "utf32_esperanto_ci",
+    "178": "utf32_hungarian_ci",
+    "179": "utf32_sinhala_ci",
+    "18": "tis620_thai_ci",
+    "180": "utf32_german2_ci",
+    "181": "utf32_croatian_ci",
+    "182": "utf32_unicode_520_ci",
+    "183": "utf32_vietnamese_ci",
+    "19": "euckr_korean_ci",
+    "192": "utf8_unicode_ci",
+    "193": "utf8_icelandic_ci",
+    "194": "utf8_latvian_ci",
+    "195": "utf8_romanian_ci",
+    "196": "utf8_slovenian_ci",
+    "197": "utf8_polish_ci",
+    "198": "utf8_estonian_ci",
+    "199": "utf8_spanish_ci",
+    "2": "latin2_czech_cs",
+    "20": "latin7_estonian_cs",
+    "200": "utf8_swedish_ci",
+    "201": "utf8_turkish_ci",
+    "202": "utf8_czech_ci",
+    "203": "utf8_danish_ci",
+    "204": "utf8_lithuanian_ci",
+    "205": "utf8_slovak_ci",
+    "206": "utf8_spanish2_ci",
+    "207": "utf8_roman_ci",
+    "208": "utf8_persian_ci",
+    "209": "utf8_esperanto_ci",
+    "21": "latin2_hungarian_ci",
+    "210": "utf8_hungarian_ci",
+    "211": "utf8_sinhala_ci",
+    "212": "utf8_german2_ci",
+    "213": "utf8_croatian_ci",
+    "214": "utf8_unicode_520_ci",
+    "215": "utf8_vietnamese_ci",
+    "22": "koi8u_general_ci",
+    "223": "utf8_general_mysql500_ci",
+    "224": "utf8mb4_unicode_ci",
+    "225": "utf8mb4_icelandic_ci",
+    "226": "utf8mb4_latvian_ci",
+    "227": "utf8mb4_romanian_ci",
+    "228": "utf8mb4_slovenian_ci",
+    "229": "utf8mb4_polish_ci",
+    "23": "cp1251_ukrainian_ci",
+    "230": "utf8mb4_estonian_ci",
+    "231": "utf8mb4_spanish_ci",
+    "232": "utf8mb4_swedish_ci",
+    "233": "utf8mb4_turkish_ci",
+    "234": "utf8mb4_czech_ci",
+    "235": "utf8mb4_danish_ci",
+    "236": "utf8mb4_lithuanian_ci",
+    "237": "utf8mb4_slovak_ci",
+    "238": "utf8mb4_spanish2_ci",
+    "239": "utf8mb4_roman_ci",
+    "24": "gb2312_chinese_ci",
+    "240": "utf8mb4_persian_ci",
+    "241": "utf8mb4_esperanto_ci",
+    "242": "utf8mb4_hungarian_ci",
+    "243": "utf8mb4_sinhala_ci",
+    "244": "utf8mb4_german2_ci",
+    "245": "utf8mb4_croatian_ci",
+    "246": "utf8mb4_unicode_520_ci",
+    "247": "utf8mb4_vietnamese_ci",
+    "25": "greek_general_ci",
+    "255": "utf8mb4_0900_ai_ci",
+    "26": "cp1250_general_ci",
+    "27": "latin2_croatian_ci",
+    "28": "gbk_chinese_ci",
+    "29": "cp1257_lithuanian_ci",
+    "3": "dec8_swedish_ci",
+    "30": "latin5_turkish_ci",
+    "31": "latin1_german2_ci",
+    "32": "armscii8_general_ci",
+    "33": "utf8_general_ci",
+    "34": "cp1250_czech_cs",
+    "35": "ucs2_general_ci",
+    "36": "cp866_general_ci",
+    "37": "keybcs2_general_ci",
+    "38": "macce_general_ci",
+    "39": "macroman_general_ci",
+    "4": "cp850_general_ci",
+    "40": "cp852_general_ci",
+    "41": "latin7_general_ci",
+    "42": "latin7_general_cs",
+    "43": "macce_bin",
+    "44": "cp1250_croatian_ci",
+    "45": "utf8mb4_general_ci",
+    "46": "utf8mb4_bin",
+    "47": "latin1_bin",
+    "48": "latin1_general_ci",
+    "49": "latin1_general_cs",
+    "5": "latin1_german1_ci",
+    "50": "cp1251_bin",
+    "51": "cp1251_general_ci",
+    "52": "cp1251_general_cs",
+    "53": "macroman_bin",
+    "54": "utf16_general_ci",
+    "55": "utf16_bin",
+    "56": "utf16le_general_ci",
+    "57": "cp1256_general_ci",
+    "58": "cp1257_bin",
+    "59": "cp1257_general_ci",
+    "6": "hp8_english_ci",
+    "60": "utf32_general_ci",
+    "61": "utf32_bin",
+    "62": "utf16le_bin",
+    "63": "binary",
+    "64": "armscii8_bin",
+    "65": "ascii_bin",
+    "66": "cp1250_bin",
+    "67": "cp1256_bin",
+    "68": "cp866_bin",
+    "69": "dec8_bin",
+    "7": "koi8r_general_ci",
+    "70": "greek_bin",
+    "71": "hebrew_bin",
+    "72": "hp8_bin",
+    "73": "keybcs2_bin",
+    "74": "koi8r_bin",
+    "75": "koi8u_bin",
+    "77": "latin2_bin",
+    "78": "latin5_bin",
+    "79": "latin7_bin",
+    "8": "latin1_swedish_ci",
+    "80": "cp850_bin",
+    "81": "cp852_bin",
+    "82": "swe7_bin",
+    "83": "utf8_bin",
+    "84": "big5_bin",
+    "85": "euckr_bin",
+    "86": "gb2312_bin",
+    "87": "gbk_bin",
+    "88": "sjis_bin",
+    "89": "tis620_bin",
+    "9": "latin2_general_ci",
+    "90": "ucs2_bin",
+    "91": "ujis_bin",
+    "92": "geostd8_general_ci",
+    "93": "geostd8_bin",
+    "94": "latin1_spanish_ci",
+    "95": "cp932_japanese_ci",
+    "96": "cp932_bin",
+    "97": "eucjpms_japanese_ci",
+    "98": "eucjpms_bin",
+    "99": "cp1250_polish_ci"
+  },
+  "column": [
+    4,
+    8,
+    16,
+    8192
+  ],
+  "db": [
+    4,
+    8,
+    16,
+    32,
+    2,
+    1024,
+    8192,
+    4194304,
+    2097152,
+    33554432,
+    8388608,
+    16777216,
+    16384,
+    32768,
+    65536,
+    131072,
+    262144,
+    512
+  ],
+  "defaults": {
+    "\u0000": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "\u0001": [
+      4,
+      0,
+      -1,
+      -1,
+      1
+    ],
+    "\u0002": [
+      6,
+      0,
+      -1,
+      -1,
+      1
+    ],
+    "\u0003": [
+      11,
+      0,
+      -1,
+      -1,
+      1
+    ],
+    "\u0004": [
+      12,
+      -1,
+      12,
+      -1,
+      0
+    ],
+    "\u0005": [
+      22,
+      -1,
+      22,
+      -1,
+      0
+    ],
+    "\u0006": [
+      0,
+      0,
+      -1,
+      -1,
+      0
+    ],
+    "\u0007": [
+      19,
+      0,
+      -1,
+      -1,
+      0
+    ],
+    "\b": [
+      20,
+      0,
+      22,
+      0,
+      1
+    ],
+    "\t": [
+      9,
+      0,
+      -1,
+      -1,
+      1
+    ],
+    "\n": [
+      10,
+      0,
+      10,
+      0,
+      0
+    ],
+    "\u000b": [
+      10,
+      0,
+      10,
+      0,
+      0
+    ],
+    "\f": [
+      19,
+      0,
+      19,
+      0,
+      0
+    ],
+    "\r": [
+      4,
+      0,
+      -1,
+      -1,
+      0
+    ],
+    "\u000e": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "\u000f": [
+      5,
+      0,
+      -1,
+      -1,
+      0
+    ],
+    "\u0010": [
+      1,
+      0,
+      -1,
+      -1,
+      0
+    ],
+    "\u0011": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "\u0012": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "\u0013": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "\u0014": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "\u0015": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "\u0016": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "\u0017": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "\u0018": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "\u0019": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "\u001a": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "\u001b": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "\u001c": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "\u001d": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "\u001e": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "\u001f": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    " ": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "!": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "\"": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "#": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "$": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "%": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "\u0026": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "'": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "(": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    ")": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "*": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "+": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    ",": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "-": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    ".": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "/": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "0": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "1": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "2": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "3": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "4": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "5": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "6": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "7": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "8": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "9": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    ":": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    ";": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "\u003c": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "=": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "\u003e": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "?": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "@": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "A": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "B": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "C": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "D": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "E": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "F": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "G": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "H": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "I": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "J": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "K": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "L": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "M": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "N": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "O": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "P": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Q": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "R": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "S": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "T": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "U": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "V": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "W": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "X": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Y": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Z": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "[": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "\\": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "]": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "^": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "_": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "`": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "a": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "b": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "c": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "d": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "e": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "f": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "g": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "h": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "i": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "j": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "k": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "l": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "m": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "n": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "o": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "p": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "q": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "r": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "s": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "t": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "u": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "v": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "w": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "x": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "y": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "z": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "{": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "|": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "}": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "~": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    " ": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "¡": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "¢": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "£": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "¤": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "¥": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "¦": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "§": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "¨": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "©": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "ª": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "«": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "¬": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "­": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "®": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "¯": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "°": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "±": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "²": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "³": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "´": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "µ": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "¶": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "·": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "¸": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "¹": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "º": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "»": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "¼": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "½": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "¾": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "¿": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "À": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Á": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Â": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Ã": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Ä": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Å": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Æ": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Ç": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "È": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "É": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Ê": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Ë": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Ì": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Í": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Î": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Ï": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Ð": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Ñ": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Ò": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Ó": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Ô": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Õ": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Ö": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "×": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Ø": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Ù": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Ú": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Û": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Ü": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Ý": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "Þ": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "ß": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "à": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "á": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "â": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "ã": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "ä": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "å": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "æ": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "ç": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "è": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "é": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "ê": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "ë": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "ì": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "í": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "î": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "ï": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "ð": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "ñ": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "ò": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "ó": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "ô": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "õ": [
+      4294967295,
+      0,
+      4194304,
+      0,
+      0
+    ],
+    "ö": [
+      10,
+      0,
+      10,
+      0,
+      0
+    ],
+    "÷": [
+      -1,
+      0,
+      -1,
+      -1,
+      0
+    ],
+    "ø": [
+      -1,
+      0,
+      -1,
+      -1,
+      0
+    ],
+    "ù": [
+      255,
+      0,
+      -1,
+      -1,
+      0
+    ],
+    "ú": [
+      16777215,
+      0,
+      -1,
+      -1,
+      0
+    ],
+    "û": [
+      4294967295,
+      0,
+      -1,
+      -1,
+      0
+    ],
+    "ü": [
+      65535,
+      0,
+      -1,
+      -1,
+      0
+    ],
+    "ý": [
+      5,
+      0,
+      -1,
+      -1,
+      0
+    ],
+    "þ": [
+      1,
+      0,
+      0,
+      -1,
+      0
+    ],
+    "ÿ": [
+      -1,
+      -1,
+      -1,
+      -1,
+      0
+    ]
+  },
+  "global": [
+    4,
+    8,
+    16,
+    32,
+    2,
+    1024,
+    2048,
+    8192,
+    16384,
+    64,
+    128,
+    32768,
+    65536,
+    256,
+    1073741824,
+    512,
+    131072,
+    262144,
+    524288,
+    1048576,
+    2097152,
+    4194304,
+    8388608,
+    16777216,
+    33554432,
+    67108864,
+    134217728,
+    268435456,
+    536870912,
+    2147483648,
+    4294967296
+  ],
+  "globalOnly": [
+    2048,
+    64,
+    128,
+    256,
+    1073741824,
+    67108864,
+    134217728,
+    268435456,
+    2147483648,
+    4294967296,
+    536870912
+  ],
+  "priv2SetStr": {
+    "1024": "Drop",
+    "1048576": "Drop Role",
+    "131072": "Create View",
+    "16": "Update",
+    "16384": "Alter",
+    "16777216": "Alter Routine",
+    "2": "Create",
+    "2097152": "Create Temporary Tables",
+    "262144": "Show View",
+    "32": "Delete",
+    "32768": "Execute",
+    "33554432": "Event",
+    "4": "Select",
+    "4096": "Grant",
+    "4194304": "Lock Tables",
+    "512": "Trigger",
+    "524288": "Create Role",
+    "65536": "Index",
+    "67108864": "Shutdown Role",
+    "8": "Insert",
+    "8192": "References",
+    "8388608": "Create Routine"
+  },
+  "priv2Str": {
+    "1": "USAGE",
+    "1024": "Drop",
+    "1048576": "Drop Role",
+    "1073741824": "Create Tablespace",
+    "128": "Super",
+    "131072": "Create View",
+    "134217728": "RELOAD",
+    "16": "Update",
+    "16384": "Alter",
+    "16777216": "ALTER ROUTINE",
+    "2": "Create",
+    "2048": "Process",
+    "2097152": "CREATE TEMPORARY TABLES",
+    "2147483648": "REPLICATION CLIENT",
+    "256": "Create User",
+    "262144": "Show View",
+    "268435456": "FILE",
+    "32": "Delete",
+    "32768": "Execute",
+    "33554432": "EVENT",
+    "4": "Select",
+    "4096": "Grant Option",
+    "4194304": "LOCK TABLES",
+    "4294967296": "REPLICATION SLAVE",
+    "512": "Trigger",
+    "524288": "Create Role",
+    "536870912": "CONFIG",
+    "64": "Show Databases",
+    "65536": "Index",
+    "67108864": "SHUTDOWN",
+    "8": "Insert",
+    "8192": "References",
+    "8388608": "CREATE ROUTINE",
+    "8589934592": "ALL PRIVILEGES"
+  },
+  "priv2UserCol": {
+    "1024": "Drop_priv",
+    "1048576": "Drop_role_priv",
+    "1073741824": "Create_tablespace_priv",
+    "128": "Super_priv",
+    "131072": "Create_view_priv",
+    "134217728": "Reload_priv",
+    "16": "Update_priv",
+    "16384": "Alter_priv",
+    "16777216": "Alter_routine_priv",
+    "2": "Create_priv",
+    "2048": "Process_priv",
+    "2097152": "Create_tmp_table_priv",
+    "2147483648": "Repl_client_priv",
+    "256": "Create_user_priv",
+    "262144": "Show_view_priv",
+    "268435456": "File_priv",
+    "32": "Delete_priv",
+    "32768": "Execute_priv",
+    "33554432": "Event_priv",
+    "4": "Select_priv",
+    "4096": "Grant_priv",
+    "4194304": "Lock_tables_priv",
+    "4294967296": "Repl_slave_priv",
+    "512": "Trigger_priv",
+    "524288": "Create_role_priv",
+    "536870912": "Config_priv",
+    "64": "Show_db_priv",
+    "65536": "Index_priv",
+    "67108864": "Shutdown_priv",
+    "8": "Insert_priv",
+    "8192": "References_priv",
+    "8388608": "Create_routine_priv"
+  },
+  "protocolCharsets": {
+    "armscii8": 32,
+    "ascii": 11,
+    "big5": 1,
+    "binary": 63,
+    "cp1250": 26,
+    "cp1251": 51,
+    "cp1256": 57,
+    "cp1257": 59,
+    "cp850": 4,
+    "cp852": 40,
+    "cp866": 36,
+    "cp932": 95,
+    "dec8": 3,
+    "eucjpms": 97,
+    "euckr": 19,
+    "gb2312": 24,
+    "gbk": 28,
+    "geostd8": 92,
+    "greek": 25,
+    "hebrew": 16,
+    "hp8": 6,
+    "keybcs2": 37,
+    "koi8r": 7,
+    "koi8u": 22,
+    "latin1": 8,
+    "latin2": 9,
+    "latin5": 30,
+    "latin7": 41,
+    "macce": 38,
+    "macroman": 39,
+    "sjis": 13,
+    "swe7": 10,
+    "tis620": 18,
+    "ucs2": 35,
+    "ujis": 12,
+    "utf16": 54,
+    "utf16le": 56,
+    "utf32": 60,
+    "utf8": 33,
+    "utf8mb4": 45
+  },
+  "setStr2Priv": {
+    "Alter": 16384,
+    "Alter Routine": 16777216,
+    "Create": 2,
+    "Create Routine": 8388608,
+    "Create Temporary Tables": 2097152,
+    "Create View": 131072,
+    "Delete": 32,
+    "Drop": 1024,
+    "Event": 33554432,
+    "Execute": 32768,
+    "Grant": 4096,
+    "Index": 65536,
+    "Insert": 8,
+    "Lock Tables": 4194304,
+    "References": 8192,
+    "Select": 4,
+    "Show View": 262144,
+    "Trigger": 512,
+    "Update": 16
+  },
+  "table": [
+    4,
+    8,
+    16,
+    32,
+    2,
+    1024,
+    65536,
+    8192,
+    16384,
+    131072,
+    262144,
+    512
+  ]
+}

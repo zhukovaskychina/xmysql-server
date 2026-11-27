@@ -198,6 +198,51 @@ func TestIndexReading_NextFromIndex(t *testing.T) {
 	t.Log("✅ NextFromIndex test passed")
 }
 
+func TestIndexReading_NextFromIndexDecodesDurableCoveringEntry(t *testing.T) {
+	index := metadata.IndexMeta{Name: "idx_name", Columns: []string{"name"}}
+	key, err := manager.EncodeSecondaryIndexKey(7, index, map[string]interface{}{"name": "Alice"}, []byte("1"))
+	if err != nil {
+		t.Fatalf("encode secondary index key: %v", err)
+	}
+	primaryKey := manager.EncodeSecondaryIndexValue([]byte("1"))
+	mock := &mockBTreeManagerForIndexReading{searchRecord: &manager.IndexRecord{Key: key, Value: primaryKey}}
+	table := &metadata.Table{
+		Name: "users",
+		Columns: []*metadata.Column{
+			{Name: "id", DataType: metadata.TypeInt},
+			{Name: "name", DataType: metadata.TypeVarchar},
+		},
+	}
+	op := &IndexScanOperator{
+		BaseOperator:    BaseOperator{schema: metadata.ProjectSchema(metadata.FromTable(table), []int{1, 0})},
+		indexAdapter:    &IndexAdapter{btreeManager: mock},
+		indexMetadata:   &IndexMetadata{IndexID: 1, IndexName: "idx_name", Columns: []string{"name"}, PrimaryKeyColumns: []string{"id"}},
+		requiredColumns: []string{"name", "id"},
+		isCoveringIndex: true,
+		indexKeys:       [][]byte{key},
+		primaryKeys:     [][]byte{[]byte("1")},
+	}
+
+	record, err := op.nextFromIndex(context.Background())
+	if err != nil {
+		t.Fatalf("nextFromIndex: %v", err)
+	}
+	value, err := record.GetValueByName("name")
+	if err != nil {
+		t.Fatalf("get decoded name: %v", err)
+	}
+	if got := value.String(); got != "Alice" {
+		t.Fatalf("decoded name = %#v, want Alice", got)
+	}
+	id, err := record.GetValueByName("id")
+	if err != nil {
+		t.Fatalf("get decoded id: %v", err)
+	}
+	if got := id.Int(); got != 1 {
+		t.Fatalf("decoded id = %d, want 1", got)
+	}
+}
+
 // TestIndexReading_NextFromIndexError 当覆盖索引读取失败时应直接报错，不应静默回退
 func TestIndexReading_NextFromIndexError(t *testing.T) {
 	op := &IndexScanOperator{

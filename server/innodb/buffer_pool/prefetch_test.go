@@ -21,6 +21,13 @@ func newTestBufferPool() *BufferPool {
 	})
 }
 
+func TestFreeBlockListWithoutStorageManagerReturnsNil(t *testing.T) {
+	freeBlocks := NewFreeBlockList(nil)
+	if block := freeBlocks.GetPage(1, 1); block != nil {
+		t.Fatalf("expected no page without a storage manager, got %#v", block)
+	}
+}
+
 func waitUntil(t *testing.T, timeout time.Duration, condition func() bool, description string) {
 	t.Helper()
 

@@ -354,6 +354,12 @@ func (cld *ClusterLeafRowData) ToByte() []byte {
 }
 
 func (cld *ClusterLeafRowData) ReadValue(index int) basic.Value {
+	if index < 0 || index >= len(cld.RowValues) {
+		return basic.NewNull()
+	}
+	if cld.RowValues[index] == nil {
+		return basic.NewNull()
+	}
 	return cld.RowValues[index]
 }
 
@@ -584,6 +590,9 @@ func (row *ClusterLeafRow) GetVersionInfo() (trxID uint64, rollPtr uint64) {
 **/
 //根据Row的主键值，或者是比较值做排序
 func (row *ClusterLeafRow) Less(than basic.Row) bool {
+	if row == nil || than == nil {
+		return false
+	}
 
 	if than.IsSupremumRow() {
 		return true
@@ -593,40 +602,63 @@ func (row *ClusterLeafRow) Less(than basic.Row) bool {
 		return false
 	}
 
-	//thanPrimaryKey := than.GetPrimaryKey()
-	//thisPrimaryKey := row.GetPrimaryKey()
-	//
-	//switch row.FrmMeta.PrimaryKeyType {
-	//case common.COLUMN_TYPE_TINY:
-	//	{
-	//
-	//	}
-	//case common.COLUMN_TYPE_STRING:
-	//	{
-	//		fmt.Println(string(thanPrimaryKey))
-	//		fmt.Println(string(thisPrimaryKey))
-	//
-	//	}
-	//case common.COLUMN_TYPE_VARCHAR:
-	//	{
-	//
-	//	}
-	//case common.COLUMN_TYPE_LONG:
-	//	{
-	//
-	//	}
-	//case common.COLUMN_TYPE_INT24:
-	//	{
-	//		var that = util.ReadUB4Byte2UInt32(thanPrimaryKey)
-	//		var this = util.ReadUB4Byte2UInt32(thisPrimaryKey)
-	//		if that > this {
-	//			return true
-	//		} else {
-	//			return false
-	//		}
-	//	}
-	//}
-	return false
+	if otherRow, ok := than.(*ClusterLeafRow); ok {
+		if thisKeys, thisOK := row.primaryKeyValues(); thisOK {
+			if otherKeys, otherOK := otherRow.primaryKeyValues(); otherOK {
+				for i := range thisKeys {
+					if cmp := thisKeys[i].Compare(otherKeys[i]); cmp != 0 {
+						return cmp < 0
+					}
+				}
+				return false
+			}
+		}
+	}
+
+	thisPrimaryKey := row.GetPrimaryKey()
+	otherPrimaryKey := than.GetPrimaryKey()
+	if thisPrimaryKey == nil || otherPrimaryKey == nil {
+		return false
+	}
+	return thisPrimaryKey.Compare(otherPrimaryKey) < 0
+}
+
+// primaryKeyValues returns the logical primary-key tuple when table metadata
+// is available. The record tuple adapter deliberately exposes the table
+// metadata as an optional capability, so legacy record formats can continue
+// to use the binary primary-key fallback above.
+func (row *ClusterLeafRow) primaryKeyValues() ([]basic.Value, bool) {
+	if row == nil || row.FrmMeta == nil {
+		return nil, false
+	}
+	provider, ok := row.FrmMeta.(interface{ GetTableMeta() *metadata.TableMeta })
+	if !ok || provider.GetTableMeta() == nil {
+		return nil, false
+	}
+	tableMeta := provider.GetTableMeta()
+	if len(tableMeta.PrimaryKey) == 0 {
+		return nil, false
+	}
+
+	values := make([]basic.Value, 0, len(tableMeta.PrimaryKey))
+	for _, primaryColumn := range tableMeta.PrimaryKey {
+		columnIndex := -1
+		for i, column := range tableMeta.Columns {
+			if column != nil && strings.EqualFold(column.Name, primaryColumn) {
+				columnIndex = i
+				break
+			}
+		}
+		if columnIndex < 0 || columnIndex >= row.FrmMeta.GetColumnLength() {
+			return nil, false
+		}
+		value := row.ReadValueByIndex(columnIndex)
+		if value == nil {
+			return nil, false
+		}
+		values = append(values, value)
+	}
+	return values, len(values) > 0
 }
 
 func (row *ClusterLeafRow) GetPrimaryKey() basic.Value {

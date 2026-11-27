@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"time"
 )
 
@@ -158,7 +159,7 @@ var DefaultBTreeConfig = &BTreeConfig{
 	MaxCacheSize:   1000,
 	CachePolicy:    "LRU",
 	PrefetchSize:   4,
-	PageSize:       16384,
+	PageSize:       common.PageSize,
 	FillFactor:     0.8,
 	MinFillFactor:  0.4,
 	SplitThreshold: 0.9,

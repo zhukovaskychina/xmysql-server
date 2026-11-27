@@ -1,32 +1,49 @@
-name: Go
+name: Go CI
 
 on:
   push:
-    branches: [ "dev" ]
+    branches: [dev]
   pull_request:
-    branches: [ "dev" ]
+    branches: [dev]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: go-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out source
+        uses: actions/checkout@v5
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v6
         with:
-          go-version: '1.24'
+          go-version-file: go.mod
+          cache: true
 
-      # ⚙️ 编译：排除 cmd/ 和 client/ 目录
-      - name: Build
+      - name: Build Go packages
+        shell: bash
         run: |
-          EXCLUDE_DIRS='/(cmd|client)(/|$)'
-          PKGS=$(go list ./... | grep -vE "$EXCLUDE_DIRS")
-          go build -v $PKGS
+          packages="$(go list ./... | grep -vE '/(cmd|client)(/|$)')"
+          if [[ -z "$packages" ]]; then
+            echo "No Go packages selected for build" >&2
+            exit 1
+          fi
+          go build -v $packages
 
-      # ✅ 测试：同样排除 cmd/ 和 client/ 目录
-      - name: Test
+      - name: Test Go packages
+        shell: bash
         run: |
-          EXCLUDE_DIRS='/(cmd|client)(/|$)'
-          PKGS=$(go list ./... | grep -vE "$EXCLUDE_DIRS")
-          go test -v $PKGS
+          packages="$(go list ./... | grep -vE '/(cmd|client)(/|$)')"
+          if [[ -z "$packages" ]]; then
+            echo "No Go packages selected for tests" >&2
+            exit 1
+          fi
+          go test -v $packages

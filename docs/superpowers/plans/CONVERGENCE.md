@@ -124,7 +124,7 @@ TestCompressedPage_SerializeAndValidate
 | **单测失败** | plan：TestBinaryOperation/Add_Null 等 | Null 语义与老优化规则差异，可统一梳理后改断言 |
 | **单测失败** | ~~protocol：TestSendResultSetPackets_NullValues~~ | 已修：测试行包索引修正，编码 0xFB 正确 |
 | **阶段** | Phase 4（第 13～16 周） | 开发计划第四阶段（OPT-019、IDX-013、EXE-007、LOG-016 等）尚未按 TDD 推进 |
-| **文档** | 开发计划/ROADMAP 中“未开始”任务 | 见 TASKS_SUMMARY.md、DEVELOPMENT_ROADMAP_TASKS.md 等，与 Phase 1～3 并行或后续排期 |
+| **文档** | 开发计划/ROADMAP 中“未开始”任务 | 见 docs/planning/CAPABILITY_PRIORITY_INDEX_20260715.md 等当前能力文档，与 Phase 1～3 并行或后续排期 |
 
 **已推进（近期）**：engine/buffer_pool 编译与关键用例通过；R1 已知失败已处理；R2 B1.2 刷新策略趋势测试与 C1 文档同步；R4 OPT-020 直方图验收通过，OPT-005/15.3 已标记延后，16.1 回归已执行。
 

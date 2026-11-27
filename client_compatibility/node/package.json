@@ -1,0 +1,11 @@
+{
+  "name": "xmysql-client-compatibility-node",
+  "private": true,
+  "description": "Node.js client matrix runner for xmysql-server",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "mysql2": "^3.24.4"
+  }
+}

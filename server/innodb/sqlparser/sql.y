@@ -154,7 +154,7 @@ func forceEOF(yylex interface{}) {
 // DDL Tokens
 %token <bytes> CREATE ALTER DROP RENAME ANALYZE ADD
 %token <bytes> SCHEMA TABLE INDEX VIEW TO IGNORE IF UNIQUE PRIMARY COLUMN CONSTRAINT SPATIAL FULLTEXT FOREIGN KEY_BLOCK_SIZE
-%token <bytes> SHOW DESCRIBE EXPLAIN DATE ESCAPE REPAIR OPTIMIZE TRUNCATE
+%token <bytes> SHOW DESCRIBE EXPLAIN DATE EXTRACT ESCAPE REPAIR OPTIMIZE TRUNCATE
 %token <bytes> MAXVALUE PARTITION REORGANIZE LESS THAN PROCEDURE TRIGGER
 %token <bytes> VINDEX VINDEXES
 %token <bytes> STATUS VARIABLES
@@ -1075,6 +1075,15 @@ index_option:
 | COMMENT_KEYWORD STRING
   {
     $$ = &IndexOption{Name: string($1), Value: NewStrVal($2)}
+  }
+| ID
+  {
+    visibility := indexVisibilityOption(string($1))
+    if visibility == "" {
+      yylex.Error("unsupported index option")
+      return 1
+    }
+    $$ = &IndexOption{Name: visibility}
   }
 
 equal_opt:
@@ -2264,13 +2273,21 @@ function_call_generic:
   as a result
 */
 function_call_keyword:
-  LEFT openb select_expression_list closeb
+  EXTRACT openb sql_id FROM expression closeb
+  {
+    $$ = &ExtractExpr{Unit: $3, Expr: $5}
+  }
+| LEFT openb select_expression_list closeb
   {
     $$ = &FuncExpr{Name: NewColIdent("left"), Exprs: $3}
   }
 | RIGHT openb select_expression_list closeb
   {
     $$ = &FuncExpr{Name: NewColIdent("right"), Exprs: $3}
+  }
+| INTERVAL openb select_expression_list_opt closeb
+  {
+    $$ = &FuncExpr{Name: NewColIdent("interval"), Exprs: $3}
   }
 | CONVERT openb expression ',' convert_type closeb
   {
@@ -3104,6 +3121,7 @@ non_reserved_keyword:
 | POLYGON
 | PRIMARY
 | PROCEDURE
+| PROCESSLIST
 | QUERY
 | READ
 | REAL

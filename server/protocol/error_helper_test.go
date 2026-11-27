@@ -162,6 +162,22 @@ func TestErrorHelper_CreateErrorMessage(t *testing.T) {
 	})
 }
 
+func TestClassifyGoErrorMapsMissingTableVariantsToMySQL1146(t *testing.T) {
+	for _, message := range []string{
+		"table 'mysql.missing' doesn't exist",
+		"execute query failed: table 'mysql.missing' not found",
+		"[engine][execute-select] code=E_UNKNOWN: execute SELECT failed: table 'mysql.missing' not found",
+	} {
+		err := ClassifyGoError(errors.New(message))
+		if err.Code != common.ER_NO_SUCH_TABLE {
+			t.Fatalf("ClassifyGoError(%q) code = %d, want %d", message, err.Code, common.ER_NO_SUCH_TABLE)
+		}
+		if err.State != "42S02" {
+			t.Fatalf("ClassifyGoError(%q) state = %q, want 42S02", message, err.State)
+		}
+	}
+}
+
 func TestErrorHelper_CommonErrors(t *testing.T) {
 	helper := NewErrorHelper()
 
@@ -226,6 +242,25 @@ func TestErrorHelper_CommonErrors(t *testing.T) {
 
 			t.Logf("✅ %s: error code=%d, packet size=%d bytes", tt.name, errorCode, len(packet))
 		})
+	}
+}
+
+func TestClassifyGoErrorUsesMySQLConstraintContracts(t *testing.T) {
+	cases := []struct {
+		message string
+		code    uint16
+		state   string
+	}{
+		{"duplicate entry '1' for key 'PRIMARY'", common.ErrDupEntry, "23000"},
+		{"check constraint 'age' is violated", common.ErrCheckConstraint, "23000"},
+		{"Cannot add or update a child row: a foreign key constraint fails", common.ErrNoReferencedRow, "23000"},
+		{"deadlock found when trying to get lock", common.ErrLockDeadlock, "40001"},
+	}
+	for _, tc := range cases {
+		got := ClassifyGoError(errors.New(tc.message))
+		if got.Code != tc.code || got.State != tc.state {
+			t.Fatalf("classify %q = (%d,%s), want (%d,%s)", tc.message, got.Code, got.State, tc.code, tc.state)
+		}
 	}
 }
 

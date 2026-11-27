@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/logger"
+	"strings"
 	"sync"
 	"time"
 
@@ -318,7 +319,67 @@ func (ssm *SystemSpaceManager) discoverIndependentTablespaces() {
 		ssm.independentSpaces[spaceID] = info
 	}
 
-	// TODO: 发现其他独立表空间（information_schema, performance_schema, 用户表等）
+	// Merge the spaces actually loaded by SpaceManager. The default mappings
+	// above remain useful for compatibility with system tables that have not
+	// been materialized yet, while real spaces get authoritative metadata.
+	lister, ok := ssm.spaceManager.(interface{ ListSpaceIDs() []uint32 })
+	if !ok {
+		return
+	}
+	for _, spaceID := range lister.ListSpaceIDs() {
+		if spaceID == SYS_SPACE_ID {
+			continue
+		}
+		current, err := ssm.spaceManager.GetSpace(spaceID)
+		if err != nil || current == nil {
+			continue
+		}
+		name := strings.ReplaceAll(current.Name(), "\\", "/")
+		if name == "" {
+			continue
+		}
+		database := name
+		if separator := strings.IndexByte(name, '/'); separator >= 0 {
+			database = name[:separator]
+		}
+		tableType := "user"
+		switch database {
+		case "mysql":
+			tableType = "system"
+		case "information_schema":
+			tableType = "information_schema"
+		case "performance_schema":
+			tableType = "performance_schema"
+		}
+		size := int64(current.GetUsedSpace())
+		if size == 0 && current.GetPageCount() > 0 {
+			size = int64(current.GetPageCount()) * 16384
+		}
+		filePath := name + ".ibd"
+		if pathProvider, ok := current.(interface{ GetFilePath() string }); ok && pathProvider.GetFilePath() != "" {
+			filePath = pathProvider.GetFilePath()
+		}
+		ssm.independentSpaces[spaceID] = &TablespaceInfo{
+			SpaceID:   spaceID,
+			Name:      name,
+			FilePath:  filePath,
+			Database:  database,
+			TableType: tableType,
+			Size:      size,
+			PageCount: current.GetPageCount(),
+		}
+	}
+}
+
+// RefreshIndependentTablespaces updates the metadata snapshot after a table
+// space is created or discovered without rebuilding the system manager.
+func (ssm *SystemSpaceManager) RefreshIndependentTablespaces() {
+	if ssm == nil {
+		return
+	}
+	ssm.mu.Lock()
+	defer ssm.mu.Unlock()
+	ssm.discoverIndependentTablespaces()
 }
 
 // 获取方法 - 基础信息

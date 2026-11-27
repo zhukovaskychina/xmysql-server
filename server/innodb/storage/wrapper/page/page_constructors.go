@@ -2,26 +2,45 @@ package page
 
 import (
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/wrapper/system"
 )
 
 // NewInodePageWrapper 创建INode页面包装器 - 映射到page_inode_wrapper.go中的INode
 func NewInodePageWrapper(id, spaceID uint32) *system.INode {
-	return system.NewINode(spaceID, id)
+	return NewInodePageWrapperWithStorage(id, spaceID, nil)
+}
+
+// NewInodePageWrapperWithStorage creates the historical system inode wrapper
+// with an optional durable provider.
+func NewInodePageWrapperWithStorage(id, spaceID uint32, storage basic.StorageProvider) *system.INode {
+	return system.NewINodeWithStorage(spaceID, id, storage)
 }
 
 // NewIBufPageWrapper 创建IBuf页面包装器
 func NewIBufPageWrapper(id, spaceID uint32) *IBufPageWrapper {
+	return NewIBufPageWrapperWithStorage(id, spaceID, nil)
+}
+
+// NewIBufPageWrapperWithStorage creates the legacy insert-buffer page with an
+// optional durable provider while preserving the historical constructor.
+func NewIBufPageWrapperWithStorage(id, spaceID uint32, storage basic.StorageProvider) *IBufPageWrapper {
 	return &IBufPageWrapper{
-		BasePageWrapper: NewBasePageWrapper(id, spaceID, common.FIL_PAGE_IBUF_FREE_LIST),
+		BasePageWrapper: NewBasePageWrapperWithStorage(id, spaceID, common.FIL_PAGE_IBUF_FREE_LIST, storage),
 	}
 }
 
 // NewAllocatePageWrapper 创建已分配页面包装器
 func NewAllocatePageWrapper(id, spaceID uint32) *AllocatedPageWrapper {
+	return NewAllocatePageWrapperWithStorage(id, spaceID, nil)
+}
+
+// NewAllocatePageWrapperWithStorage creates an allocated-page wrapper backed
+// by an optional durable provider.
+func NewAllocatePageWrapperWithStorage(id, spaceID uint32, storage basic.StorageProvider) *AllocatedPageWrapper {
 	return &AllocatedPageWrapper{
-		BasePageWrapper: NewBasePageWrapper(id, spaceID, common.FIL_PAGE_TYPE_ALLOCATED),
+		BasePageWrapper: NewBasePageWrapperWithStorage(id, spaceID, common.FIL_PAGE_TYPE_ALLOCATED, storage),
 	}
 }
 

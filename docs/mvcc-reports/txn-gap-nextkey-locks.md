@@ -1,6 +1,6 @@
 # Gap锁和Next-Key锁实现文档
 
-> **文档导航（2026-04）**：任务勾选式总结见 [txn-gap-nextkey-locks-summary.md](./txn-gap-nextkey-locks-summary.md)（**跳转页**）；MVCC/锁总索引见 [MVCC_DOCUMENTATION_INDEX.md](./MVCC_DOCUMENTATION_INDEX.md)；修复类报告见 [LOCK_001_GAP_LOCK_FIX_REPORT.md](./LOCK_001_GAP_LOCK_FIX_REPORT.md)。
+> **文档导航（2026-04）**：MVCC/锁总索引见 [MVCC_DOCUMENTATION_INDEX.md](./MVCC_DOCUMENTATION_INDEX.md)；修复类报告见 [LOCK_001_GAP_LOCK_FIX_REPORT.md](./LOCK_001_GAP_LOCK_FIX_REPORT.md)。
 
 ## 概述
 

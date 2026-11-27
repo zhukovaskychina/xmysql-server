@@ -1,5 +1,7 @@
 package engine
 
+import "github.com/zhukovaskychina/xmysql-server/server/common"
+
 import (
 	"context"
 	"encoding/json"
@@ -110,7 +112,7 @@ func (dml *DMLExecutor) ExecuteInsert(ctx context.Context, stmt *sqlparser.Inser
 			return nil, fmt.Errorf("插入行失败: %v", err)
 		}
 		affectedRows++
-		if insertId > 0 {
+		if lastInsertId == 0 && insertId > 0 {
 			lastInsertId = insertId
 		}
 	}
@@ -287,6 +289,7 @@ func (dml *DMLExecutor) ExecuteDelete(ctx context.Context, stmt *sqlparser.Delet
 type DMLResult struct {
 	AffectedRows int
 	LastInsertId uint64
+	Warnings     []Warning
 	ResultType   string
 	Message      string
 	TxnID        uint64
@@ -562,7 +565,7 @@ func (dml *DMLExecutor) beginTransaction(ctx context.Context) (interface{}, erro
 		return nil, fmt.Errorf("transaction manager not initialized")
 	}
 
-	tx, err := dml.txManager.Begin(false, manager.TRX_ISO_REPEATABLE_READ)
+	tx, err := dml.txManager.Begin(false, common.TRX_ISO_REPEATABLE_READ)
 	if err != nil {
 		return nil, err
 	}
@@ -1107,6 +1110,13 @@ func (dml *DMLExecutor) validateValueType(val interface{}, colType metadata.Data
 		_, ok := val.(string)
 		return ok
 	case metadata.TypeJSON:
+		switch val.(type) {
+		case string, []byte:
+			return true
+		default:
+			return false
+		}
+	case metadata.TypeGeometry:
 		switch val.(type) {
 		case string, []byte:
 			return true

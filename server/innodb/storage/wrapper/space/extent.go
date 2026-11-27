@@ -18,6 +18,7 @@ package space
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"sync"
 	"time"
@@ -25,9 +26,9 @@ import (
 
 // Constants for extent management
 const (
-	PagesPerExtent = 64    // 每个区64页
-	PageSize       = 16384 // 16KB per page
-	ExtentSize     = PagesPerExtent * PageSize
+	PagesPerExtent = 64              // 每个区64页
+	PageSize       = common.PageSize // 16KB per page
+	ExtentSize     = PagesPerExtent * common.PageSize
 )
 
 // ExtentStats holds statistics about an extent
@@ -278,7 +279,7 @@ func (e *ExtentImpl) GetFreePages() []uint32 {
 func (e *ExtentImpl) GetFreeSpace() uint64 {
 	e.RLock()
 	defer e.RUnlock()
-	return uint64(e.stats.FreePages) * PageSize
+	return uint64(e.stats.FreePages) * common.PageSize
 }
 
 func (e *ExtentImpl) IsFull() bool {

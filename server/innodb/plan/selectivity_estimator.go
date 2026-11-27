@@ -438,6 +438,9 @@ func (se *SelectivityEstimator) estimateBetweenExpression(
 	table *metadata.Table,
 	expr *BetweenExpression,
 ) float64 {
+	if expr.LowerExpr != nil || expr.UpperExpr != nil {
+		return se.config.DefaultSelectivity
+	}
 	column, ok := expr.Column.(*Column)
 	if !ok {
 		return se.config.DefaultSelectivity

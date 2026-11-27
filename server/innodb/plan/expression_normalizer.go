@@ -38,6 +38,13 @@ func (n *ExpressionNormalizer) Normalize(expr Expression) Expression {
 	return expr
 }
 
+// NormalizeToDNF applies the normal safety-preserving rewrites and then
+// expands boolean AND/OR structure into a bounded disjunctive normal form.
+// Callers that need CNF can continue using CNFConverter directly.
+func (n *ExpressionNormalizer) NormalizeToDNF(expr Expression) Expression {
+	return NewDNFConverter().ConvertToDNF(n.Normalize(expr))
+}
+
 // constantFolding 常量折叠 - 编译期计算常量表达式
 // 复用CNF转换器的常量折叠逻辑
 func (n *ExpressionNormalizer) constantFolding(expr Expression) Expression {
@@ -51,6 +58,7 @@ func (n *ExpressionNormalizer) algebraicSimplification(expr Expression) Expressi
 		// 先递归处理子表达式
 		e.Left = n.algebraicSimplification(e.Left)
 		e.Right = n.algebraicSimplification(e.Right)
+		e.Escape = n.algebraicSimplification(e.Escape)
 
 		// 应用交换律：确保常量在右侧
 		e = n.applyCommutativeLaw(e)
@@ -82,6 +90,64 @@ func (n *ExpressionNormalizer) algebraicSimplification(expr Expression) Expressi
 
 	case *NotExpression:
 		e.Operand = n.algebraicSimplification(e.Operand)
+		if nested, ok := e.Operand.(*NotExpression); ok {
+			return nested.Operand
+		}
+		if boolean, ok := e.Operand.(*BinaryOperation); ok {
+			switch boolean.Op {
+			case OpAnd, OpOr:
+				opposite := OpAnd
+				if boolean.Op == OpAnd {
+					opposite = OpOr
+				}
+				return n.algebraicSimplification(&BinaryOperation{
+					Op:    opposite,
+					Left:  &NotExpression{Operand: boolean.Left},
+					Right: &NotExpression{Operand: boolean.Right},
+				})
+			}
+		}
+		return e
+
+	case *UnaryOperation:
+		e.Operand = n.algebraicSimplification(e.Operand)
+		return e
+
+	case *TupleExpression:
+		for i, item := range e.Exprs {
+			e.Exprs[i] = n.algebraicSimplification(item)
+		}
+		return e
+
+	case *CaseExpression:
+		if e.Operand != nil {
+			e.Operand = n.algebraicSimplification(e.Operand)
+		}
+		for i := range e.Whens {
+			e.Whens[i].Condition = n.algebraicSimplification(e.Whens[i].Condition)
+			e.Whens[i].Value = n.algebraicSimplification(e.Whens[i].Value)
+		}
+		if e.Else != nil {
+			e.Else = n.algebraicSimplification(e.Else)
+		}
+		return e
+
+	case *BetweenExpression:
+		e.Column = n.algebraicSimplification(e.Column)
+		if e.LowerExpr != nil {
+			e.LowerExpr = n.algebraicSimplification(e.LowerExpr)
+		}
+		if e.UpperExpr != nil {
+			e.UpperExpr = n.algebraicSimplification(e.UpperExpr)
+		}
+		return e
+
+	case *IsNullExpression:
+		e.Column = n.algebraicSimplification(e.Column)
+		return e
+
+	case *IsTruthExpression:
+		e.Expr = n.algebraicSimplification(e.Expr)
 		return e
 
 	case *Function:
@@ -125,22 +191,39 @@ func (n *ExpressionNormalizer) isCommutativeOp(op BinaryOp) bool {
 
 // applyAssociativeLaw 应用结合律：扁平化嵌套运算
 func (n *ExpressionNormalizer) applyAssociativeLaw(e *BinaryOperation) *BinaryOperation {
-	// 对于结合运算符，扁平化嵌套
 	if !n.isAssociativeOp(e.Op) {
 		return e
 	}
 
-	// 如果子节点也是相同的运算符，可以扁平化
-	// 例如：(a + b) + c 可以理解为 a + b + c
-	// 这里简化实现，暂不改变结构，仅返回
-
-	return e
+	// Flatten only boolean conjunctions/disjunctions.  SQL three-valued
+	// AND/OR are associative, while arithmetic reassociation can change
+	// rounding and string-to-number coercion, so arithmetic operators are not
+	// included in isAssociativeOp.
+	terms := make([]Expression, 0, 3)
+	var collect func(Expression)
+	collect = func(expr Expression) {
+		if nested, ok := expr.(*BinaryOperation); ok && nested.Op == e.Op {
+			collect(nested.Left)
+			collect(nested.Right)
+			return
+		}
+		terms = append(terms, expr)
+	}
+	collect(e)
+	if len(terms) <= 2 {
+		return e
+	}
+	result := &BinaryOperation{Op: e.Op, Left: terms[0], Right: terms[1]}
+	for _, term := range terms[2:] {
+		result = &BinaryOperation{Op: e.Op, Left: result, Right: term}
+	}
+	return result
 }
 
 // isAssociativeOp 检查操作符是否满足结合律
 func (n *ExpressionNormalizer) isAssociativeOp(op BinaryOp) bool {
 	switch op {
-	case OpAdd, OpMul, OpAnd, OpOr:
+	case OpAnd, OpOr:
 		return true
 	default:
 		return false
@@ -188,11 +271,6 @@ func (n *ExpressionNormalizer) applyZeroLaw(e *BinaryOperation) Expression {
 	}
 
 	switch e.Op {
-	case OpMul:
-		// x * 0 = 0
-		if rightConst.Value == int64(0) || rightConst.Value == float64(0) {
-			return rightConst
-		}
 	case OpAnd:
 		// x AND FALSE = FALSE
 		if rightConst.Value == false {
@@ -212,8 +290,55 @@ func (n *ExpressionNormalizer) applyZeroLaw(e *BinaryOperation) Expression {
 // x AND (x OR y) = x
 // x OR (x AND y) = x
 func (n *ExpressionNormalizer) applyAbsorptionLaw(e *BinaryOperation) Expression {
-	// 简化实现：暂不处理复杂的吸收律
+	if e == nil || (e.Op != OpAnd && e.Op != OpOr) {
+		return nil
+	}
+
+	// Only remove a term when it is an exact member of the opposite
+	// associative expression.  This keeps the rewrite structural and avoids
+	// making assumptions about comparison ranges or SQL NULL semantics.
+	if e.Op == OpAnd {
+		if terms := n.cnfConverter.extractOrItems(e.Left); len(terms) > 1 {
+			for _, term := range terms {
+				if expressionsEquivalent(term, e.Right) {
+					return e.Right
+				}
+			}
+		}
+		if terms := n.cnfConverter.extractOrItems(e.Right); len(terms) > 1 {
+			for _, term := range terms {
+				if expressionsEquivalent(term, e.Left) {
+					return e.Left
+				}
+			}
+		}
+	}
+
+	if e.Op == OpOr {
+		if terms := n.cnfConverter.extractAndItems(e.Left); len(terms) > 1 {
+			for _, term := range terms {
+				if expressionsEquivalent(term, e.Right) {
+					return e.Right
+				}
+			}
+		}
+		if terms := n.cnfConverter.extractAndItems(e.Right); len(terms) > 1 {
+			for _, term := range terms {
+				if expressionsEquivalent(term, e.Left) {
+					return e.Left
+				}
+			}
+		}
+	}
+
 	return nil
+}
+
+func expressionsEquivalent(left, right Expression) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return left.String() == right.String()
 }
 
 // applyIdempotentLaw 应用幂等律
@@ -239,6 +364,7 @@ func (n *ExpressionNormalizer) predicateNormalization(expr Expression) Expressio
 		// 先递归处理子表达式
 		e.Left = n.predicateNormalization(e.Left)
 		e.Right = n.predicateNormalization(e.Right)
+		e.Escape = n.predicateNormalization(e.Escape)
 
 		// 对比较运算符进行标准化
 		if n.isComparisonOp(e.Op) {
@@ -253,11 +379,74 @@ func (n *ExpressionNormalizer) predicateNormalization(expr Expression) Expressio
 		if e.Op == OpIn {
 			return n.expandInCondition(e)
 		}
+		if e.Op == OpNotIn {
+			return n.expandNotInBinaryCondition(e)
+		}
 
 		return e
 
 	case *NotExpression:
 		e.Operand = n.predicateNormalization(e.Operand)
+		return e
+
+	case *UnaryOperation:
+		e.Operand = n.predicateNormalization(e.Operand)
+		return e
+
+	case *TupleExpression:
+		for i, item := range e.Exprs {
+			e.Exprs[i] = n.predicateNormalization(item)
+		}
+		return e
+
+	case *CaseExpression:
+		if e.Operand != nil {
+			e.Operand = n.predicateNormalization(e.Operand)
+		}
+		for i := range e.Whens {
+			e.Whens[i].Condition = n.predicateNormalization(e.Whens[i].Condition)
+			e.Whens[i].Value = n.predicateNormalization(e.Whens[i].Value)
+		}
+		if e.Else != nil {
+			e.Else = n.predicateNormalization(e.Else)
+		}
+		return e
+
+	case *BetweenExpression:
+		e.Column = n.predicateNormalization(e.Column)
+		if e.LowerExpr != nil {
+			e.LowerExpr = n.predicateNormalization(e.LowerExpr)
+		}
+		if e.UpperExpr != nil {
+			e.UpperExpr = n.predicateNormalization(e.UpperExpr)
+		}
+		lower := e.LowerExpr
+		if lower == nil {
+			lower = &Constant{Value: e.Lower}
+		}
+		upper := e.UpperExpr
+		if upper == nil {
+			upper = &Constant{Value: e.Upper}
+		}
+		if e.Not {
+			return &BinaryOperation{
+				Op:    OpOr,
+				Left:  &BinaryOperation{Op: OpLT, Left: e.Column, Right: lower},
+				Right: &BinaryOperation{Op: OpGT, Left: e.Column, Right: upper},
+			}
+		}
+		return &BinaryOperation{
+			Op:    OpAnd,
+			Left:  &BinaryOperation{Op: OpGE, Left: e.Column, Right: lower},
+			Right: &BinaryOperation{Op: OpLE, Left: e.Column, Right: upper},
+		}
+
+	case *IsNullExpression:
+		e.Column = n.predicateNormalization(e.Column)
+		return e
+
+	case *IsTruthExpression:
+		e.Expr = n.predicateNormalization(e.Expr)
 		return e
 
 	case *Function:
@@ -297,7 +486,7 @@ func (n *ExpressionNormalizer) normalizeComparison(e *BinaryOperation) *BinaryOp
 // isComparisonOp 检查是否为比较操作符
 func (n *ExpressionNormalizer) isComparisonOp(op BinaryOp) bool {
 	switch op {
-	case OpEQ, OpNE, OpLT, OpLE, OpGT, OpGE:
+	case OpEQ, OpNE, OpLT, OpLE, OpGT, OpGE, OpLike, OpNotLike, OpNotIn, OpNullSafeEQ:
 		return true
 	default:
 		return false
@@ -336,6 +525,33 @@ func (n *ExpressionNormalizer) expandInCondition(e *BinaryOperation) Expression 
 func (n *ExpressionNormalizer) expandNotInCondition(e *Function) Expression {
 	// 简化实现：暂不处理
 	return e
+}
+
+// expandNotInBinaryCondition expands a parser-level constant-list NOT IN
+// into a conjunction of != predicates. SQL's three-valued AND semantics make
+// this equivalent even when the list contains NULL, while exposing the
+// individual comparisons to later optimizer rules.
+func (n *ExpressionNormalizer) expandNotInBinaryCondition(e *BinaryOperation) Expression {
+	constant, ok := e.Right.(*Constant)
+	if !ok || !isConstantList(constant.Value) {
+		return e
+	}
+
+	values := constant.Value.([]interface{})
+	var expanded Expression
+	for _, value := range values {
+		comparison := Expression(&BinaryOperation{
+			Op:    OpNE,
+			Left:  e.Left,
+			Right: &Constant{Value: value},
+		})
+		if expanded == nil {
+			expanded = comparison
+			continue
+		}
+		expanded = &BinaryOperation{Op: OpAnd, Left: expanded, Right: comparison}
+	}
+	return expanded
 }
 
 // eliminateRedundancy 冗余消除

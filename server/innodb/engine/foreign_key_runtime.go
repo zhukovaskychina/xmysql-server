@@ -15,6 +15,7 @@ import (
 
 type foreignKeyRuntimeMeta struct {
 	Columns    []string `json:"columns"`
+	RefSchema  string   `json:"ref_schema,omitempty"`
 	RefTable   string   `json:"ref_table"`
 	RefColumns []string `json:"ref_columns"`
 	OnDelete   string   `json:"on_delete"`
@@ -42,35 +43,52 @@ func (dml *StorageIntegratedDMLExecutor) loadTableForeignKeys(schemaName, tableN
 }
 
 func (dml *StorageIntegratedDMLExecutor) loadReferencingForeignKeys(schemaName, parentTable string) ([]struct {
-	TableName string
-	FK        foreignKeyRuntimeMeta
+	SchemaName string
+	TableName  string
+	FK         foreignKeyRuntimeMeta
 }, error) {
 	if dml == nil || dml.dataDir == "" || schemaName == "" {
 		return nil, nil
 	}
-	entries, err := os.ReadDir(filepath.Join(dml.dataDir, schemaName))
+	schemas, err := os.ReadDir(dml.dataDir)
 	if err != nil {
 		return nil, err
 	}
 	var refs []struct {
-		TableName string
-		FK        foreignKeyRuntimeMeta
+		SchemaName string
+		TableName  string
+		FK         foreignKeyRuntimeMeta
 	}
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".frm") {
+	for _, schemaEntry := range schemas {
+		if !schemaEntry.IsDir() {
 			continue
 		}
-		tableName := strings.TrimSuffix(entry.Name(), ".frm")
-		fks, err := dml.loadTableForeignKeys(schemaName, tableName)
-		if err != nil {
-			return nil, err
+		childSchema := schemaEntry.Name()
+		entries, readErr := os.ReadDir(filepath.Join(dml.dataDir, childSchema))
+		if readErr != nil {
+			return nil, readErr
 		}
-		for _, fk := range fks {
-			if strings.EqualFold(fk.RefTable, parentTable) {
-				refs = append(refs, struct {
-					TableName string
-					FK        foreignKeyRuntimeMeta
-				}{TableName: tableName, FK: fk})
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".frm") {
+				continue
+			}
+			tableName := strings.TrimSuffix(entry.Name(), ".frm")
+			fks, loadErr := dml.loadTableForeignKeys(childSchema, tableName)
+			if loadErr != nil {
+				return nil, loadErr
+			}
+			for _, fk := range fks {
+				refSchema := fk.RefSchema
+				if strings.TrimSpace(refSchema) == "" {
+					refSchema = childSchema
+				}
+				if strings.EqualFold(refSchema, schemaName) && strings.EqualFold(fk.RefTable, parentTable) {
+					refs = append(refs, struct {
+						SchemaName string
+						TableName  string
+						FK         foreignKeyRuntimeMeta
+					}{SchemaName: childSchema, TableName: tableName, FK: fk})
+				}
 			}
 		}
 	}
@@ -83,31 +101,62 @@ func (dml *StorageIntegratedDMLExecutor) validateForeignKeyConstraints(
 	schemaName string,
 	tableMeta *metadata.TableMeta,
 ) error {
+	if dml != nil && !dml.foreignKeyChecks {
+		return nil
+	}
 	fks, err := dml.loadTableForeignKeys(schemaName, dml.tableName)
 	if err != nil || len(fks) == 0 {
 		return err
 	}
+	return dml.validateRowsAgainstForeignKeys(ctx, rows, schemaName, dml.tableName, tableMeta, fks)
+}
+
+func (dml *StorageIntegratedDMLExecutor) validateUpdatedForeignKeyConstraints(
+	ctx context.Context,
+	rows []*InsertRowData,
+	schemaName string,
+	tableName string,
+	tableMeta *metadata.TableMeta,
+) error {
+	if dml != nil && !dml.foreignKeyChecks {
+		return nil
+	}
+	fks, err := dml.loadTableForeignKeys(schemaName, tableName)
+	if err != nil || len(fks) == 0 {
+		return err
+	}
+	return dml.validateRowsAgainstForeignKeys(ctx, rows, schemaName, tableName, tableMeta, fks)
+}
+
+func (dml *StorageIntegratedDMLExecutor) validateRowsAgainstForeignKeys(
+	ctx context.Context,
+	rows []*InsertRowData,
+	schemaName string,
+	tableName string,
+	tableMeta *metadata.TableMeta,
+	fks []foreignKeyRuntimeMeta,
+) error {
 	for _, fk := range fks {
-		if len(fk.Columns) != 1 || len(fk.RefColumns) != 1 {
-			continue
+		parentSchema := schemaName
+		if strings.TrimSpace(fk.RefSchema) != "" {
+			parentSchema = fk.RefSchema
 		}
-		parentMeta, parentStorage, parentBTree, err := dml.tableAccess(ctx, schemaName, fk.RefTable)
+		parentMeta, parentStorage, parentBTree, err := dml.tableAccess(ctx, parentSchema, fk.RefTable)
 		if err != nil {
 			return err
 		}
 		_ = parentMeta
 		for _, row := range rows {
-			value := row.ColumnValues[fk.Columns[0]]
-			if value == nil {
+			conditions, enforce := foreignKeyWhereConditions(fk.RefColumns, fk.Columns, row.ColumnValues)
+			if !enforce {
 				continue
 			}
-			where := fmt.Sprintf("%s = %s", fk.RefColumns[0], sqlLiteral(value))
-			matches, err := dml.scanRowsForTableConditions(ctx, schemaName, fk.RefTable, []string{where}, parentMeta, parentStorage, parentBTree)
+			matches, err := dml.scanRowsForTableConditions(ctx, parentSchema, fk.RefTable, []string{strings.Join(conditions, " and ")}, parentMeta, parentStorage, parentBTree)
 			if err != nil {
 				return err
 			}
 			if len(matches) == 0 {
-				return fmt.Errorf("Cannot add or update a child row: a foreign key constraint fails (%s.%s)", schemaName, dml.tableName)
+				return fmt.Errorf("Cannot add or update a child row: a foreign key constraint fails (%s.%s)", schemaName, tableName)
 			}
 		}
 	}
@@ -147,44 +196,139 @@ func (dml *StorageIntegratedDMLExecutor) applyOnDeleteCascade(
 	parentTable string,
 	parentRows []*RowUpdateInfo,
 ) ([]transactionDMLChange, error) {
+	return dml.applyOnDeleteCascadeWithPath(ctx, txn, schemaName, parentTable, parentRows, make(map[string]bool))
+}
+
+func (dml *StorageIntegratedDMLExecutor) applyOnDeleteCascadeWithPath(
+	ctx context.Context,
+	txn interface{},
+	schemaName string,
+	parentTable string,
+	parentRows []*RowUpdateInfo,
+	path map[string]bool,
+) ([]transactionDMLChange, error) {
+	pathKey := strings.ToLower(schemaName + "." + parentTable)
+	if path[pathKey] {
+		return nil, nil
+	}
+	path[pathKey] = true
+	defer delete(path, pathKey)
+
 	refs, err := dml.loadReferencingForeignKeys(schemaName, parentTable)
 	if err != nil || len(refs) == 0 {
 		return nil, err
 	}
 	changes := make([]transactionDMLChange, 0)
 	for _, ref := range refs {
-		if !strings.EqualFold(ref.FK.OnDelete, "cascade") || len(ref.FK.Columns) != 1 || len(ref.FK.RefColumns) != 1 {
-			continue
-		}
-		childMeta, childStorage, childBTree, err := dml.tableAccess(ctx, schemaName, ref.TableName)
+		childSchema := ref.SchemaName
+		action := normalizeReferentialAction(ref.FK.OnDelete)
+		childMeta, childStorage, childBTree, err := dml.tableAccess(ctx, childSchema, ref.TableName)
 		if err != nil {
 			return nil, err
 		}
 		for _, parentRow := range parentRows {
-			value := parentRow.OldValues[ref.FK.RefColumns[0]]
-			where := fmt.Sprintf("%s = %s", ref.FK.Columns[0], sqlLiteral(value))
-			childRows, err := dml.scanRowsForTableConditions(ctx, schemaName, ref.TableName, []string{where}, childMeta, childStorage, childBTree)
+			conditions, enforce := foreignKeyWhereConditions(ref.FK.Columns, ref.FK.RefColumns, parentRow.OldValues)
+			if !enforce {
+				continue
+			}
+			childRows, err := dml.scanRowsForTableConditions(ctx, childSchema, ref.TableName, []string{strings.Join(conditions, " and ")}, childMeta, childStorage, childBTree)
 			if err != nil {
 				return nil, err
 			}
+			if action == "restrict" {
+				if len(childRows) > 0 {
+					return nil, fmt.Errorf("Cannot delete or update a parent row: a foreign key constraint fails (%s.%s)", schemaName, parentTable)
+				}
+				continue
+			}
 			for _, childRow := range childRows {
-				if err := dml.deleteRowFromStorage(ctx, txn, childRow, childMeta, childStorage, childBTree); err != nil {
+				if action == "cascade" {
+					descendantChanges, err := dml.applyOnDeleteCascadeWithPath(
+						ctx, txn, childSchema, ref.TableName, []*RowUpdateInfo{childRow}, path,
+					)
+					if err != nil {
+						return nil, err
+					}
+					changes = append(changes, descendantChanges...)
+					if err := dml.deleteRowFromStorage(ctx, txn, childRow, childMeta, childStorage, childBTree); err != nil {
+						return nil, err
+					}
+					if err := dml.updateIndexesForDelete(ctx, txn, []*RowUpdateInfo{childRow}, childMeta, childStorage); err != nil {
+						return nil, err
+					}
+					changes = append(changes, transactionDMLChange{
+						tableName:  childSchema + "." + ref.TableName,
+						kind:       "delete",
+						rowID:      childRow.RowId,
+						storageKey: childRow.StorageKey,
+						before:     cloneTransactionRow(childRow.OldValues),
+					})
+					continue
+				}
+				if action != "set null" {
+					return nil, fmt.Errorf("unsupported foreign key ON DELETE action %q", ref.FK.OnDelete)
+				}
+				updateExprs, err := foreignKeySetNullExpressions(childMeta, ref.FK.Columns)
+				if err != nil {
 					return nil, err
 				}
-				if err := dml.updateIndexesForDelete(ctx, txn, []*RowUpdateInfo{childRow}, childMeta, childStorage); err != nil {
+				updatedChildRow, err := dml.applyUpdateExpressions(&InsertRowData{
+					ColumnValues: cloneTransactionRow(childRow.OldValues),
+					ColumnTypes:  make(map[string]metadata.DataType),
+				}, updateExprs, childMeta)
+				if err != nil {
+					return nil, err
+				}
+				if err := dml.updateRowInStorage(ctx, txn, childRow, updateExprs, childMeta, childStorage, childBTree); err != nil {
+					return nil, err
+				}
+				if err := dml.updateIndexesForUpdate(ctx, txn, []*RowUpdateInfo{childRow}, updateExprs, childMeta, childStorage); err != nil {
+					return nil, err
+				}
+				newStorageKey, err := dml.storageKeyForUpdatedRow(childRow, updatedChildRow, childMeta)
+				if err != nil {
 					return nil, err
 				}
 				changes = append(changes, transactionDMLChange{
-					tableName:  schemaName + "." + ref.TableName,
-					kind:       "delete",
-					rowID:      childRow.RowId,
-					storageKey: childRow.StorageKey,
-					before:     cloneTransactionRow(childRow.OldValues),
+					tableName:     childSchema + "." + ref.TableName,
+					kind:          "update",
+					rowID:         childRow.RowId,
+					storageKey:    childRow.StorageKey,
+					newStorageKey: newStorageKey,
+					before:        cloneTransactionRow(childRow.OldValues),
+					after:         cloneTransactionRow(updatedChildRow.ColumnValues),
 				})
 			}
 		}
 	}
 	return changes, nil
+}
+
+func normalizeReferentialAction(action string) string {
+	switch strings.ToLower(strings.TrimSpace(action)) {
+	case "cascade", "set null":
+		return strings.ToLower(strings.TrimSpace(action))
+	case "restrict", "no action", "":
+		return "restrict"
+	default:
+		return "restrict"
+	}
+}
+
+func foreignKeySetNullExpressions(tableMeta *metadata.TableMeta, columns []string) ([]*UpdateExpression, error) {
+	updates := make([]*UpdateExpression, 0, len(columns))
+	for _, column := range columns {
+		meta := findColumnMeta(tableMeta, column)
+		if meta == nil || !meta.IsNullable {
+			return nil, fmt.Errorf("Cannot set NULL for non-nullable foreign key column %s", column)
+		}
+		updates = append(updates, &UpdateExpression{
+			ColumnName: column,
+			NewValue:   nil,
+			ColumnType: meta.Type,
+		})
+	}
+	return updates, nil
 }
 
 func (dml *StorageIntegratedDMLExecutor) applyOnUpdateCascade(
@@ -195,41 +339,85 @@ func (dml *StorageIntegratedDMLExecutor) applyOnUpdateCascade(
 	parentRows []*RowUpdateInfo,
 	updatedRows []*InsertRowData,
 ) ([]transactionDMLChange, error) {
+	return dml.applyOnUpdateCascadeWithPath(ctx, txn, schemaName, parentTable, parentRows, updatedRows, make(map[string]bool))
+}
+
+func (dml *StorageIntegratedDMLExecutor) applyOnUpdateCascadeWithPath(
+	ctx context.Context,
+	txn interface{},
+	schemaName string,
+	parentTable string,
+	parentRows []*RowUpdateInfo,
+	updatedRows []*InsertRowData,
+	path map[string]bool,
+) ([]transactionDMLChange, error) {
+	pathKey := strings.ToLower(schemaName + "." + parentTable)
+	if path[pathKey] {
+		return nil, nil
+	}
+	path[pathKey] = true
+	defer delete(path, pathKey)
+
 	refs, err := dml.loadReferencingForeignKeys(schemaName, parentTable)
 	if err != nil || len(refs) == 0 {
 		return nil, err
 	}
 	changes := make([]transactionDMLChange, 0)
 	for _, ref := range refs {
-		if !strings.EqualFold(ref.FK.OnUpdate, "cascade") || len(ref.FK.Columns) != 1 || len(ref.FK.RefColumns) != 1 {
-			continue
-		}
-		childMeta, childStorage, childBTree, err := dml.tableAccess(ctx, schemaName, ref.TableName)
+		childSchema := ref.SchemaName
+		action := normalizeReferentialAction(ref.FK.OnUpdate)
+		childMeta, childStorage, childBTree, err := dml.tableAccess(ctx, childSchema, ref.TableName)
 		if err != nil {
 			return nil, err
 		}
-		childColumn := ref.FK.Columns[0]
-		parentColumn := ref.FK.RefColumns[0]
 		for i, parentRow := range parentRows {
 			if i >= len(updatedRows) {
 				continue
 			}
-			oldValue := parentRow.OldValues[parentColumn]
-			newValue := updatedRows[i].ColumnValues[parentColumn]
-			if compareScalarValues(oldValue, newValue) == 0 {
+			conditions, enforce := foreignKeyWhereConditions(ref.FK.Columns, ref.FK.RefColumns, parentRow.OldValues)
+			if !enforce {
 				continue
 			}
-			where := fmt.Sprintf("%s = %s", childColumn, sqlLiteral(oldValue))
-			childRows, err := dml.scanRowsForTableConditions(ctx, schemaName, ref.TableName, []string{where}, childMeta, childStorage, childBTree)
+			childRows, err := dml.scanRowsForTableConditions(ctx, childSchema, ref.TableName, []string{strings.Join(conditions, " and ")}, childMeta, childStorage, childBTree)
 			if err != nil {
 				return nil, err
 			}
-			updateExprs := []*UpdateExpression{{
-				ColumnName: childColumn,
-				NewValue:   newValue,
-				ColumnType: foreignKeyColumnType(childMeta, childColumn),
-				Expr:       nil,
-			}}
+			updateExprs := make([]*UpdateExpression, 0, len(ref.FK.Columns))
+			changed := false
+			for index, childColumn := range ref.FK.Columns {
+				parentColumn := ref.FK.RefColumns[index]
+				oldValue := parentRow.OldValues[parentColumn]
+				newValue := updatedRows[i].ColumnValues[parentColumn]
+				childColumnType := foreignKeyColumnType(childMeta, childColumn)
+				if newValue != nil {
+					newValue = normalizeDefaultValue(newValue, childColumnType)
+				}
+				if compareScalarValues(oldValue, newValue) != 0 {
+					changed = true
+				}
+				updateExprs = append(updateExprs, &UpdateExpression{
+					ColumnName: childColumn,
+					NewValue:   newValue,
+					ColumnType: childColumnType,
+				})
+			}
+			if !changed {
+				continue
+			}
+			if action == "restrict" {
+				if len(childRows) > 0 {
+					return nil, fmt.Errorf("Cannot delete or update a parent row: a foreign key constraint fails (%s.%s)", schemaName, parentTable)
+				}
+				continue
+			}
+			if action == "set null" {
+				updateExprs, err = foreignKeySetNullExpressions(childMeta, ref.FK.Columns)
+				if err != nil {
+					return nil, err
+				}
+			} else if action != "cascade" {
+				return nil, fmt.Errorf("unsupported foreign key ON UPDATE action %q", ref.FK.OnUpdate)
+			}
 			for _, childRow := range childRows {
 				updatedChildRow, err := dml.applyUpdateExpressions(&InsertRowData{
 					ColumnValues: cloneTransactionRow(childRow.OldValues),
@@ -244,8 +432,15 @@ func (dml *StorageIntegratedDMLExecutor) applyOnUpdateCascade(
 				if err := dml.updateIndexesForUpdate(ctx, txn, []*RowUpdateInfo{childRow}, updateExprs, childMeta, childStorage); err != nil {
 					return nil, err
 				}
+				descendantChanges, err := dml.applyOnUpdateCascadeWithPath(
+					ctx, txn, childSchema, ref.TableName, []*RowUpdateInfo{childRow}, []*InsertRowData{updatedChildRow}, path,
+				)
+				if err != nil {
+					return nil, err
+				}
+				changes = append(changes, descendantChanges...)
 				changes = append(changes, transactionDMLChange{
-					tableName:  schemaName + "." + ref.TableName,
+					tableName:  childSchema + "." + ref.TableName,
 					kind:       "update",
 					rowID:      childRow.RowId,
 					storageKey: childRow.StorageKey,
@@ -256,6 +451,21 @@ func (dml *StorageIntegratedDMLExecutor) applyOnUpdateCascade(
 		}
 	}
 	return changes, nil
+}
+
+func foreignKeyWhereConditions(localColumns, referencedColumns []string, values map[string]interface{}) ([]string, bool) {
+	if len(localColumns) == 0 || len(localColumns) != len(referencedColumns) {
+		return nil, false
+	}
+	conditions := make([]string, 0, len(localColumns))
+	for index, localColumn := range localColumns {
+		value, exists := values[referencedColumns[index]]
+		if !exists || value == nil {
+			return nil, false
+		}
+		conditions = append(conditions, fmt.Sprintf("%s = %s", localColumn, sqlLiteral(value)))
+	}
+	return conditions, true
 }
 
 func foreignKeyColumnType(tableMeta *metadata.TableMeta, columnName string) metadata.DataType {

@@ -114,7 +114,7 @@ func (pm *DefaultPageManager) CreatePageWithData(data []byte) (basic.IPage, erro
 	}
 
 	// 创建页面
-	p := newPage(basic.PageTypeAllocated, block.GetPageNo())
+	p := newPage(common.FIL_PAGE_TYPE_ALLOCATED, block.GetPageNo())
 	if err := p.Init(); err != nil {
 		return nil, err
 	}

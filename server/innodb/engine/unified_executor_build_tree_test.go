@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 func TestUnifiedExecutor_BuildOperatorTree_Errors(t *testing.T) {
@@ -41,4 +42,30 @@ func TestUnifiedExecutor_BuildOperatorTree_TableScan(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, "testdb", tableScan.schemaName)
 	assert.Equal(t, "users", tableScan.tableName)
+}
+
+func TestUnifiedExecutor_BuildSelectOperatorTreeUsesQualifiedSchema(t *testing.T) {
+	ue := &UnifiedExecutor{
+		storageAdapter: NewStorageAdapter(nil, nil, nil, nil),
+	}
+	stmt, err := sqlparser.Parse("select * from app.users")
+	require.NoError(t, err)
+	selectStmt, ok := stmt.(*sqlparser.Select)
+	require.True(t, ok)
+
+	op, err := ue.buildSelectOperatorTree(context.Background(), selectStmt, "other")
+	require.NoError(t, err)
+	scan, ok := op.(*TableScanOperator)
+	require.True(t, ok)
+	assert.Equal(t, "app", scan.schemaName)
+	assert.Equal(t, "users", scan.tableName)
+}
+
+func TestInfoSchemaAdapterPreservesQualifiedLookupSchema(t *testing.T) {
+	table, err := (&InfoSchemaAdapter{}).TableByName("app.users")
+	require.NoError(t, err)
+	require.NotNil(t, table)
+	assert.Equal(t, "users", table.Name)
+	require.NotNil(t, table.Schema)
+	assert.Equal(t, "app", table.Schema.Name)
 }

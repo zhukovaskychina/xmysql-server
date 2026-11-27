@@ -88,7 +88,9 @@ func (em *ExtentManager) GetExtent(extentID uint32) (*extent2.UnifiedExtent, err
 		return ext, nil
 	}
 
-	// TODO: 从磁盘加载区信息
+	// Extent metadata is not addressable through the legacy BufferPool
+	// contract. Callers must restore extents through NewUnifiedExtentFromEntry
+	// when a persisted extent descriptor is available.
 
 	return nil, extent2.ErrInvalidExtent
 }

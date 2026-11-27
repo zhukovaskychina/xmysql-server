@@ -101,23 +101,84 @@ func newProviderSpace(id uint32, name string, isSys bool, prov basic.StorageProv
 	return &providerSpace{id: id, name: name, isSys: isSys, active: true, prov: prov}
 }
 
-func (s *providerSpace) ID() uint32              { return s.id }
-func (s *providerSpace) Name() string            { return s.name }
-func (s *providerSpace) IsSystem() bool          { return s.isSys }
+func (s *providerSpace) ID() uint32     { return s.id }
+func (s *providerSpace) Name() string   { return s.name }
+func (s *providerSpace) IsSystem() bool { return s.isSys }
 func (s *providerSpace) AllocateExtent(purpose basic.ExtentPurpose) (basic.Extent, error) {
 	return nil, fmt.Errorf("AllocateExtent not supported")
 }
 func (s *providerSpace) FreeExtent(extentID uint32) error {
 	return fmt.Errorf("FreeExtent not supported")
 }
-func (s *providerSpace) GetPageCount() uint32    { return 0 }
-func (s *providerSpace) GetExtentCount() uint32  { return 0 }
-func (s *providerSpace) GetUsedSpace() uint64    { return 0 }
-func (s *providerSpace) IsActive() bool          { return s.active }
-func (s *providerSpace) SetActive(active bool)   { s.active = active }
+
+func (s *providerSpace) getSpaceInfo() *basic.SpaceInfo {
+	if s == nil || s.prov == nil {
+		return nil
+	}
+	info, err := s.prov.GetSpaceInfo(s.id)
+	if err != nil {
+		return nil
+	}
+	return info
+}
+
+func (s *providerSpace) GetPageCount() uint32 {
+	info := s.getSpaceInfo()
+	if info == nil || info.TotalPages > uint64(^uint32(0)) {
+		if info == nil {
+			return 0
+		}
+		return ^uint32(0)
+	}
+	return uint32(info.TotalPages)
+}
+
+func (s *providerSpace) GetExtentCount() uint32 {
+	info := s.getSpaceInfo()
+	if info == nil {
+		return 0
+	}
+	extentPages := info.ExtentSize
+	if extentPages == 0 {
+		extentPages = 64
+	}
+	return uint32(info.TotalPages / uint64(extentPages))
+}
+
+func (s *providerSpace) GetUsedSpace() uint64 {
+	info := s.getSpaceInfo()
+	if info == nil {
+		return 0
+	}
+	freePages := info.FreePages
+	if freePages > info.TotalPages {
+		freePages = info.TotalPages
+	}
+	pageSize := info.PageSize
+	if pageSize == 0 {
+		pageSize = 16 * 1024
+	}
+	return (info.TotalPages - freePages) * uint64(pageSize)
+}
+func (s *providerSpace) IsActive() bool        { return s.active }
+func (s *providerSpace) SetActive(active bool) { s.active = active }
 func (s *providerSpace) LoadPageByPageNumber(no uint32) ([]byte, error) {
 	return s.prov.ReadPage(s.id, no)
 }
 func (s *providerSpace) FlushToDisk(no uint32, content []byte) error {
 	return s.prov.WritePage(s.id, no, content)
+}
+
+func (s *providerSpace) AllocatePage() (uint32, error) {
+	if s == nil || s.prov == nil {
+		return 0, fmt.Errorf("storage provider is not available")
+	}
+	return s.prov.AllocatePage(s.id)
+}
+
+func (s *providerSpace) FreePage(no uint32) error {
+	if s == nil || s.prov == nil {
+		return fmt.Errorf("storage provider is not available")
+	}
+	return s.prov.FreePage(s.id, no)
 }

@@ -260,12 +260,21 @@ func (d *SecondaryIndexLeafRowData) ReadValue(index int) basic.Value {
 // SecondaryIndexLeafRow 辅助索引叶子节点行记录
 type SecondaryIndexLeafRow struct {
 	basic.Row
-	header      basic.FieldDataHeader
-	value       basic.FieldDataValue
-	FrmMeta     metadata.TableRowTuple
-	RowValues   []basic.Value
-	IndexKeys   []basic.Value // 索引键值
-	PrimaryKeys []basic.Value // 主键引用
+	header       basic.FieldDataHeader
+	value        basic.FieldDataValue
+	FrmMeta      metadata.TableRowTuple
+	RowValues    []basic.Value
+	IndexKeys    []basic.Value // 索引键值
+	PrimaryKeys  []basic.Value // 主键引用
+	pageResolver SecondaryIndexPageResolver
+}
+
+// SecondaryIndexPageResolver resolves a clustered page from the primary-key
+// values stored in a secondary-index record. Secondary records do not contain
+// the clustered page number themselves, so callers with a live clustered-index
+// lookup can inject this capability explicitly.
+type SecondaryIndexPageResolver interface {
+	GetPageNumberByPrimaryKey(keys []basic.Value) (uint32, bool)
 }
 
 // NewSecondaryIndexLeafRow 创建辅助索引叶子节点行记录
@@ -340,11 +349,19 @@ func (r *SecondaryIndexLeafRow) IsSupremumRow() bool {
 }
 
 func (r *SecondaryIndexLeafRow) GetPageNumber() uint32 {
-	if len(r.PrimaryKeys) > 0 {
-		// 通过主键查找对应的聚簇索引页面号
-		return 0 // 简化实现，实际需要通过主键查找
+	if r != nil && r.pageResolver != nil {
+		if pageNumber, ok := r.pageResolver.GetPageNumberByPrimaryKey(r.PrimaryKeys); ok {
+			return pageNumber
+		}
 	}
 	return 0
+}
+
+// SetPageResolver attaches the clustered-index lookup used by GetPageNumber.
+func (r *SecondaryIndexLeafRow) SetPageResolver(resolver SecondaryIndexPageResolver) {
+	if r != nil {
+		r.pageResolver = resolver
+	}
 }
 
 func (r *SecondaryIndexLeafRow) WriteWithNull(content []byte) {

@@ -11,13 +11,11 @@
 
 package common
 
-import "strings"
-
-const EVENT_TABLE_MAP = 19
-const EVENT_WRITE_ROWS = 30
-const EVENT_UPDATE_ROWS = 31
-const EVENT_DELETE_ROWS = 32
-const EVENT_QUERY = 2
+const EVENT_TABLE_MAP = BinlogEventTableMap
+const EVENT_WRITE_ROWS = BinlogEventWriteRowsV2
+const EVENT_UPDATE_ROWS = BinlogEventUpdateRowsV2
+const EVENT_DELETE_ROWS = BinlogEventDeleteRowsV2
+const EVENT_QUERY = BinlogEventQuery
 
 const COLUMN_TYPE_DECIMAL = 0
 const COLUMN_TYPE_TINY = 1
@@ -54,268 +52,88 @@ const COLUMN_TYPE_VAR_STRING = 253
 const COLUMN_TYPE_STRING = 254
 const COLUMN_TYPE_GEOMETRY = 255
 
-func ConvertColTypeToEnums(colType string) byte {
-	colType = strings.ToLower(colType)
-	switch colType {
-	case "tiny":
-		{
-			return COLUMN_TYPE_TINY
-		}
-	case "varchar":
-		{
-			return COLUMN_TYPE_VARCHAR
-		}
-	case "float":
-		{
-			return COLUMN_TYPE_FLOAT
-		}
-	case "decimal":
-		{
-			return COLUMN_TYPE_DECIMAL
-		}
-	case "blob":
-		{
-			return COLUMN_TYPE_BLOB
-		}
-	case "int":
-		{
-			return COLUMN_TYPE_INT24
-		}
-
-	default:
-		{
-
-		}
-	}
-	return 0
-}
-
-func ConvertColTypeToStr(colType byte) string {
-	//colType = strings.ToLower(colType)
-	switch colType {
-	case COLUMN_TYPE_TINY:
-		{
-			return "tiny"
-		}
-	case COLUMN_TYPE_VARCHAR:
-		{
-			return "varchar"
-		}
-	case COLUMN_TYPE_FLOAT:
-		{
-			return "float"
-		}
-	case COLUMN_TYPE_DECIMAL:
-		{
-			return "decimal"
-		}
-	case COLUMN_TYPE_BLOB:
-		{
-			return "blob"
-		}
-	case COLUMN_TYPE_INT24:
-		{
-			return "int"
-		}
-
-	default:
-		{
-
-		}
-	}
-	return ""
-}
-
-/***************************************************/
-// https://dev.mysql.com/doc/internals/en/command-phase.html
-// include/my_command.h
-const (
-	COM_SLEEP byte = iota
-	COM_QUIT
-	COM_INIT_DB
-	COM_QUERY
-	COM_FIELD_LIST
-	COM_CREATE_DB
-	COM_DROP_DB
-	COM_REFRESH
-	COM_SHUTDOWN
-	COM_STATISTICS
-	COM_PROCESS_INFO
-	COM_CONNECT
-	COM_PROCESS_KILL
-	COM_DEBUG
-	COM_PING
-	COM_TIME
-	COM_DELAYED_INSERT
-	COM_CHANGE_USER
-	COM_BINLOG_DUMP
-	COM_TABLE_DUMP
-	COM_CONNECT_OUT
-	COM_REGISTER_SLAVE
-	COM_STMT_PREPARE
-	COM_STMT_EXECUTE
-	COM_STMT_SEND_LONG_DATA
-	COM_STMT_CLOSE
-	COM_STMT_RESET
-	COM_SET_OPTION
-	COM_STMT_FETCH
-	COM_DAEMON
-	COM_BINLOG_DUMP_GTID
-	COM_RESET_CONNECTION
-)
-
-func CommandString(cmd byte) string {
-	switch cmd {
-	case COM_SLEEP:
-		return "COM_SLEEP"
-	case COM_QUIT:
-		return "COM_QUIT"
-	case COM_INIT_DB:
-		return "COM_INIT_DB"
-	case COM_QUERY:
-		return "COM_QUERY"
-	case COM_FIELD_LIST:
-		return "COM_FIELD_LIST"
-	case COM_CREATE_DB:
-		return "COM_CREATE_DB"
-	case COM_DROP_DB:
-		return "COM_DROP_DB"
-	case COM_REFRESH:
-		return "COM_REFRESH"
-	case COM_SHUTDOWN:
-		return "COM_SHUTDOWN"
-	case COM_STATISTICS:
-		return "COM_STATISTICS"
-	case COM_PROCESS_INFO:
-		return "COM_PROCESS_INFO"
-	case COM_CONNECT:
-		return "COM_CONNECT"
-	case COM_PROCESS_KILL:
-		return "COM_PROCESS_KILL"
-	case COM_DEBUG:
-		return "COM_DEBUG"
-	case COM_PING:
-		return "COM_PING"
-	case COM_TIME:
-		return "COM_TIME"
-	case COM_DELAYED_INSERT:
-		return "COM_DELAYED_INSERT"
-	case COM_CHANGE_USER:
-		return "COM_CHANGE_USER"
-	case COM_BINLOG_DUMP:
-		return "COM_BINLOG_DUMP"
-	case COM_TABLE_DUMP:
-		return "COM_TABLE_DUMP"
-	case COM_CONNECT_OUT:
-		return "COM_CONNECT_OUT"
-	case COM_REGISTER_SLAVE:
-		return "COM_REGISTER_SLAVE"
-	case COM_STMT_PREPARE:
-		return "COM_STMT_PREPARE"
-	case COM_STMT_EXECUTE:
-		return "COM_STMT_EXECUTE"
-	case COM_STMT_SEND_LONG_DATA:
-		return "COM_STMT_SEND_LONG_DATA"
-	case COM_STMT_CLOSE:
-		return "COM_STMT_CLOSE"
-	case COM_STMT_RESET:
-		return "COM_STMT_RESET"
-	case COM_SET_OPTION:
-		return "COM_SET_OPTION"
-	case COM_STMT_FETCH:
-		return "COM_STMT_FETCH"
-	case COM_DAEMON:
-		return "COM_DAEMON"
-	case COM_BINLOG_DUMP_GTID:
-		return "COM_BINLOG_DUMP_GTID"
-	case COM_RESET_CONNECTION:
-		return "COM_RESET_CONNECTION"
-	}
-	return "UNKNOWN"
-}
-
 // https://dev.mysql.com/doc/internals/en/capability-flags.html
 // include/mysql_com.h
 const (
 	// new more secure password
-	CLIENT_LONG_PASSWORD = 1
+	CLIENT_LONG_PASSWORD = CapabilityLongPassword
 
 	// Found instead of affected rows
-	CLIENT_FOUND_ROWS = uint32(1 << 1)
+	CLIENT_FOUND_ROWS = uint32(CapabilityFoundRows)
 
 	// Get all column flags
-	CLIENT_LONG_FLAG = uint32(1 << 2)
+	CLIENT_LONG_FLAG = uint32(CapabilityLongFlag)
 
 	// One can specify db on connect
-	CLIENT_CONNECT_WITH_DB = uint32(1 << 3)
+	CLIENT_CONNECT_WITH_DB = uint32(CapabilityConnectWithDb)
 
 	// Don't allow database.table.column
-	CLIENT_NO_SCHEMA = uint32(1 << 4)
+	CLIENT_NO_SCHEMA = uint32(CapabilityNoSchema)
 
 	// Can use compression protocol
-	CLIENT_COMPRESS = uint32(1 << 5)
+	CLIENT_COMPRESS = uint32(CapabilityCompress)
 
 	// Odbc client
-	CLIENT_ODBC = uint32(1 << 6)
+	CLIENT_ODBC = uint32(CapabilityOdbc)
 
 	// Can use LOAD DATA LOCAL
-	CLIENT_LOCAL_FILES = uint32(1 << 7)
+	CLIENT_LOCAL_FILES = uint32(CapabilityLocalFiles)
 
 	// Ignore spaces before '('
-	CLIENT_IGNORE_SPACE = uint32(1 << 8)
+	CLIENT_IGNORE_SPACE = uint32(CapabilityIgnoreSpace)
 
 	// New 4.1 protocol
-	CLIENT_PROTOCOL_41 = uint32(1 << 9)
+	CLIENT_PROTOCOL_41 = uint32(CapabilityProtocol41)
 
 	// This is an interactive client
-	CLIENT_INTERACTIVE = uint32(1 << 10)
+	CLIENT_INTERACTIVE = uint32(CapabilityInteractive)
 
 	// Switch to SSL after handshake
-	CLIENT_SSL = uint32(1 << 11)
+	CLIENT_SSL = uint32(CapabilitySsl)
 
 	// IGNORE sigpipes
-	CLIENT_IGNORE_SIGPIPE = uint32(1 << 12)
+	CLIENT_IGNORE_SIGPIPE = uint32(CapabilityIgnoreSigpipe)
 
 	// Client knows about transactions
-	CLIENT_TRANSACTIONS = uint32(1 << 13)
+	CLIENT_TRANSACTIONS = uint32(CapabilityTransactions)
 
 	// Old flag for 4.1 protocol
-	CLIENT_RESERVED = uint32(1 << 14)
+	CLIENT_RESERVED = uint32(CapabilityReserved)
 
 	// Old flag for 4.1 authentication
-	CLIENT_SECURE_CONNECTION = uint32(1 << 15)
+	CLIENT_SECURE_CONNECTION = uint32(CapabilitySecureConnection)
 
 	// Enable/disable multi-stmt support
-	CLIENT_MULTI_STATEMENTS = uint32(1 << 16)
+	CLIENT_MULTI_STATEMENTS = uint32(CapabilityMultiStatements)
 
 	// Enable/disable multi-results
-	CLIENT_MULTI_RESULTS = uint32(1 << 17)
+	CLIENT_MULTI_RESULTS = uint32(CapabilityMultiResults)
 
 	// Multi-results in PS-protocol
-	CLIENT_PS_MULTI_RESULTS = uint32(1 << 18)
+	CLIENT_PS_MULTI_RESULTS = uint32(CapabilityPsMultiResults)
 
 	// Client supports plugin authentication
-	CLIENT_PLUGIN_AUTH = uint32(1 << 19)
+	CLIENT_PLUGIN_AUTH = uint32(CapabilityPluginAuth)
 
 	// Client supports connection attributes
-	CLIENT_CONNECT_ATTRS = uint32(1 << 20)
+	CLIENT_CONNECT_ATTRS = uint32(CapabilityConnectAttrs)
 
 	//  Enable authentication response packet to be larger than 255 bytes
-	CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA = uint32(1 << 21)
+	CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA = uint32(CapabilityPluginAuthLenencClientData)
 
 	// Don't close the connection for a connection with expired password
-	CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS = uint32(1 << 22)
+	CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS = uint32(CapabilityCanHandleExpiredPasswords)
 
 	// Capable of handling server state change information. Its a hint to the
 	// server to include the state change information in Ok packet.
-	CLIENT_SESSION_TRACK = uint32(1 << 23)
+	CLIENT_SESSION_TRACK = uint32(CapabilitySessionTrack)
 
 	//Client no longer needs EOF packet
-	CLIENT_DEPRECATE_EOF = uint32(1 << 24)
+	CLIENT_DEPRECATE_EOF = uint32(CapabilityDeprecateEof)
 )
 
 const (
-	SSUnknownSQLState = "HY000"
+	SSUnknownSQLState = DefaultMySQLState
 )
 
 // Status flags. They are returned by the server in a few cases.
@@ -329,72 +147,31 @@ const (
 // See http://dev.mysql.com/doc/internals/en/character-set.html#packet-Protocol::CharacterSet
 const (
 	// CharacterSetUtf8 is for UTF8. We use this by default.
-	CharacterSetUtf8 = 33
+	CharacterSetUtf8 = CollationUTF8GeneralCIID
 
 	// CharacterSetBinary is for binary. Use by integer fields for instance.
-	CharacterSetBinary = 63
+	CharacterSetBinary = CollationBinaryID
 )
 
 // CharacterSetMap maps the charset name (used in ConnParams) to the
 // integer valueImpl.  Interesting ones have their own constant above.
-var CharacterSetMap = map[string]uint8{
-	"big5":     1,
-	"dec8":     3,
-	"cp850":    4,
-	"hp8":      6,
-	"koi8r":    7,
-	"latin1":   8,
-	"latin2":   9,
-	"swe7":     10,
-	"ascii":    11,
-	"ujis":     12,
-	"sjis":     13,
-	"hebrew":   16,
-	"tis620":   18,
-	"euckr":    19,
-	"koi8u":    22,
-	"gb2312":   24,
-	"greek":    25,
-	"cp1250":   26,
-	"gbk":      28,
-	"latin5":   30,
-	"armscii8": 32,
-	"utf8":     CharacterSetUtf8,
-	"ucs2":     35,
-	"cp866":    36,
-	"keybcs2":  37,
-	"macce":    38,
-	"macroman": 39,
-	"cp852":    40,
-	"latin7":   41,
-	"utf8mb4":  45,
-	"cp1251":   51,
-	"utf16":    54,
-	"utf16le":  56,
-	"cp1256":   57,
-	"cp1257":   59,
-	"utf32":    60,
-	"binary":   CharacterSetBinary,
-	"geostd8":  92,
-	"cp932":    95,
-	"eucjpms":  97,
-}
+var CharacterSetMap = ProtocolCharsetIDs()
 
 const (
 	// Error codes for server-side errors.
 	// Originally found in include/mysql/mysqld_error.h
-	ER_ERROR_FIRST                  uint16 = 1000
-	ER_CON_COUNT_ERROR                     = 1040
-	ER_ACCESS_DENIED_ERROR                 = 1045
-	ER_NO_DB_ERROR                         = 1046
-	ER_BAD_DB_ERROR                        = 1049
-	ER_UNKNOWN_ERROR                       = 1105
-	ER_HOST_NOT_PRIVILEGED                 = 1130
-	ER_NO_SUCH_TABLE                       = 1146
-	ER_SYNTAX_ERROR                        = 1149
-	ER_SPECIFIC_ACCESS_DENIED_ERROR        = 1227
-	ER_OPTION_PREVENTS_STATEMENT           = 1290
-	ER_MALFORMED_PACKET                    = 1835
+	ER_ERROR_FIRST                  uint16 = ErrErrorFirst
+	ER_CON_COUNT_ERROR                     = ErrConCount
+	ER_ACCESS_DENIED_ERROR                 = ErrAccessDenied
+	ER_NO_DB_ERROR                         = ErrNoDB
+	ER_BAD_DB_ERROR                        = ErrBadDB
+	ER_UNKNOWN_ERROR                       = ErrUnknown
+	ER_HOST_NOT_PRIVILEGED                 = ErrHostNotPrivileged
+	ER_NO_SUCH_TABLE                       = ErrNoSuchTable
+	ER_SYNTAX_ERROR                        = ErrSyntax
+	ER_SPECIFIC_ACCESS_DENIED_ERROR        = ErrSpecificAccessDenied
+	ER_OPTION_PREVENTS_STATEMENT           = ErrOptionPreventsStatement
+	ER_MALFORMED_PACKET                    = ErrMalformedPacket
 
 	// Error codes for client-side errors.
 	// Originally found in include/mysql/errmsg.h
@@ -475,4 +252,4 @@ const (
 )
 
 // InnoDB page size constant
-const UNIV_PAGE_SIZE = 16384 // 16KB default page size
+const UNIV_PAGE_SIZE = PageSize // 16KB default page size

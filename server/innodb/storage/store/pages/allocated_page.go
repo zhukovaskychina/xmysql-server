@@ -148,7 +148,7 @@ func (p *AllocatedPage) GetPageBody() []byte {
 
 // SetChecksum calculates and sets the page checksum
 func (p *AllocatedPage) SetChecksum() {
-	if len(p.data) < FileHeaderSize+FileTrailerSize {
+	if len(p.data) < common.FileHeaderSize+common.FileTrailerSize {
 		return
 	}
 
@@ -160,6 +160,6 @@ func (p *AllocatedPage) SetChecksum() {
 	binary.LittleEndian.PutUint32(p.data[:4], checksum)
 
 	// 写入文件尾校验和（最后8字节）
-	trailerOffset := len(p.data) - FileTrailerSize
+	trailerOffset := len(p.data) - common.FileTrailerSize
 	binary.LittleEndian.PutUint64(p.data[trailerOffset:trailerOffset+8], uint64(checksum))
 }

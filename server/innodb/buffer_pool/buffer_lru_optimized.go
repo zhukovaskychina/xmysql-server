@@ -2,7 +2,6 @@ package buffer_pool
 
 import (
 	"container/list"
-	"github.com/zhukovaskychina/xmysql-server/util"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -24,8 +23,10 @@ type OptimizedLRUCache struct {
 	mu sync.RWMutex
 
 	// 统计信息使用原子操作
-	hitCount  uint64
-	missCount uint64
+	hitCount     uint64
+	missCount    uint64
+	madeYoung    uint64
+	notMadeYoung uint64
 
 	// 三个不同的缓存层级
 	items      map[uint64]*list.Element // 普通缓存
@@ -94,7 +95,11 @@ func (c *OptimizedLRUCache) Get(spaceId uint32, pageNo uint32) (*BufferBlock, er
 	if result := c.getFromOld(key); result != nil {
 		atomic.AddUint64(&c.hitCount, 1)
 		// 从老年区域获取到的数据，根据访问频率决定是否提升到年轻区域
-		c.promoteToYoungIfNeeded(key, result)
+		if c.promoteToYoungIfNeeded(key, result) {
+			atomic.AddUint64(&c.madeYoung, 1)
+		} else {
+			atomic.AddUint64(&c.notMadeYoung, 1)
+		}
 		return result, nil
 	}
 
@@ -195,12 +200,12 @@ func (c *OptimizedLRUCache) getFromOrdinary(key uint64) *BufferBlock {
 }
 
 // promoteToYoungIfNeeded 根据访问频率决定是否提升到年轻区域
-func (c *OptimizedLRUCache) promoteToYoungIfNeeded(key uint64, value *BufferBlock) {
+func (c *OptimizedLRUCache) promoteToYoungIfNeeded(key uint64, value *BufferBlock) bool {
 	c.mu.RLock()
 	element, exists := c.oldItems[key]
 	if !exists {
 		c.mu.RUnlock()
-		return
+		return false
 	}
 
 	item := element.Value.(*lruItemOptimized)
@@ -233,9 +238,12 @@ func (c *OptimizedLRUCache) promoteToYoungIfNeeded(key uint64, value *BufferBloc
 				accessCount:    item.accessCount,
 			}
 			c.youngItems[key] = c.evictYoungList.PushFront(newItem)
+			c.mu.Unlock()
+			return true
 		}
 		c.mu.Unlock()
 	}
+	return false
 }
 
 // Set 设置缓存项（优化版本）
@@ -494,8 +502,22 @@ func (c *OptimizedLRUCache) Purge() {
 
 // generateKey 生成缓存键
 func (c *OptimizedLRUCache) generateKey(spaceId uint32, pageNo uint32) uint64 {
-	buff := append(util.ConvertUInt4Bytes(spaceId), util.ConvertUInt4Bytes(pageNo)...)
-	return util.HashCode(buff)
+	return makeLRUPageKey(spaceId, pageNo)
+}
+
+// PageSnapshot is a stable, read-only view of one page currently held by the
+// optimized LRU.  It deliberately contains only diagnostic state so callers
+// such as INFORMATION_SCHEMA cannot mutate cache-owned pages while reporting
+// buffer-pool contents.
+type PageSnapshot struct {
+	SpaceID        uint32
+	PageNo         uint32
+	Page           *BufferPage
+	FirstVisitTime uint64
+	LastVisitTime  uint64
+	AccessCount    uint32
+	IsOld          bool
+	LRUPosition    int
 }
 
 // 统计相关方法
@@ -518,6 +540,12 @@ func (c *OptimizedLRUCache) HitRate() float64 {
 		return 0.0
 	}
 	return float64(hc) / float64(total)
+}
+
+// YoungPromotionStats returns cumulative old-list page accesses that were
+// promoted to the young list and accesses that remained in the old list.
+func (c *OptimizedLRUCache) YoungPromotionStats() (madeYoung, notMadeYoung uint64) {
+	return atomic.LoadUint64(&c.madeYoung), atomic.LoadUint64(&c.notMadeYoung)
 }
 
 // 以下方法用于兼容原有接口
@@ -646,4 +674,40 @@ func (c *OptimizedLRUCache) Range(f func(page *BufferPage) bool) {
 			return
 		}
 	}
+}
+
+// Snapshot returns the cache pages in their diagnostic LRU order.  The
+// optimized cache has three lists; report hot pages first, followed by old
+// pages and then the ordinary list, preserving each list's front-to-back
+// order.  A copy is returned so the cache lock is not held by consumers.
+func (c *OptimizedLRUCache) Snapshot() []PageSnapshot {
+	if c == nil {
+		return nil
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	pages := make([]PageSnapshot, 0, len(c.items)+len(c.youngItems)+len(c.oldItems))
+	appendList := func(list *list.List, old bool) {
+		for element := list.Front(); element != nil; element = element.Next() {
+			item, ok := element.Value.(*lruItemOptimized)
+			if !ok || item == nil || item.value == nil || item.value.BufferPage == nil {
+				continue
+			}
+			pages = append(pages, PageSnapshot{
+				SpaceID:        item.spaceID,
+				PageNo:         item.pageNo,
+				Page:           item.value.BufferPage,
+				FirstVisitTime: item.firstVisitTime,
+				LastVisitTime:  item.lastVisitTime,
+				AccessCount:    atomic.LoadUint32(&item.accessCount),
+				IsOld:          old,
+				LRUPosition:    len(pages),
+			})
+		}
+	}
+	appendList(c.evictYoungList, false)
+	appendList(c.evictOldList, true)
+	appendList(c.evictList, false)
+	return pages
 }

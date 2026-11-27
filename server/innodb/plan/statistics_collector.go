@@ -26,6 +26,7 @@ type StatisticsCollector struct {
 	// 后台任务控制
 	stopCh   chan struct{}
 	updateCh chan *StatisticsUpdateRequest
+	stopOnce sync.Once
 }
 
 // StatisticsConfig 统计信息配置
@@ -99,7 +100,7 @@ func (sc *StatisticsCollector) CollectTableStatistics(
 
 	// 检查缓存
 	cacheKey := table.Name
-	if stats, exists := sc.tableStats[cacheKey]; exists {
+	if stats, exists := lookupCaseInsensitiveStats(sc.tableStats, cacheKey); exists {
 		if time.Since(time.Unix(stats.LastAnalyzeTime, 0)) < sc.config.ExpirationTime {
 			return stats, nil
 		}
@@ -135,9 +136,9 @@ func (sc *StatisticsCollector) CollectColumnStatistics(
 
 	// 检查缓存
 	cacheKey := fmt.Sprintf("%s.%s", table.Name, column.Name)
-	if stats, exists := sc.columnStats[cacheKey]; exists {
+	if stats, exists := lookupCaseInsensitiveStats(sc.columnStats, cacheKey); exists {
 		// 由于ColumnStats没有LastUpdated字段，我们使用表的LastAnalyzeTime
-		if tableStats, tableExists := sc.tableStats[table.Name]; tableExists {
+		if tableStats, tableExists := lookupCaseInsensitiveStats(sc.tableStats, table.Name); tableExists {
 			if time.Since(time.Unix(tableStats.LastAnalyzeTime, 0)) < sc.config.ExpirationTime {
 				return stats, nil
 			}
@@ -176,9 +177,9 @@ func (sc *StatisticsCollector) CollectIndexStatistics(
 
 	// 检查缓存
 	cacheKey := fmt.Sprintf("%s.%s", table.Name, index.Name)
-	if stats, exists := sc.indexStats[cacheKey]; exists {
+	if stats, exists := lookupCaseInsensitiveStats(sc.indexStats, cacheKey); exists {
 		// 由于IndexStats没有LastUpdated字段，我们使用表的LastAnalyzeTime
-		if tableStats, tableExists := sc.tableStats[table.Name]; tableExists {
+		if tableStats, tableExists := lookupCaseInsensitiveStats(sc.tableStats, table.Name); tableExists {
 			if time.Since(time.Unix(tableStats.LastAnalyzeTime, 0)) < sc.config.ExpirationTime {
 				return stats, nil
 			}
@@ -212,7 +213,7 @@ func (sc *StatisticsCollector) collectBasicColumnStats(
 
 	// 获取表行数 - 直接从缓存获取，避免死锁
 	var totalCount int64
-	if tableStats, exists := sc.tableStats[table.Name]; exists {
+	if tableStats, exists := lookupCaseInsensitiveStats(sc.tableStats, table.Name); exists {
 		totalCount = tableStats.RowCount
 	} else {
 		// 如果没有表统计信息，使用估算值
@@ -260,7 +261,7 @@ func (sc *StatisticsCollector) buildHistogram(
 ) error {
 	// 获取表行数 - 直接从缓存获取，避免死锁
 	var totalCount int64
-	if tableStats, exists := sc.tableStats[table.Name]; exists {
+	if tableStats, exists := lookupCaseInsensitiveStats(sc.tableStats, table.Name); exists {
 		totalCount = tableStats.RowCount
 	} else {
 		// 如果没有表统计信息，使用估算值
@@ -291,19 +292,49 @@ func (sc *StatisticsCollector) buildHistogram(
 	return nil
 }
 
+func normalizedHistogramBucketCount(histogram *Histogram) int {
+	if histogram == nil {
+		return 0
+	}
+	if histogram.NumBuckets <= 0 {
+		histogram.NumBuckets = 1
+	}
+	return histogram.NumBuckets
+}
+
 // buildNumericHistogram 构建数值直方图
 func (sc *StatisticsCollector) buildNumericHistogram(histogram *Histogram, stats *ColumnStats) {
-	minVal := stats.MinValue.(int64)
-	maxVal := stats.MaxValue.(int64)
-	bucketSize := (maxVal - minVal) / int64(histogram.NumBuckets)
+	bucketCount := normalizedHistogramBucketCount(histogram)
+	if bucketCount == 0 || stats == nil || histogram.TotalCount <= 0 {
+		return
+	}
+	minVal, minOK := stats.MinValue.(int64)
+	maxVal, maxOK := stats.MaxValue.(int64)
+	if !minOK || !maxOK || maxVal < minVal {
+		return
+	}
+	if minVal == maxVal {
+		histogram.NumBuckets = 1
+		histogram.Buckets = append(histogram.Buckets, Bucket{
+			LowerBound: minVal,
+			UpperBound: maxVal,
+			Count:      histogram.TotalCount,
+			Distinct:   1,
+		})
+		return
+	}
+	bucketSize := int64(math.Ceil(float64(maxVal-minVal) / float64(bucketCount)))
 	if bucketSize == 0 {
 		bucketSize = 1
 	}
 
-	for i := 0; i < histogram.NumBuckets; i++ {
+	for i := 0; i < bucketCount; i++ {
 		lowerBound := minVal + int64(i)*bucketSize
+		if lowerBound > maxVal {
+			break
+		}
 		upperBound := minVal + int64(i+1)*bucketSize
-		if i == histogram.NumBuckets-1 {
+		if i == bucketCount-1 || upperBound > maxVal {
 			upperBound = maxVal
 		}
 
@@ -326,7 +357,10 @@ func (sc *StatisticsCollector) buildNumericHistogram(histogram *Histogram, stats
 // buildStringHistogram 构建字符串直方图
 func (sc *StatisticsCollector) buildStringHistogram(histogram *Histogram, stats *ColumnStats) {
 	// 简化实现：按字母顺序分桶
-	bucketCount := histogram.NumBuckets
+	bucketCount := normalizedHistogramBucketCount(histogram)
+	if bucketCount == 0 || histogram.TotalCount <= 0 {
+		return
+	}
 	totalCount := histogram.TotalCount
 
 	for i := 0; i < bucketCount; i++ {
@@ -349,12 +383,29 @@ func (sc *StatisticsCollector) buildStringHistogram(histogram *Histogram, stats 
 
 // buildDateTimeHistogram 构建日期时间直方图
 func (sc *StatisticsCollector) buildDateTimeHistogram(histogram *Histogram, stats *ColumnStats) {
-	minTime := stats.MinValue.(time.Time)
-	maxTime := stats.MaxValue.(time.Time)
+	bucketCount := normalizedHistogramBucketCount(histogram)
+	if bucketCount == 0 || stats == nil || histogram.TotalCount <= 0 {
+		return
+	}
+	minTime, minOK := stats.MinValue.(time.Time)
+	maxTime, maxOK := stats.MaxValue.(time.Time)
+	if !minOK || !maxOK || maxTime.Before(minTime) {
+		return
+	}
+	if minTime.Equal(maxTime) {
+		histogram.NumBuckets = 1
+		histogram.Buckets = append(histogram.Buckets, Bucket{
+			LowerBound: minTime,
+			UpperBound: maxTime,
+			Count:      histogram.TotalCount,
+			Distinct:   1,
+		})
+		return
+	}
 	duration := maxTime.Sub(minTime)
-	bucketDuration := duration / time.Duration(histogram.NumBuckets)
+	bucketDuration := duration / time.Duration(bucketCount)
 
-	for i := 0; i < histogram.NumBuckets; i++ {
+	for i := 0; i < bucketCount; i++ {
 		lowerBound := minTime.Add(time.Duration(i) * bucketDuration)
 		upperBound := minTime.Add(time.Duration(i+1) * bucketDuration)
 		if i == histogram.NumBuckets-1 {
@@ -373,7 +424,10 @@ func (sc *StatisticsCollector) buildDateTimeHistogram(histogram *Histogram, stat
 
 // buildGenericHistogram 构建通用直方图
 func (sc *StatisticsCollector) buildGenericHistogram(histogram *Histogram, stats *ColumnStats) {
-	bucketCount := histogram.NumBuckets
+	bucketCount := normalizedHistogramBucketCount(histogram)
+	if bucketCount == 0 || histogram.TotalCount <= 0 {
+		return
+	}
 	totalCount := histogram.TotalCount
 
 	for i := 0; i < bucketCount; i++ {
@@ -396,7 +450,7 @@ func (sc *StatisticsCollector) collectBasicIndexStats(
 ) error {
 	// 获取表统计信息 - 直接从缓存获取，避免死锁
 	var tableRowCount int64
-	if tableStats, exists := sc.tableStats[table.Name]; exists {
+	if tableStats, exists := lookupCaseInsensitiveStats(sc.tableStats, table.Name); exists {
 		tableRowCount = tableStats.RowCount
 	} else {
 		// 如果没有表统计信息，使用估算值
@@ -535,7 +589,7 @@ func (sc *StatisticsCollector) performPeriodicUpdate() {
 		parts := strings.Split(key, ".")
 		if len(parts) >= 2 {
 			tableName := parts[0]
-			if tableStats, exists := sc.tableStats[tableName]; exists {
+			if tableStats, exists := lookupCaseInsensitiveStats(sc.tableStats, tableName); exists {
 				if now.Sub(time.Unix(tableStats.LastAnalyzeTime, 0)) > sc.config.ExpirationTime {
 					expiredColumns = append(expiredColumns, key)
 				}
@@ -549,7 +603,7 @@ func (sc *StatisticsCollector) performPeriodicUpdate() {
 		parts := strings.Split(key, ".")
 		if len(parts) >= 2 {
 			tableName := parts[0]
-			if tableStats, exists := sc.tableStats[tableName]; exists {
+			if tableStats, exists := lookupCaseInsensitiveStats(sc.tableStats, tableName); exists {
 				if now.Sub(time.Unix(tableStats.LastAnalyzeTime, 0)) > sc.config.ExpirationTime {
 					expiredIndexes = append(expiredIndexes, key)
 				}
@@ -583,27 +637,27 @@ func (sc *StatisticsCollector) handleUpdateRequest(req *StatisticsUpdateRequest)
 
 	switch req.UpdateType {
 	case UpdateTypeTable:
-		delete(sc.tableStats, req.TableName)
+		deleteCaseInsensitiveStats(sc.tableStats, req.TableName)
 	case UpdateTypeColumn:
 		key := fmt.Sprintf("%s.%s", req.TableName, req.ColumnName)
-		delete(sc.columnStats, key)
+		deleteCaseInsensitiveStats(sc.columnStats, key)
 	case UpdateTypeIndex:
 		key := fmt.Sprintf("%s.%s", req.TableName, req.IndexName)
-		delete(sc.indexStats, key)
+		deleteCaseInsensitiveStats(sc.indexStats, key)
 	case UpdateTypeAll:
 		// 清空所有相关统计信息
 		for key := range sc.tableStats {
-			if key == req.TableName {
+			if strings.EqualFold(key, req.TableName) {
 				delete(sc.tableStats, key)
 			}
 		}
 		for key := range sc.columnStats {
-			if len(key) > len(req.TableName) && key[:len(req.TableName)] == req.TableName {
+			if statisticsTableKeyMatches(key, req.TableName) {
 				delete(sc.columnStats, key)
 			}
 		}
 		for key := range sc.indexStats {
-			if len(key) > len(req.TableName) && key[:len(req.TableName)] == req.TableName {
+			if statisticsTableKeyMatches(key, req.TableName) {
 				delete(sc.indexStats, key)
 			}
 		}
@@ -616,7 +670,7 @@ func (sc *StatisticsCollector) handleUpdateRequest(req *StatisticsUpdateRequest)
 func (sc *StatisticsCollector) GetTableStatistics(tableName string) (*TableStats, bool) {
 	sc.mu.RLock()
 	defer sc.mu.RUnlock()
-	stats, exists := sc.tableStats[tableName]
+	stats, exists := lookupCaseInsensitiveStats(sc.tableStats, tableName)
 	return stats, exists
 }
 
@@ -625,7 +679,7 @@ func (sc *StatisticsCollector) GetColumnStatistics(tableName, columnName string)
 	sc.mu.RLock()
 	defer sc.mu.RUnlock()
 	key := fmt.Sprintf("%s.%s", tableName, columnName)
-	stats, exists := sc.columnStats[key]
+	stats, exists := lookupCaseInsensitiveStats(sc.columnStats, key)
 	return stats, exists
 }
 
@@ -634,8 +688,16 @@ func (sc *StatisticsCollector) GetIndexStatistics(tableName, indexName string) (
 	sc.mu.RLock()
 	defer sc.mu.RUnlock()
 	key := fmt.Sprintf("%s.%s", tableName, indexName)
-	stats, exists := sc.indexStats[key]
+	stats, exists := lookupCaseInsensitiveStats(sc.indexStats, key)
 	return stats, exists
+}
+
+func deleteCaseInsensitiveStats[T any](stats map[string]*T, key string) {
+	for candidate := range stats {
+		if strings.EqualFold(candidate, key) {
+			delete(stats, candidate)
+		}
+	}
 }
 
 // RequestUpdate 请求更新统计信息
@@ -649,7 +711,7 @@ func (sc *StatisticsCollector) RequestUpdate(req *StatisticsUpdateRequest) {
 
 // Stop 停止统计信息收集器
 func (sc *StatisticsCollector) Stop() {
-	close(sc.stopCh)
+	sc.stopOnce.Do(func() { close(sc.stopCh) })
 }
 
 // GetAllStatistics 获取所有统计信息

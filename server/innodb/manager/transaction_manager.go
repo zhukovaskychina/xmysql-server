@@ -3,11 +3,13 @@ package manager
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	formatmvcc "github.com/zhukovaskychina/xmysql-server/server/innodb/storage/format/mvcc"
 )
 
@@ -15,39 +17,46 @@ var (
 	ErrInvalidTrxState = errors.New("invalid transaction state")
 )
 
+// 以下事务常量保留原名称以兼容现有调用方，数值统一由common定义。
+// 全部调用方迁移并确认工程外兼容要求后，再移除这些转发名称。
 // 长事务告警级别
 const (
-	LONG_TXN_LEVEL_WARNING  = "WARNING"  // 警告级别
-	LONG_TXN_LEVEL_CRITICAL = "CRITICAL" // 严重级别
+	LONG_TXN_LEVEL_WARNING  = common.LONG_TXN_LEVEL_WARNING  // 警告级别
+	LONG_TXN_LEVEL_CRITICAL = common.LONG_TXN_LEVEL_CRITICAL // 严重级别
 )
 
 // 事务状态
 const (
-	TRX_STATE_NOT_STARTED uint8 = iota
-	TRX_STATE_ACTIVE
-	TRX_STATE_PREPARED
-	TRX_STATE_COMMITTED
-	TRX_STATE_ROLLED_BACK
+	TRX_STATE_NOT_STARTED = common.TRX_STATE_NOT_STARTED
+	TRX_STATE_ACTIVE      = common.TRX_STATE_ACTIVE
+	TRX_STATE_PREPARED    = common.TRX_STATE_PREPARED
+	TRX_STATE_COMMITTED   = common.TRX_STATE_COMMITTED
+	TRX_STATE_ROLLED_BACK = common.TRX_STATE_ROLLED_BACK
 )
 
 // 事务隔离级别
 const (
-	TRX_ISO_READ_UNCOMMITTED uint8 = iota
-	TRX_ISO_READ_COMMITTED
-	TRX_ISO_REPEATABLE_READ
-	TRX_ISO_SERIALIZABLE
+	TRX_ISO_READ_UNCOMMITTED = common.TRX_ISO_READ_UNCOMMITTED
+	TRX_ISO_READ_COMMITTED   = common.TRX_ISO_READ_COMMITTED
+	TRX_ISO_REPEATABLE_READ  = common.TRX_ISO_REPEATABLE_READ
+	TRX_ISO_SERIALIZABLE     = common.TRX_ISO_SERIALIZABLE
 )
 
 // Transaction 表示一个事务
 type Transaction struct {
-	ID             int64                 // 事务ID
-	State          uint8                 // 事务状态
-	IsolationLevel uint8                 // 隔离级别
-	StartTime      time.Time             // 开始时间
-	LastActiveTime time.Time             // 最后活跃时间
-	ReadView       *formatmvcc.ReadView  // MVCC读视图
-	UndoLogs       []UndoLogEntry        // Undo日志
-	RedoLogs       []RedoLogEntry        // Redo日志
+	ID                 int64                // 事务ID
+	State              uint8                // 事务状态
+	IsolationLevel     uint8                // 隔离级别
+	StartTime          time.Time            // 开始时间
+	LastActiveTime     time.Time            // 最后活跃时间
+	ReadView           *formatmvcc.ReadView // MVCC读视图
+	purgeReadViewToken uint64               // UndoPurger registration token
+	UndoLogs           []UndoLogEntry       // Undo日志
+	RedoLogs           []RedoLogEntry       // Redo日志
+	// CommitMetadata is an optional stable identity owned by the caller. It is
+	// copied into the physical commit record so higher-level recovery state can
+	// be correlated with the same WAL commit boundary.
+	CommitMetadata []byte
 	IsReadOnly     bool                  // 是否只读事务
 	LockCount      int                   // 持有的锁数量
 	UndoLogSize    uint64                // Undo日志大小
@@ -97,15 +106,49 @@ type LongTransactionStats struct {
 	LastCheckTime      time.Time
 }
 
+// LongTransactionSnapshot is an immutable diagnostic view. Returning this
+// shape keeps SHOW/monitoring callers from mutating live transaction state or
+// racing with lock/undo counters updated by the transaction manager.
+type LongTransactionSnapshot struct {
+	ID             int64         `json:"id"`
+	State          uint8         `json:"state"`
+	IsolationLevel uint8         `json:"isolation_level"`
+	StartTime      time.Time     `json:"start_time"`
+	LastActiveTime time.Time     `json:"last_active_time"`
+	Duration       time.Duration `json:"duration"`
+	IsReadOnly     bool          `json:"is_read_only"`
+	LockCount      int           `json:"lock_count"`
+	UndoLogSize    uint64        `json:"undo_log_size"`
+}
+
+// TransactionSnapshot is a read-only view of an active transaction for
+// information_schema and operational diagnostics. It deliberately contains
+// only values owned by TransactionManager; session-specific SQL text and
+// lock-table details are not inferred here.
+type TransactionSnapshot struct {
+	ID             int64
+	State          uint8
+	IsolationLevel uint8
+	StartTime      time.Time
+	LastActiveTime time.Time
+	IsReadOnly     bool
+	LockCount      int
+	UndoLogSize    uint64
+}
+
 // TransactionManager 事务管理器
 type TransactionManager struct {
-	mu                 sync.RWMutex
-	nextTrxID          int64                  // 下一个事务ID
-	activeTransactions map[int64]*Transaction // 活跃事务
+	mu                     sync.RWMutex
+	nextTrxID              int64                  // 下一个事务ID
+	transactionAllocations uint64                 // total logical transaction objects allocated
+	activeRollbacks        atomic.Int64           // number of rollback operations currently executing
+	activeTransactions     map[int64]*Transaction // 活跃事务
+	rollbackInProgress     map[int64]bool         // transactions currently executing undo rollback
 
 	// 日志管理器
 	redoManager *RedoLogManager
 	undoManager *UndoLogManager
+	undoPurger  *UndoPurger
 
 	// 默认配置
 	defaultIsolationLevel uint8
@@ -145,9 +188,10 @@ func NewTransactionManager(redoDir, undoDir string) (*TransactionManager, error)
 	tm := &TransactionManager{
 		nextTrxID:             1,
 		activeTransactions:    make(map[int64]*Transaction),
+		rollbackInProgress:    make(map[int64]bool),
 		redoManager:           redoManager,
 		undoManager:           undoManager,
-		defaultIsolationLevel: TRX_ISO_REPEATABLE_READ,
+		defaultIsolationLevel: common.TRX_ISO_REPEATABLE_READ,
 		defaultTimeout:        time.Hour,
 		longTxnConfig:         longTxnConfig,
 		longTxnStats: &LongTransactionStats{
@@ -184,17 +228,21 @@ func (tm *TransactionManager) Begin(isReadOnly bool, isolationLevel uint8) (*Tra
 	// 创建事务对象
 	trx := &Transaction{
 		ID:             trxID,
-		State:          TRX_STATE_ACTIVE,
+		State:          common.TRX_STATE_ACTIVE,
 		IsolationLevel: isolationLevel,
 		StartTime:      time.Now(),
 		LastActiveTime: time.Now(),
 		IsReadOnly:     isReadOnly,
 		Savepoints:     make(map[string]*Savepoint), // 初始化保存点map
 	}
+	tm.transactionAllocations++
 
 	// 创建ReadView（对于RR和RC隔离级别）
-	if isolationLevel >= TRX_ISO_READ_COMMITTED {
+	if isolationLevel >= common.TRX_ISO_READ_COMMITTED {
 		trx.ReadView = tm.createReadView(trxID)
+		if tm.undoPurger != nil && trx.ReadView != nil {
+			trx.purgeReadViewToken = tm.undoPurger.RegisterActiveReadView(trx.ReadView)
+		}
 	}
 
 	// 记录活跃事务
@@ -203,13 +251,40 @@ func (tm *TransactionManager) Begin(isReadOnly bool, isolationLevel uint8) (*Tra
 	return trx, nil
 }
 
+// GetTransactionAllocations returns the cumulative number of logical
+// transaction objects allocated by this manager. The value is used by
+// compatibility observability without exposing the active transaction map.
+func (tm *TransactionManager) GetTransactionAllocations() int64 {
+	if tm == nil {
+		return 0
+	}
+	tm.mu.RLock()
+	count := tm.transactionAllocations
+	tm.mu.RUnlock()
+	return int64(count)
+}
+
+// GetActiveRollbacks returns the number of rollback operations currently
+// executing undo work. The counter covers full transaction rollback and
+// rollback-to-savepoint operations, including rollback work invoked by the
+// long-transaction monitor.
+func (tm *TransactionManager) GetActiveRollbacks() int64 {
+	if tm == nil {
+		return 0
+	}
+	return tm.activeRollbacks.Load()
+}
+
 // Commit 提交事务
 func (tm *TransactionManager) Commit(trx *Transaction) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
 	// 检查事务状态
-	if trx.State != TRX_STATE_ACTIVE {
+	if trx.State != common.TRX_STATE_ACTIVE {
+		return ErrInvalidTrxState
+	}
+	if tm.rollbackInProgress[trx.ID] {
 		return ErrInvalidTrxState
 	}
 
@@ -219,14 +294,24 @@ func (tm *TransactionManager) Commit(trx *Transaction) error {
 			return err
 		}
 	}
-
+	// Keep the physical transaction outcome in the same flushed WAL stream as
+	// its data records. Recovery uses this durable marker to distinguish a
+	// storage commit that was interrupted before the higher-level replication
+	// journal/GTID publication from an actually abandoned transaction.
+	if _, err := tm.redoManager.Append(&RedoLogEntry{
+		TrxID: trx.ID,
+		Type:  LOG_TYPE_TXN_COMMIT,
+		Data:  append([]byte(nil), trx.CommitMetadata...),
+	}); err != nil {
+		return err
+	}
 	// 确保Redo日志持久化
 	if err := tm.redoManager.Flush(0); err != nil {
 		return err
 	}
 
 	// 更新事务状态
-	trx.State = TRX_STATE_COMMITTED
+	trx.State = common.TRX_STATE_COMMITTED
 	trx.LastActiveTime = time.Now()
 
 	// 清理Undo日志
@@ -234,6 +319,7 @@ func (tm *TransactionManager) Commit(trx *Transaction) error {
 
 	// 移除活跃事务记录
 	delete(tm.activeTransactions, trx.ID)
+	tm.unregisterPurgeReadViewLocked(trx)
 
 	return nil
 }
@@ -241,17 +327,47 @@ func (tm *TransactionManager) Commit(trx *Transaction) error {
 // Rollback 回滚事务
 func (tm *TransactionManager) Rollback(trx *Transaction) error {
 	tm.mu.Lock()
-	defer tm.mu.Unlock()
+	if trx.State != common.TRX_STATE_ACTIVE || tm.rollbackInProgress[trx.ID] {
+		tm.mu.Unlock()
+		return ErrInvalidTrxState
+	}
+	tm.rollbackInProgress[trx.ID] = true
+	tm.activeRollbacks.Add(1)
+	tm.mu.Unlock()
 
-	return tm.rollbackLocked(trx)
+	err := tm.undoManager.Rollback(trx.ID)
+
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+	delete(tm.rollbackInProgress, trx.ID)
+	tm.activeRollbacks.Add(-1)
+	if err != nil {
+		return err
+	}
+
+	trx.State = common.TRX_STATE_ROLLED_BACK
+	trx.LastActiveTime = time.Now()
+	delete(tm.activeTransactions, trx.ID)
+	tm.unregisterPurgeReadViewLocked(trx)
+	return nil
 }
 
 // rollbackLocked 回滚事务（调用者必须持有锁）
 func (tm *TransactionManager) rollbackLocked(trx *Transaction) error {
 	// 检查事务状态
-	if trx.State != TRX_STATE_ACTIVE {
+	if trx.State != common.TRX_STATE_ACTIVE {
 		return ErrInvalidTrxState
 	}
+	if tm.rollbackInProgress[trx.ID] {
+		return ErrInvalidTrxState
+	}
+	tm.rollbackInProgress[trx.ID] = true
+
+	tm.activeRollbacks.Add(1)
+	defer func() {
+		delete(tm.rollbackInProgress, trx.ID)
+		tm.activeRollbacks.Add(-1)
+	}()
 
 	// 执行回滚操作
 	if err := tm.undoManager.Rollback(trx.ID); err != nil {
@@ -259,13 +375,50 @@ func (tm *TransactionManager) rollbackLocked(trx *Transaction) error {
 	}
 
 	// 更新事务状态
-	trx.State = TRX_STATE_ROLLED_BACK
+	trx.State = common.TRX_STATE_ROLLED_BACK
 	trx.LastActiveTime = time.Now()
 
 	// 清理事务记录
 	delete(tm.activeTransactions, trx.ID)
+	tm.unregisterPurgeReadViewLocked(trx)
 
 	return nil
+}
+
+// SetUndoPurger connects transaction read-view lifetime to the purge worker.
+// Existing active transactions are registered as well, so attaching the
+// purger after startup cannot leave a protection gap.
+func (tm *TransactionManager) SetUndoPurger(purger *UndoPurger) {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+	if tm.undoPurger == purger {
+		return
+	}
+	if tm.undoPurger != nil {
+		for _, trx := range tm.activeTransactions {
+			if trx != nil && trx.purgeReadViewToken != 0 {
+				tm.undoPurger.UnregisterActiveReadView(trx.purgeReadViewToken)
+				trx.purgeReadViewToken = 0
+			}
+		}
+	}
+	tm.undoPurger = purger
+	if purger == nil {
+		return
+	}
+	for _, trx := range tm.activeTransactions {
+		if trx != nil && trx.ReadView != nil && trx.purgeReadViewToken == 0 {
+			trx.purgeReadViewToken = purger.RegisterActiveReadView(trx.ReadView)
+		}
+	}
+}
+
+func (tm *TransactionManager) unregisterPurgeReadViewLocked(trx *Transaction) {
+	if tm.undoPurger == nil || trx == nil || trx.purgeReadViewToken == 0 {
+		return
+	}
+	tm.undoPurger.UnregisterActiveReadView(trx.purgeReadViewToken)
+	trx.purgeReadViewToken = 0
 }
 
 // Savepoint 创建保存点
@@ -274,7 +427,7 @@ func (tm *TransactionManager) Savepoint(trx *Transaction, name string) error {
 	defer tm.mu.Unlock()
 
 	// 检查事务状态
-	if trx.State != TRX_STATE_ACTIVE {
+	if trx.State != common.TRX_STATE_ACTIVE {
 		return ErrInvalidTrxState
 	}
 
@@ -304,7 +457,10 @@ func (tm *TransactionManager) RollbackToSavepoint(trx *Transaction, name string)
 	defer tm.mu.Unlock()
 
 	// 检查事务状态
-	if trx.State != TRX_STATE_ACTIVE {
+	if trx.State != common.TRX_STATE_ACTIVE {
+		return ErrInvalidTrxState
+	}
+	if tm.rollbackInProgress[trx.ID] {
 		return ErrInvalidTrxState
 	}
 
@@ -315,6 +471,13 @@ func (tm *TransactionManager) RollbackToSavepoint(trx *Transaction, name string)
 	}
 
 	logger.Debugf("🔄 Rolling back transaction %d to savepoint '%s' (LSN %d)", trx.ID, name, savepoint.LSN)
+
+	tm.rollbackInProgress[trx.ID] = true
+	tm.activeRollbacks.Add(1)
+	defer func() {
+		delete(tm.rollbackInProgress, trx.ID)
+		tm.activeRollbacks.Add(-1)
+	}()
 
 	// 执行部分回滚
 	if err := tm.undoManager.PartialRollback(trx.ID, savepoint.LSN); err != nil {
@@ -349,7 +512,7 @@ func (tm *TransactionManager) ReleaseSavepoint(trx *Transaction, name string) er
 	defer tm.mu.Unlock()
 
 	// 检查事务状态
-	if trx.State != TRX_STATE_ACTIVE {
+	if trx.State != common.TRX_STATE_ACTIVE {
 		return ErrInvalidTrxState
 	}
 
@@ -380,7 +543,7 @@ func (tm *TransactionManager) createReadView(trxID int64) *formatmvcc.ReadView {
 	activeIDs := make([]uint64, 0, capacity)
 
 	for id, trx := range tm.activeTransactions {
-		if trx.State == TRX_STATE_ACTIVE && id != trxID {
+		if trx.State == common.TRX_STATE_ACTIVE && id != trxID {
 			activeIDs = append(activeIDs, uint64(id))
 		}
 	}
@@ -396,20 +559,68 @@ func (tm *TransactionManager) GetTransaction(trxID int64) *Transaction {
 	return tm.activeTransactions[trxID]
 }
 
+// GetActiveTransactionIDs returns a stable, sorted snapshot for checkpoint
+// and observability consumers. The returned slice is detached from manager
+// state and safe for the caller to retain.
+func (tm *TransactionManager) GetActiveTransactionIDs() []uint64 {
+	if tm == nil {
+		return []uint64{}
+	}
+	tm.mu.RLock()
+	defer tm.mu.RUnlock()
+	ids := make([]uint64, 0, len(tm.activeTransactions))
+	for id := range tm.activeTransactions {
+		if id > 0 {
+			ids = append(ids, uint64(id))
+		}
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	return ids
+}
+
+// GetActiveTransactionSnapshots returns a stable copy of the current active
+// transaction set. Sorting by transaction ID keeps metadata queries and
+// diagnostics deterministic without exposing the manager's live map.
+func (tm *TransactionManager) GetActiveTransactionSnapshots() []TransactionSnapshot {
+	if tm == nil {
+		return nil
+	}
+	tm.mu.RLock()
+	defer tm.mu.RUnlock()
+	snapshots := make([]TransactionSnapshot, 0, len(tm.activeTransactions))
+	for _, trx := range tm.activeTransactions {
+		if trx == nil {
+			continue
+		}
+		snapshots = append(snapshots, TransactionSnapshot{
+			ID:             trx.ID,
+			State:          trx.State,
+			IsolationLevel: trx.IsolationLevel,
+			StartTime:      trx.StartTime,
+			LastActiveTime: trx.LastActiveTime,
+			IsReadOnly:     trx.IsReadOnly,
+			LockCount:      trx.LockCount,
+			UndoLogSize:    trx.UndoLogSize,
+		})
+	}
+	sort.Slice(snapshots, func(i, j int) bool { return snapshots[i].ID < snapshots[j].ID })
+	return snapshots
+}
+
 // IsVisible 判断数据版本是否对事务可见
 func (tm *TransactionManager) IsVisible(trx *Transaction, version int64) bool {
 	// 读未提交：总是可见
-	if trx.IsolationLevel == TRX_ISO_READ_UNCOMMITTED {
+	if trx.IsolationLevel == common.TRX_ISO_READ_UNCOMMITTED {
 		return true
 	}
 
 	// 读已提交：每次可见性判断时创建新的ReadView（语句级快照）
-	if trx.IsolationLevel == TRX_ISO_READ_COMMITTED {
+	if trx.IsolationLevel == common.TRX_ISO_READ_COMMITTED {
 		// 使用读锁快照当前活跃事务，避免与Begin时的写锁冲突
 		tm.mu.RLock()
 		activeIDs := make([]uint64, 0, len(tm.activeTransactions))
 		for id, t := range tm.activeTransactions {
-			if t.State == TRX_STATE_ACTIVE && id != trx.ID {
+			if t.State == common.TRX_STATE_ACTIVE && id != trx.ID {
 				activeIDs = append(activeIDs, uint64(id))
 			}
 		}
@@ -455,7 +666,7 @@ func (tm *TransactionManager) Close() error {
 
 	// 回滚所有未完成事务
 	for _, trx := range tm.activeTransactions {
-		if trx.State == TRX_STATE_ACTIVE {
+		if trx.State == common.TRX_STATE_ACTIVE {
 			tm.rollbackLocked(trx)
 		}
 	}
@@ -479,6 +690,9 @@ func (tm *TransactionManager) StartLongTransactionMonitor() {
 	if tm.monitorRunning {
 		return
 	}
+	// StopLongTransactionMonitor closes the previous signal so a subsequent
+	// start must get a fresh channel.
+	tm.stopMonitor = make(chan struct{})
 
 	tm.monitorRunning = true
 	tm.monitorWg.Add(1)
@@ -525,7 +739,7 @@ func (tm *TransactionManager) checkLongTransactions() {
 	longTxns := make([]*Transaction, 0)
 
 	for _, trx := range tm.activeTransactions {
-		if trx.State == TRX_STATE_ACTIVE {
+		if trx.State == common.TRX_STATE_ACTIVE {
 			duration := now.Sub(trx.StartTime)
 
 			// 检查是否超过阈值
@@ -561,9 +775,9 @@ func (tm *TransactionManager) handleLongTransaction(trx *Transaction, now time.T
 	tm.mu.RUnlock()
 
 	// 确定告警级别
-	level := LONG_TXN_LEVEL_WARNING
+	level := common.LONG_TXN_LEVEL_WARNING
 	if duration >= criticalThreshold {
-		level = LONG_TXN_LEVEL_CRITICAL
+		level = common.LONG_TXN_LEVEL_CRITICAL
 	}
 
 	// 检查是否超过锁数量阈值
@@ -608,7 +822,7 @@ func (tm *TransactionManager) handleLongTransaction(trx *Transaction, now time.T
 
 	// 更新统计
 	tm.longTxnStats.Lock()
-	if level == LONG_TXN_LEVEL_WARNING {
+	if level == common.LONG_TXN_LEVEL_WARNING {
 		tm.longTxnStats.TotalWarnings++
 	} else {
 		tm.longTxnStats.TotalCritical++
@@ -620,7 +834,7 @@ func (tm *TransactionManager) handleLongTransaction(trx *Transaction, now time.T
 	tm.longTxnStats.Unlock()
 
 	// 自动回滚（如果配置启用且达到严重级别）
-	if autoRollback && level == LONG_TXN_LEVEL_CRITICAL {
+	if autoRollback && level == common.LONG_TXN_LEVEL_CRITICAL {
 		tm.mu.Lock()
 		err := tm.rollbackLocked(trx)
 		tm.mu.Unlock()
@@ -635,6 +849,9 @@ func (tm *TransactionManager) handleLongTransaction(trx *Transaction, now time.T
 
 // SetLongTransactionConfig 设置长事务检测配置
 func (tm *TransactionManager) SetLongTransactionConfig(config *LongTransactionConfig) {
+	if config == nil {
+		return
+	}
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
@@ -700,15 +917,57 @@ func (tm *TransactionManager) GetLongTransactions(threshold time.Duration) []*Tr
 	longTxns := make([]*Transaction, 0)
 
 	for _, trx := range tm.activeTransactions {
-		if trx.State == TRX_STATE_ACTIVE {
+		if trx.State == common.TRX_STATE_ACTIVE {
 			duration := now.Sub(trx.StartTime)
 			if duration >= threshold {
-				longTxns = append(longTxns, trx)
+				longTxns = append(longTxns, cloneTransaction(trx))
 			}
 		}
 	}
+	sort.Slice(longTxns, func(i, j int) bool { return longTxns[i].ID < longTxns[j].ID })
 
 	return longTxns
+}
+
+// GetLongTransactionSnapshots returns stable, sorted diagnostics for
+// processlist/observability consumers.
+func (tm *TransactionManager) GetLongTransactionSnapshots(threshold time.Duration) []LongTransactionSnapshot {
+	tm.mu.RLock()
+	defer tm.mu.RUnlock()
+	now := time.Now()
+	result := make([]LongTransactionSnapshot, 0)
+	for _, trx := range tm.activeTransactions {
+		if trx.State != common.TRX_STATE_ACTIVE || now.Sub(trx.StartTime) < threshold {
+			continue
+		}
+		result = append(result, transactionSnapshot(trx, now))
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
+	return result
+}
+
+func transactionSnapshot(trx *Transaction, now time.Time) LongTransactionSnapshot {
+	return LongTransactionSnapshot{
+		ID: trx.ID, State: trx.State, IsolationLevel: trx.IsolationLevel,
+		StartTime: trx.StartTime, LastActiveTime: trx.LastActiveTime,
+		Duration: now.Sub(trx.StartTime), IsReadOnly: trx.IsReadOnly,
+		LockCount: trx.LockCount, UndoLogSize: trx.UndoLogSize,
+	}
+}
+
+func cloneTransaction(trx *Transaction) *Transaction {
+	copyTrx := *trx
+	copyTrx.UndoLogs = append([]UndoLogEntry(nil), trx.UndoLogs...)
+	copyTrx.RedoLogs = append([]RedoLogEntry(nil), trx.RedoLogs...)
+	copyTrx.Savepoints = make(map[string]*Savepoint, len(trx.Savepoints))
+	for name, savepoint := range trx.Savepoints {
+		if savepoint == nil {
+			continue
+		}
+		copySavepoint := *savepoint
+		copyTrx.Savepoints[name] = &copySavepoint
+	}
+	return &copyTrx
 }
 
 // UpdateTransactionActivity 更新事务活跃时间

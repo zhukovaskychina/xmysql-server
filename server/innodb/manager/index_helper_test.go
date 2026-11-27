@@ -62,6 +62,16 @@ func TestExtractIndexKey(t *testing.T) {
 		t.Log("✓ 复合索引键提取测试通过")
 	})
 
+	t.Run("列名大小写不敏感", func(t *testing.T) {
+		idx := &Index{IndexID: 4, Columns: []Column{{Name: "Tenant_ID"}, {Name: "Email"}}}
+		key, err := im.extractIndexKey(idx, map[string]interface{}{
+			"tenant_id": 7,
+			"EMAIL":     "a@example.com",
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, []interface{}{7, "a@example.com"}, key)
+	})
+
 	t.Run("列不存在", func(t *testing.T) {
 		idx := &Index{
 			IndexID: 3,
@@ -235,4 +245,20 @@ func TestGetSecondaryIndexesByTable(t *testing.T) {
 
 		t.Log("✓ 获取表的二级索引测试通过")
 	})
+}
+
+func TestIndexManagerIndexAffectedHandlesCaseAndSliceValues(t *testing.T) {
+	im := &IndexManager{}
+	idx := &Index{Columns: []Column{{Name: "Payload"}}}
+
+	if im.isIndexAffected(idx,
+		map[string]interface{}{"payload": []byte("same")},
+		map[string]interface{}{"PAYLOAD": []byte("same")}) {
+		t.Fatal("equal byte slices with case-insensitive column names should not affect the index")
+	}
+	if !im.isIndexAffected(idx,
+		map[string]interface{}{"payload": []byte("old")},
+		map[string]interface{}{"PAYLOAD": []byte("new")}) {
+		t.Fatal("changed byte slices should affect the index")
+	}
 }

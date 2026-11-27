@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
@@ -48,6 +49,10 @@ func EncodeClusteredRecord(row *InsertRowData, tableMeta *metadata.TableMeta) ([
 		if !ok {
 			value = col.DefaultValue
 		}
+		value, err := normalizeClusteredFixedValue(value, col)
+		if err != nil {
+			return nil, fmt.Errorf("encode column %s: %v", col.Name, err)
+		}
 
 		valueType, valueBytes, err := encodeClusteredRecordValue(value, col.Type)
 		if err != nil {
@@ -67,6 +72,21 @@ func EncodeClusteredRecord(row *InsertRowData, tableMeta *metadata.TableMeta) ([
 
 // DecodeClusteredRecord decodes a clustered row using table column order.
 func DecodeClusteredRecord(data []byte, tableMeta *metadata.TableMeta) (*InsertRowData, error) {
+	return decodeClusteredRecord(data, tableMeta, nil)
+}
+
+// DecodeClusteredRecordProjected decodes only requested columns while still
+// walking every encoded field to validate record boundaries. This keeps
+// predicate/projection row sources from materializing unneeded values.
+func DecodeClusteredRecordProjected(data []byte, tableMeta *metadata.TableMeta, requiredColumns []string) (*InsertRowData, error) {
+	projection, err := clusteredRecordProjection(tableMeta, requiredColumns)
+	if err != nil {
+		return nil, err
+	}
+	return decodeClusteredRecord(data, tableMeta, projection)
+}
+
+func decodeClusteredRecord(data []byte, tableMeta *metadata.TableMeta, projection map[string]struct{}) (*InsertRowData, error) {
 	if tableMeta == nil {
 		return nil, fmt.Errorf("table metadata is nil")
 	}
@@ -99,12 +119,14 @@ func DecodeClusteredRecord(data []byte, tableMeta *metadata.TableMeta) (*InsertR
 			return nil, fmt.Errorf("column %d metadata is nil", idx)
 		}
 		if idx >= int(columnCount) {
-			if col.DefaultValue != nil {
-				row.ColumnValues[col.Name] = normalizeDefaultValue(col.DefaultValue, col.Type)
-			} else {
-				row.ColumnValues[col.Name] = nil
+			if projection == nil || hasProjectedColumn(projection, col.Name) {
+				if col.DefaultValue != nil {
+					row.ColumnValues[col.Name] = normalizeDefaultValue(col.DefaultValue, col.Type)
+				} else {
+					row.ColumnValues[col.Name] = nil
+				}
+				row.ColumnTypes[col.Name] = col.Type
 			}
-			row.ColumnTypes[col.Name] = col.Type
 			continue
 		}
 		if offset+1+4 > len(data) {
@@ -119,14 +141,20 @@ func DecodeClusteredRecord(data []byte, tableMeta *metadata.TableMeta) (*InsertR
 			return nil, fmt.Errorf("column %s value truncated", col.Name)
 		}
 
-		value, err := decodeClusteredRecordValue(valueType, data[offset:offset+int(valueLen)])
-		if err != nil {
-			return nil, fmt.Errorf("decode column %s: %v", col.Name, err)
+		if projection == nil || hasProjectedColumn(projection, col.Name) {
+			value, err := decodeClusteredRecordValue(valueType, data[offset:offset+int(valueLen)])
+			if err != nil {
+				return nil, fmt.Errorf("decode column %s: %v", col.Name, err)
+			}
+			if strings.EqualFold(string(col.Type), string(metadata.TypeChar)) {
+				if text, ok := value.(string); ok {
+					value = strings.TrimRight(text, " ")
+				}
+			}
+			row.ColumnValues[col.Name] = value
+			row.ColumnTypes[col.Name] = col.Type
 		}
 		offset += int(valueLen)
-
-		row.ColumnValues[col.Name] = value
-		row.ColumnTypes[col.Name] = col.Type
 	}
 
 	if offset != len(data) {
@@ -134,6 +162,68 @@ func DecodeClusteredRecord(data []byte, tableMeta *metadata.TableMeta) (*InsertR
 	}
 
 	return row, nil
+}
+
+func normalizeClusteredFixedValue(value interface{}, column *metadata.ColumnMeta) (interface{}, error) {
+	if column == nil || value == nil || column.Length <= 0 {
+		return value, nil
+	}
+	switch strings.ToUpper(string(column.Type)) {
+	case string(metadata.TypeChar):
+		text, err := codecToString(value)
+		if err != nil {
+			return nil, err
+		}
+		if len([]rune(text)) > column.Length {
+			return nil, fmt.Errorf("data too long for CHAR(%d)", column.Length)
+		}
+		// CHAR values are space-padded by the wire/storage contract but are
+		// exposed without trailing spaces unless PAD_CHAR_TO_FULL_LENGTH is
+		// explicitly enabled. Keep the canonical stored form compact.
+		return strings.TrimRight(text, " "), nil
+	case string(metadata.TypeBinary):
+		bytesValue, err := codecToBytes(value)
+		if err != nil {
+			return nil, err
+		}
+		if len(bytesValue) > column.Length {
+			return nil, fmt.Errorf("data too long for BINARY(%d)", column.Length)
+		}
+		padded := make([]byte, column.Length)
+		copy(padded, bytesValue)
+		return padded, nil
+	default:
+		return value, nil
+	}
+}
+
+func clusteredRecordProjection(tableMeta *metadata.TableMeta, requiredColumns []string) (map[string]struct{}, error) {
+	if tableMeta == nil {
+		return nil, fmt.Errorf("table metadata is nil")
+	}
+	if len(requiredColumns) == 0 {
+		return nil, nil
+	}
+	known := make(map[string]string, len(tableMeta.Columns))
+	for _, column := range tableMeta.Columns {
+		if column != nil {
+			known[strings.ToLower(strings.TrimSpace(column.Name))] = column.Name
+		}
+	}
+	projection := make(map[string]struct{}, len(requiredColumns))
+	for _, required := range requiredColumns {
+		canonical, ok := known[strings.ToLower(strings.TrimSpace(required))]
+		if !ok || strings.TrimSpace(required) == "" {
+			return nil, fmt.Errorf("unknown projected column %q", required)
+		}
+		projection[canonical] = struct{}{}
+	}
+	return projection, nil
+}
+
+func hasProjectedColumn(projection map[string]struct{}, column string) bool {
+	_, ok := projection[column]
+	return ok
 }
 
 func encodeClusteredRecordValue(value interface{}, dataType metadata.DataType) (byte, []byte, error) {
@@ -174,6 +264,15 @@ func encodeClusteredRecordValue(value interface{}, dataType metadata.DataType) (
 			return 0, nil, err
 		}
 		return clusteredRecordBytes, bytesValue, nil
+	case metadata.TypeGeometry:
+		if bytesValue, ok := value.([]byte); ok {
+			return clusteredRecordBytes, append([]byte(nil), bytesValue...), nil
+		}
+		stringValue, err := codecToString(value)
+		if err != nil {
+			return 0, nil, err
+		}
+		return clusteredRecordString, []byte(stringValue), nil
 	default:
 		stringValue, err := codecToString(value)
 		if err != nil {

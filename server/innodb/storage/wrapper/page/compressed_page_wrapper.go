@@ -5,6 +5,7 @@ import (
 	"compress/zlib"
 	"errors"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
 	"io"
 	"sync"
@@ -44,6 +45,14 @@ func NewCompressedPageWrapper(id, spaceID uint32) *CompressedPageWrapper {
 	return p
 }
 
+// NewCompressedPageWrapperWithStorage creates a provider-backed compressed
+// page wrapper.
+func NewCompressedPageWrapperWithStorage(id, spaceID uint32, storage basic.StorageProvider) *CompressedPageWrapper {
+	page := NewCompressedPageWrapper(id, spaceID)
+	page.storage = storage
+	return page
+}
+
 // 实现IPageWrapper接口
 
 // ParseFromBytes 从字节数据解析压缩页面
@@ -51,7 +60,7 @@ func (cpw *CompressedPageWrapper) ParseFromBytes(data []byte) error {
 	cpw.Lock()
 	defer cpw.Unlock()
 
-	if err := cpw.BasePageWrapper.ParseFromBytes(data); err != nil {
+	if err := cpw.BasePageWrapper.parseFromBytesLocked(data); err != nil {
 		return err
 	}
 
@@ -78,6 +87,28 @@ func (cpw *CompressedPageWrapper) ToBytes() ([]byte, error) {
 	copy(cpw.content, data)
 
 	return data, nil
+}
+
+// Read loads and decodes the compressed page after the common wrapper reads
+// its durable 16KB image.
+func (cpw *CompressedPageWrapper) Read() error {
+	if err := cpw.BasePageWrapper.Read(); err != nil {
+		return err
+	}
+
+	cpw.Lock()
+	defer cpw.Unlock()
+	return cpw.compressedPage.Deserialize(append([]byte(nil), cpw.content...))
+}
+
+// Write serializes the compressed payload before delegating durable I/O to the
+// common page wrapper.
+func (cpw *CompressedPageWrapper) Write() error {
+	cpw.Lock()
+	cpw.content = cpw.compressedPage.Serialize()
+	cpw.markDirtyLocked()
+	cpw.Unlock()
+	return cpw.BasePageWrapper.Write()
 }
 
 // 压缩页面特有的方法
@@ -126,7 +157,7 @@ func (cpw *CompressedPageWrapper) SetData(data []byte) error {
 		}
 	}
 
-	cpw.MarkDirty()
+	cpw.BasePageWrapper.markDirtyLocked()
 	return nil
 }
 

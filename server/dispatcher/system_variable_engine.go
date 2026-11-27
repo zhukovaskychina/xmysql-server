@@ -4,18 +4,21 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
@@ -189,13 +192,17 @@ func (e *SystemVariableEngine) exprContainsSystemVariable(expr sqlparser.Expr) b
 		// 系统函数如 USER(), VERSION()
 		funcName := strings.ToUpper(expr.Name.String())
 		systemFunctions := map[string]bool{
-			"USER":          true,
-			"DATABASE":      true,
-			"VERSION":       true,
-			"CONNECTION_ID": true,
-			"CURRENT_USER":  true,
-			"SESSION_USER":  true,
-			"SYSTEM_USER":   true,
+			"USER":           true,
+			"DATABASE":       true,
+			"VERSION":        true,
+			"CONNECTION_ID":  true,
+			"CURRENT_USER":   true,
+			"SESSION_USER":   true,
+			"SYSTEM_USER":    true,
+			"CURRENT_ROLE":   true,
+			"ROLES_GRAPHML":  true,
+			"LAST_INSERT_ID": true,
+			"ROW_COUNT":      true,
 		}
 		return systemFunctions[funcName]
 
@@ -217,7 +224,10 @@ func (e *SystemVariableEngine) exprContainsSystemVariable(expr sqlparser.Expr) b
 			strings.Contains(exprStr, "CONNECTION_ID()") ||
 			strings.Contains(exprStr, "CURRENT_USER()") ||
 			strings.Contains(exprStr, "SESSION_USER()") ||
-			strings.Contains(exprStr, "SYSTEM_USER()")
+			strings.Contains(exprStr, "SYSTEM_USER()") ||
+			strings.Contains(exprStr, "CURRENT_ROLE()") ||
+			strings.Contains(exprStr, "LAST_INSERT_ID(") ||
+			strings.Contains(exprStr, "ROW_COUNT(")
 	}
 }
 
@@ -272,16 +282,21 @@ func (e *SystemVariableEngine) isSystemVariableSetExpression(expr *sqlparser.Set
 
 	// 检查常见的系统变量名
 	systemVariables := map[string]bool{
-		"AUTOCOMMIT":               true,
-		"SQL_MODE":                 true,
-		"TIME_ZONE":                true,
-		"CHARACTER_SET_CLIENT":     true,
-		"CHARACTER_SET_CONNECTION": true,
-		"CHARACTER_SET_RESULTS":    true,
-		"COLLATION_CONNECTION":     true,
-		"FOREIGN_KEY_CHECKS":       true,
-		"UNIQUE_CHECKS":            true,
-		"SQL_SAFE_UPDATES":         true,
+		"AUTOCOMMIT":                true,
+		"SQL_MODE":                  true,
+		"TIME_ZONE":                 true,
+		"CHARACTER_SET_CLIENT":      true,
+		"CHARACTER_SET_CONNECTION":  true,
+		"CHARACTER_SET_RESULTS":     true,
+		"COLLATION_CONNECTION":      true,
+		"FOREIGN_KEY_CHECKS":        true,
+		"CHECK_CONSTRAINT_CHECKS":   true,
+		"UNIQUE_CHECKS":             true,
+		"SQL_SAFE_UPDATES":          true,
+		"PASSWORD_HISTORY":          true,
+		"PASSWORD_REUSE_INTERVAL":   true,
+		"PASSWORD_REQUIRE_CURRENT":  true,
+		"DEFAULT_PASSWORD_LIFETIME": true,
 	}
 
 	return systemVariables[varName]
@@ -298,6 +313,15 @@ func (e *SystemVariableEngine) ExecuteQuery(session server.MySQLServerSession, q
 
 		// 将握手阶段保存的关键会话变量同步到系统变量管理器
 		e.syncSessionVariables(session)
+
+		// Native MySQL clients issue scoped variables during connection setup,
+		// for example SELECT @@GLOBAL.SERVER_ID. The embedded parser represents
+		// GLOBAL.foo as a single identifier, so resolve the narrow no-FROM form
+		// before the generic analyzer can turn it into an unknown variable.
+		if result, handled := e.executeDirectSystemVariableSelect(session, query); handled {
+			resultChan <- result
+			return
+		}
 
 		sessionID := e.getSessionID(session)
 
@@ -374,6 +398,30 @@ func (e *SystemVariableEngine) ExecuteQuery(session server.MySQLServerSession, q
 		result, err := e.executeWithVolcanoModel(executor)
 		if err != nil {
 			logger.Debugf(" [SystemVariableEngine.ExecuteQuery] 火山模型执行失败: %v", err)
+
+			// Handle information_schema.schemata query: return actual databases
+			if strings.Contains(strings.ToLower(query), "schemata") {
+				dataDir := filepath.Join("server", "net", "data")
+				if e.storageManager != nil {
+					if d := e.storageManager.DataDir(); d != "" {
+						dataDir = d
+					}
+				}
+				entries, _ := os.ReadDir(dataDir)
+				rows := make([][]interface{}, 0)
+				for _, entry := range entries {
+					if entry.IsDir() && !strings.HasPrefix(entry.Name(), ".") {
+						rows = append(rows, []interface{}{entry.Name(), "utf8mb4", "utf8mb4_general_ci"})
+					}
+				}
+				resultChan <- &SQLResult{
+					ResultType: "select",
+					Columns:    []string{"SCHEMA_NAME", "DEFAULT_CHARACTER_SET_NAME", "DEFAULT_COLLATION_NAME"},
+					Rows:       rows,
+				}
+				return
+			}
+
 			resultChan <- &SQLResult{
 				ResultType: "error",
 				Err:        err,
@@ -389,17 +437,111 @@ func (e *SystemVariableEngine) ExecuteQuery(session server.MySQLServerSession, q
 	return resultChan
 }
 
-var informationSchemaTablesQueryPattern = regexp.MustCompile("(?is)^\\s*select\\b.*\\bfrom\\s+(?:`?information_schema`?\\s*\\.\\s*`?tables`?)(?:\\s|$)")
-var informationSchemaTableFilterPattern = regexp.MustCompile(`(?i)\b(table_schema|table_name)\b\s*(?:=|like)\s*'([^']*)'`)
-
-func (e *SystemVariableEngine) executeInformationSchemaTablesQuery(query string) *SQLResult {
-	if !informationSchemaTablesQueryPattern.MatchString(query) {
-		return nil
+// executeDirectSystemVariableSelect handles the no-FROM scoped-variable form
+// used by MySQL replication clients. It deliberately stays narrow so SELECTs
+// containing expressions, FROM clauses, or user variables keep their normal
+// routing and expression semantics.
+func (e *SystemVariableEngine) executeDirectSystemVariableSelect(session server.MySQLServerSession, query string) (*SQLResult, bool) {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return nil, false
+	}
+	selectStmt, ok := parsed.AST.(*sqlparser.Select)
+	if !ok || selectStmt.Where != nil || selectStmt.Having != nil || len(selectStmt.GroupBy) > 0 || len(selectStmt.OrderBy) > 0 || selectStmt.Limit != nil || len(selectStmt.SelectExprs) == 0 {
+		return nil, false
+	}
+	if len(selectStmt.From) != 1 {
+		return nil, false
+	}
+	fromTable, ok := selectStmt.From[0].(*sqlparser.AliasedTableExpr)
+	if !ok {
+		return nil, false
+	}
+	dual, ok := fromTable.Expr.(sqlparser.TableName)
+	if !ok || !dual.Qualifier.IsEmpty() || !strings.EqualFold(dual.Name.String(), "dual") {
+		return nil, false
 	}
 
-	filters := map[string]string{}
-	for _, match := range informationSchemaTableFilterPattern.FindAllStringSubmatch(query, -1) {
-		filters[strings.ToLower(match[1])] = match[2]
+	sessionID := e.getSessionID(session)
+	row := make([]interface{}, 0, len(selectStmt.SelectExprs))
+	columns := make([]string, 0, len(selectStmt.SelectExprs))
+	columnTypes := make([]string, 0, len(selectStmt.SelectExprs))
+	for _, selectExpr := range selectStmt.SelectExprs {
+		aliased, ok := selectExpr.(*sqlparser.AliasedExpr)
+		if !ok {
+			return nil, false
+		}
+		col, ok := aliased.Expr.(*sqlparser.ColName)
+		if !ok || !col.Qualifier.IsEmpty() {
+			return nil, false
+		}
+		token := strings.TrimSpace(col.Name.String())
+		if !strings.HasPrefix(token, "@@") {
+			return nil, false
+		}
+		variable := strings.TrimSpace(strings.TrimPrefix(token, "@@"))
+		scope := manager.SessionScope
+		if dot := strings.IndexByte(variable, '.'); dot >= 0 {
+			scopeName := strings.ToLower(strings.TrimSpace(variable[:dot]))
+			switch scopeName {
+			case "global":
+				scope = manager.GlobalScope
+			case "session", "local":
+				scope = manager.SessionScope
+			default:
+				return nil, false
+			}
+			variable = strings.TrimSpace(variable[dot+1:])
+		}
+		name := strings.ToLower(strings.Trim(variable, "`"))
+		if name == "" || strings.ContainsAny(name, " .\t\r\n") {
+			return nil, false
+		}
+
+		value, err := e.sysVarManager.GetVariable(sessionID, name, scope)
+		if err != nil {
+			// Replication state is attached to the live connection by the
+			// network layer. Prefer it for global probes when present.
+			if scope == manager.GlobalScope && session != nil {
+				value = session.GetParamByName(name)
+			}
+			if value == nil {
+				return nil, false
+			}
+		}
+		if scope == manager.GlobalScope && session != nil {
+			if configured := session.GetParamByName(name); configured != nil {
+				value = configured
+			}
+		}
+
+		column := strings.TrimSpace(aliased.As.String())
+		if column == "" {
+			column = token
+		}
+		columns = append(columns, column)
+		row = append(row, value)
+		switch value.(type) {
+		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+			columnTypes = append(columnTypes, "BIGINT")
+		default:
+			columnTypes = append(columnTypes, "VARCHAR")
+		}
+	}
+
+	return &SQLResult{
+		ResultType:  "select",
+		Columns:     columns,
+		ColumnTypes: columnTypes,
+		Rows:        [][]interface{}{row},
+		Message:     "Query OK, 1 row in set",
+	}, true
+}
+
+func (e *SystemVariableEngine) executeInformationSchemaTablesQuery(query string) *SQLResult {
+	filters, structured := informationSchemaTableFiltersFromAST(query)
+	if !structured {
+		return nil
 	}
 
 	dataDir := filepath.Join("server", "net", "data")
@@ -444,6 +586,57 @@ func (e *SystemVariableEngine) executeInformationSchemaTablesQuery(query string)
 	return &SQLResult{ResultType: "select", Columns: informationSchemaTablesColumns(), Rows: rows}
 }
 
+func informationSchemaTableFiltersFromAST(query string) (map[string]string, bool) {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return nil, false
+	}
+	selectStmt, ok := parsed.AST.(*sqlparser.Select)
+	if !ok {
+		return nil, false
+	}
+	refs, err := sqlparser.CollectObjectReferences(selectStmt, "")
+	if err != nil {
+		return nil, false
+	}
+	matched := false
+	for _, ref := range refs {
+		if strings.EqualFold(ref.Schema, "information_schema") && strings.EqualFold(ref.Name, "tables") {
+			matched = true
+			break
+		}
+	}
+	if !matched {
+		return nil, false
+	}
+	filters := make(map[string]string)
+	if selectStmt.Where == nil {
+		return filters, true
+	}
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		comparison, ok := node.(*sqlparser.ComparisonExpr)
+		if !ok {
+			return true, nil
+		}
+		column, ok := comparison.Left.(*sqlparser.ColName)
+		if !ok {
+			return true, nil
+		}
+		value, ok := comparison.Right.(*sqlparser.SQLVal)
+		if !ok || value.Type != sqlparser.StrVal {
+			return true, nil
+		}
+		if comparison.Operator == sqlparser.EqualStr || strings.EqualFold(comparison.Operator, "like") {
+			name := strings.ToLower(column.Name.String())
+			if name == "table_schema" || name == "table_name" {
+				filters[name] = string(value.Val)
+			}
+		}
+		return true, nil
+	}, selectStmt.Where.Expr)
+	return filters, true
+}
+
 func informationSchemaTablesColumns() []string {
 	return append(manager.JDBCTablesMetadataColumns(), []string{
 		"TYPE_CAT",
@@ -455,22 +648,38 @@ func informationSchemaTablesColumns() []string {
 }
 
 func isInformationSchemaMetadataQuery(query string) bool {
-	lower := strings.ToLower(strings.TrimSpace(query))
-	lower = strings.ReplaceAll(lower, "`", "")
-	lower = regexp.MustCompile(`\s*\.\s*`).ReplaceAllString(lower, ".")
-	for _, tableName := range informationSchemaMetadataTableNames() {
-		if strings.Contains(lower, "information_schema."+tableName) {
-			return true
+	if parsed, err := sqlparser.ParseForExecution(query); err == nil {
+		if refs, refErr := sqlparser.CollectObjectReferences(parsed.AST, ""); refErr == nil {
+			for _, ref := range refs {
+				if strings.EqualFold(ref.Schema, "information_schema") {
+					for _, name := range informationSchemaMetadataTableNames() {
+						if strings.EqualFold(ref.Name, name) {
+							return true
+						}
+					}
+				}
+			}
+			// A successfully parsed statement with no metadata reference is
+			// authoritative. Do not rediscover a table name inside a literal or
+			// comment with the legacy text fallback.
+			return false
 		}
 	}
 	return false
 }
 
 func isMySQLMetadataQuery(query string) bool {
-	lower := strings.ToLower(strings.TrimSpace(query))
-	lower = strings.ReplaceAll(lower, "`", "")
-	lower = regexp.MustCompile(`\s*\.\s*`).ReplaceAllString(lower, ".")
-	return strings.Contains(lower, "mysql.procs_priv")
+	if parsed, err := sqlparser.ParseForExecution(query); err == nil {
+		if refs, refErr := sqlparser.CollectObjectReferences(parsed.AST, ""); refErr == nil {
+			for _, ref := range refs {
+				if strings.EqualFold(ref.Schema, "mysql") && strings.EqualFold(ref.Name, "procs_priv") {
+					return true
+				}
+			}
+			return false
+		}
+	}
+	return false
 }
 
 func informationSchemaMetadataTableNames() []string {
@@ -493,6 +702,12 @@ func informationSchemaMetadataTableNames() []string {
 		"collations",
 		"user_privileges",
 		"schema_privileges",
+		"enabled_roles",
+		"applicable_roles",
+		"administrable_role_authorizations",
+		"role_table_grants",
+		"role_column_grants",
+		"role_routine_grants",
 	}
 }
 
@@ -500,11 +715,26 @@ func matchesMetadataPattern(value, pattern string) bool {
 	if pattern == "" {
 		return true
 	}
-	pattern = regexp.QuoteMeta(pattern)
-	pattern = strings.ReplaceAll(pattern, "%", ".*")
-	pattern = strings.ReplaceAll(pattern, "_", ".")
-	matched, err := regexp.MatchString("(?i)^"+pattern+"$", value)
-	return err == nil && matched
+	valueRunes, patternRunes := []rune(strings.ToLower(value)), []rune(strings.ToLower(pattern))
+	previous := make([]bool, len(valueRunes)+1)
+	previous[0] = true
+	for _, patternRune := range patternRunes {
+		current := make([]bool, len(valueRunes)+1)
+		if patternRune == '%' {
+			current[0] = previous[0]
+			for valueIndex := 1; valueIndex <= len(valueRunes); valueIndex++ {
+				current[valueIndex] = current[valueIndex-1] || previous[valueIndex]
+			}
+		} else {
+			for valueIndex := 1; valueIndex <= len(valueRunes); valueIndex++ {
+				if patternRune == '_' || patternRune == valueRunes[valueIndex-1] {
+					current[valueIndex] = previous[valueIndex-1]
+				}
+			}
+		}
+		previous = current
+	}
+	return previous[len(valueRunes)]
 }
 
 // syncSessionVariables 确保握手阶段写入 session attribute 的关键变量能够在系统变量管理器中生效
@@ -586,7 +816,7 @@ func (e *SystemVariableEngine) executeSystemFunctionQuery(session server.MySQLSe
 	sessionID := e.getSessionID(session)
 
 	for i, funcInfo := range systemFunctions {
-		value := e.evaluateSystemFunction(funcInfo.FunctionName, session, sessionID)
+		value := e.evaluateSystemFunction(funcInfo.FunctionName, session, sessionID, funcInfo.Arguments...)
 		row[i] = value
 	}
 
@@ -636,13 +866,17 @@ func (e *SystemVariableEngine) parseSystemFunction(expr *sqlparser.AliasedExpr) 
 		funcName := strings.ToUpper(funcExpr.Name.String())
 
 		systemFunctions := map[string]bool{
-			"USER":          true,
-			"DATABASE":      true,
-			"VERSION":       true,
-			"CONNECTION_ID": true,
-			"CURRENT_USER":  true,
-			"SESSION_USER":  true,
-			"SYSTEM_USER":   true,
+			"USER":           true,
+			"DATABASE":       true,
+			"VERSION":        true,
+			"CONNECTION_ID":  true,
+			"CURRENT_USER":   true,
+			"SESSION_USER":   true,
+			"SYSTEM_USER":    true,
+			"CURRENT_ROLE":   true,
+			"ROLES_GRAPHML":  true,
+			"LAST_INSERT_ID": true,
+			"ROW_COUNT":      true,
 		}
 
 		if systemFunctions[funcName] {
@@ -651,10 +885,19 @@ func (e *SystemVariableEngine) parseSystemFunction(expr *sqlparser.AliasedExpr) 
 				alias = expr.As.String()
 			}
 
+			arguments := make([]string, 0, len(funcExpr.Exprs))
+			for _, functionArg := range funcExpr.Exprs {
+				if aliasedArg, ok := functionArg.(*sqlparser.AliasedExpr); ok {
+					arguments = append(arguments, strings.TrimSpace(sqlparser.String(aliasedArg.Expr)))
+				} else {
+					arguments = append(arguments, strings.TrimSpace(sqlparser.String(functionArg)))
+				}
+			}
+
 			return &SystemFunctionInfo{
 				FunctionName: funcName,
 				Alias:        alias,
-				Arguments:    []string{}, // 暂时不处理参数
+				Arguments:    arguments,
 			}
 		}
 	}
@@ -663,7 +906,7 @@ func (e *SystemVariableEngine) parseSystemFunction(expr *sqlparser.AliasedExpr) 
 }
 
 // evaluateSystemFunction 计算系统函数值
-func (e *SystemVariableEngine) evaluateSystemFunction(funcName string, session server.MySQLServerSession, sessionID string) interface{} {
+func (e *SystemVariableEngine) evaluateSystemFunction(funcName string, session server.MySQLServerSession, sessionID string, arguments ...string) interface{} {
 	switch strings.ToUpper(funcName) {
 	case "USER", "CURRENT_USER", "SESSION_USER", "SYSTEM_USER":
 		if userParam := session.GetParamByName("user"); userParam != nil {
@@ -672,6 +915,22 @@ func (e *SystemVariableEngine) evaluateSystemFunction(funcName string, session s
 			}
 		}
 		return "root@localhost"
+
+	case "CURRENT_ROLE":
+		if roles, ok := session.GetParamByName("active_roles").([]string); ok && len(roles) > 0 {
+			quote := true
+			if raw := session.GetParamByName("sql_quote_show_create"); raw != nil {
+				quote = dispatcherSessionBoolean(raw)
+			}
+			return formatDispatcherCurrentRoles(roles, quote)
+		}
+		return "NONE"
+
+	case "ROLES_GRAPHML":
+		if graph, ok := session.GetParamByName("__xmysql_roles_graphml").(string); ok && graph != "" {
+			return graph
+		}
+		return "<?xml version=\"1.0\" encoding=\"UTF-8\"?><graphml />"
 
 	case "DATABASE":
 		if dbParam := session.GetParamByName("database"); dbParam != nil {
@@ -690,9 +949,139 @@ func (e *SystemVariableEngine) evaluateSystemFunction(funcName string, session s
 	case "CONNECTION_ID":
 		return sessionID
 
+	case "LAST_INSERT_ID":
+		if len(arguments) > 0 {
+			if value, ok := parseLastInsertIDArgument(arguments[0]); ok {
+				session.SetParamByName("last_insert_id", value)
+				return value
+			}
+			return nil
+		}
+		return getSessionLastInsertID(session)
+
+	case "ROW_COUNT":
+		if value, ok := session.GetParamByName("row_count").(int64); ok {
+			return value
+		}
+		return int64(0)
+
 	default:
 		return nil
 	}
+}
+
+func formatDispatcherCurrentRoles(roles []string, quote bool) string {
+	formatted := make([]string, 0, len(roles))
+	for _, role := range roles {
+		role = strings.TrimSpace(role)
+		at := strings.LastIndex(role, "@")
+		if !quote || at <= 0 || at >= len(role)-1 {
+			formatted = append(formatted, role)
+			continue
+		}
+		user := strings.ReplaceAll(role[:at], "`", "``")
+		host := strings.ReplaceAll(role[at+1:], "`", "``")
+		formatted = append(formatted, "`"+user+"`@`"+host+"`")
+	}
+	return strings.Join(formatted, ",")
+}
+
+func dispatcherSessionBoolean(value interface{}) bool {
+	switch current := value.(type) {
+	case bool:
+		return current
+	case int:
+		return current != 0
+	case int64:
+		return current != 0
+	case uint64:
+		return current != 0
+	case string:
+		switch strings.ToLower(strings.TrimSpace(current)) {
+		case "0", "off", "false", "no":
+			return false
+		default:
+			return true
+		}
+	default:
+		return value != nil
+	}
+}
+
+func parseLastInsertIDArgument(argument string) (uint64, bool) {
+	argument = strings.TrimSpace(argument)
+	argument = strings.Trim(argument, "'\"")
+	if argument == "" {
+		return 0, false
+	}
+	if value, err := strconv.ParseUint(argument, 10, 64); err == nil {
+		return value, true
+	}
+	statement, err := sqlparser.Parse("select " + argument)
+	if err != nil {
+		return 0, false
+	}
+	selectStatement, ok := statement.(*sqlparser.Select)
+	if !ok || len(selectStatement.SelectExprs) != 1 {
+		return 0, false
+	}
+	aliased, ok := selectStatement.SelectExprs[0].(*sqlparser.AliasedExpr)
+	if !ok {
+		return 0, false
+	}
+	expression := plan.BuildExpression(aliased.Expr)
+	if expression == nil {
+		return 0, false
+	}
+	value, err := expression.Eval(&plan.EvalContext{})
+	if err != nil {
+		return 0, false
+	}
+	switch number := value.(type) {
+	case uint64:
+		return number, true
+	case int64:
+		if number >= 0 {
+			return uint64(number), true
+		}
+	case int:
+		if number >= 0 {
+			return uint64(number), true
+		}
+	case float64:
+		if number >= 0 && !math.IsNaN(number) && !math.IsInf(number, 0) && math.Trunc(number) == number {
+			return uint64(number), true
+		}
+	}
+	return 0, false
+}
+
+func getSessionLastInsertID(session server.MySQLServerSession) uint64 {
+	if session == nil {
+		return 0
+	}
+
+	switch value := session.GetParamByName("last_insert_id").(type) {
+	case uint64:
+		return value
+	case uint32:
+		return uint64(value)
+	case uint:
+		return uint64(value)
+	case int64:
+		if value >= 0 {
+			return uint64(value)
+		}
+	case int:
+		if value >= 0 {
+			return uint64(value)
+		}
+	case string:
+		if parsed, ok := parseLastInsertIDArgument(value); ok {
+			return parsed
+		}
+	}
+	return 0
 }
 
 // executeShowStatement 执行SHOW语句
@@ -843,12 +1232,9 @@ func (e *SystemVariableEngine) executeShowCharset() *SQLResult {
 	logger.Debugf(" [executeShowCharset] 执行SHOW CHARSET")
 
 	columns := []string{"Charset", "Description", "Default collation", "Maxlen"}
-	rows := [][]interface{}{
-		{"utf8", "UTF-8 Unicode", "utf8_general_ci", 3},
-		{"utf8mb4", "UTF-8 Unicode", "utf8mb4_0900_ai_ci", 4},
-		{"latin1", "cp1252 West European", "latin1_swedish_ci", 1},
-		{"ascii", "US ASCII", "ascii_general_ci", 1},
-		{"binary", "Binary pseudo charset", "binary", 1},
+	rows := make([][]interface{}, 0, 5)
+	for _, charset := range common.DispatcherCharsets() {
+		rows = append(rows, []interface{}{charset.Name, charset.Description, charset.MetadataCollationName(), int(charset.MaxLen)})
 	}
 
 	return &SQLResult{
@@ -864,13 +1250,13 @@ func (e *SystemVariableEngine) executeShowCollation() *SQLResult {
 	logger.Debugf(" [executeShowCollation] 执行SHOW COLLATION")
 
 	columns := []string{"Collation", "Charset", "Id", "Default", "Compiled", "Sortlen", "Pad_attribute"}
-	rows := [][]interface{}{
-		{"utf8mb4_0900_ai_ci", "utf8mb4", 255, "Yes", "Yes", 0, "NO PAD"},
-		{"utf8mb4_general_ci", "utf8mb4", 45, "", "Yes", 1, "PAD SPACE"},
-		{"utf8_general_ci", "utf8", 33, "Yes", "Yes", 1, "PAD SPACE"},
-		{"latin1_swedish_ci", "latin1", 8, "Yes", "Yes", 1, "PAD SPACE"},
-		{"ascii_general_ci", "ascii", 11, "Yes", "Yes", 1, "PAD SPACE"},
-		{"binary", "binary", 63, "Yes", "Yes", 1, "NO PAD"},
+	rows := make([][]interface{}, 0, 6)
+	for _, collation := range common.DispatcherCollations() {
+		isDefault := ""
+		if collation.IsDefault {
+			isDefault = "Yes"
+		}
+		rows = append(rows, []interface{}{collation.Name, collation.Charset, int(collation.ID), isDefault, "Yes", int(collation.SortLen), collation.PadAttribute})
 	}
 
 	return &SQLResult{
@@ -886,31 +1272,71 @@ func (e *SystemVariableEngine) executeSetStatement(session server.MySQLServerSes
 	logger.Debugf(" [executeSetStatement] 检查SET语句: %s", query)
 
 	// 解析SQL语句
-	stmt, err := sqlparser.Parse(query)
+	parsed, err := sqlparser.ParseForExecution(query)
 	if err != nil {
 		logger.Debugf(" [executeSetStatement] SQL解析失败: %v", err)
 		return nil
 	}
 
-	setStmt, ok := stmt.(*sqlparser.Set)
+	setStmt, ok := parsed.AST.(*sqlparser.Set)
 	if !ok {
 		logger.Debugf(" [executeSetStatement] 不是SET语句")
 		return nil
 	}
 
 	logger.Debugf(" [executeSetStatement] 识别为SET语句，处理 %d 个表达式", len(setStmt.Exprs))
+	unscopedTransaction := isUnscopedSetTransaction(query)
+	if sessionTransactionActive(session) && isSessionTransactionCharacteristics(query) && !strings.EqualFold(strings.TrimSpace(setStmt.Scope), sqlparser.GlobalStr) {
+		err := fmt.Errorf("Transaction characteristics can't be changed while a transaction is in progress")
+		return &SQLResult{ResultType: "error", Err: err, Message: fmt.Sprintf("SET statement failed: %v", err)}
+	}
 
 	sessionID := e.getSessionID(session)
 	affectedRows := 0
 
 	// 处理每个SET表达式
 	for _, expr := range setStmt.Exprs {
-		if err := e.processSetExpression(session, sessionID, expr); err != nil {
+		cleanName := strings.ToLower(strings.Trim(strings.TrimSpace(expr.Name.String()), "`"))
+		if unscopedTransaction && session != nil && (cleanName == "tx_isolation" || cleanName == "transaction_isolation") {
+			value, evaluateErr := e.evaluateSetValue(expr.Expr)
+			if evaluateErr != nil {
+				return &SQLResult{ResultType: "error", Err: evaluateErr, Message: fmt.Sprintf("SET statement failed: %v", evaluateErr)}
+			}
+			isolation := strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(fmt.Sprint(value)), "_", " "))
+			isolation = strings.Join(strings.Fields(isolation), " ")
+			switch isolation {
+			case "READ UNCOMMITTED", "READ COMMITTED", "REPEATABLE READ", "SERIALIZABLE":
+				session.SetParamByName("next_transaction_isolation", isolation)
+				affectedRows++
+				continue
+			default:
+				return &SQLResult{ResultType: "error", Err: fmt.Errorf("invalid transaction isolation level %q", value), Message: fmt.Sprintf("SET statement failed: invalid transaction isolation level %q", value)}
+			}
+		}
+		if unscopedTransaction && session != nil && (cleanName == "tx_read_only" || cleanName == "transaction_read_only") {
+			value, evaluateErr := e.evaluateSetValue(expr.Expr)
+			if evaluateErr != nil {
+				return &SQLResult{ResultType: "error", Err: evaluateErr, Message: fmt.Sprintf("SET statement failed: %v", evaluateErr)}
+			}
+			session.SetParamByName("next_transaction_read_only", formatAutocommitValue(value))
+			affectedRows++
+			continue
+		}
+		if err := e.processSetExpression(session, sessionID, setStmt.Scope, expr); err != nil {
 			logger.Errorf(" [executeSetStatement] 处理SET表达式失败: %v", err)
 			return &SQLResult{
 				ResultType: "error",
 				Err:        err,
 				Message:    fmt.Sprintf("SET statement failed: %v", err),
+			}
+		}
+		if cleanName == "names" && session != nil {
+			collation := setStmt.NamesCollation
+			if collation == "" {
+				collation = parseSetNamesCollation(query)
+			}
+			if collation != "" {
+				session.SetParamByName("collation_connection", collation)
 			}
 		}
 		affectedRows++
@@ -926,14 +1352,76 @@ func (e *SystemVariableEngine) executeSetStatement(session server.MySQLServerSes
 	}
 }
 
+func parseSetNamesCollation(query string) string {
+	parsed, err := sqlparser.ParseForExecution(query)
+	if err != nil {
+		return ""
+	}
+	setStmt, ok := parsed.AST.(*sqlparser.Set)
+	if !ok || setStmt.NamesCollation == "" {
+		return ""
+	}
+	return strings.Trim(strings.TrimSpace(setStmt.NamesCollation), "'\"")
+}
+
+func isUnscopedSetTransaction(query string) bool {
+	fields := strings.Fields(strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(query), ";")))
+	return len(fields) >= 2 && strings.EqualFold(fields[0], "set") && strings.EqualFold(fields[1], "transaction")
+}
+
+func isSessionTransactionCharacteristics(query string) bool {
+	fields := strings.Fields(strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(query), ";")))
+	if len(fields) < 2 || !strings.EqualFold(fields[0], "set") {
+		return false
+	}
+	if strings.EqualFold(fields[1], "transaction") {
+		return true
+	}
+	return len(fields) >= 3 && strings.EqualFold(fields[1], "session") && strings.EqualFold(fields[2], "transaction")
+}
+
+func sessionTransactionActive(session server.MySQLServerSession) bool {
+	if session == nil {
+		return false
+	}
+	value := session.GetParamByName("in_transaction")
+	switch typed := value.(type) {
+	case bool:
+		return typed
+	case int:
+		return typed != 0
+	case int64:
+		return typed != 0
+	case string:
+		trimmed := strings.TrimSpace(typed)
+		return strings.EqualFold(trimmed, "1") || strings.EqualFold(trimmed, "on") || strings.EqualFold(trimmed, "true")
+	default:
+		return false
+	}
+}
+
 // processSetExpression 处理单个SET表达式
-func (e *SystemVariableEngine) processSetExpression(session server.MySQLServerSession, sessionID string, expr *sqlparser.SetExpr) error {
+func (e *SystemVariableEngine) processSetExpression(session server.MySQLServerSession, sessionID, statementScope string, expr *sqlparser.SetExpr) error {
 	// 获取变量名
 	varName := expr.Name.String()
 	logger.Debugf(" [processSetExpression] 处理变量: %s", varName)
+	if strings.HasPrefix(strings.TrimSpace(varName), "@") && !strings.HasPrefix(strings.TrimSpace(varName), "@@") {
+		value, err := e.evaluateSetValue(expr.Expr)
+		if err != nil {
+			return fmt.Errorf("failed to evaluate user variable: %v", err)
+		}
+		if session != nil {
+			session.SetParamByName(strings.TrimSpace(varName), value)
+		}
+		return nil
+	}
 
 	// 解析作用域和变量名
 	scope, cleanVarName := e.parseSetVariableName(varName)
+	if strings.EqualFold(strings.TrimSpace(statementScope), sqlparser.GlobalStr) {
+		scope = manager.GlobalScope
+	}
+	cleanVarName = strings.ToLower(strings.Trim(strings.TrimSpace(cleanVarName), "`"))
 	logger.Debugf(" [processSetExpression] 解析结果: scope=%s, varName=%s", scope, cleanVarName)
 
 	// 获取设置的值
@@ -943,17 +1431,161 @@ func (e *SystemVariableEngine) processSetExpression(session server.MySQLServerSe
 	}
 
 	logger.Debugf(" [processSetExpression] 设置值: %v", value)
+	if scope == manager.GlobalScope && !dispatcherCanSetGlobalVariable(session) {
+		return fmt.Errorf("Access denied; you need the SUPER or SYSTEM_VARIABLES_ADMIN privilege for this operation")
+	}
+	if scope == manager.GlobalScope && cleanVarName == "mandatory_roles" && !dispatcherHasRoleAdmin(session) {
+		return fmt.Errorf("Access denied; you need the ROLE_ADMIN privilege for this operation")
+	}
+	if cleanVarName == "transaction_isolation" || cleanVarName == "tx_isolation" {
+		var normalizeErr error
+		value, normalizeErr = normalizeDispatcherTransactionIsolation(value)
+		if normalizeErr != nil {
+			return normalizeErr
+		}
+	}
+	if cleanVarName == "transaction_read_only" || cleanVarName == "tx_read_only" {
+		value = formatAutocommitValue(value)
+	}
+	if scope == manager.GlobalScope && cleanVarName == "super_read_only" {
+		superReadOnly := formatAutocommitValue(value)
+		if superReadOnly == "1" {
+			if err := dispatcherValidateGlobalReadOnlyEnable(session); err != nil {
+				return err
+			}
+			if err := e.sysVarManager.SetVariable("", "read_only", "ON", manager.GlobalScope); err != nil {
+				return err
+			}
+		}
+		return e.sysVarManager.SetVariable("", "super_read_only", superReadOnly, manager.GlobalScope)
+	}
+	if cleanVarName == "names" {
+		e.syncSetVariableToSession(session, scope, cleanVarName, value)
+		return nil
+	}
 
 	// 设置系统变量
-	if err := e.sysVarManager.SetVariable(sessionID, cleanVarName, value, scope); err != nil {
-		logger.Warnf(" [processSetExpression] 设置系统变量失败，但继续执行: %v", err)
-		// 对于未知的系统变量，我们记录警告但不返回错误，保持MySQL兼容性
-		return nil
+	if scope == manager.GlobalScope && (cleanVarName == "transaction_isolation" || cleanVarName == "tx_isolation" || cleanVarName == "transaction_read_only" || cleanVarName == "tx_read_only") {
+		aliases := []string{"transaction_isolation", "tx_isolation"}
+		if cleanVarName == "transaction_read_only" || cleanVarName == "tx_read_only" {
+			aliases = []string{"transaction_read_only", "tx_read_only"}
+		}
+		for _, alias := range aliases {
+			if err := e.sysVarManager.SetVariable("", alias, value, manager.GlobalScope); err != nil {
+				logger.Warnf(" [processSetExpression] 设置系统变量失败，但继续执行: %v", err)
+				return nil
+			}
+		}
+	} else {
+		if scope == manager.GlobalScope && cleanVarName == "read_only" && formatAutocommitValue(value) == "1" {
+			if err := dispatcherValidateGlobalReadOnlyEnable(session); err != nil {
+				return err
+			}
+		}
+		if err := e.sysVarManager.SetVariable(sessionID, cleanVarName, value, scope); err != nil {
+			logger.Warnf(" [processSetExpression] 设置系统变量失败，但继续执行: %v", err)
+			// 对于未知的系统变量，我们记录警告但不返回错误，保持MySQL兼容性
+			return nil
+		}
+	}
+	if scope == manager.GlobalScope && cleanVarName == "read_only" && formatAutocommitValue(value) == "0" {
+		// MySQL implicitly disables super_read_only when read_only is turned
+		// off; mirror that relationship in the dispatcher path as well.
+		if err := e.sysVarManager.SetVariable("", "super_read_only", "OFF", manager.GlobalScope); err != nil {
+			return err
+		}
 	}
 	e.syncSetVariableToSession(session, scope, cleanVarName, value)
 
 	logger.Debugf(" [processSetExpression] 变量 %s 设置成功", cleanVarName)
 	return nil
+}
+
+func dispatcherValidateGlobalReadOnlyEnable(session server.MySQLServerSession) error {
+	if session == nil {
+		return nil
+	}
+	if raw := session.GetParamByName("in_transaction"); raw != nil && dispatcherBoolValue(raw) {
+		return fmt.Errorf("Cannot set read_only while a transaction is in progress")
+	}
+	if raw := session.GetParamByName("transaction_journal_active"); raw != nil && dispatcherBoolValue(raw) {
+		return fmt.Errorf("Cannot set read_only while a transaction is in progress")
+	}
+	if lockedTables, ok := session.GetParamByName("locked_tables").(map[string]string); ok && len(lockedTables) > 0 {
+		return fmt.Errorf("Cannot set read_only while tables are explicitly locked")
+	}
+	return nil
+}
+
+func dispatcherBoolValue(raw interface{}) bool {
+	switch value := raw.(type) {
+	case bool:
+		return value
+	case int:
+		return value != 0
+	case int64:
+		return value != 0
+	case uint64:
+		return value != 0
+	case string:
+		switch strings.ToLower(strings.TrimSpace(value)) {
+		case "1", "true", "on", "yes":
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeDispatcherTransactionIsolation(value interface{}) (string, error) {
+	isolation := strings.ToUpper(strings.TrimSpace(fmt.Sprint(value)))
+	isolation = strings.ReplaceAll(isolation, "_", " ")
+	isolation = strings.ReplaceAll(isolation, "-", " ")
+	isolation = strings.Join(strings.Fields(isolation), " ")
+	switch isolation {
+	case "READ UNCOMMITTED", "READ COMMITTED", "REPEATABLE READ", "SERIALIZABLE":
+		return isolation, nil
+	default:
+		return "", fmt.Errorf("invalid transaction isolation level %q", value)
+	}
+}
+
+func dispatcherCanSetGlobalVariable(session server.MySQLServerSession) bool {
+	if session == nil {
+		return false
+	}
+	if privileges, ok := session.GetParamByName("global_privileges").([]common.PrivilegeType); ok {
+		for _, privilege := range privileges {
+			if privilege == common.SuperPriv || privilege == common.AllPriv {
+				return true
+			}
+		}
+	}
+	return dispatcherHasDynamicPrivilege(session, "SYSTEM_VARIABLES_ADMIN")
+}
+
+func dispatcherHasDynamicPrivilege(session server.MySQLServerSession, wanted string) bool {
+	if session == nil {
+		return false
+	}
+	if privileges, ok := session.GetParamByName("global_privileges").([]common.PrivilegeType); ok {
+		for _, privilege := range privileges {
+			if privilege == common.SuperPriv || privilege == common.AllPriv {
+				return true
+			}
+		}
+	}
+	if dynamicPrivileges, ok := session.GetParamByName("dynamic_privileges").([]string); ok {
+		for _, privilege := range dynamicPrivileges {
+			if strings.EqualFold(strings.TrimSpace(privilege), wanted) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func dispatcherHasRoleAdmin(session server.MySQLServerSession) bool {
+	return dispatcherHasDynamicPrivilege(session, "ROLE_ADMIN")
 }
 
 func (e *SystemVariableEngine) syncSetVariableToSession(session server.MySQLServerSession, scope manager.SystemVariableScope, name string, value interface{}) {
@@ -965,6 +1597,16 @@ func (e *SystemVariableEngine) syncSetVariableToSession(session server.MySQLServ
 	switch cleanName {
 	case "autocommit":
 		session.SetParamByName(cleanName, formatAutocommitValue(value))
+	case "tx_read_only", "transaction_read_only":
+		readOnly := formatAutocommitValue(value)
+		session.SetParamByName("tx_read_only", readOnly)
+		session.SetParamByName("transaction_read_only", readOnly)
+	case "transaction_isolation", "tx_isolation":
+		isolation := strings.ToUpper(strings.TrimSpace(fmt.Sprint(value)))
+		isolation = strings.ReplaceAll(isolation, "_", " ")
+		isolation = strings.Join(strings.Fields(isolation), " ")
+		session.SetParamByName("transaction_isolation", isolation)
+		session.SetParamByName("tx_isolation", isolation)
 	case "names":
 		charset := fmt.Sprintf("%v", value)
 		if charset == "" || charset == "<nil>" {
@@ -975,7 +1617,7 @@ func (e *SystemVariableEngine) syncSetVariableToSession(session server.MySQLServ
 		session.SetParamByName("character_set_results", charset)
 	case "character_set_client", "character_set_connection", "character_set_results",
 		"character_set_database", "character_set_server", "sql_mode", "time_zone",
-		"transaction_isolation", "tx_isolation", "net_write_timeout", "net_read_timeout",
+		"net_write_timeout", "net_read_timeout",
 		"max_allowed_packet":
 		session.SetParamByName(cleanName, fmt.Sprintf("%v", value))
 	default:
@@ -1074,8 +1716,65 @@ func (e *SystemVariableEngine) evaluateSetValue(expr sqlparser.Expr) (interface{
 		return expr.Name.String(), nil
 
 	default:
-		// 其他表达式，转换为字符串
-		return sqlparser.String(expr), nil
+		text := strings.TrimSpace(sqlparser.String(expr))
+		if value, ok := setArithmeticNumber(expr); ok {
+			if value == float64(int64(value)) {
+				return strconv.FormatInt(int64(value), 10), nil
+			}
+			return strconv.FormatFloat(value, 'f', -1, 64), nil
+		}
+		return text, nil
+	}
+}
+
+// setArithmeticNumber consumes numeric AST nodes directly; quoted strings
+// and unresolved column names never become arithmetic through formatting.
+func setArithmeticNumber(expr sqlparser.Expr) (float64, bool) {
+	switch node := expr.(type) {
+	case *sqlparser.SQLVal:
+		if node.Type != sqlparser.IntVal && node.Type != sqlparser.FloatVal {
+			return 0, false
+		}
+		value, err := strconv.ParseFloat(string(node.Val), 64)
+		return value, err == nil
+	case *sqlparser.ParenExpr:
+		return setArithmeticNumber(node.Expr)
+	case *sqlparser.UnaryExpr:
+		value, ok := setArithmeticNumber(node.Expr)
+		if !ok {
+			return 0, false
+		}
+		switch node.Operator {
+		case sqlparser.UMinusStr:
+			return -value, true
+		case sqlparser.UPlusStr:
+			return value, true
+		default:
+			return 0, false
+		}
+	case *sqlparser.BinaryExpr:
+		left, leftOK := setArithmeticNumber(node.Left)
+		right, rightOK := setArithmeticNumber(node.Right)
+		if !leftOK || !rightOK {
+			return 0, false
+		}
+		switch node.Operator {
+		case sqlparser.PlusStr:
+			return left + right, true
+		case sqlparser.MinusStr:
+			return left - right, true
+		case sqlparser.MultStr:
+			return left * right, true
+		case sqlparser.DivStr:
+			if right == 0 {
+				return 0, true
+			}
+			return left / right, true
+		default:
+			return 0, false
+		}
+	default:
+		return 0, false
 	}
 }
 

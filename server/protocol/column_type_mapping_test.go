@@ -246,6 +246,46 @@ func TestDecimalsForFloatTypes(t *testing.T) {
 	}
 }
 
+// Pin the permissive legacy prefix matching, including ignored display sizes
+// and suffixes, rather than silently making this helper a SQL type parser.
+func TestColumnTypeInfoLegacyPrefixContract(t *testing.T) {
+	encoder := &QueryResponseEncoder{}
+	tests := []struct {
+		input        string
+		wantType     byte
+		wantLength   uint32
+		wantFlags    uint16
+		wantDecimals byte
+	}{
+		{"", 253, 255, 0, 0}, {"unknown", 253, 255, 0, 0},
+		{" INT", 253, 255, 0, 0}, {" integer(11) ", 253, 255, 0, 0},
+		{"INTEGER", 3, 11, 0, 0}, {"INTanything", 3, 11, 0, 0},
+		{"INT(3) UNSIGNED ZEROFILL", 3, 11, 0, 0}, {"TINYINT(1)", 1, 4, 0, 0},
+		{"SMALLINT unsigned", 2, 6, 0, 0}, {"MEDIUMINT(4)", 9, 9, 0, 0},
+		{"BIGINT(5) unsigned", 8, 20, 0, 0}, {"FLOAT(7,2)", 4, 12, 0, 31},
+		{"double precision", 5, 22, 0, 31}, {"DECIMAL(9,4)", 246, 10, 0, 0},
+		{"DATETIME(6)", 12, 19, 0, 0}, {"TIMESTAMP(6)", 7, 19, 0, 0},
+		{"DATEjunk", 10, 10, 0, 0}, {"TIME(6)", 11, 10, 0, 0},
+		{"YEAR(2)", 13, 4, 0, 0}, {"CHAR(4) binary", 254, 255, 0, 0},
+		{"VARCHAR(10)", 253, 255, 0, 0}, {"BINARY(4)", 254, 255, 128, 0},
+		{"VARBINARY(7)", 253, 255, 128, 0}, {"BLOB binary", 252, 65535, 0, 0},
+		{"tinytext(5)", 249, 255, 0, 0}, {"mediumtext whatever", 250, 16777215, 0, 0},
+		{"longtext", 251, 4294967295, 0, 0}, {"ENUM('a','b')", 247, 1, 0, 0},
+		{"SET('a')", 248, 1, 0, 0}, {"JSON", 245, 4294967295, 0, 0},
+		{"BIT(32)", 16, 1, 0, 0}, {"GEOMETRY", 255, 4294967295, 0, 0},
+		{"POINT(1)", 255, 4294967295, 0, 0}, {"LineString", 255, 4294967295, 0, 0},
+		{"Polygon", 255, 4294967295, 0, 0}, {"MultiPoint", 253, 255, 0, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			tp, length, flags, decimals := encoder.getColumnTypeInfo(tt.input)
+			if tp != tt.wantType || length != tt.wantLength || flags != tt.wantFlags || decimals != tt.wantDecimals {
+				t.Fatalf("got %d/%d/%d/%d, want %d/%d/%d/%d", tp, length, flags, decimals, tt.wantType, tt.wantLength, tt.wantFlags, tt.wantDecimals)
+			}
+		})
+	}
+}
+
 // BenchmarkColumnTypeMapping 性能测试
 func BenchmarkColumnTypeMapping(b *testing.B) {
 	encoder := &QueryResponseEncoder{}

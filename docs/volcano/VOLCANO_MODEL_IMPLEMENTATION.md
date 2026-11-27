@@ -455,7 +455,7 @@ SortOperator (by COUNT(*) DESC)
 
 - [查询优化器实现](QUERY_ENGINE_ANALYSIS.md)
 - [物理计划设计](../server/innodb/plan/physical_plan.go)
-- [开发路线图](DEVELOPMENT_ROADMAP_TASKS.md)
+- [开发路线图](../planning/CAPABILITY_PRIORITY_INDEX_20260715.md)
 
 ---
 

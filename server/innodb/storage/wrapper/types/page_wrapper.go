@@ -156,7 +156,17 @@ type BasePageWrapper struct {
 	PinCount    int32
 	fileHeader  *pages.FileHeader
 	fileTrailer *pages.FileTrailer
+	storage     basic.StorageProvider
 }
+
+var (
+	// ErrPageStorageUnavailable indicates that a provider-backed operation was
+	// requested without configuring a storage provider.
+	ErrPageStorageUnavailable = errors.New("page storage provider is unavailable")
+	// ErrPageStorageInvalidSize indicates that a provider returned or received
+	// a page smaller than the configured InnoDB page size.
+	ErrPageStorageInvalidSize = errors.New("page storage provider returned an invalid page size")
+)
 
 // NewBasePageWrapper creates a new base page wrapper
 //
@@ -167,8 +177,17 @@ func NewBasePageWrapper(id, spaceID, pageNo uint32, pageType common.PageType) *B
 		SpaceID:  spaceID,
 		PageNo:   pageNo,
 		PageType: pageType,
-		Content:  make([]byte, 16384), // Default InnoDB page size
+		Content:  make([]byte, common.PageSize), // Default InnoDB page size
 	}
+}
+
+// NewBasePageWrapperWithStorage creates a legacy wrapper backed by a real
+// StorageProvider. The original constructor remains source-compatible for
+// callers that only use the wrapper as an in-memory parser.
+func NewBasePageWrapperWithStorage(id, spaceID, pageNo uint32, pageType common.PageType, storage basic.StorageProvider) *BasePageWrapper {
+	page := NewBasePageWrapper(id, spaceID, pageNo, pageType)
+	page.storage = storage
+	return page
 }
 
 // ========================================
@@ -266,43 +285,43 @@ func (b *BasePageWrapper) GetStats() *basic.PageStats {
 
 // GetFileHeader implements IPageWrapper
 func (b *BasePageWrapper) GetFileHeader() []byte {
-	if len(b.Content) >= 38 {
-		return b.Content[:38]
+	if len(b.Content) >= common.FileHeaderSize {
+		return b.Content[:common.FileHeaderSize]
 	}
-	return make([]byte, 38)
+	return make([]byte, common.FileHeaderSize)
 }
 
 // GetFileTrailer implements IPageWrapper
 func (b *BasePageWrapper) GetFileTrailer() []byte {
-	if len(b.Content) >= 8 {
-		return b.Content[len(b.Content)-8:]
+	if len(b.Content) >= common.FileTrailerSize {
+		return b.Content[len(b.Content)-common.FileTrailerSize:]
 	}
-	return make([]byte, 8)
+	return make([]byte, common.FileTrailerSize)
 }
 
 // GetFileHeaderStruct implements IPageWrapper
 func (b *BasePageWrapper) GetFileHeaderStruct() *pages.FileHeader {
-	if b.fileHeader == nil && len(b.Content) >= 38 {
+	if b.fileHeader == nil && len(b.Content) >= common.FileHeaderSize {
 		b.fileHeader = &pages.FileHeader{}
 		// 手动复制文件头数据
-		copy(b.fileHeader.FilePageSpaceOrCheckSum[:], b.Content[0:4])
-		copy(b.fileHeader.FilePageOffset[:], b.Content[4:8])
-		copy(b.fileHeader.FilePagePrev[:], b.Content[8:12])
-		copy(b.fileHeader.FilePageNext[:], b.Content[12:16])
-		copy(b.fileHeader.FilePageLSN[:], b.Content[16:24])
-		copy(b.fileHeader.FilePageType[:], b.Content[24:26])
-		copy(b.fileHeader.FilePageFileFlushLSN[:], b.Content[26:34])
-		copy(b.fileHeader.FilePageArch[:], b.Content[34:38])
+		copy(b.fileHeader.FilePageSpaceOrCheckSum[:], b.Content[common.InnoDBFileHeaderChecksumOffset:common.InnoDBFileHeaderPageNoOffset])
+		copy(b.fileHeader.FilePageOffset[:], b.Content[common.InnoDBFileHeaderPageNoOffset:common.InnoDBFileHeaderPrevOffset])
+		copy(b.fileHeader.FilePagePrev[:], b.Content[common.InnoDBFileHeaderPrevOffset:common.InnoDBFileHeaderNextOffset])
+		copy(b.fileHeader.FilePageNext[:], b.Content[common.InnoDBFileHeaderNextOffset:common.InnoDBFileHeaderLSNOffset])
+		copy(b.fileHeader.FilePageLSN[:], b.Content[common.InnoDBFileHeaderLSNOffset:common.InnoDBFileHeaderPageTypeOffset])
+		copy(b.fileHeader.FilePageType[:], b.Content[common.InnoDBFileHeaderPageTypeOffset:common.InnoDBFileHeaderFlushLSNOffset])
+		copy(b.fileHeader.FilePageFileFlushLSN[:], b.Content[common.InnoDBFileHeaderFlushLSNOffset:common.InnoDBFileHeaderSpaceIDOffset])
+		copy(b.fileHeader.FilePageArch[:], b.Content[common.InnoDBFileHeaderSpaceIDOffset:common.FileHeaderSize])
 	}
 	return b.fileHeader
 }
 
 // GetFileTrailerStruct implements IPageWrapper
 func (b *BasePageWrapper) GetFileTrailerStruct() *pages.FileTrailer {
-	if b.fileTrailer == nil && len(b.Content) >= 8 {
+	if b.fileTrailer == nil && len(b.Content) >= common.FileTrailerSize {
 		b.fileTrailer = &pages.FileTrailer{}
 		// 手动复制文件尾数据
-		copy(b.fileTrailer.FileTrailer[:], b.Content[len(b.Content)-8:])
+		copy(b.fileTrailer.FileTrailer[:], b.Content[len(b.Content)-common.FileTrailerSize:])
 	}
 	return b.fileTrailer
 }
@@ -330,7 +349,7 @@ func (b *BasePageWrapper) ReadContent(fn func([]byte)) {
 
 // ParseFromBytes implements IPageWrapper
 func (b *BasePageWrapper) ParseFromBytes(data []byte) error {
-	if len(data) != 16384 {
+	if len(data) != common.PageSize {
 		return ErrInvalidPageSize
 	}
 	b.Content = make([]byte, len(data))
@@ -346,6 +365,23 @@ func (b *BasePageWrapper) ParseFromBytes(data []byte) error {
 
 // Read implements IPageWrapper
 func (b *BasePageWrapper) Read() error {
+	if b.storage != nil {
+		content, err := b.storage.ReadPage(b.SpaceID, b.PageNo)
+		if err != nil {
+			return err
+		}
+		if len(content) < common.PageSize {
+			return ErrPageStorageInvalidSize
+		}
+		b.Content = append(b.Content[:0], content...)
+		b.fileHeader = nil
+		b.fileTrailer = nil
+		b.State = basic.PageStateLoaded
+		b.Stats.ReadCount++
+		b.Stats.LastAccessAt = uint64(time.Now().UnixNano())
+		b.Stats.AccessTime = b.Stats.LastAccessAt
+		return nil
+	}
 	b.Stats.ReadCount++
 	b.Stats.LastAccessAt = uint64(time.Now().UnixNano())
 	return nil
@@ -353,6 +389,20 @@ func (b *BasePageWrapper) Read() error {
 
 // Write implements IPageWrapper
 func (b *BasePageWrapper) Write() error {
+	if b.storage != nil {
+		if len(b.Content) < common.PageSize {
+			return ErrPageStorageInvalidSize
+		}
+		if err := b.storage.WritePage(b.SpaceID, b.PageNo, b.Content); err != nil {
+			return err
+		}
+		b.Stats.WriteCount++
+		b.Stats.LastModified = uint64(time.Now().UnixNano())
+		b.Stats.AccessTime = b.Stats.LastModified
+		b.isDirtyFlag = false
+		b.State = basic.PageStateClean
+		return nil
+	}
 	b.Stats.WriteCount++
 	b.Stats.LastAccessAt = uint64(time.Now().UnixNano())
 	b.MarkDirty()
@@ -361,6 +411,18 @@ func (b *BasePageWrapper) Write() error {
 
 // Flush implements IPageWrapper
 func (b *BasePageWrapper) Flush() error {
+	if b.storage != nil {
+		if b.isDirtyFlag {
+			if err := b.Write(); err != nil {
+				return err
+			}
+		}
+		if err := b.storage.Sync(b.SpaceID); err != nil {
+			return err
+		}
+		b.State = basic.PageStateFlushed
+		return nil
+	}
 	// 基础实现不执行实际的刷新操作
 	// 子类应该重写此方法以实现实际的刷新逻辑
 	b.isDirtyFlag = false

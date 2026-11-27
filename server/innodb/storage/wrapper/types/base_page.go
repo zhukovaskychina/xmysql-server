@@ -29,6 +29,7 @@ type BasePage struct {
 	pinCount int32  // 使用atomic操作
 	dirty    uint32 // 使用atomic操作，0=false, 1=true
 	lock     sync.RWMutex
+	storage  basic.StorageProvider
 }
 
 // NewBasePage 创建基础页面
@@ -36,14 +37,21 @@ type BasePage struct {
 // Deprecated: Use NewUnifiedPage instead.
 // New code path should create pages through types.UnifiedPage.
 func NewBasePage(spaceID, pageNo uint32, pageType PageType) *BasePage {
+	return NewBasePageWithStorage(spaceID, pageNo, pageType, nil)
+}
+
+// NewBasePageWithStorage creates the deprecated base page with an optional
+// durable provider. NewBasePage remains source-compatible for old callers.
+func NewBasePageWithStorage(spaceID, pageNo uint32, pageType PageType, storage basic.StorageProvider) *BasePage {
 	page := &BasePage{
-		rawPage: NewPageHeader(16384), // 默认16KB页面大小
+		rawPage: NewPageHeader(common.PageSize), // 默认16KB页面大小
+		storage: storage,
 	}
 
 	// 设置页面头
-	binary.BigEndian.PutUint32(page.rawPage.FileHeader[FHeaderSpaceID:], spaceID)
-	binary.BigEndian.PutUint32(page.rawPage.FileHeader[FHeaderPageNo:], pageNo)
-	binary.BigEndian.PutUint16(page.rawPage.FileHeader[FHeaderPageType:], uint16(pageType))
+	binary.BigEndian.PutUint32(page.rawPage.FileHeader[common.LegacyBasePageHeaderSpaceIDOffset:], spaceID)
+	binary.BigEndian.PutUint32(page.rawPage.FileHeader[common.LegacyBasePageHeaderPageNoOffset:], pageNo)
+	binary.BigEndian.PutUint16(page.rawPage.FileHeader[common.LegacyBasePageHeaderPageTypeOffset:], uint16(pageType))
 
 	// 初始化统计信息
 	page.stats.LastAccessAt = uint64(time.Now().UnixNano())
@@ -71,27 +79,27 @@ func (p *BasePage) GetFileTrailer() []byte {
 func (p *BasePage) GetSpaceID() uint32 {
 	p.lock.RLock()
 	defer p.lock.RUnlock()
-	return binary.BigEndian.Uint32(p.rawPage.FileHeader[FHeaderSpaceID:])
+	return binary.BigEndian.Uint32(p.rawPage.FileHeader[common.LegacyBasePageHeaderSpaceIDOffset:])
 }
 
 // GetPageNo 获取页号
 func (p *BasePage) GetPageNo() uint32 {
-	return binary.BigEndian.Uint32(p.rawPage.FileHeader[FHeaderPageNo:])
+	return binary.BigEndian.Uint32(p.rawPage.FileHeader[common.LegacyBasePageHeaderPageNoOffset:])
 }
 
 // GetPageType 获取页面类型
 func (p *BasePage) GetPageType() uint16 {
-	return binary.BigEndian.Uint16(p.rawPage.FileHeader[FHeaderPageType:])
+	return binary.BigEndian.Uint16(p.rawPage.FileHeader[common.LegacyBasePageHeaderPageTypeOffset:])
 }
 
 // GetLSN 获取LSN
 func (p *BasePage) GetLSN() uint64 {
-	return binary.BigEndian.Uint64(p.rawPage.FileHeader[FHeaderLSN:])
+	return binary.BigEndian.Uint64(p.rawPage.FileHeader[common.LegacyBasePageHeaderLSNOffset:])
 }
 
 // SetLSN 设置LSN
 func (p *BasePage) SetLSN(lsn uint64) {
-	binary.BigEndian.PutUint64(p.rawPage.FileHeader[FHeaderLSN:], lsn)
+	binary.BigEndian.PutUint64(p.rawPage.FileHeader[common.LegacyBasePageHeaderLSNOffset:], lsn)
 }
 
 // IsDirty 是否脏页
@@ -131,16 +139,55 @@ func (p *BasePage) Unpin() {
 
 // Read 读取页面
 func (p *BasePage) Read() error {
-	// 更新统计信息
+	if p.storage == nil {
+		return ErrPageStorageUnavailable
+	}
+	spaceID, pageNo := p.GetSpaceID(), p.GetPageNo()
+	data, err := p.storage.ReadPage(spaceID, pageNo)
+	if err != nil {
+		return err
+	}
+	if len(data) < common.PageSize {
+		return ErrInvalidPageSize
+	}
+
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	copy(p.rawPage.FileHeader, data[:len(p.rawPage.FileHeader)])
+	bodyStart := len(p.rawPage.FileHeader)
+	bodyEnd := bodyStart + len(p.rawPage.FileBody)
+	copy(p.rawPage.FileBody, data[bodyStart:bodyEnd])
+	copy(p.rawPage.FileTrailer, data[bodyEnd:bodyEnd+len(p.rawPage.FileTrailer)])
 	p.stats.LastAccessAt = uint64(time.Now().UnixNano())
 	p.stats.ReadCount++
+	atomic.StoreUint32(&p.dirty, 0)
+	atomic.StoreUint32(&p.state, uint32(basic.PageStateLoaded))
 	return nil
+
 }
 
 // Write 写入页面
 func (p *BasePage) Write() error {
+	if p.storage == nil {
+		return ErrPageStorageUnavailable
+	}
+	spaceID, pageNo := p.GetSpaceID(), p.GetPageNo()
+	p.lock.RLock()
+	data := make([]byte, 0, common.PageSize)
+	data = append(data, p.rawPage.FileHeader...)
+	data = append(data, p.rawPage.FileBody...)
+	data = append(data, p.rawPage.FileTrailer...)
+	p.lock.RUnlock()
+	if err := p.storage.WritePage(spaceID, pageNo, data); err != nil {
+		return err
+	}
+
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	// 更新统计信息
 	p.stats.LastAccessAt = uint64(time.Now().UnixNano())
 	p.stats.WriteCount++
+	atomic.StoreUint32(&p.dirty, 0)
+	atomic.StoreUint32(&p.state, uint32(basic.PageStateClean))
 	return nil
 }

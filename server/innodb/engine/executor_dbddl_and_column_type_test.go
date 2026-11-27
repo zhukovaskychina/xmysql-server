@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,6 +42,21 @@ func TestNormalizeDBDDLOptionsDropWithoutExistsStaysFalse(t *testing.T) {
 	assert.Equal(t, sqlparser.DropStr, dbddl.Action)
 }
 
+func TestShowCreateDatabaseReturnsPersistedDatabaseDefinition(t *testing.T) {
+	executor := newTestStorageIntegratedExecutor(t, t.TempDir())
+	mustExecSQL(t, executor, "", "create database app")
+
+	result := <-executor.ExecuteQuery(nil, "show create database app", "")
+	require.NoError(t, result.Err)
+	data, ok := result.Data.(map[string]interface{})
+	require.True(t, ok)
+	rows, ok := data["rows"].([][]interface{})
+	require.True(t, ok)
+	require.Len(t, rows, 1)
+	require.Equal(t, "app", rows[0][0])
+	require.Contains(t, strings.ToLower(rows[0][1].(string)), "create database")
+}
+
 func TestFormatShowColumnTypeUsesExplicitLengthOnlyForStringLikeTypes(t *testing.T) {
 	exec := &XMySQLExecutor{}
 
@@ -60,6 +76,7 @@ func TestCreateTableStorageMappingIsIdempotent(t *testing.T) {
 
 	storageManager := manager.NewStorageManager(cfg)
 	require.NotNil(t, storageManager)
+	t.Cleanup(func() { _ = storageManager.Close() })
 	tableStorageManager := manager.NewTableStorageManager(storageManager)
 
 	exec := &XMySQLExecutor{conf: cfg}
@@ -90,6 +107,7 @@ func TestCreateTableStorageMappingRefreshesStaleRegisteredMapping(t *testing.T) 
 
 	storageManager := manager.NewStorageManager(cfg)
 	require.NotNil(t, storageManager)
+	t.Cleanup(func() { _ = storageManager.Close() })
 	tableStorageManager := manager.NewTableStorageManager(storageManager)
 
 	oldHandle, err := storageManager.CreateTablespace("old/users")

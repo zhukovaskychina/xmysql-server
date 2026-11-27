@@ -31,6 +31,16 @@ func newTestLegacyBufferPoolManagerForP0(t *testing.T) (*BufferPoolManager, *Moc
 	return bpm, storage
 }
 
+func TestBufferPoolManagerCloseIsIdempotent(t *testing.T) {
+	bpm, _ := newTestLegacyBufferPoolManagerForP0(t)
+	if err := bpm.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := bpm.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestBufferPoolManagerEvictPageRemovesCleanUnpinnedPage(t *testing.T) {
 	bpm, storage := newTestLegacyBufferPoolManagerForP0(t)
 	storage.ResetCounters()

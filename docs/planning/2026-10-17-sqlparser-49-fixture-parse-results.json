@@ -1,0 +1,296 @@
+﻿[
+  {
+    "number": 1,
+    "sql": "ALTER TABLE t ADD COLUMN c INT",
+    "ok": true,
+    "family": "alter"
+  },
+  {
+    "number": 2,
+    "sql": "ALTER TABLE t ADD COLUMN c INT, DROP COLUMN d",
+    "ok": true,
+    "family": "alter"
+  },
+  {
+    "number": 3,
+    "sql": "ALTER TABLE t MODIFY COLUMN c VARCHAR(20) AFTER d",
+    "ok": true,
+    "family": "alter"
+  },
+  {
+    "number": 4,
+    "sql": "ALTER TABLE t ADD INDEX idx_c(c)",
+    "ok": true,
+    "family": "alter"
+  },
+  {
+    "number": 5,
+    "sql": "ALTER TABLE t ALGORITHM=INPLACE, LOCK=NONE, ADD COLUMN c INT",
+    "ok": false,
+    "error": "unsupported SQL statement: unsupported ALTER operation algorithm=inplace"
+  },
+  {
+    "number": 6,
+    "sql": "ALTER TABLE t RENAME TO t2",
+    "ok": true,
+    "family": "alter"
+  },
+  {
+    "number": 7,
+    "sql": "SHOW TABLES",
+    "ok": true,
+    "family": "show"
+  },
+  {
+    "number": 8,
+    "sql": "show tables",
+    "ok": true,
+    "family": "show"
+  },
+  {
+    "number": 9,
+    "sql": "SHOW FULL TABLES FROM app LIKE 'user%'",
+    "ok": true,
+    "family": "show"
+  },
+  {
+    "number": 10,
+    "sql": "show full tables from app like 'user%'",
+    "ok": true,
+    "family": "show"
+  },
+  {
+    "number": 11,
+    "sql": "SHOW VARIABLES LIKE 'max_%'",
+    "ok": true,
+    "family": "show"
+  },
+  {
+    "number": 12,
+    "sql": "SHOW STATUS WHERE Variable_name = 'Threads_connected'",
+    "ok": true,
+    "family": "show"
+  },
+  {
+    "number": 13,
+    "sql": "SHOW CREATE TABLE app.t",
+    "ok": true,
+    "family": "show"
+  },
+  {
+    "number": 14,
+    "sql": "SHOW COLUMNS FROM app.t LIKE 'id'",
+    "ok": true,
+    "family": "show"
+  },
+  {
+    "number": 15,
+    "sql": "SHOW INDEX FROM app.t",
+    "ok": true,
+    "family": "show"
+  },
+  {
+    "number": 16,
+    "sql": "SHOW PROCEDURE STATUS WHERE Db = 'app'",
+    "ok": true,
+    "family": "show"
+  },
+  {
+    "number": 17,
+    "sql": "SHOW WARNINGS LIMIT 1, 2",
+    "ok": true,
+    "family": "show"
+  },
+  {
+    "number": 18,
+    "sql": "SHOW BINLOG EVENTS IN 'bin.000001' FROM 4 LIMIT 10",
+    "ok": true,
+    "family": "show"
+  },
+  {
+    "number": 19,
+    "sql": "SHOW REPLICA STATUS FOR CHANNEL 'ch'",
+    "ok": true,
+    "family": "show"
+  },
+  {
+    "number": 20,
+    "sql": "ANALYZE TABLE app.t",
+    "ok": true,
+    "family": "admin"
+  },
+  {
+    "number": 21,
+    "sql": "REPAIR TABLE app.t QUICK",
+    "ok": true,
+    "family": "admin"
+  },
+  {
+    "number": 22,
+    "sql": "OPTIMIZE TABLE app.t",
+    "ok": true,
+    "family": "admin"
+  },
+  {
+    "number": 23,
+    "sql": "FLUSH TABLES WITH READ LOCK",
+    "ok": true,
+    "family": "admin"
+  },
+  {
+    "number": 24,
+    "sql": "KILL QUERY 123",
+    "ok": true,
+    "family": "admin"
+  },
+  {
+    "number": 25,
+    "sql": "LOCK TABLES app.t READ",
+    "ok": true,
+    "family": "admin"
+  },
+  {
+    "number": 26,
+    "sql": "CHANGE REPLICATION SOURCE TO SOURCE_HOST='127.0.0.1'",
+    "ok": true,
+    "family": "admin"
+  },
+  {
+    "number": 27,
+    "sql": "INSTALL COMPONENT 'file://component_validate_password'",
+    "ok": true,
+    "family": "component"
+  },
+  {
+    "number": 28,
+    "sql": "CREATE PROCEDURE app.p(IN x INT) BEGIN SELECT x; END",
+    "ok": true,
+    "family": "stored_object"
+  },
+  {
+    "number": 29,
+    "sql": "CREATE FUNCTION app.f(x INT) RETURNS INT DETERMINISTIC RETURN x + 1",
+    "ok": true,
+    "family": "stored_object"
+  },
+  {
+    "number": 30,
+    "sql": "CREATE TRIGGER app.tr BEFORE INSERT ON app.t FOR EACH ROW SET NEW.c = 1",
+    "ok": true,
+    "family": "stored_object"
+  },
+  {
+    "number": 31,
+    "sql": "CREATE EVENT app.ev ON SCHEDULE EVERY 1 DAY DO DELETE FROM app.t",
+    "ok": true,
+    "family": "stored_object"
+  },
+  {
+    "number": 32,
+    "sql": "CALL app.p(1)",
+    "ok": true,
+    "family": "stored_object"
+  },
+  {
+    "number": 33,
+    "sql": "DROP PROCEDURE app.p",
+    "ok": true,
+    "family": "stored_object"
+  },
+  {
+    "number": 34,
+    "sql": "CREATE VIEW app.v AS SELECT id FROM app.t",
+    "ok": true,
+    "family": "view"
+  },
+  {
+    "number": 35,
+    "sql": "CREATE USER 'u'@'localhost' IDENTIFIED BY 'x'",
+    "ok": true,
+    "family": "account"
+  },
+  {
+    "number": 36,
+    "sql": "GRANT SELECT ON app.t TO 'u'@'localhost'",
+    "ok": true,
+    "family": "account"
+  },
+  {
+    "number": 37,
+    "sql": "SELECT @@session.autocommit",
+    "ok": true,
+    "family": "select"
+  },
+  {
+    "number": 38,
+    "sql": "SET NAMES utf8mb4 COLLATE utf8mb4_bin",
+    "ok": true,
+    "family": "set"
+  },
+  {
+    "number": 39,
+    "sql": "PREPARE s FROM 'SELECT 1'",
+    "ok": true,
+    "family": "prepared"
+  },
+  {
+    "number": 40,
+    "sql": "HANDLER app.t OPEN",
+    "ok": false,
+    "error": "unsupported SQL statement: HANDLER app"
+  },
+  {
+    "number": 41,
+    "sql": "CREATE TABLE app.t2 LIKE app.t",
+    "ok": true,
+    "family": "ddl"
+  },
+  {
+    "number": 42,
+    "sql": "CREATE TEMPORARY TABLE app.tmp(id INT)",
+    "ok": true,
+    "family": "ddl"
+  },
+  {
+    "number": 43,
+    "sql": "SELECT * FROM app.t WHERE id BETWEEN 1 AND 5",
+    "ok": true,
+    "family": "select"
+  },
+  {
+    "number": 44,
+    "sql": "SELECT * FROM app.t WHERE EXISTS (SELECT 1 FROM app.t2 WHERE t2.id=t.id)",
+    "ok": true,
+    "family": "select"
+  },
+  {
+    "number": 45,
+    "sql": "WITH q AS (SELECT 1 AS id) SELECT * FROM q",
+    "ok": true,
+    "family": "select"
+  },
+  {
+    "number": 46,
+    "sql": "SELECT row_number() OVER (ORDER BY id) AS rn FROM app.t",
+    "ok": true,
+    "family": "select"
+  },
+  {
+    "number": 47,
+    "sql": "ALTER TABLE t MODIFY COLUMN c INT totally_invalid_tail",
+    "ok": false,
+    "error": "invalid SQL statement: invalid column option totally_invalid_tail"
+  },
+  {
+    "number": 48,
+    "sql": "SHOW CREATE TABLE app.t totally_invalid_tail",
+    "ok": false,
+    "error": "invalid SQL statement: unexpected SHOW token \"totally_invalid_tail\""
+  },
+  {
+    "number": 49,
+    "sql": "REPAIR TABLE app.t totally_invalid_tail",
+    "ok": false,
+    "error": "invalid SQL statement: expected comma between admin targets"
+  }
+]

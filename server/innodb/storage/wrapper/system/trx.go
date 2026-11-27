@@ -5,6 +5,8 @@ import (
 	"errors"
 	"sync/atomic"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 var (
@@ -48,8 +50,13 @@ type TrxPage struct {
 
 // NewTrxPage 创建事务页面
 func NewTrxPage(spaceID, pageNo uint32) *TrxPage {
+	return NewTrxPageWithStorage(spaceID, pageNo, nil)
+}
+
+// NewTrxPageWithStorage creates a transaction page backed by a durable provider.
+func NewTrxPageWithStorage(spaceID, pageNo uint32, storage basic.StorageProvider) *TrxPage {
 	tp := &TrxPage{
-		BaseSystemPage: NewBaseSystemPage(spaceID, pageNo, SystemPageTypeTrx),
+		BaseSystemPage: NewBaseSystemPageWithStorage(spaceID, pageNo, SystemPageTypeTrx, storage),
 		freeList:       make([]uint16, 0),
 		dirtyList:      make([]uint16, 0),
 	}

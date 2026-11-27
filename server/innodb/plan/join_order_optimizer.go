@@ -226,14 +226,14 @@ func (joo *JoinOrderOptimizer) findBestPartition(
 
 		// 检查是否有连接条件（笛卡尔积剪枝）
 		if joo.config.EnableCartesianPruning {
-			if !joo.hasJoinCondition(left, right, joinConditions, numTables) {
+			if !joo.hasJoinCondition(left, right, joinConditions, tables) {
 				// 无连接条件，跳过（笛卡尔积）
 				return
 			}
 		}
 
 		// 提取连接条件
-		conditions := joo.extractJoinConditions(left, right, joinConditions, numTables)
+		conditions := joo.extractJoinConditions(left, right, joinConditions, tables)
 
 		// 尝试不同的连接方法
 		joinMethods := []string{"NESTED_LOOP", "HASH_JOIN", "MERGE_JOIN"}

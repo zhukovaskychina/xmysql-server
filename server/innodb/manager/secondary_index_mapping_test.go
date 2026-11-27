@@ -58,3 +58,17 @@ func TestSecondaryIndexFullRangeContainsCompositeIndexKey(t *testing.T) {
 		t.Fatalf("composite key is outside full index range")
 	}
 }
+
+func TestSecondaryIndexKeyContainsNullForUniqueNullableComponents(t *testing.T) {
+	index := metadata.IndexMeta{Name: "uk_tenant_email", Columns: []string{"tenant_id", "email"}, Unique: true}
+	key, err := EncodeSecondaryIndexKey(7, index, map[string]interface{}{"tenant_id": int64(7), "email": nil}, []byte("pk-1"))
+	if err != nil {
+		t.Fatalf("EncodeSecondaryIndexKey() error = %v", err)
+	}
+	if !secondaryIndexKeyContainsNull(key) {
+		t.Fatalf("nullable unique key was not recognized as containing NULL")
+	}
+	if secondaryIndexKeyContainsNull([]byte("not-a-secondary-key")) {
+		t.Fatalf("malformed key must not be treated as nullable")
+	}
+}

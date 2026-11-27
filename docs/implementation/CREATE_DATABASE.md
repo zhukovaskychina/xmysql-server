@@ -1,6 +1,6 @@
 # CREATE DATABASE 设计与实现
 
-> **文档状态（2026-04）**：与当前 `server/` 实现一致；缺口与优先级见 [未实现功能梳理.md](../未实现功能梳理.md)；任务 ID 见 [development/DEVELOPMENT_ROADMAP_TASKS.md](../development/DEVELOPMENT_ROADMAP_TASKS.md)。
+> **文档状态（2026-04）**：与当前 `server/` 实现一致；缺口与优先级见 [未实现功能梳理.md](../未实现功能梳理.md)；任务 ID 见 [能力优先级索引](../planning/CAPABILITY_PRIORITY_INDEX_20260715.md)。
 
 ---
 

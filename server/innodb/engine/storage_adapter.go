@@ -858,12 +858,15 @@ func tableMetaFromSchema(schema *metadata.Table) *metadata.TableMeta {
 			Name:            column.Name,
 			Type:            column.DataType,
 			Length:          column.CharMaxLength,
+			Scale:           column.Scale,
+			IsUnsigned:      column.IsUnsigned,
 			IsNullable:      column.IsNullable,
 			IsAutoIncrement: column.IsAutoIncrement,
 			DefaultValue:    column.DefaultValue,
 			Charset:         column.Charset,
 			Collation:       column.Collation,
 			Comment:         column.Comment,
+			EnumValues:      append([]string(nil), column.EnumValues...),
 		})
 	}
 	if schema.PrimaryKey != nil {

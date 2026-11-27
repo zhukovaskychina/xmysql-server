@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
@@ -263,13 +264,13 @@ func (i *InsertOperator) evaluateOnDupExpr(expr sqlparser.Expr, existingRecord R
 		// 列引用
 		colName := e.Name.String()
 		// 优先使用插入行的值
-		if val, ok := insertRow[colName]; ok {
+		if val, ok := resolveExpressionRowValue(insertRow, colName); ok {
 			return val, nil
 		}
 		// 否则使用现有记录的值
 		existingValues := existingRecord.GetValues()
 		for idx, col := range schema.Columns {
-			if col.Name == colName && idx < len(existingValues) {
+			if strings.EqualFold(col.Name, colName) && idx < len(existingValues) {
 				return i.valueToInterface(existingValues[idx]), nil
 			}
 		}
@@ -283,7 +284,7 @@ func (i *InsertOperator) evaluateOnDupExpr(expr sqlparser.Expr, existingRecord R
 				if aliasedExpr, ok := e.Exprs[0].(*sqlparser.AliasedExpr); ok {
 					if colName, ok := aliasedExpr.Expr.(*sqlparser.ColName); ok {
 						colNameStr := colName.Name.String()
-						if val, ok := insertRow[colNameStr]; ok {
+						if val, ok := resolveExpressionRowValue(insertRow, colNameStr); ok {
 							return val, nil
 						}
 					}
@@ -291,24 +292,56 @@ func (i *InsertOperator) evaluateOnDupExpr(expr sqlparser.Expr, existingRecord R
 			}
 			return nil, fmt.Errorf("VALUES() function requires column name")
 		}
-		// 其他函数暂不支持
-		return nil, fmt.Errorf("function %s not supported in ON DUPLICATE KEY UPDATE", e.Name.String())
+		// Keep the legacy operator on the same scalar-function semantics as the
+		// storage-integrated path.  The candidate INSERT row is exposed only
+		// through VALUES(), while ordinary column references resolve against the
+		// existing duplicate row.
+		return evaluateExpressionWithRow(e, i.onDupExpressionValues(existingRecord, insertRow, schema))
+
+	case *sqlparser.ValuesFuncExpr:
+		// The parser represents VALUES(col) with a dedicated AST node. Keep
+		// this path equivalent to the legacy FuncExpr representation so both
+		// executors expose the same MySQL-compatible candidate-row semantics.
+		if e.Name == nil {
+			return nil, fmt.Errorf("VALUES() function requires column name")
+		}
+		columnName := e.Name.Name.String()
+		if val, ok := insertRow[columnName]; ok {
+			return val, nil
+		}
+		for name, val := range insertRow {
+			if strings.EqualFold(name, columnName) {
+				return val, nil
+			}
+		}
+		return nil, fmt.Errorf("column %s not found in INSERT values", columnName)
 
 	case *sqlparser.BinaryExpr:
-		// 二元表达式（如 col + 1）
-		left, err := i.evaluateOnDupExpr(e.Left, existingRecord, insertRow, schema)
-		if err != nil {
-			return nil, err
-		}
-		right, err := i.evaluateOnDupExpr(e.Right, existingRecord, insertRow, schema)
-		if err != nil {
-			return nil, err
-		}
-		return i.evaluateBinaryOp(e.Operator, left, right)
+		// Evaluate the complete AST against the same row context used by the
+		// storage-integrated path so arithmetic, bitwise, NULL, and date
+		// operators share one MySQL-compatible implementation.
+		return evaluateExpressionWithRow(e, i.onDupExpressionValues(existingRecord, insertRow, schema))
 
 	default:
 		return nil, fmt.Errorf("unsupported expression type in ON DUPLICATE KEY UPDATE: %T", expr)
 	}
+}
+
+func (i *InsertOperator) onDupExpressionValues(existingRecord Record, insertRow map[string]interface{}, schema *metadata.Table) map[string]interface{} {
+	values := make(map[string]interface{})
+	if existingRecord != nil && schema != nil {
+		existingValues := existingRecord.GetValues()
+		for idx, column := range schema.Columns {
+			if column == nil || idx >= len(existingValues) {
+				continue
+			}
+			values[column.Name] = i.valueToInterface(existingValues[idx])
+		}
+	}
+	if insertRow != nil {
+		values[insertValuesContextKey] = insertRow
+	}
+	return values
 }
 
 // evaluateBinaryOp 计算二元操作
@@ -472,10 +505,7 @@ func (i *InsertOperator) parseInsertRows(schema *metadata.Table) ([]map[string]i
 
 // valueToInterface 将basic.Value转换为interface{}
 func (i *InsertOperator) valueToInterface(val basic.Value) interface{} {
-	if val == nil {
-		return nil
-	}
-	return val.Raw()
+	return basicValueToInterface(val)
 }
 
 // sqlValToInterface 将SQLVal转换为interface{}
@@ -812,23 +842,48 @@ func updateExprToBasicValue(expr sqlparser.Expr) (basic.Value, error) {
 
 // checkIndexColumnsChanged 检查索引列是否变更
 func (u *UpdateOperator) checkIndexColumnsChanged(oldRecord, newRecord Record, schema *metadata.Table) bool {
-	// 简化实现：假设主键列是第一列
-	// 实际应该检查所有索引列
-
+	if oldRecord == nil || newRecord == nil || schema == nil {
+		return false
+	}
 	oldValues := oldRecord.GetValues()
 	newValues := newRecord.GetValues()
-
 	if len(oldValues) == 0 || len(newValues) == 0 {
 		return false
 	}
-
-	// 比较第一列（假设为主键）
-	if len(oldValues) > 0 && len(newValues) > 0 {
-		// 简化比较：检查值是否相等
-		// 实际应该使用Value的比较方法
-		return !valuesEqual(oldValues[0], newValues[0])
+	columnPositions := make(map[string]int, len(schema.Columns))
+	for index, column := range schema.Columns {
+		if column != nil {
+			columnPositions[strings.ToLower(column.Name)] = index
+		}
 	}
-
+	indexes := make([]*metadata.Index, 0, len(schema.Indices)+1)
+	indexes = append(indexes, schema.Indices...)
+	if schema.PrimaryKey != nil {
+		seenPrimary := false
+		for _, index := range indexes {
+			if index == schema.PrimaryKey || (index != nil && strings.EqualFold(index.Name, schema.PrimaryKey.Name)) {
+				seenPrimary = true
+				break
+			}
+		}
+		if !seenPrimary {
+			indexes = append(indexes, schema.PrimaryKey)
+		}
+	}
+	for _, index := range indexes {
+		if index == nil {
+			continue
+		}
+		for _, columnName := range index.Columns {
+			position, ok := columnPositions[strings.ToLower(columnName)]
+			if !ok || position >= len(oldValues) || position >= len(newValues) {
+				continue
+			}
+			if !valuesEqual(oldValues[position], newValues[position]) {
+				return true
+			}
+		}
+	}
 	return false
 }
 

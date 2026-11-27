@@ -218,7 +218,7 @@ type PageType = common.PageType
 
 // 页面状态常量
 const (
-	PageStateNew      = common.PageState(100) // 新创建的页面状态
+	PageStateNew      = common.PageStateNew // 新创建的页面状态
 	PageStateInit     = common.PageStateInit
 	PageStateLoaded   = common.PageStateLoaded
 	PageStateModified = common.PageStateModified
@@ -226,7 +226,7 @@ const (
 	PageStateClean    = common.PageStateClean
 	PageStatePinned   = common.PageStatePinned
 	PageStateFlushed  = common.PageStateFlushed
-	PageStateActive   = common.PageState(101) // 活跃页面状态
+	PageStateActive   = common.PageStateActive // 活跃页面状态
 )
 
 // 页面类型常量

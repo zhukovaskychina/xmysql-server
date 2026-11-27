@@ -32,7 +32,7 @@ func NewPageIntegrityChecker(algorithm ChecksumAlgorithm) *PageIntegrityChecker 
 
 // CalculateChecksum 计算页面校验和
 func (pic *PageIntegrityChecker) CalculateChecksum(page []byte) uint32 {
-	if len(page) < FileHeaderSize+8 {
+	if len(page) < common.FileHeaderSize+8 {
 		return 0
 	}
 
@@ -74,7 +74,7 @@ func (pic *PageIntegrityChecker) calculateInnoDBChecksum(page []byte) uint32 {
 
 // ValidateChecksum 验证页面校验和
 func (pic *PageIntegrityChecker) ValidateChecksum(page []byte) error {
-	if len(page) < FileHeaderSize+8 {
+	if len(page) < common.FileHeaderSize+8 {
 		return ErrPageCorrupted
 	}
 
@@ -99,7 +99,7 @@ func (pic *PageIntegrityChecker) ValidatePage(page []byte) error {
 	}
 
 	// 检查页面大小
-	if len(page) < FileHeaderSize+8 {
+	if len(page) < common.FileHeaderSize+8 {
 		return ErrPageCorrupted
 	}
 
@@ -118,7 +118,7 @@ func (pic *PageIntegrityChecker) ValidatePage(page []byte) error {
 
 // validatePageHeader 验证页面头部
 func (pic *PageIntegrityChecker) validatePageHeader(page []byte) error {
-	if len(page) < FileHeaderSize {
+	if len(page) < common.FileHeaderSize {
 		return ErrPageCorrupted
 	}
 
@@ -160,7 +160,7 @@ func (pic *PageIntegrityChecker) IsPageCorrupted(page []byte) bool {
 
 // RepairPage 尝试修复页面(基础实现)
 func (pic *PageIntegrityChecker) RepairPage(page []byte) error {
-	if len(page) < FileHeaderSize+8 {
+	if len(page) < common.FileHeaderSize+8 {
 		return ErrPageCorrupted
 	}
 

@@ -1,11 +1,74 @@
 package engine
 
 import (
-	"regexp"
 	"strings"
 
+	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
+
+func stagedShowStatement(ctx *ExecutionContext) *sqlparser.Show {
+	if ctx == nil || ctx.Parsed == nil {
+		return nil
+	}
+	show, _ := ctx.Parsed.AST.(*sqlparser.Show)
+	return show
+}
+
+// normalizedShowExecutionType bridges older callers that construct a partial
+// Show node themselves. Parsed execution statements already carry the exact
+// multi-word type; the raw checks below are only compatibility detection and
+// do not extract execution options.
+func normalizedShowExecutionType(stmt *sqlparser.Show, raw string) string {
+	if stmt == nil {
+		return ""
+	}
+	typ := strings.ToLower(strings.TrimSpace(stmt.Type))
+	switch typ {
+	case "table":
+		if isShowTableStatusQuery(raw) {
+			return "table status"
+		}
+	case "binlog":
+		if isShowBinlogEventsQuery(raw) {
+			return "binlog events"
+		}
+		if isShowBinaryLogsQuery(raw) {
+			return "binary logs"
+		}
+	case "relaylog":
+		if isShowRelaylogEventsQuery(raw) {
+			return "relaylog events"
+		}
+	case "master", "source", "binary log":
+		if isShowMasterStatusQuery(raw) {
+			return "master status"
+		}
+	case "replicas", "slave":
+		if isShowReplicaHostsQuery(raw) {
+			return "replica hosts"
+		}
+		if isShowReplicaStatusQuery(raw) {
+			return "replica"
+		}
+	}
+	return typ
+}
+
+func showDatabaseFromAST(ctx *ExecutionContext, session server.MySQLServerSession) string {
+	if show := stagedShowStatement(ctx); show != nil && show.ShowTablesOpt != nil && strings.TrimSpace(show.ShowTablesOpt.DbName) != "" {
+		return strings.TrimSpace(show.ShowTablesOpt.DbName)
+	}
+	if session != nil {
+		if value, ok := session.GetParamByName("database").(string); ok && strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	if ctx != nil {
+		return strings.TrimSpace(ctx.DatabaseName)
+	}
+	return ""
+}
 
 func extractShowCreateTableName(showType string) string {
 	parts := strings.Fields(strings.TrimSpace(showType))
@@ -64,55 +127,55 @@ func extractShowColumnsTableNameFromQuery(rawQuery string) string {
 }
 
 func extractShowTablesLikePatternFromQuery(rawQuery string) string {
-	re := regexp.MustCompile(`(?i)\blike\s+'([^']+)'`)
-	matches := re.FindStringSubmatch(rawQuery)
-	if len(matches) < 2 {
+	return showLikePatternFromRawQuery(rawQuery, "tables")
+}
+
+func extractShowTableStatusLikePatternFromQuery(rawQuery string) string {
+	return showLikePatternFromRawQuery(rawQuery, "table status")
+}
+
+func extractShowTriggersLikePatternFromQuery(rawQuery string) string {
+	return showLikePatternFromRawQuery(rawQuery, "triggers")
+}
+
+func extractShowEventsLikePatternFromQuery(rawQuery string) string {
+	return showLikePatternFromRawQuery(rawQuery, "events")
+}
+
+func extractShowRoutineStatusLikePatternFromQuery(rawQuery string) string {
+	parsed, err := sqlparser.ParseForExecution(rawQuery)
+	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(matches[1])
+	show, ok := parsed.AST.(*sqlparser.Show)
+	if !ok || (show.Type != "procedure status" && show.Type != "function status") {
+		return ""
+	}
+	return extractShowLikePatternFromStmt(show)
 }
 
 func extractShowDatabasesLikePatternFromQuery(rawQuery string) string {
-	normalized := strings.ToLower(strings.TrimSpace(rawQuery))
-	if !strings.HasPrefix(normalized, "show databases") {
-		return ""
-	}
-	re := regexp.MustCompile(`(?i)\blike\s+'([^']+)'`)
-	matches := re.FindStringSubmatch(rawQuery)
-	if len(matches) < 2 {
-		return ""
-	}
-	return strings.TrimSpace(matches[1])
+	return showLikePatternFromRawQuery(rawQuery, "databases")
 }
 
 func extractShowVariablesLikePatternFromQuery(rawQuery string) string {
-	normalized := strings.ToLower(strings.TrimSpace(rawQuery))
-	if !strings.HasPrefix(normalized, "show variables") &&
-		!strings.HasPrefix(normalized, "show global variables") &&
-		!strings.HasPrefix(normalized, "show session variables") {
-		return ""
-	}
-	re := regexp.MustCompile(`(?i)\blike\s+'([^']+)'`)
-	matches := re.FindStringSubmatch(rawQuery)
-	if len(matches) < 2 {
-		return ""
-	}
-	return strings.TrimSpace(matches[1])
+	return showLikePatternFromRawQuery(rawQuery, "variables")
 }
 
 func extractShowStatusLikePatternFromQuery(rawQuery string) string {
-	normalized := strings.ToLower(strings.TrimSpace(rawQuery))
-	if !strings.HasPrefix(normalized, "show status") &&
-		!strings.HasPrefix(normalized, "show global status") &&
-		!strings.HasPrefix(normalized, "show session status") {
+	return showLikePatternFromRawQuery(rawQuery, "status")
+}
+
+func showLikePatternFromRawQuery(rawQuery, expectedType string) string {
+	parsed, err := sqlparser.ParseForExecution(rawQuery)
+	if err != nil {
 		return ""
 	}
-	re := regexp.MustCompile(`(?i)\blike\s+'([^']+)'`)
-	matches := re.FindStringSubmatch(rawQuery)
-	if len(matches) < 2 {
+	show, ok := parsed.AST.(*sqlparser.Show)
+	if !ok || !showTypeMatches(strings.TrimSpace(show.Type), expectedType) {
 		return ""
 	}
-	return strings.TrimSpace(matches[1])
+	return extractShowLikePatternFromStmt(show)
 }
 
 func ExtractShowVariablesLikePatternFromQuery(rawQuery string) string {
@@ -152,28 +215,45 @@ func ExtractShowWhereExprFromStmt(stmt *sqlparser.Show) sqlparser.Expr {
 }
 
 func extractShowTablesWhereExprFromQuery(rawQuery string) sqlparser.Expr {
-	normalized := strings.ToLower(strings.TrimSpace(rawQuery))
-	if !strings.HasPrefix(normalized, "show tables") &&
-		!strings.HasPrefix(normalized, "show full tables") &&
-		!strings.HasPrefix(normalized, "show extended tables") {
-		return nil
-	}
-	re := regexp.MustCompile(`(?i)\bwhere\b\s+(.+)$`)
-	matches := re.FindStringSubmatch(rawQuery)
-	if len(matches) < 2 {
-		return nil
-	}
-	exprSQL := strings.TrimSpace(strings.TrimSuffix(matches[1], ";"))
-	selectSQL := "select 1 from dual where " + exprSQL
-	stmt, err := sqlparser.Parse(selectSQL)
+	return showWhereExprFromRawQuery(rawQuery, "tables")
+}
+
+func extractShowTableStatusWhereExprFromQuery(rawQuery string) sqlparser.Expr {
+	return showWhereExprFromRawQuery(rawQuery, "table status")
+}
+
+func extractShowTriggersWhereExprFromQuery(rawQuery string) sqlparser.Expr {
+	return showWhereExprFromRawQuery(rawQuery, "triggers")
+}
+
+func extractShowEventsWhereExprFromQuery(rawQuery string) sqlparser.Expr {
+	return showWhereExprFromRawQuery(rawQuery, "events")
+}
+
+func extractShowRoutineStatusWhereExprFromQuery(rawQuery string) sqlparser.Expr {
+	return showWhereExprFromRawQuery(rawQuery, "procedure status")
+}
+
+func showWhereExprFromRawQuery(rawQuery, expectedType string) sqlparser.Expr {
+	parsed, err := sqlparser.ParseForExecution(rawQuery)
 	if err != nil {
 		return nil
 	}
-	selectStmt, ok := stmt.(*sqlparser.Select)
-	if !ok || selectStmt.Where == nil {
+	show, ok := parsed.AST.(*sqlparser.Show)
+	if !ok || !showTypeMatches(strings.TrimSpace(show.Type), expectedType) {
 		return nil
 	}
-	return selectStmt.Where.Expr
+	return extractShowWhereExprFromStmt(show)
+}
+
+func showTypeMatches(actual, expected string) bool {
+	if strings.EqualFold(actual, expected) {
+		return true
+	}
+	if strings.EqualFold(expected, "tables") && strings.EqualFold(actual, "table") {
+		return true
+	}
+	return false
 }
 
 func ResolveShowLikePattern(showType string, stmt *sqlparser.Show, rawQuery string) string {
@@ -190,6 +270,26 @@ func ResolveShowLikePattern(showType string, stmt *sqlparser.Show, rawQuery stri
 			return likePattern
 		}
 		return extractShowTablesLikePatternFromQuery(rawQuery)
+	case "table status":
+		if likePattern != "" {
+			return likePattern
+		}
+		return extractShowTableStatusLikePatternFromQuery(rawQuery)
+	case "triggers":
+		if likePattern != "" {
+			return likePattern
+		}
+		return extractShowTriggersLikePatternFromQuery(rawQuery)
+	case "events":
+		if likePattern != "" {
+			return likePattern
+		}
+		return extractShowEventsLikePatternFromQuery(rawQuery)
+	case "procedure status", "function status":
+		if likePattern != "" {
+			return likePattern
+		}
+		return extractShowRoutineStatusLikePatternFromQuery(rawQuery)
 	case "databases":
 		if likePattern != "" {
 			return likePattern
@@ -205,6 +305,16 @@ func ResolveShowLikePattern(showType string, stmt *sqlparser.Show, rawQuery stri
 			return likePattern
 		}
 		return extractShowStatusLikePatternFromQuery(rawQuery)
+	case "columns", "fields":
+		if likePattern != "" {
+			return likePattern
+		}
+		return extractShowColumnsLikePatternFromQuery(rawQuery)
+	case "character set", "collation":
+		if likePattern != "" {
+			return likePattern
+		}
+		return extractShowCharsetLikePatternFromQuery(rawQuery)
 	default:
 		return likePattern
 	}
@@ -213,8 +323,63 @@ func ResolveShowLikePattern(showType string, stmt *sqlparser.Show, rawQuery stri
 func ResolveShowWhereExpr(showType string, stmt *sqlparser.Show, rawQuery string) sqlparser.Expr {
 	whereExpr := extractShowWhereExprFromStmt(stmt)
 	normalizedType := strings.ToLower(strings.TrimSpace(showType))
-	if whereExpr == nil && normalizedType == "tables" {
-		return extractShowTablesWhereExprFromQuery(rawQuery)
+	if whereExpr == nil {
+		switch normalizedType {
+		case "tables":
+			return extractShowTablesWhereExprFromQuery(rawQuery)
+		case "table status":
+			return extractShowTableStatusWhereExprFromQuery(rawQuery)
+		case "triggers":
+			return extractShowTriggersWhereExprFromQuery(rawQuery)
+		case "events":
+			return extractShowEventsWhereExprFromQuery(rawQuery)
+		case "procedure status", "function status":
+			return extractShowRoutineStatusWhereExprFromQuery(rawQuery)
+		case "columns", "fields":
+			return extractShowColumnsWhereExprFromQuery(rawQuery)
+		case "character set", "collation":
+			return extractShowCharsetWhereExprFromQuery(rawQuery)
+		}
 	}
 	return whereExpr
+}
+
+func extractShowCharsetLikePatternFromQuery(rawQuery string) string {
+	parsed, err := sqlparser.ParseForExecution(rawQuery)
+	if err != nil {
+		return ""
+	}
+	show, ok := parsed.AST.(*sqlparser.Show)
+	if !ok || (show.Type != "character set" && show.Type != "charset" && show.Type != "collation") {
+		return ""
+	}
+	return extractShowLikePatternFromStmt(show)
+}
+
+func extractShowCharsetWhereExprFromQuery(rawQuery string) sqlparser.Expr {
+	parsed, err := sqlparser.ParseForExecution(rawQuery)
+	if err != nil {
+		return nil
+	}
+	show, ok := parsed.AST.(*sqlparser.Show)
+	if !ok || (show.Type != "character set" && show.Type != "charset" && show.Type != "collation") {
+		return nil
+	}
+	return extractShowWhereExprFromStmt(show)
+}
+
+func extractShowColumnsLikePatternFromQuery(rawQuery string) string {
+	parsed, err := sqlparser.ParseForExecution(rawQuery)
+	if err != nil {
+		return ""
+	}
+	show, ok := parsed.AST.(*sqlparser.Show)
+	if !ok || (show.Type != "columns" && show.Type != "fields") {
+		return ""
+	}
+	return extractShowLikePatternFromStmt(show)
+}
+
+func extractShowColumnsWhereExprFromQuery(rawQuery string) sqlparser.Expr {
+	return showWhereExprFromRawQuery(rawQuery, "columns")
 }

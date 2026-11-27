@@ -155,7 +155,7 @@
         </plugins>
     </build>
 
-    <!-- 仅验证 JDBC 与 XMySQL 协议/连接是否畅通（需服务监听 localhost:3309） -->
+    <!-- JDBC 与 XMySQL 完整兼容性门禁；端点可由 xmysql.jdbc.url 或 XMYSQL_JDBC_URL 覆盖 -->
     <profiles>
         <profile>
             <id>jdbc-connectivity</id>
@@ -166,8 +166,7 @@
                         <artifactId>maven-surefire-plugin</artifactId>
                         <configuration>
                             <includes>
-                                <include>**/JdbcConnectionTest.java</include>
-                                <include>**/SystemVariableTest.java</include>
+                                <include>**/*Test.java</include>
                             </includes>
                         </configuration>
                     </plugin>

@@ -1,8 +1,0 @@
-# XMySQL Server 存储引擎集成实现总结（已合并）
-
-> **2026-04**：本文件与 [STORAGE_ENGINE_INTEGRATION.md](./STORAGE_ENGINE_INTEGRATION.md)（集成实现主文档）结构、组件列表**高度重复**，仅篇幅更短。  
-> **请阅读**：[STORAGE_ENGINE_INTEGRATION.md](./STORAGE_ENGINE_INTEGRATION.md)
-
----
-
-**文档索引**：[STORAGE_DOCUMENTATION_INDEX.md](./STORAGE_DOCUMENTATION_INDEX.md)

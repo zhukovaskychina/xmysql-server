@@ -50,7 +50,7 @@ const (
 
 // Maximum undo data per page
 const (
-	MAX_UNDO_DATA_SIZE = DefaultPageSize - FileHeaderSize - UNDO_HEADER_SIZE - FileTrailerSize
+	MAX_UNDO_DATA_SIZE = common.PageSize - common.FileHeaderSize - UNDO_HEADER_SIZE - common.FileTrailerSize
 )
 
 // UndoHeader represents the undo page header structure

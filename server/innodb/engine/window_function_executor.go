@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"io"
 	"math"
 	"sort"
 
@@ -19,14 +20,17 @@ import (
 type WindowFunctionType int
 
 const (
-	WindowFuncRowNumber  WindowFunctionType = iota // ROW_NUMBER()
-	WindowFuncRank                                 // RANK()
-	WindowFuncDenseRank                            // DENSE_RANK()
-	WindowFuncNTile                                // NTILE(n)
-	WindowFuncLag                                  // LAG(expr, offset)
-	WindowFuncLead                                 // LEAD(expr, offset)
-	WindowFuncFirstValue                           // FIRST_VALUE(expr)
-	WindowFuncLastValue                            // LAST_VALUE(expr)
+	WindowFuncRowNumber   WindowFunctionType = iota // ROW_NUMBER()
+	WindowFuncRank                                  // RANK()
+	WindowFuncDenseRank                             // DENSE_RANK()
+	WindowFuncNTile                                 // NTILE(n)
+	WindowFuncLag                                   // LAG(expr, offset)
+	WindowFuncLead                                  // LEAD(expr, offset)
+	WindowFuncFirstValue                            // FIRST_VALUE(expr)
+	WindowFuncLastValue                             // LAST_VALUE(expr)
+	WindowFuncNthValue                              // NTH_VALUE(expr, n)
+	WindowFuncCumeDist                              // CUME_DIST()
+	WindowFuncPercentRank                           // PERCENT_RANK()
 )
 
 // WindowFrameType 窗口帧类型
@@ -83,11 +87,15 @@ type WindowFunctionOperator struct {
 	windowFunc WindowFunction
 
 	// 执行状态
-	allRows      []Record // 所有输入行
-	partitions   [][]int  // 分区索引（每个分区包含行索引列表）
-	currentIndex int      // 当前输出行索引
-	resultCache  []Record // 结果缓存
-	computed     bool     // 是否已计算
+	allRows               []Record // 所有输入行
+	partitions            [][]int  // 分区索引（每个分区包含行索引列表）
+	currentIndex          int      // 当前输出行索引
+	resultCache           []Record // 结果缓存
+	computed              bool     // 是否已计算
+	streamingRowNumber    bool
+	streamingConstantRank bool
+	streamRowNumberValue  int64
+	streamingDone         bool
 }
 
 // NewWindowFunctionOperator 创建窗口函数算子
@@ -121,12 +129,23 @@ func (w *WindowFunctionOperator) Open(ctx context.Context) error {
 	// 创建新的schema，包含原始列和窗口函数结果列
 	w.schema = childSchema.Clone()
 
+	resultType := metadata.TypeBigInt
+	if w.windowFunc.Type == WindowFuncCumeDist || w.windowFunc.Type == WindowFuncPercentRank {
+		resultType = metadata.TypeDouble
+	}
+
 	// 添加窗口函数结果列
 	w.schema.AddColumn(&metadata.QueryColumn{
 		Name:       w.getWindowFunctionName(),
-		DataType:   metadata.TypeBigInt, // 大多数窗口函数返回整数
+		DataType:   resultType,
 		IsNullable: true,
 	})
+	w.streamingRowNumber = w.windowFunc.Type == WindowFuncRowNumber &&
+		len(w.windowSpec.PartitionBy) == 0 && len(w.windowSpec.OrderBy) == 0 && w.windowSpec.Frame == nil
+	w.streamingConstantRank = (w.windowFunc.Type == WindowFuncRank || w.windowFunc.Type == WindowFuncDenseRank) &&
+		len(w.windowSpec.PartitionBy) == 0 && len(w.windowSpec.OrderBy) == 0 && w.windowSpec.Frame == nil
+	w.streamRowNumberValue = 0
+	w.streamingDone = false
 
 	logger.Debugf("WindowFunctionOperator opened with function: %s", w.getWindowFunctionName())
 	return nil
@@ -136,6 +155,21 @@ func (w *WindowFunctionOperator) Open(ctx context.Context) error {
 func (w *WindowFunctionOperator) Next(ctx context.Context) (Record, error) {
 	if !w.opened {
 		return nil, fmt.Errorf("operator not opened")
+	}
+
+	if w.streamingRowNumber || w.streamingConstantRank {
+		if w.streamingDone {
+			return nil, nil
+		}
+		record, err := w.child.Next(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if record == nil {
+			w.streamingDone = true
+			return nil, nil
+		}
+		return w.appendWindowFunctionResult(record, w.nextStreamingWindowValue()), nil
 	}
 
 	// 第一次调用时，读取所有输入并计算窗口函数
@@ -154,6 +188,98 @@ func (w *WindowFunctionOperator) Next(ctx context.Context) (Record, error) {
 	result := w.resultCache[w.currentIndex]
 	w.currentIndex++
 	return result, nil
+}
+
+func (w *WindowFunctionOperator) NextBatch(ctx context.Context, maxRows int) ([]Record, error) {
+	if !w.opened {
+		return nil, fmt.Errorf("operator not opened")
+	}
+	if maxRows <= 0 {
+		return nil, fmt.Errorf("batch size must be positive")
+	}
+	if w.streamingRowNumber || w.streamingConstantRank {
+		return w.nextStreamingRowNumberBatch(ctx, maxRows)
+	}
+	if !w.computed {
+		if err := w.computeWindowFunction(ctx); err != nil {
+			return nil, fmt.Errorf("failed to compute window function: %w", err)
+		}
+		w.computed = true
+	}
+	if w.currentIndex >= len(w.resultCache) {
+		return nil, io.EOF
+	}
+	end := w.currentIndex + maxRows
+	if end > len(w.resultCache) {
+		end = len(w.resultCache)
+	}
+	batch := w.resultCache[w.currentIndex:end]
+	w.currentIndex = end
+	if w.currentIndex >= len(w.resultCache) {
+		return batch, io.EOF
+	}
+	return batch, nil
+}
+
+func (w *WindowFunctionOperator) nextStreamingWindowValue() int64 {
+	if w.streamingConstantRank {
+		return 1
+	}
+	w.streamRowNumberValue++
+	return w.streamRowNumberValue
+}
+
+func (w *WindowFunctionOperator) nextStreamingRowNumberBatch(ctx context.Context, maxRows int) ([]Record, error) {
+	if w.streamingDone {
+		return nil, io.EOF
+	}
+	var (
+		input []Record
+		err   error
+	)
+	if child, ok := w.child.(BatchOperator); ok {
+		input = make([]Record, 0, maxRows)
+		for len(input) < maxRows {
+			chunk, batchErr := child.NextBatch(ctx, maxRows-len(input))
+			input = append(input, chunk...)
+			if batchErr != nil {
+				err = batchErr
+				break
+			}
+			if len(chunk) == 0 {
+				break
+			}
+		}
+	} else {
+		input = make([]Record, 0, maxRows)
+		for len(input) < maxRows {
+			record, nextErr := w.child.Next(ctx)
+			if nextErr != nil {
+				err = nextErr
+				break
+			}
+			if record == nil {
+				break
+			}
+			input = append(input, record)
+		}
+	}
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+	if len(input) == 0 {
+		w.streamingDone = true
+		return nil, io.EOF
+	}
+	output := make([]Record, 0, len(input))
+	for _, record := range input {
+		output = append(output, w.appendWindowFunctionResult(record, w.nextStreamingWindowValue()))
+	}
+	if err == io.EOF {
+		w.streamingDone = true
+		return output, io.EOF
+	}
+	return output, nil
 }
 
 // computeWindowFunction 计算窗口函数
@@ -313,6 +439,12 @@ func (w *WindowFunctionOperator) getWindowFunctionName() string {
 		return "FIRST_VALUE"
 	case WindowFuncLastValue:
 		return "LAST_VALUE"
+	case WindowFuncNthValue:
+		return fmt.Sprintf("NTH_VALUE(%d)", w.windowFunc.N)
+	case WindowFuncCumeDist:
+		return "CUME_DIST"
+	case WindowFuncPercentRank:
+		return "PERCENT_RANK"
 	default:
 		return "UNKNOWN_WINDOW_FUNC"
 	}
@@ -337,6 +469,12 @@ func (w *WindowFunctionOperator) computePartitionWindowFunction(partitionIdx int
 		return w.computeFirstValue(partition)
 	case WindowFuncLastValue:
 		return w.computeLastValue(partition)
+	case WindowFuncNthValue:
+		return w.computeNthValue(partition)
+	case WindowFuncCumeDist:
+		return w.computeCumeDist(partition)
+	case WindowFuncPercentRank:
+		return w.computePercentRank(partition)
 	default:
 		return fmt.Errorf("unsupported window function type: %d", w.windowFunc.Type)
 	}
@@ -528,6 +666,63 @@ func (w *WindowFunctionOperator) computeLastValue(partition []int) error {
 		}
 
 		w.resultCache[rowIdx] = w.appendWindowFunctionResultValue(w.allRows[rowIdx], lastValue)
+	}
+	return nil
+}
+
+func (w *WindowFunctionOperator) computeNthValue(partition []int) error {
+	if w.windowFunc.N <= 0 {
+		return fmt.Errorf("NTH_VALUE requires a positive N, got %d", w.windowFunc.N)
+	}
+	columnIndex := w.windowFunc.ColumnIndex
+	for _, rowIdx := range partition {
+		frame := w.getWindowFrame(partition, rowIdx)
+		position := int(w.windowFunc.N) - 1
+		if position < 0 || position >= len(frame) {
+			w.resultCache[rowIdx] = w.appendWindowFunctionResultValue(w.allRows[rowIdx], basic.NewNull())
+			continue
+		}
+		values := w.allRows[frame[position]].GetValues()
+		if columnIndex < 0 || columnIndex >= len(values) {
+			w.resultCache[rowIdx] = w.appendWindowFunctionResultValue(w.allRows[rowIdx], basic.NewNull())
+			continue
+		}
+		w.resultCache[rowIdx] = w.appendWindowFunctionResultValue(w.allRows[rowIdx], values[columnIndex])
+	}
+	return nil
+}
+
+func (w *WindowFunctionOperator) computeCumeDist(partition []int) error {
+	if len(partition) == 0 {
+		return nil
+	}
+	for position, rowIdx := range partition {
+		lastPeer := position
+		for lastPeer+1 < len(partition) && w.rowsEqualByOrderBy(w.allRows[rowIdx], w.allRows[partition[lastPeer+1]]) {
+			lastPeer++
+		}
+		value := float64(lastPeer+1) / float64(len(partition))
+		w.resultCache[rowIdx] = w.appendWindowFunctionResultValue(w.allRows[rowIdx], basic.NewFloat64(value))
+	}
+	return nil
+}
+
+func (w *WindowFunctionOperator) computePercentRank(partition []int) error {
+	if len(partition) == 0 {
+		return nil
+	}
+	if len(partition) == 1 {
+		rowIdx := partition[0]
+		w.resultCache[rowIdx] = w.appendWindowFunctionResultValue(w.allRows[rowIdx], basic.NewFloat64(0))
+		return nil
+	}
+	for position, rowIdx := range partition {
+		rank := position
+		for rank > 0 && w.rowsEqualByOrderBy(w.allRows[rowIdx], w.allRows[partition[rank-1]]) {
+			rank--
+		}
+		value := float64(rank) / float64(len(partition)-1)
+		w.resultCache[rowIdx] = w.appendWindowFunctionResultValue(w.allRows[rowIdx], basic.NewFloat64(value))
 	}
 	return nil
 }

@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
+	observabilitymetrics "github.com/zhukovaskychina/xmysql-server/server/observability/metrics"
 
 	log "github.com/AlexStocks/log4go"
 	"github.com/golang/snappy"
@@ -156,6 +157,42 @@ type MysqlTCPConn struct {
 	conn   net.Conn
 }
 
+// upgradeTLS performs the MySQL protocol-level TLS transition. The initial
+// server handshake and SSLRequest are read from the plain connection; only
+// after that request is accepted do subsequent packets use tls.Conn.
+func (t *MysqlTCPConn) upgradeTLS(config *tls.Config) error {
+	return t.upgradeTLSWithBufferedData(config, nil)
+}
+
+func (t *MysqlTCPConn) upgradeTLSWithBufferedData(config *tls.Config, buffered []byte) error {
+	if t == nil || t.conn == nil {
+		return jerrors.New("connection is nil")
+	}
+	if config == nil {
+		return jerrors.New("mysql TLS config is nil")
+	}
+	if _, ok := t.conn.(*tls.Conn); ok {
+		return nil
+	}
+
+	rawConn := t.conn
+	if len(buffered) > 0 {
+		rawConn = &mysqlBufferedNetConn{Conn: t.conn, buffered: append([]byte(nil), buffered...)}
+	}
+	tlsConn := tls.Server(rawConn, config.Clone())
+	if err := tlsConn.Handshake(); err != nil {
+		_ = tlsConn.Close()
+		return jerrors.Annotate(err, "mysql TLS handshake")
+	}
+	t.conn = tlsConn
+	t.reader = tlsConn
+	t.writer = tlsConn
+	t.compress = CompressNone
+	t.rLastDeadline = time.Time{}
+	t.wLastDeadline = time.Time{}
+	return nil
+}
+
 // create gettyTCPConn
 func newMySQLTCPConn(conn net.Conn) *MysqlTCPConn {
 	if conn == nil {
@@ -233,7 +270,14 @@ func (t *MysqlTCPConn) SetCompressType(c CompressType) {
 	}
 
 	switch c {
-	case CompressNone, CompressZip, CompressBestSpeed, CompressBestCompression, CompressHuffman:
+	case CompressNone:
+		// MySQL compression is negotiated in the handshake.  The server
+		// must not wrap the initial handshake (or ordinary packets) in a
+		// raw flate stream, because MySQL clients expect a normal 4-byte
+		// packet header until CLIENT_COMPRESS has been negotiated.
+		t.reader = io.Reader(t.conn)
+		t.writer = io.Writer(t.conn)
+	case CompressZip, CompressBestSpeed, CompressBestCompression, CompressHuffman:
 		ioReader := io.Reader(t.conn)
 		t.reader = flate.NewReader(ioReader)
 
@@ -291,7 +335,11 @@ func (t *MysqlTCPConn) recv(p []byte) (int, error) {
 		}
 	}
 
+	startedAt := time.Now()
 	length, err = t.reader.Read(p)
+	if length > 0 {
+		observabilitymetrics.DefaultRuntimeRecorder().RecordSocketRead(int64(t.id), int64(length), time.Since(startedAt))
+	}
 
 	if err != nil {
 		logger.Debugf("[MysqlTCPConn.recv] 读取数据失败: %v, 长度: %d\n", err, length)
@@ -334,10 +382,12 @@ func (t *MysqlTCPConn) send(pkg interface{}) (int, error) {
 		}
 	}
 	if buffers, ok := pkg.([][]byte); ok {
+		startedAt := time.Now()
 		netBuf := net.Buffers(buffers)
 		if length, err := netBuf.WriteTo(t.conn); err == nil {
 			atomic.AddUint32(&t.writeBytes, (uint32)(length))
 			atomic.AddUint32(&t.writePkgNum, (uint32)(len(buffers)))
+			observabilitymetrics.DefaultRuntimeRecorder().RecordSocketWrite(int64(t.id), length, time.Since(startedAt))
 		}
 		log.Debug("localAddr: %s, remoteAddr:%s, now:%s, length:%d, err:%s",
 			t.conn.LocalAddr(), t.conn.RemoteAddr(), currentTime, length, err)
@@ -345,9 +395,11 @@ func (t *MysqlTCPConn) send(pkg interface{}) (int, error) {
 	}
 
 	if p, ok = pkg.([]byte); ok {
+		startedAt := time.Now()
 		if length, err = t.writer.Write(p); err == nil {
 			atomic.AddUint32(&t.writeBytes, (uint32)(len(p)))
 			atomic.AddUint32(&t.writePkgNum, 1)
+			observabilitymetrics.DefaultRuntimeRecorder().RecordSocketWrite(int64(t.id), int64(len(p)), time.Since(startedAt))
 		}
 		log.Debug("localAddr: %s, remoteAddr:%s, now:%s, length:%d, err:%s",
 			t.conn.LocalAddr(), t.conn.RemoteAddr(), currentTime, length, err)
@@ -377,9 +429,8 @@ func (t *MysqlTCPConn) close(waitSec int) {
 			_ = conn.SetLinger(waitSec)
 			_ = conn.Close()
 		} else {
-			logger.Debugf("[MysqlTCPConn.close] 关闭TLS连接\n")
-			_ = t.conn.(*tls.Conn).Close()
-
+			logger.Debugf("[MysqlTCPConn.close] 关闭网络连接\n")
+			_ = t.conn.Close()
 		}
 		t.conn = nil
 		logger.Debugf("[MysqlTCPConn.close] 连接已关闭\n")

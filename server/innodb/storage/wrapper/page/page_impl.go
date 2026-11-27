@@ -1,6 +1,7 @@
 package page
 
 import (
+	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/logger"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
@@ -19,10 +20,20 @@ type PageImpl struct {
 	state    basic.PageState
 	stats    *basic.PageStats
 	pageData []byte
+	storage  basic.StorageProvider
 }
+
+var ErrPageStorageUnavailable = fmt.Errorf("page storage provider is unavailable")
 
 // NewPage creates a new page instance
 func NewPage(spaceID, pageNo uint32, pageType common.PageType) *PageImpl {
+	return NewPageWithStorage(spaceID, pageNo, pageType, nil)
+}
+
+// NewPageWithStorage creates a legacy page wrapper backed by a real provider.
+// NewPage remains available for source compatibility but deliberately returns
+// an explicit error from Read/Write when no provider is supplied.
+func NewPageWithStorage(spaceID, pageNo uint32, pageType common.PageType, storage basic.StorageProvider) *PageImpl {
 	return &PageImpl{
 		spaceID:  spaceID,
 		pageNo:   pageNo,
@@ -30,6 +41,7 @@ func NewPage(spaceID, pageNo uint32, pageType common.PageType) *PageImpl {
 		state:    basic.PageStateNew,
 		stats:    &basic.PageStats{},
 		pageData: make([]byte, 0), // Initialize with appropriate size
+		storage:  storage,
 	}
 }
 
@@ -98,9 +110,17 @@ func (p *PageImpl) Unpin() {
 
 // Read loads the page data from disk
 func (p *PageImpl) Read() error {
-	if len(p.pageData) == 0 {
-		p.pageData = make([]byte, common.PageSize)
+	if p.storage == nil {
+		return ErrPageStorageUnavailable
 	}
+	data, err := p.storage.ReadPage(p.spaceID, p.pageNo)
+	if err != nil {
+		return err
+	}
+	if len(data) < common.PageSize {
+		return fmt.Errorf("page %d/%d has %d bytes, want at least %d", p.spaceID, p.pageNo, len(data), common.PageSize)
+	}
+	p.pageData = append(p.pageData[:0], data...)
 
 	p.state = basic.PageStateLoaded
 	p.stats.ReadCount++
@@ -114,9 +134,14 @@ func (p *PageImpl) Write() error {
 	if !p.isDirty {
 		return nil
 	}
-
-	if len(p.pageData) == 0 {
-		p.pageData = make([]byte, common.PageSize)
+	if p.storage == nil {
+		return ErrPageStorageUnavailable
+	}
+	if len(p.pageData) < common.PageSize {
+		return fmt.Errorf("page %d/%d has %d bytes, want at least %d", p.spaceID, p.pageNo, len(p.pageData), common.PageSize)
+	}
+	if err := p.storage.WritePage(p.spaceID, p.pageNo, p.pageData); err != nil {
+		return err
 	}
 
 	p.isDirty = false

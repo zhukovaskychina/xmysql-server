@@ -2,11 +2,88 @@ package engine
 
 import (
 	"context"
+	"io"
 	"testing"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/plan"
 )
+
+func TestSubqueryOperatorCachesUncorrelatedNullScalar(t *testing.T) {
+	plan := &countingSubqueryPlan{
+		schema: metadata.NewQuerySchema(),
+	}
+	plan.schema.AddColumn(metadata.NewQueryColumn("value", metadata.TypeInt))
+	operator := NewSubqueryOperator("SCALAR", false, nil, plan)
+	ctx := context.Background()
+
+	if err := operator.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	if err := operator.ExecuteForRow(ctx, nil); err != nil {
+		t.Fatalf("ExecuteForRow() error = %v", err)
+	}
+	if plan.openCount != 1 {
+		t.Fatalf("uncorrelated NULL scalar opened subplan %d times, want 1", plan.openCount)
+	}
+	if operator.GetResult() != nil {
+		t.Fatalf("uncorrelated empty scalar result = %v, want NULL", operator.GetResult())
+	}
+
+}
+
+func TestApplyOperatorEvaluatesQualifiedJoinConditions(t *testing.T) {
+	outerSchema := metadata.NewQuerySchema()
+	outerSchema.TableName = "users"
+	outerColumn := metadata.NewQueryColumn("id", metadata.TypeInt)
+	outerColumn.TableName = "users"
+	outerSchema.AddColumn(outerColumn)
+	innerSchema := metadata.NewQuerySchema()
+	innerSchema.TableName = "orders"
+	innerColumn := metadata.NewQueryColumn("user_id", metadata.TypeInt)
+	innerColumn.TableName = "orders"
+	innerSchema.AddColumn(innerColumn)
+
+	outer := NewExecutorRecordFromValues([]basic.Value{basic.NewInt64(7)}, outerSchema)
+	inner := NewExecutorRecordFromValues([]basic.Value{basic.NewInt64(7)}, innerSchema)
+	apply := NewApplyOperator(
+		&ExpressionMockOperator{records: []Record{outer}, schema: outerSchema},
+		&ExpressionMockOperator{records: []Record{inner}, schema: innerSchema},
+		"INNER",
+		true,
+		[]plan.Expression{&plan.BinaryOperation{
+			Op:    plan.OpEQ,
+			Left:  &plan.Column{Name: "users.id"},
+			Right: &plan.Column{Name: "orders.user_id"},
+		}},
+	)
+
+	if !apply.evaluateJoinConditions(outer, inner) {
+		t.Fatal("qualified join condition should match rows with equal values")
+	}
+}
+
+type countingSubqueryPlan struct {
+	BaseOperator
+	schema    *metadata.QuerySchema
+	openCount int
+}
+
+func (p *countingSubqueryPlan) Open(context.Context) error {
+	p.opened = true
+	p.openCount++
+	return nil
+}
+
+func (p *countingSubqueryPlan) Next(context.Context) (Record, error) { return nil, nil }
+
+func (p *countingSubqueryPlan) Close() error {
+	p.opened = false
+	return nil
+}
+
+func (p *countingSubqueryPlan) Schema() *metadata.QuerySchema { return p.schema }
 
 // TestSubqueryOperator_Scalar 测试标量子查询
 func TestSubqueryOperator_Scalar(t *testing.T) {
@@ -97,6 +174,86 @@ func TestSubqueryOperator_IN(t *testing.T) {
 		}
 	}
 }
+
+func TestSubqueryOperatorINConsumesBatchChildren(t *testing.T) {
+	schema := metadata.NewQuerySchema()
+	schema.AddColumn(metadata.NewQueryColumn("id", metadata.TypeInt))
+	records := []Record{
+		NewExecutorRecordFromValues([]basic.Value{basic.NewInt64(1)}, schema),
+		NewExecutorRecordFromValues([]basic.Value{basic.NewInt64(2)}, schema),
+		NewExecutorRecordFromValues([]basic.Value{basic.NewInt64(3)}, schema),
+	}
+	subplan := &batchCountingSubqueryPlan{records: records, schema: schema, batchSize: 2}
+	operator := NewSubqueryOperator("IN", false, nil, subplan)
+
+	if err := operator.Open(context.Background()); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer operator.Close()
+
+	if got := len(operator.GetResultSet()); got != len(records) {
+		t.Fatalf("IN result count = %d, want %d", got, len(records))
+	}
+	if subplan.batchCalls == 0 {
+		t.Fatal("IN subquery did not consume the batch child through NextBatch")
+	}
+	if subplan.nextCalls != 0 {
+		t.Fatalf("IN subquery fell back to Next() %d times, want 0", subplan.nextCalls)
+	}
+}
+
+type batchCountingSubqueryPlan struct {
+	BaseOperator
+	records    []Record
+	schema     *metadata.QuerySchema
+	index      int
+	batchSize  int
+	batchCalls int
+	nextCalls  int
+}
+
+func (p *batchCountingSubqueryPlan) Open(context.Context) error {
+	p.opened = true
+	p.index = 0
+	return nil
+}
+
+func (p *batchCountingSubqueryPlan) Next(context.Context) (Record, error) {
+	p.nextCalls++
+	if p.index >= len(p.records) {
+		return nil, nil
+	}
+	record := p.records[p.index]
+	p.index++
+	return record, nil
+}
+
+func (p *batchCountingSubqueryPlan) NextBatch(_ context.Context, maxRows int) ([]Record, error) {
+	p.batchCalls++
+	if maxRows <= 0 {
+		return nil, io.ErrShortBuffer
+	}
+	if p.index >= len(p.records) {
+		return nil, io.EOF
+	}
+	end := p.index + maxRows
+	if end > len(p.records) {
+		end = len(p.records)
+	}
+	batch := p.records[p.index:end]
+	p.index = end
+	if p.index >= len(p.records) {
+		return batch, io.EOF
+	}
+	return batch, nil
+}
+
+func (p *batchCountingSubqueryPlan) Close() error {
+	p.opened = false
+	return nil
+}
+
+func (p *batchCountingSubqueryPlan) Schema() *metadata.QuerySchema { return p.schema }
 
 // TestSubqueryOperator_EXISTS 测试EXISTS子查询
 func TestSubqueryOperator_EXISTS(t *testing.T) {
@@ -213,6 +370,51 @@ func TestApplyOperator_SEMI(t *testing.T) {
 	// 在实际实现中，应该只返回id=1和id=2的记录
 	if len(results) == 0 {
 		t.Error("Expected some results from SEMI JOIN")
+	}
+}
+
+func TestApplyOperator_SEMIReturnsEachMatchedOuterRecord(t *testing.T) {
+	outerSchema := metadata.NewQuerySchema()
+	outerSchema.AddColumn(metadata.NewQueryColumn("id", metadata.TypeInt))
+	outerRecords := []Record{
+		NewExecutorRecordFromValues([]basic.Value{basic.NewInt64(1)}, outerSchema),
+		NewExecutorRecordFromValues([]basic.Value{basic.NewInt64(2)}, outerSchema),
+		NewExecutorRecordFromValues([]basic.Value{basic.NewInt64(3)}, outerSchema),
+	}
+	innerSchema := metadata.NewQuerySchema()
+	innerSchema.AddColumn(metadata.NewQueryColumn("marker", metadata.TypeInt))
+	innerRecords := []Record{
+		NewExecutorRecordFromValues([]basic.Value{basic.NewInt64(99)}, innerSchema),
+	}
+
+	applyOp := NewApplyOperator(
+		&ExpressionMockOperator{records: outerRecords, schema: outerSchema},
+		&ExpressionMockOperator{records: innerRecords, schema: innerSchema},
+		"SEMI", false, nil,
+	)
+	ctx := context.Background()
+	if err := applyOp.Open(ctx); err != nil {
+		t.Fatalf("Failed to open apply operator: %v", err)
+	}
+	defer applyOp.Close()
+
+	var ids []int64
+	for {
+		record, err := applyOp.Next(ctx)
+		if err != nil {
+			t.Fatalf("Error during execution: %v", err)
+		}
+		if record == nil {
+			break
+		}
+		values := record.GetValues()
+		if len(values) != 1 {
+			t.Fatalf("expected one value, got %d", len(values))
+		}
+		ids = append(ids, values[0].Int())
+	}
+	if len(ids) != 3 || ids[0] != 1 || ids[1] != 2 || ids[2] != 3 {
+		t.Fatalf("expected all matched outer ids [1 2 3], got %v", ids)
 	}
 }
 

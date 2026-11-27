@@ -20,6 +20,7 @@ package net
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -363,12 +364,7 @@ func (s *session) WritePkg(pkg interface{}, timeout time.Duration) error {
 
 		pkg = pkgBytes
 
-		_, err = s.Connection.send(pkg)
-		if err != nil {
-			log.Warn("%s, [session.WritePkg] @s.Connection.Write(pkg:%#v) = err:%+v", s.Stat(), pkg, err)
-			return jerrors.Trace(err)
-		}
-		return nil
+		return s.WriteBytes(pkgBytes)
 	}
 	select {
 	case s.wQ <- pkg:
@@ -389,7 +385,11 @@ func (s *session) WriteBytes(pkg []byte) error {
 	}
 
 	// s.conn.SetWriteTimeout(time.Now().Add(s.wTimeout))
-	if _, err := s.Connection.send(pkg); err != nil {
+	encoded, err := compressMySQLTransportPayload(s, pkg)
+	if err != nil {
+		return jerrors.Annotatef(err, "compress MySQL transport packet")
+	}
+	if _, err := s.Connection.send(encoded); err != nil {
 		return jerrors.Annotatef(err, "s.Connection.Write(pkg len:%d)", len(pkg))
 	}
 	return nil
@@ -404,6 +404,13 @@ func (s *session) WriteBytesArray(pkgs ...[]byte) error {
 	if len(pkgs) == 1 {
 		// return s.Connection.Write(pkgs[0])
 		return s.WriteBytes(pkgs[0])
+	}
+	if mysqlCompressionEnabled(s) {
+		combined := make([]byte, 0)
+		for _, pkg := range pkgs {
+			combined = append(combined, pkg...)
+		}
+		return s.WriteBytes(combined)
 	}
 
 	// reduce syscall and memcopy for multiple packages
@@ -599,6 +606,11 @@ LOOP:
 
 func (s *session) addTask(pkg interface{}) {
 	f := func() {
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+		if mysqlSession, ok := s.GetAttribute(mysqlSessionAttribute).(server.MySQLServerSession); ok {
+			recordOSThreadID(mysqlSession)
+		}
 		s.listener.OnMessage(s, pkg)
 		s.incReadPkgNum()
 	}
@@ -739,11 +751,50 @@ func (s *session) handleTCPPackage() error {
 				logger.Debugf("[session.handleTCPPackage] 解析返回nil包，等待更多数据\n")
 				break
 			}
+			tlsUpgrade := false
+			if mysqlPkg, isMySQLPackage := pkg.(*MySQLPackage); isMySQLPackage && isMySQLSSLRequest(mysqlPkg) {
+				if tlsConfig, configured := s.GetAttribute(mysqlTLSServerConfigAttribute).(*tls.Config); configured && tlsConfig != nil {
+					bufferedTLSData := append([]byte(nil), pktBuf.Bytes()[pkgLen:]...)
+					if err = conn.upgradeTLSWithBufferedData(tlsConfig, bufferedTLSData); err != nil {
+						log.Warn("%s, MySQL SSLRequest TLS upgrade failed: %+v", s.sessionToken(), jerrors.ErrorStack(err))
+						exit = true
+						break
+					}
+					s.SetAttribute("tls_active", true)
+					tlsUpgrade = true
+				}
+			}
+			if exit {
+				break
+			}
 			// handle case 4
 			logger.Debugf("[session.handleTCPPackage] 包解析成功，长度: %d，调用addTask\n", pkgLen)
 			s.UpdateActive()
 			s.addTask(pkg)
-			pktBuf.Next(pkgLen)
+			if tlsUpgrade {
+				// Bytes after SSLRequest are TLS ClientHello data already moved
+				// into mysqlBufferedNetConn; do not parse them as MySQL packets.
+				pktBuf.Reset()
+			} else {
+				pktBuf.Next(pkgLen)
+			}
+			if pendingReader, ok := s.reader.(interface {
+				ReadPending(Session) (interface{}, bool, error)
+			}); ok {
+				for {
+					pending, hasPending, pendingErr := pendingReader.ReadPending(s)
+					if pendingErr != nil {
+						err = pendingErr
+						exit = true
+						break
+					}
+					if !hasPending {
+						break
+					}
+					s.UpdateActive()
+					s.addTask(pending)
+				}
+			}
 			// continue to handle case 5
 		}
 		if exit {

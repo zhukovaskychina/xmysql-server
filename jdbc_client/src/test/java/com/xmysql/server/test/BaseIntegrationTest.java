@@ -11,9 +11,9 @@ import java.sql.*;
 public abstract class BaseIntegrationTest {
     
     // 数据库连接配置
-    protected static final String BASE_URL = "jdbc:mysql://localhost:3309?useSSL=false&allowPublicKeyRetrieval=true";
-    protected static final String USER = "root";
-    protected static final String PASSWORD = "root@1234";
+    protected static final String BASE_URL = JdbcTestConfig.url();
+    protected static final String USER = JdbcTestConfig.user();
+    protected static final String PASSWORD = JdbcTestConfig.password();
     
     protected static Connection connection;
     

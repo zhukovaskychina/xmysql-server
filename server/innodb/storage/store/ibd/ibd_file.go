@@ -56,18 +56,22 @@ package ibd
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
+
+	observabilitymetrics "github.com/zhukovaskychina/xmysql-server/server/observability/metrics"
 )
 
 // Page size constants
 const (
-	PageSize = 16 * 1024 // 16KB per page
+	PageSize = common.PageSize // 16KB per page
 
 	// File header constants
-	HeaderSize  = 38 // Space header size
-	TrailerSize = 8  // Page trailer size
+	HeaderSize  = common.FileHeaderSize  // Space header size
+	TrailerSize = common.FileTrailerSize // Page trailer size
 )
 
 // IBD_File represents a physical InnoDB tablespace file
@@ -105,6 +109,7 @@ func (f *IBD_File) Open() error {
 	}
 
 	f.file = file
+	observabilitymetrics.DefaultRuntimeRecorder().RecordFileOpen(f.filePath)
 	return nil
 }
 
@@ -129,9 +134,10 @@ func (f *IBD_File) Create() error {
 		return fmt.Errorf("failed to create file: %v", err)
 	}
 	f.file = file
+	observabilitymetrics.DefaultRuntimeRecorder().RecordFileOpen(f.filePath)
 
 	// Initialize FSP header page (page 0)
-	header := make([]byte, PageSize)
+	header := make([]byte, common.PageSize)
 	// Write space ID and other metadata
 	if err := f.writePageUnsafe(0, header); err != nil {
 		f.file.Close()
@@ -140,7 +146,7 @@ func (f *IBD_File) Create() error {
 	}
 
 	// Initialize IBUF bitmap page (page 1)
-	bitmap := make([]byte, PageSize)
+	bitmap := make([]byte, common.PageSize)
 	if err := f.writePageUnsafe(1, bitmap); err != nil {
 		f.file.Close()
 		f.file = nil
@@ -156,19 +162,21 @@ func (f *IBD_File) writePageUnsafe(pageNo uint32, page []byte) error {
 		return fmt.Errorf("file not open")
 	}
 
-	if len(page) != PageSize {
+	if len(page) != common.PageSize {
 		return fmt.Errorf("invalid page size: %d", len(page))
 	}
 
 	// Calculate page offset
-	offset := int64(pageNo) * int64(PageSize)
+	offset := int64(pageNo) * int64(common.PageSize)
 
 	// Write page data
+	startedAt := time.Now()
 	n, err := f.file.WriteAt(page, offset)
+	observabilitymetrics.DefaultRuntimeRecorder().RecordFileWriteBytes(f.filePath, int64(n), time.Since(startedAt))
 	if err != nil {
 		return fmt.Errorf("failed to write page: %v", err)
 	}
-	if n != PageSize {
+	if n != common.PageSize {
 		return fmt.Errorf("incomplete page write: %d bytes", n)
 	}
 
@@ -185,17 +193,19 @@ func (f *IBD_File) ReadPage(pageNo uint32) ([]byte, error) {
 	}
 
 	// Allocate page buffer
-	page := make([]byte, PageSize)
+	page := make([]byte, common.PageSize)
 
 	// Calculate page offset
-	offset := int64(pageNo) * int64(PageSize)
+	offset := int64(pageNo) * int64(common.PageSize)
 
 	// Read page data
+	startedAt := time.Now()
 	n, err := f.file.ReadAt(page, offset)
+	observabilitymetrics.DefaultRuntimeRecorder().RecordFileReadBytes(f.filePath, int64(n), time.Since(startedAt))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read page: %v", err)
 	}
-	if n != PageSize {
+	if n != common.PageSize {
 		return nil, fmt.Errorf("incomplete page read: %d bytes", n)
 	}
 
@@ -211,20 +221,33 @@ func (f *IBD_File) WritePage(pageNo uint32, page []byte) error {
 		return fmt.Errorf("file not open")
 	}
 
-	if len(page) != PageSize {
+	if len(page) != common.PageSize {
 		return fmt.Errorf("invalid page size: %d", len(page))
 	}
 
 	// Calculate page offset
-	offset := int64(pageNo) * int64(PageSize)
+	offset := int64(pageNo) * int64(common.PageSize)
+
+	if dw := LookupDoublewrite(f.filePath); dw != nil {
+		if err := dw.Protect(f.spaceID, pageNo, f.filePath, page); err != nil {
+			return fmt.Errorf("doublewrite page %d: %w", pageNo, err)
+		}
+	}
 
 	// Write page data
+	startedAt := time.Now()
 	n, err := f.file.WriteAt(page, offset)
+	observabilitymetrics.DefaultRuntimeRecorder().RecordFileWriteBytes(f.filePath, int64(n), time.Since(startedAt))
 	if err != nil {
 		return fmt.Errorf("failed to write page: %v", err)
 	}
-	if n != PageSize {
+	if n != common.PageSize {
 		return fmt.Errorf("incomplete page write: %d bytes", n)
+	}
+	if LookupDoublewrite(f.filePath) != nil {
+		if err := f.file.Sync(); err != nil {
+			return fmt.Errorf("fsync page %d after doublewrite: %w", pageNo, err)
+		}
 	}
 
 	return nil
@@ -264,9 +287,14 @@ func (f *IBD_File) Delete() error {
 
 	// Close file if open
 	if f.file != nil {
-		if err := f.Close(); err != nil {
+		if err := f.file.Sync(); err != nil {
+			return fmt.Errorf("failed to sync file: %v", err)
+		}
+		if err := f.file.Close(); err != nil {
 			return fmt.Errorf("failed to close file: %v", err)
 		}
+		observabilitymetrics.DefaultRuntimeRecorder().RecordFileClose(f.filePath)
+		f.file = nil
 	}
 
 	// Delete file
@@ -292,6 +320,7 @@ func (f *IBD_File) Close() error {
 		if err := f.file.Close(); err != nil {
 			return fmt.Errorf("failed to close file: %v", err)
 		}
+		observabilitymetrics.DefaultRuntimeRecorder().RecordFileClose(f.filePath)
 
 		// Clear file handle
 		f.file = nil
@@ -321,6 +350,68 @@ func (f *IBD_File) Size() (int64, error) {
 	}
 
 	return info.Size(), nil
+}
+
+// EnsurePageCount grows the file to contain pageCount pages. It is used when
+// a tablespace allocation becomes visible in memory so a subsequent read of
+// an allocated zero page cannot hit EOF. Existing data is preserved.
+func (f *IBD_File) EnsurePageCount(pageCount uint32) error {
+	f.Lock()
+	defer f.Unlock()
+
+	if f.file == nil {
+		return fmt.Errorf("file not open")
+	}
+	if pageCount == 0 {
+		return fmt.Errorf("page count must be positive")
+	}
+
+	info, err := f.file.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to get file info: %v", err)
+	}
+	targetSize := int64(pageCount) * common.PageSize
+	if targetSize <= info.Size() {
+		return nil
+	}
+	if err := f.file.Truncate(targetSize); err != nil {
+		return fmt.Errorf("failed to extend file: %v", err)
+	}
+	if err := f.file.Sync(); err != nil {
+		return fmt.Errorf("failed to sync extended file: %v", err)
+	}
+	return nil
+}
+
+// TruncateToPages shrinks the file to an exact page boundary. It never grows
+// the file; callers are responsible for proving that no live page is above
+// the requested boundary.
+func (f *IBD_File) TruncateToPages(pageCount uint32) error {
+	f.Lock()
+	defer f.Unlock()
+
+	if f.file == nil {
+		return fmt.Errorf("file not open")
+	}
+	if pageCount == 0 {
+		return fmt.Errorf("page count must be positive")
+	}
+
+	info, err := f.file.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to get file info: %v", err)
+	}
+	targetSize := int64(pageCount) * common.PageSize
+	if targetSize >= info.Size() {
+		return nil
+	}
+	if err := f.file.Truncate(targetSize); err != nil {
+		return fmt.Errorf("failed to truncate file: %v", err)
+	}
+	if err := f.file.Sync(); err != nil {
+		return fmt.Errorf("failed to sync truncated file: %v", err)
+	}
+	return nil
 }
 
 // LoadPageByPageNumber reads a page from disk by its page number

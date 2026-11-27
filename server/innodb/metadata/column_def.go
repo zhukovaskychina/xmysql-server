@@ -12,7 +12,9 @@ type Column struct {
 	Name            string
 	OrdinalPosition int
 	DataType        DataType
+	EnumValues      []string
 	CharMaxLength   int
+	Scale           int
 	IsNullable      bool
 	DefaultValue    interface{}
 	IsAutoIncrement bool
@@ -33,6 +35,7 @@ const (
 	TypeMediumInt  DataType = "MEDIUMINT"
 	TypeInt        DataType = "INT"
 	TypeBigInt     DataType = "BIGINT"
+	TypeBit        DataType = "BIT"
 	TypeFloat      DataType = "FLOAT"
 	TypeDouble     DataType = "DOUBLE"
 	TypeDecimal    DataType = "DECIMAL"
@@ -56,6 +59,7 @@ const (
 	TypeEnum       DataType = "ENUM"
 	TypeSet        DataType = "SET"
 	TypeJSON       DataType = "JSON"
+	TypeGeometry   DataType = "GEOMETRY"
 	TypeBool       DataType = "BOOL"
 	TypeBoolean    DataType = "BOOLEAN"
 )
@@ -72,9 +76,9 @@ func (c *Column) Validate() error {
 		if c.CharMaxLength <= 0 {
 			return fmt.Errorf("column %s: length must be positive for type %s", c.Name, c.DataType)
 		}
-	case TypeTinyInt, TypeSmallInt, TypeMediumInt, TypeInt, TypeBigInt,
+	case TypeTinyInt, TypeSmallInt, TypeMediumInt, TypeInt, TypeBigInt, TypeBit,
 		TypeFloat, TypeDouble, TypeDecimal, TypeDate, TypeTime,
-		TypeDateTime, TypeTimestamp, TypeYear, TypeJSON,
+		TypeDateTime, TypeTimestamp, TypeYear, TypeJSON, TypeGeometry,
 		TypeTinyBlob, TypeBlob, TypeMediumBlob, TypeLongBlob,
 		TypeTinyText, TypeText, TypeMediumText, TypeLongText,
 		TypeEnum, TypeSet:
@@ -95,6 +99,12 @@ func (c *Column) SQL() string {
 	switch c.DataType {
 	case TypeChar, TypeVarchar, TypeBinary, TypeVarBinary:
 		builder.WriteString(fmt.Sprintf("(%d)", c.CharMaxLength))
+	case TypeEnum, TypeSet:
+		values := make([]string, 0, len(c.EnumValues))
+		for _, value := range c.EnumValues {
+			values = append(values, "'"+strings.ReplaceAll(value, "'", "''")+"'")
+		}
+		builder.WriteString("(" + strings.Join(values, ",") + ")")
 	}
 
 	// Add UNSIGNED/ZEROFILL for numeric types
@@ -141,7 +151,7 @@ func (c *Column) SQL() string {
 // IsNumeric returns true if the column has a numeric data type
 func (c *Column) IsNumeric() bool {
 	switch c.DataType {
-	case TypeTinyInt, TypeSmallInt, TypeMediumInt, TypeInt, TypeBigInt,
+	case TypeTinyInt, TypeSmallInt, TypeMediumInt, TypeInt, TypeBigInt, TypeBit,
 		TypeFloat, TypeDouble, TypeDecimal:
 		return true
 	default:
@@ -186,17 +196,24 @@ func (c *Column) IsJSON() bool {
 	return c.DataType == TypeJSON
 }
 
+// IsSpatial returns true for MySQL geometry columns.
+func (c *Column) IsSpatial() bool {
+	return c != nil && c.DataType == TypeGeometry
+}
+
 // Index represents a database index
 // 表示数据库中的索引
 type Index struct {
-	Table     *Table
-	Name      string
-	Columns   []string
-	IsUnique  bool
-	IsPrimary bool
-	IndexType string // BTREE, HASH, etc.
-	Comment   string
-	Stats     *IndexStatistics // 添加索引统计信息
+	Table         *Table
+	Name          string
+	Columns       []string
+	IsUnique      bool
+	IsPrimary     bool
+	IsVisible     bool
+	VisibilitySet bool
+	IndexType     string // BTREE, HASH, etc.
+	Comment       string
+	Stats         *IndexStatistics // 添加索引统计信息
 }
 
 // IndexStatistics contains statistical information about an index

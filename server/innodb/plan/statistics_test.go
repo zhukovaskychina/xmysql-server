@@ -2,7 +2,62 @@ package plan
 
 import (
 	"testing"
+	"time"
 )
+
+func TestStatisticsCollectorStopIsIdempotent(t *testing.T) {
+	collector := NewStatisticsCollector(&StatisticsConfig{EnableAutoUpdate: false})
+	collector.Stop()
+	collector.Stop()
+}
+
+func TestEnhancedStatisticsCollectorStopIsIdempotent(t *testing.T) {
+	collector := NewEnhancedStatisticsCollector(&StatisticsConfig{EnableAutoUpdate: false}, nil, nil)
+	collector.Stop()
+	collector.Stop()
+}
+
+func TestLegacyHistogramBuilderHandlesDegenerateNumericStats(t *testing.T) {
+	collector := &StatisticsCollector{}
+	for _, buckets := range []int{0, 4} {
+		histogram := &Histogram{NumBuckets: buckets, TotalCount: 3}
+		collector.buildNumericHistogram(histogram, &ColumnStats{MinValue: int64(7), MaxValue: int64(7)})
+		if histogram.NumBuckets != 1 {
+			t.Fatalf("degenerate histogram bucket count = %d, want 1", histogram.NumBuckets)
+		}
+		if len(histogram.Buckets) != 1 {
+			t.Fatalf("degenerate histogram buckets = %d, want 1", len(histogram.Buckets))
+		}
+		bucket := histogram.Buckets[0]
+		if bucket.LowerBound != int64(7) || bucket.UpperBound != int64(7) {
+			t.Fatalf("degenerate histogram bounds = [%v,%v], want [7,7]", bucket.LowerBound, bucket.UpperBound)
+		}
+	}
+
+	collector.buildNumericHistogram(&Histogram{NumBuckets: 4}, &ColumnStats{})
+}
+
+func TestLegacyHistogramBuildersNormalizeZeroBucketCount(t *testing.T) {
+	collector := &StatisticsCollector{}
+	stringHistogram := &Histogram{TotalCount: 1}
+	collector.buildStringHistogram(stringHistogram, nil)
+	if stringHistogram.NumBuckets != 1 || len(stringHistogram.Buckets) != 1 {
+		t.Fatalf("string histogram = buckets %d/%d, want 1/1", stringHistogram.NumBuckets, len(stringHistogram.Buckets))
+	}
+
+	now := time.Now()
+	dateHistogram := &Histogram{TotalCount: 1}
+	collector.buildDateTimeHistogram(dateHistogram, &ColumnStats{MinValue: now, MaxValue: now})
+	if dateHistogram.NumBuckets != 1 || len(dateHistogram.Buckets) != 1 {
+		t.Fatalf("date histogram = buckets %d/%d, want 1/1", dateHistogram.NumBuckets, len(dateHistogram.Buckets))
+	}
+
+	genericHistogram := &Histogram{TotalCount: 1}
+	collector.buildGenericHistogram(genericHistogram, nil)
+	if genericHistogram.NumBuckets != 1 || len(genericHistogram.Buckets) != 1 {
+		t.Fatalf("generic histogram = buckets %d/%d, want 1/1", genericHistogram.NumBuckets, len(genericHistogram.Buckets))
+	}
+}
 
 func TestTableStats(t *testing.T) {
 	builder := &StatsBuilder{

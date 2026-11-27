@@ -3,6 +3,7 @@ package plan
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
@@ -11,9 +12,18 @@ import (
 type CostEstimator struct {
 	// 统计信息收集器
 	statsCollector *StatisticsCollector
+	statsProvider  StatisticsProvider
 
 	// 代价模型参数
 	costModel *CostModel
+}
+
+// StatisticsProvider is the common read-only contract implemented by both
+// the legacy and enhanced statistics collectors.
+type StatisticsProvider interface {
+	GetTableStatistics(tableName string) (*TableStats, bool)
+	GetColumnStatistics(tableName, columnName string) (*ColumnStats, bool)
+	GetIndexStatistics(tableName, indexName string) (*IndexStats, bool)
 }
 
 // NewCostEstimator 创建代价估算器
@@ -24,8 +34,34 @@ func NewCostEstimator(statsCollector *StatisticsCollector, costModel *CostModel)
 
 	return &CostEstimator{
 		statsCollector: statsCollector,
+		statsProvider:  statsCollector,
 		costModel:      costModel,
 	}
+}
+
+// SetStatisticsProvider switches cost estimation to an authoritative
+// statistics source. Passing nil restores the collector supplied at creation.
+func (ce *CostEstimator) SetStatisticsProvider(provider StatisticsProvider) {
+	if provider == nil {
+		ce.statsProvider = ce.statsCollector
+		return
+	}
+	ce.statsProvider = provider
+}
+
+func (ce *CostEstimator) statisticsProvider() StatisticsProvider {
+	if ce.statsProvider != nil {
+		return ce.statsProvider
+	}
+	return ce.statsCollector
+}
+
+func (ce *CostEstimator) requireStatisticsProvider() (StatisticsProvider, error) {
+	provider := ce.statisticsProvider()
+	if provider == nil {
+		return nil, fmt.Errorf("统计信息提供者未配置")
+	}
+	return provider, nil
 }
 
 // EstimateTableScanCost 估算表扫描代价
@@ -34,15 +70,28 @@ func (ce *CostEstimator) EstimateTableScanCost(
 	selectivity float64,
 ) (*CostEstimate, error) {
 	// 获取表统计信息
-	tableStats, exists := ce.statsCollector.GetTableStatistics(table.Name)
+	provider, err := ce.requireStatisticsProvider()
+	if err != nil {
+		return nil, err
+	}
+	tableStats, exists := provider.GetTableStatistics(table.Name)
 	if !exists {
 		return nil, fmt.Errorf("表 %s 的统计信息不存在", table.Name)
 	}
 
 	// 计算需要读取的页数
-	avgRowSize := ce.estimateAvgRowSize(table)
+	avgRowSize := ce.estimateAvgRowSize(table, tableStats)
 	rowsPerPage := float64(16384) / avgRowSize // 假设页大小为16KB
 	totalPages := math.Ceil(float64(tableStats.RowCount) / rowsPerPage)
+	if tableStats.DataLength > 0 {
+		// Prefer measured data size when ANALYZE or the storage accessor has
+		// populated it. This accounts for row format, variable-length columns,
+		// NULL bitmap and page overhead more accurately than metadata guesses.
+		totalPages = math.Ceil(float64(tableStats.DataLength) / 16384.0)
+	}
+	if totalPages < 1 && tableStats.RowCount > 0 {
+		totalPages = 1
+	}
 
 	// 计算I/O代价
 	ioCost := totalPages * ce.costModel.DiskReadCost
@@ -70,12 +119,16 @@ func (ce *CostEstimator) EstimateIndexScanCost(
 	conditions []*IndexCondition,
 ) (*CostEstimate, error) {
 	// 获取表和索引统计信息
-	tableStats, exists := ce.statsCollector.GetTableStatistics(table.Name)
+	provider, err := ce.requireStatisticsProvider()
+	if err != nil {
+		return nil, err
+	}
+	tableStats, exists := provider.GetTableStatistics(table.Name)
 	if !exists {
 		return nil, fmt.Errorf("表 %s 的统计信息不存在", table.Name)
 	}
 
-	indexStats, exists := ce.statsCollector.GetIndexStatistics(table.Name, index.Name)
+	indexStats, exists := provider.GetIndexStatistics(table.Name, index.Name)
 	if !exists {
 		return nil, fmt.Errorf("索引 %s.%s 的统计信息不存在", table.Name, index.Name)
 	}
@@ -112,12 +165,16 @@ func (ce *CostEstimator) EstimateJoinCost(
 	joinConditions []Expression,
 ) (*CostEstimate, error) {
 	// 获取左右表统计信息
-	leftStats, exists := ce.statsCollector.GetTableStatistics(leftTable.Name)
+	provider, err := ce.requireStatisticsProvider()
+	if err != nil {
+		return nil, err
+	}
+	leftStats, exists := provider.GetTableStatistics(leftTable.Name)
 	if !exists {
 		return nil, fmt.Errorf("左表 %s 的统计信息不存在", leftTable.Name)
 	}
 
-	rightStats, exists := ce.statsCollector.GetTableStatistics(rightTable.Name)
+	rightStats, exists := provider.GetTableStatistics(rightTable.Name)
 	if !exists {
 		return nil, fmt.Errorf("右表 %s 的统计信息不存在", rightTable.Name)
 	}
@@ -193,6 +250,13 @@ func (ce *CostEstimator) calculateIndexScanCost(
 ) float64 {
 	// 基础索引扫描代价
 	baseCost := ce.costModel.DiskSeekCost
+	if indexStats.LeafPages > 0 {
+		// A measured B+Tree size is more useful than a fixed seek-only cost.
+		// Even a highly selective lookup must touch at least one leaf page.
+		pagesToRead := math.Ceil(float64(indexStats.LeafPages) * math.Max(0.01, selectivity))
+		pagesToRead = math.Max(1, pagesToRead)
+		baseCost += pagesToRead * ce.costModel.DiskReadCost
+	}
 
 	// 根据选择性调整代价
 	selectivityFactor := math.Max(0.01, selectivity)
@@ -203,6 +267,9 @@ func (ce *CostEstimator) calculateIndexScanCost(
 		indexTypeFactor = 0.5
 	} else if indexStats.Selectivity < 0.1 { // 低选择性索引
 		indexTypeFactor = 2.0
+	}
+	if indexStats.ClusterFactor > 1 {
+		indexTypeFactor *= math.Min(4, indexStats.ClusterFactor)
 	}
 
 	// 根据条件数量调整
@@ -245,8 +312,8 @@ func (ce *CostEstimator) estimateNestedLoopJoinCost(
 	joinCost := float64(leftStats.RowCount) * float64(rightStats.RowCount) *
 		float64(len(joinConditions)) * ce.costModel.CPUOperatorCost
 
-	// 估算输出行数（简化：假设10%的连接率）
-	outputRows := int64(float64(leftStats.RowCount) * float64(rightStats.RowCount) * 0.1)
+	selectivity := ce.estimateJoinSelectivity(leftStats, rightStats, joinConditions)
+	outputRows := int64(float64(leftStats.RowCount) * float64(rightStats.RowCount) * selectivity)
 
 	totalCost := outerCost + innerCost + joinCost
 
@@ -255,7 +322,7 @@ func (ce *CostEstimator) estimateNestedLoopJoinCost(
 		CPUCost:     totalCost,
 		TotalCost:   totalCost,
 		OutputRows:  outputRows,
-		Selectivity: 0.1,
+		Selectivity: selectivity,
 	}, nil
 }
 
@@ -350,8 +417,8 @@ func (ce *CostEstimator) estimateSortMergeJoinCost(
 	// 合并代价
 	mergeCost := float64(leftStats.RowCount+rightStats.RowCount) * ce.costModel.CPUTupleCost
 
-	// 估算输出行数
-	outputRows := int64(float64(leftStats.RowCount) * float64(rightStats.RowCount) * 0.1)
+	selectivity := ce.estimateJoinSelectivity(leftStats, rightStats, joinConditions)
+	outputRows := int64(float64(leftStats.RowCount) * float64(rightStats.RowCount) * selectivity)
 
 	totalCost := leftSortCost + rightSortCost + mergeCost
 
@@ -360,7 +427,7 @@ func (ce *CostEstimator) estimateSortMergeJoinCost(
 		CPUCost:     totalCost,
 		TotalCost:   totalCost,
 		OutputRows:  outputRows,
-		Selectivity: 0.1,
+		Selectivity: selectivity,
 	}, nil
 }
 
@@ -389,7 +456,19 @@ func (ce *CostEstimator) estimateGroupCount(inputRows int64, groupByColumns int)
 }
 
 // estimateAvgRowSize 估算平均行大小
-func (ce *CostEstimator) estimateAvgRowSize(table *metadata.Table) float64 {
+func (ce *CostEstimator) estimateAvgRowSize(table *metadata.Table, tableStats *TableStats) float64 {
+	if tableStats != nil {
+		if tableStats.AvgRowLength > 0 {
+			return float64(tableStats.AvgRowLength)
+		}
+		if tableStats.DataLength > 0 && tableStats.RowCount > 0 {
+			return float64(tableStats.DataLength) / float64(tableStats.RowCount)
+		}
+		if tableStats.TotalSize > 0 && tableStats.RowCount > 0 {
+			return float64(tableStats.TotalSize) / float64(tableStats.RowCount)
+		}
+	}
+
 	totalSize := 0.0
 
 	for _, col := range table.Columns {
@@ -410,7 +489,7 @@ func (ce *CostEstimator) estimateAvgRowSize(table *metadata.Table) float64 {
 	}
 
 	// 加上行头开销
-	return totalSize + 20
+	return math.Max(1, totalSize+20)
 }
 
 // CostEstimate 代价估算结果
@@ -477,25 +556,15 @@ func (ce *CostEstimator) estimateJoinSelectivity(
 		return 1.0
 	}
 
-	// 基于连接条件估算选择率
 	selectivity := 1.0
 
 	for _, cond := range joinConditions {
-		// 简化实现：基于条件类型估算
-		// 等值连接：1 / max(NDV_left, NDV_right)
-		// 范围连接：使用默认选择率
-
 		condSelectivity := ce.estimateConditionSelectivity(cond, leftStats, rightStats)
 		selectivity *= condSelectivity
 	}
 
 	// 确保选择率在合理范围内
-	if selectivity < 0.0001 {
-		selectivity = 0.0001
-	}
-	if selectivity > 1.0 {
-		selectivity = 1.0
-	}
+	selectivity = math.Max(0.0, math.Min(1.0, selectivity))
 
 	return selectivity
 }
@@ -506,20 +575,94 @@ func (ce *CostEstimator) estimateConditionSelectivity(
 	leftStats *TableStats,
 	rightStats *TableStats,
 ) float64 {
-	// 简化实现：根据条件类型返回默认选择率
-	// TODO: 实现更精确的选择率估算
-
-	// 等值连接的默认选择率
-	// 假设连接列的NDV为表行数的平方根
-	leftNDV := math.Sqrt(float64(leftStats.RowCount))
-	rightNDV := math.Sqrt(float64(rightStats.RowCount))
-	maxNDV := math.Max(leftNDV, rightNDV)
-
-	if maxNDV == 0 {
-		return 0.1 // 默认选择率
+	operation, left, right, ok := binaryJoinCondition(cond)
+	if !ok {
+		return 0.1
+	}
+	if operation == OpAnd {
+		return ce.estimateJoinSelectivity(leftStats, rightStats, []Expression{left}) *
+			ce.estimateJoinSelectivity(leftStats, rightStats, []Expression{right})
+	}
+	if operation == OpOr {
+		leftSelectivity := ce.estimateConditionSelectivity(left, leftStats, rightStats)
+		rightSelectivity := ce.estimateConditionSelectivity(right, leftStats, rightStats)
+		return leftSelectivity + rightSelectivity - leftSelectivity*rightSelectivity
 	}
 
-	return 1.0 / maxNDV
+	leftColumn, leftOK := left.(*Column)
+	rightColumn, rightOK := right.(*Column)
+	if leftOK && rightOK {
+		leftNDV := ce.joinColumnNDV(leftStats.TableName, leftColumn.Name, leftStats.RowCount)
+		rightNDV := ce.joinColumnNDV(rightStats.TableName, rightColumn.Name, rightStats.RowCount)
+		if operation == OpEQ {
+			ndv := math.Max(leftNDV, rightNDV)
+			if ndv <= 0 {
+				return 0.1
+			}
+			selectivity := 1.0 / ndv
+			selectivity *= ce.joinColumnNotNullRatio(leftStats.TableName, leftColumn.Name, leftStats.RowCount)
+			selectivity *= ce.joinColumnNotNullRatio(rightStats.TableName, rightColumn.Name, rightStats.RowCount)
+			return selectivity
+		}
+		if operation == OpLT || operation == OpLE || operation == OpGT || operation == OpGE {
+			return 1.0 / 3.0
+		}
+	}
+
+	return 0.1
+}
+
+func binaryJoinCondition(expr Expression) (BinaryOp, Expression, Expression, bool) {
+	binary, ok := expr.(*BinaryOperation)
+	if !ok || binary == nil {
+		return 0, nil, nil, false
+	}
+	operation := binary.Op
+	if strings.TrimSpace(binary.Operator) != "" {
+		switch strings.ToUpper(strings.TrimSpace(binary.Operator)) {
+		case "=":
+			operation = OpEQ
+		case "!=", "<>":
+			operation = OpNE
+		case "<":
+			operation = OpLT
+		case "<=":
+			operation = OpLE
+		case ">":
+			operation = OpGT
+		case ">=":
+			operation = OpGE
+		case "AND":
+			operation = OpAnd
+		case "OR":
+			operation = OpOr
+		}
+	}
+	return operation, binary.Left, binary.Right, true
+}
+
+func (ce *CostEstimator) joinColumnNDV(tableName, columnName string, rowCount int64) float64 {
+	if provider := ce.statisticsProvider(); provider != nil {
+		if stats, ok := provider.GetColumnStatistics(tableName, strings.Trim(strings.TrimSpace(columnName), "`")); ok && stats != nil && stats.DistinctCount > 0 {
+			return float64(stats.DistinctCount)
+		}
+	}
+	if rowCount <= 0 {
+		return 1
+	}
+	return math.Sqrt(float64(rowCount))
+}
+
+func (ce *CostEstimator) joinColumnNotNullRatio(tableName, columnName string, rowCount int64) float64 {
+	provider := ce.statisticsProvider()
+	if rowCount <= 0 || provider == nil {
+		return 1
+	}
+	stats, ok := provider.GetColumnStatistics(tableName, strings.Trim(strings.TrimSpace(columnName), "`"))
+	if !ok || stats == nil || stats.NotNullCount <= 0 {
+		return 1
+	}
+	return math.Max(0, math.Min(1, float64(stats.NotNullCount)/float64(rowCount)))
 }
 
 // ChooseBestJoinAlgorithm 选择最佳连接算法

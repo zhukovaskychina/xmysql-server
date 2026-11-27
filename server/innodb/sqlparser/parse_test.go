@@ -23,6 +23,98 @@ import (
 	"testing"
 )
 
+func TestParseWithCompatibilityAST(t *testing.T) {
+	stmt, err := Parse("WITH RECURSIVE nums(n) AS (SELECT 1 UNION ALL SELECT n FROM nums) SELECT n FROM nums")
+	if err != nil {
+		t.Fatalf("Parse() failed: %v", err)
+	}
+	withStmt, ok := stmt.(*With)
+	if !ok {
+		t.Fatalf("Parse() returned %T, want *With", stmt)
+	}
+	if !withStmt.Recursive || len(withStmt.CTEs) != 1 || withStmt.CTEs[0].Name.String() != "nums" {
+		t.Fatalf("unexpected WITH AST: %#v", withStmt)
+	}
+	if len(withStmt.CTEs[0].Columns) != 1 || withStmt.CTEs[0].Columns[0].String() != "n" {
+		t.Fatalf("unexpected CTE columns: %#v", withStmt.CTEs[0].Columns)
+	}
+	formatted := String(withStmt)
+	if !strings.Contains(strings.ToLower(formatted), "with recursive nums(n)") {
+		t.Fatalf("formatted WITH statement lost CTE header: %q", formatted)
+	}
+	visitedCTE := 0
+	if err := Walk(func(node SQLNode) (bool, error) {
+		if _, ok := node.(*CTEDefinition); ok {
+			visitedCTE++
+		}
+		return true, nil
+	}, withStmt); err != nil {
+		t.Fatalf("Walk() failed: %v", err)
+	}
+	if visitedCTE != 1 {
+		t.Fatalf("Walk() visited %d CTE nodes, want 1", visitedCTE)
+	}
+}
+
+func TestParseWithCompatibilityRejectsMalformedCTE(t *testing.T) {
+	if _, err := Parse("WITH broken AS (SELECT 1 SELECT 2) SELECT 1"); err == nil {
+		t.Fatal("malformed CTE unexpectedly parsed")
+	}
+}
+
+func TestParseWindowCompatibilityAST(t *testing.T) {
+	stmt, err := Parse("SELECT id, row_number() OVER (PARTITION BY team ORDER BY score DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS rn FROM scores")
+	if err != nil {
+		t.Fatalf("Parse() failed: %v", err)
+	}
+	selectStmt, ok := stmt.(*Select)
+	if !ok {
+		t.Fatalf("Parse() returned %T, want *Select", stmt)
+	}
+	if len(selectStmt.SelectExprs) != 2 {
+		t.Fatalf("unexpected select expressions: %#v", selectStmt.SelectExprs)
+	}
+	window, ok := selectStmt.SelectExprs[1].(*AliasedExpr)
+	if !ok {
+		t.Fatalf("window expression is %T, want *AliasedExpr", selectStmt.SelectExprs[1])
+	}
+	function, ok := window.Expr.(*FuncExpr)
+	if !ok || function.Over == nil {
+		t.Fatalf("window expression did not preserve OVER AST: %#v", window.Expr)
+	}
+	if len(function.Over.PartitionBy) != 1 || len(function.Over.OrderBy) != 1 || function.Over.Frame == nil {
+		t.Fatalf("incomplete window specification: %#v", function.Over)
+	}
+	if function.Over.OrderBy[0].Direction != DescScr || function.Over.Frame.Start.Type != "N_PRECEDING" {
+		t.Fatalf("window order/frame lost: %#v", function.Over)
+	}
+	if !strings.Contains(strings.ToLower(String(selectStmt)), "over (partition by") {
+		t.Fatalf("formatted window AST lost OVER clause: %q", String(selectStmt))
+	}
+}
+
+func TestParseNamedWindowCompatibilityAST(t *testing.T) {
+	stmt, err := Parse("SELECT id, row_number() OVER w AS rn FROM scores WINDOW w AS (PARTITION BY team ORDER BY score DESC)")
+	if err != nil {
+		t.Fatalf("Parse() failed: %v", err)
+	}
+	selectStmt, ok := stmt.(*Select)
+	if !ok || len(selectStmt.Windows) != 1 {
+		t.Fatalf("named WINDOW AST = %#v, want one declaration", stmt)
+	}
+	if selectStmt.Windows[0].Name.String() != "w" || len(selectStmt.Windows[0].Spec.OrderBy) != 1 {
+		t.Fatalf("named WINDOW declaration lost: %#v", selectStmt.Windows)
+	}
+	windowExpr := selectStmt.SelectExprs[1].(*AliasedExpr).Expr.(*FuncExpr)
+	if windowExpr.Over == nil || windowExpr.Over.Name.String() != "w" {
+		t.Fatalf("OVER reference lost: %#v", windowExpr.Over)
+	}
+	formatted := strings.ToLower(String(selectStmt))
+	if !strings.Contains(formatted, "over w") || !strings.Contains(formatted, "window w as") {
+		t.Fatalf("formatted named WINDOW AST lost declaration/reference: %q", formatted)
+	}
+}
+
 var (
 	validSQL = []struct {
 		input  string
@@ -1329,7 +1421,7 @@ var (
 		output: "drop database test_db",
 	}, {
 		input:  "drop database if exists test_db",
-		output: "drop database test_db",
+		output: "drop database if exists test_db",
 	}}
 )
 

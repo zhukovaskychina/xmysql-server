@@ -5,6 +5,8 @@ import (
 	"errors"
 	"sync/atomic"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 var (
@@ -28,8 +30,13 @@ type FSPPage struct {
 
 // NewFSPPage 创建FSP页面
 func NewFSPPage(spaceID, pageNo uint32) *FSPPage {
+	return NewFSPPageWithStorage(spaceID, pageNo, nil)
+}
+
+// NewFSPPageWithStorage creates an FSP page backed by a durable provider.
+func NewFSPPageWithStorage(spaceID, pageNo uint32, storage basic.StorageProvider) *FSPPage {
 	fp := &FSPPage{
-		BaseSystemPage: NewBaseSystemPage(spaceID, pageNo, SystemPageTypeFSP),
+		BaseSystemPage: NewBaseSystemPageWithStorage(spaceID, pageNo, SystemPageTypeFSP, storage),
 	}
 
 	// 初始化FSP头

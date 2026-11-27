@@ -1,34 +1,35 @@
-# 开发路线图（规划入口）
+# 开发路线图（导航）
 
-> **当前口径（2026-07-15）**：基础 CRUD/JDBC 已通过聚焦验证，但生产级能力仍按新的 P0/P1/P* 能力 backlog 管理。若本文历史导航与新 backlog 冲突，以 `CAPABILITY_PRIORITY_INDEX_20260715.md` 为准。
+> 2026-11-13：本页只做导航，不再维护阶段百分比、任务数量或人天估算。
+> 当前状态与优先级以第 1 节文档为准；历史路线图已删除，可通过 git 历史追溯。
 
-> **说明（2026-04）**：本文件曾为「按周拆分的 43～59 天阶段路线图」，与 [开发任务清单](../development/DEVELOPMENT_ROADMAP_TASKS.md)（114 项、模块完成度）及 [16 周开发计划](../development/开发计划.md) **内容重复且易不同步**。  
-> **现仅作导航页**：请以下列文档为权威来源；本页不再维护具体阶段百分比与任务列表。
-
----
-
-## 权威文档（按用途）
+## 当前权威入口
 
 | 用途 | 文档 |
-|------|------|
-| 当前优先级唯一入口（2026-07-15） | [CAPABILITY_PRIORITY_INDEX_20260715.md](./CAPABILITY_PRIORITY_INDEX_20260715.md) |
-| P0 生产阻塞能力 backlog | [P0_CAPABILITY_BACKLOG_20260715.md](./P0_CAPABILITY_BACKLOG_20260715.md) |
-| P1 重要能力 backlog | [P1_CAPABILITY_BACKLOG_20260715.md](./P1_CAPABILITY_BACKLOG_20260715.md) |
-| P* 未来能力 backlog | [PX_CAPABILITY_BACKLOG_20260715.md](./PX_CAPABILITY_BACKLOG_20260715.md) |
-| 缺口与优先级总览 | [未实现功能梳理.md](../未实现功能梳理.md) |
-| 能力矩阵 + 生产缺口合并基线（2026-04） | [UNIMPLEMENTED_CAPABILITY_BASELINE_2026-04.md](./UNIMPLEMENTED_CAPABILITY_BASELINE_2026-04.md) |
-| 114 项任务明细、模块完成度 | [development/DEVELOPMENT_ROADMAP_TASKS.md](../development/DEVELOPMENT_ROADMAP_TASKS.md) |
-| 16 周阶段与人天排期 | [development/开发计划.md](../development/开发计划.md) |
-| 任务摘要（PM 速览） | [development/TASKS_SUMMARY.md](../development/TASKS_SUMMARY.md) |
-| 文档导航 | [development/ROADMAP_README.md](../development/ROADMAP_README.md) |
-| **生产上线**任务与验收 | [P0_PRODUCTION_TASKS.md](./P0_PRODUCTION_TASKS.md)、[P0_PRODUCTION_CHECKLIST.md](./P0_PRODUCTION_CHECKLIST.md) |
-| 代码内 TODO 明细清单 + 统计附录 | [TODO_DETAILED_CHECKLIST.md](./TODO_DETAILED_CHECKLIST.md)（原 `TODO_STATISTICS_REPORT` 中快照表已迁入文末附录） |
-| TODO 统计报告（文件名保留） | [TODO_STATISTICS_REPORT.md](./TODO_STATISTICS_REPORT.md)（**跳转页**） |
-| TODO 总结 / 分阶段执行计划（文件名保留） | [TODO_SUMMARY.md](./TODO_SUMMARY.md)、[TODO_EXECUTION_PLAN.md](./TODO_EXECUTION_PLAN.md)（**跳转页**） |
-| Agent 分 Chunk 执行的计划 | [superpowers/plans/README.md](../superpowers/plans/README.md) |
+|---|---|
+| 能力优先级总索引 | [CAPABILITY_PRIORITY_INDEX_20260715.md](CAPABILITY_PRIORITY_INDEX_20260715.md) |
+| P0 生产阻塞能力 | [P0_CAPABILITY_BACKLOG_20260715.md](P0_CAPABILITY_BACKLOG_20260715.md) |
+| P1 重要能力 | [P1_CAPABILITY_BACKLOG_20260715.md](P1_CAPABILITY_BACKLOG_20260715.md) |
+| P2/P3/未来能力 | [PX_CAPABILITY_BACKLOG_20260715.md](PX_CAPABILITY_BACKLOG_20260715.md) |
+| MySQL 兼容性剩余边界 | [COMPATIBILITY_REMAINING_BOUNDARIES_20260928.md](COMPATIBILITY_REMAINING_BOUNDARIES_20260928.md) |
+| SQL 正则 → AST 迁移 | [2026-10-18-sql-regex-ast-migration-progress.md](2026-10-18-sql-regex-ast-migration-progress.md) |
+| 模块级缺口与历史估算 | [../未实现功能梳理.md](../未实现功能梳理.md) |
+| 文档总导航 | [../README.md](../README.md) |
 
----
+## 上线与证据
 
-## 历史说明
+- [P0_PRODUCTION_TASKS.md](P0_PRODUCTION_TASKS.md)（历史任务拆解，保留追溯）
+- [P0_PRODUCTION_CHECKLIST.md](P0_PRODUCTION_CHECKLIST.md)
+- [P0_PRODUCTION_DEPLOYMENT_PLAN.md](P0_PRODUCTION_DEPLOYMENT_PLAN.md)
+- [P0_EVIDENCE_RUN_20260722.md](P0_EVIDENCE_RUN_20260722.md)
+- [P0_RISK_REGISTER.md](P0_RISK_REGISTER.md)
+- [GAP_06_SECURITY_DEFAULT_POSTURE.md](GAP_06_SECURITY_DEFAULT_POSTURE.md)
 
-原 `planning/DEVELOPMENT_ROADMAP.md` 中的「第 1～5 阶段、BTREE-xxx」等条目已归档在 Git 历史中；若报告里仍引用本文件名，即指向**本导航页**，请再跳转到上表对应权威文档。
+## 当前实施顺序
+
+1. 每个合并候选都保持 2026-07-22 的聚焦矩阵为绿。
+2. 补齐 P1 发布证据：外部 crash drill、并发负载、指标演练、回滚演练和 owner sign-off。
+3. 推进 P1 兼容性广度：完整 I_S/P_S 运行时与权限语义、FK/CHECK 完整语义、更多 SQL 兼容路径。
+4. 推进 P2/P4：统一 storage/WAL/native-binlog/GTID 物理提交点、完整崩溃/网络分区/晋升拓扑和官方 MySQL 互操作。
+5. P1/P* 存储压力：大规模 B+Tree 分裂/合并/复用、损坏注入、长时间 purge/restart。
+6. 生产就绪声明只引用当前或更新的证据文档，不使用历史完成度百分比。

@@ -32,10 +32,10 @@ P0 is the remaining work required to turn the green CRUD/prepared-statement base
 | P0-TXN-002 | Transaction | MVCC visibility and isolation | Closed for focused P0 rollback/savepoint/read-view tests; broad anomaly testing remains P1 | Supported RC/RR-style visibility paths do not regress under focused tests | Go transaction tests and JDBC transaction suite |
 | P0-TXN-003 | Recovery | Recovery with row/page/WAL state proof | Closed for focused Go recovery evidence; external kill-and-replay drill moves to P1 release evidence | Redo, undo, page checksum, and restart-read focused tests remain green | Go recovery tests |
 | P0-TXN-004 | Recovery | Undo purge and deleted-record lifecycle | Closed for active snapshot protection and reusable cached segment reclaim; long workload proof moves to P1 | Deleted versions are retained while visible and reclaim does not break focused tests | Undo purge/reclaim Go tests |
-| P0-SQL-001 | SQL | Core DML compatibility | Closed for focused JDBC CRUD; `ON DUPLICATE KEY UPDATE` and `REPLACE` move to P1 compatibility backlog | `INSERT`, `UPDATE`, `DELETE`, and `SELECT` pass JDBC tests | `DMLOperationsTest` |
+| P0-SQL-001 | SQL | Core DML compatibility | Closed for focused JDBC CRUD; engine paths and regressions also cover common `ON DUPLICATE KEY UPDATE` and `REPLACE` semantics, while broader JDBC/DML breadth remains tracked after the focused P0 gate | `INSERT`, `UPDATE`, `DELETE`, and `SELECT` pass JDBC tests | `DMLOperationsTest` |
 | P0-SQL-002 | SQL | Core DDL compatibility | Closed for focused JDBC DDL and metadata: CREATE/DROP/TRUNCATE/ALTER ADD COLUMN and metadata lookups pass | Core DDL forms keep dictionary, storage, and JDBC metadata consistent for tested scope | `DDLOperationsTest` |
 | P0-JDBC-001 | Protocol | Prepared statement and metadata fidelity | Closed for focused JDBC prepared and metadata surface | Common JDBC prepared statements, generated keys, metadata queries, and system variable bootstrap pass | `PreparedStatementTest`, `DDLOperationsTest`, `SystemVariableTest` |
-| P0-JDBC-002 | Protocol | Auth and error contract for JDBC clients | Authentication and error mapping include simplified paths | Supported auth plugin behavior, SQLState, vendor codes, and connection/session errors are deterministic | Protocol/auth tests and JDBC negative tests |
+| P0-JDBC-002 | Protocol | Auth and error contract for JDBC clients | JDBC compatibility gate now runs with password bypass disabled; correct-password and wrong-password paths both pass, with wrong-password returning 1045/28000. Full plugin/error matrix remains broader than the current gate. | Supported auth plugin behavior, SQLState, vendor codes, and connection/session errors are deterministic | Protocol/auth tests and JDBC negative tests |
 | P0-OBS-001 | Operations | Live runtime observability | Metrics/logging foundations exist | Live server exposes QPS, latency, errors, connections, transactions, lock waits, slow queries, and storage health from real traffic | Live `/metrics` probe and generated slow-query log |
 | P0-REL-001 | Release | Production candidate evidence gate | Candidate/evidence tooling exists | Full current-run candidate passes with no stale artifacts and no unresolved required gaps | Delivery candidate report, evidence bundle, delivery audit |
 | P0-GOV-001 | Governance | Risk owner sign-off | Governance tooling exists; owner approval must be real | Risk register has owners, open P0 risks are closed/deferred, and owner sign-off is valid | Governance gate report |
@@ -61,7 +61,7 @@ Closed in code and evidence during the P0 remaining-capability closure pass:
 
 Moved out of P0 after this pass:
 
-- `ON DUPLICATE KEY UPDATE` and `REPLACE`: P1 SQL compatibility breadth.
+- Broader `ON DUPLICATE KEY UPDATE` and `REPLACE` compatibility matrix: engine semantics are covered, while additional JDBC/error/edge-case breadth remains post-P0 work.
 - Full foreign-key referential enforcement matrix, CHECK expression semantics, and FULLTEXT query/ranking behavior: P1/P* compatibility breadth.
 - External kill-and-replay crash drill, production-scale concurrent workload, live metrics drill, rollback drill, owner sign-off: P1 release-readiness gates rather than code-level P0 closure.
 
@@ -74,3 +74,9 @@ P0 is complete for the focused 2026-07-22 scope when:
 - focused Go engine/manager/plan tests pass;
 - focused JDBC CRUD, prepared statement, transaction, DDL metadata, system variable, and index/constraint suites pass on clean local data;
 - generated runtime files are removed or restored before merge.
+
+## 2026-09-21 Runtime Observability Closure Update
+
+- Owner-aware metadata lock waits now update the live runtime recorder with `xmysql_lock_waits_total` and `xmysql_lock_wait_duration_ms`; the path is exercised by `TestTableDDLCoordinatorRecordsRuntimeLockWaitMetric`.
+- Crash recovery now records successful and failed recovery attempts through `xmysql_recovery_runs_total`/`xmysql_recovery_failures_total`; checkpoint recording now updates `xmysql_checkpoint_dirty_pages` and `xmysql_checkpoint_runs_total`. The combined path is covered by `TestCrashRecoveryAndCheckpointPathsRecordRuntimeMetrics`.
+- Related engine/manager/metrics/net packages pass; full Go, cluster smoke, and the mandatory Connector/J release gate also pass. Runtime endpoint/metric export remains an operational deployment check, not a claim of complete MySQL observability parity.

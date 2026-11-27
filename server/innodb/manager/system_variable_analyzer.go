@@ -2,7 +2,6 @@ package manager
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
@@ -39,22 +38,19 @@ func NewSystemVariableAnalyzer(varMgr *SystemVariablesManager) *SystemVariableAn
 // IsSystemVariableQuery 判断是否是系统变量查询
 func (analyzer *SystemVariableAnalyzer) IsSystemVariableQuery(sql string) bool {
 	sql = strings.TrimSpace(sql)
-
-	// 检查SELECT语句中的系统变量
-	matched, _ := regexp.MatchString(`(?i)^\s*SELECT\s+.*@@[a-zA-Z_][a-zA-Z0-9_]*`, sql)
-	if matched {
-		logger.Debugf(" 检测到SELECT系统变量查询: %s", sql)
-		return true
+	parsed, err := sqlparser.ParseForExecution(sql)
+	if err != nil {
+		return false
 	}
-
-	// 检查SET语句中的系统变量
-	setMatched, _ := regexp.MatchString(`(?i)^\s*SET\s+`, sql)
-	if setMatched {
-		logger.Debugf(" 检测到SET语句: %s", sql)
+	switch parsed.Family {
+	case sqlparser.StatementFamilySet:
 		return true
+	case sqlparser.StatementFamilySelect:
+		query, parseErr := analyzer.parseWithSQLParser(sql)
+		return parseErr == nil && query.IsValid
+	default:
+		return false
 	}
-
-	return false
 }
 
 // AnalyzeSystemVariableQuery 分析系统变量查询
@@ -68,18 +64,17 @@ func (analyzer *SystemVariableAnalyzer) AnalyzeSystemVariableQuery(sql string) (
 		return query, nil
 	}
 
-	// 如果SQL解析器失败，使用正则表达式回退方案
-	logger.Debugf(" SQL解析器解析失败，使用正则表达式回退: %v", err)
-	return analyzer.parseWithRegex(sql)
+	return nil, err
 }
 
 // parseWithSQLParser 使用SQL解析器解析
 func (analyzer *SystemVariableAnalyzer) parseWithSQLParser(sql string) (*SystemVariableQuery, error) {
 	// 尝试解析SQL
-	stmt, err := sqlparser.Parse(sql)
+	parsed, err := sqlparser.ParseForExecution(sql)
 	if err != nil {
 		return nil, fmt.Errorf("SQL解析失败: %v", err)
 	}
+	stmt := parsed.AST
 
 	query := &SystemVariableQuery{
 		Variables: make([]SystemVariableInfo, 0),
@@ -242,146 +237,8 @@ func (analyzer *SystemVariableAnalyzer) parseVariableExpression(expr string) (st
 
 // parseWithRegex 使用正则表达式解析
 func (analyzer *SystemVariableAnalyzer) parseWithRegex(sql string) (*SystemVariableQuery, error) {
-	logger.Debugf(" 使用正则表达式解析系统变量查询")
-
-	query := &SystemVariableQuery{
-		Variables: make([]SystemVariableInfo, 0),
-		IsValid:   false,
-		RawSQL:    sql,
-	}
-
-	//  增强的正则表达式模式，支持复杂的多变量查询
-	patterns := []struct {
-		pattern string
-		desc    string
-	}{
-		// 匹配 @@scope.variable AS alias 格式
-		{`@@(global|session)\.([a-zA-Z_][a-zA-Z0-9_]*)\s+AS\s+([a-zA-Z_][a-zA-Z0-9_]*)`, "scope.var AS alias"},
-		// 匹配 @@scope.variable 格式
-		{`@@(global|session)\.([a-zA-Z_][a-zA-Z0-9_]*)`, "scope.var"},
-		// 匹配 @@variable AS alias 格式
-		{`@@([a-zA-Z_][a-zA-Z0-9_]*)\s+AS\s+([a-zA-Z_][a-zA-Z0-9_]*)`, "var AS alias"},
-		// 匹配 @@variable 格式
-		{`@@([a-zA-Z_][a-zA-Z0-9_]*)`, "var"},
-	}
-
-	processedVars := make(map[string]bool) // 防止重复处理同一个变量
-
-	for _, p := range patterns {
-		regex, err := regexp.Compile(`(?i)` + p.pattern)
-		if err != nil {
-			logger.Debugf(" 编译正则表达式失败: %s", p.pattern)
-			continue
-		}
-
-		matches := regex.FindAllStringSubmatch(sql, -1)
-		logger.Debugf(" 模式 '%s' 找到 %d 个匹配", p.desc, len(matches))
-
-		for _, match := range matches {
-			varInfo, err := analyzer.parseRegexMatch(match, p.desc)
-			if err == nil && !processedVars[varInfo.Name] {
-				query.Variables = append(query.Variables, *varInfo)
-				processedVars[varInfo.Name] = true
-				logger.Debugf(" 添加变量: %s (scope: %s, alias: %s)", varInfo.Name, varInfo.Scope, varInfo.Alias)
-			} else if err != nil {
-				logger.Debugf(" 解析匹配失败: %v", err)
-			}
-		}
-	}
-
-	query.IsValid = len(query.Variables) > 0
-
-	if query.IsValid {
-		logger.Debugf(" 正则表达式解析成功，找到 %d 个系统变量", len(query.Variables))
-	} else {
-		logger.Debugf(" 正则表达式解析失败，未找到系统变量")
-	}
-
-	return query, nil
-}
-
-// parseRegexMatch 解析正则匹配结果
-func (analyzer *SystemVariableAnalyzer) parseRegexMatch(match []string, patternDesc string) (*SystemVariableInfo, error) {
-	if len(match) < 2 {
-		return nil, fmt.Errorf("匹配结果不足: %v", match)
-	}
-
-	var varName, scopeStr, alias string
-
-	// 打印匹配结果用于调试
-	logger.Debugf(" 正则匹配结果 (%s): %v", patternDesc, match)
-
-	// 根据模式描述和匹配组的数量来判断格式
-	switch patternDesc {
-	case "scope.var AS alias":
-		if len(match) >= 4 {
-			scopeStr = match[1]
-			varName = match[2]
-			alias = match[3]
-		}
-	case "scope.var":
-		if len(match) >= 3 {
-			scopeStr = match[1]
-			varName = match[2]
-			alias = varName // 没有AS别名，使用变量名
-		}
-	case "var AS alias":
-		if len(match) >= 3 {
-			varName = match[1]
-			alias = match[2]
-			scopeStr = "session" // 默认为session
-		}
-	case "var":
-		if len(match) >= 2 {
-			varName = match[1]
-			alias = varName
-			scopeStr = "session" // 默认为session
-		}
-	default:
-		// 通用解析逻辑
-		if len(match) >= 4 && match[1] != "" && match[2] != "" {
-			// @@scope.var AS alias 或 @@scope.var 模式
-			scopeStr = match[1]
-			varName = match[2]
-			if len(match) > 3 && match[3] != "" {
-				alias = match[3] // 有AS别名
-			} else {
-				alias = varName // 没有AS别名，使用变量名
-			}
-		} else if len(match) >= 3 && match[1] != "" {
-			// @@var AS alias 模式
-			varName = match[1]
-			scopeStr = "session" // 默认为session
-			if match[2] != "" {
-				alias = match[2] // 有AS别名
-			} else {
-				alias = varName // 没有AS别名
-			}
-		} else if len(match) >= 2 && match[1] != "" {
-			// @@var 模式 (最简单的情况)
-			varName = match[1]
-			scopeStr = "session" // 默认为session
-			alias = varName
-		} else {
-			return nil, fmt.Errorf("无法解析匹配结果: %v", match)
-		}
-	}
-
-	// 验证变量名不为空
-	if varName == "" {
-		return nil, fmt.Errorf("变量名为空: %v", match)
-	}
-
-	scope := ParseScope(scopeStr)
-
-	logger.Debugf(" 解析变量: name=%s, scope=%s, alias=%s", varName, scopeStr, alias)
-
-	return &SystemVariableInfo{
-		Name:    varName,
-		Scope:   scope,
-		Alias:   alias,
-		RawExpr: fmt.Sprintf("@@%s", varName), // 简化RawExpr
-	}, nil
+	// Compatibility name retained for existing callers; parsing is AST-backed.
+	return analyzer.parseWithSQLParser(sql)
 }
 
 // GenerateSystemVariableResult 生成系统变量查询结果

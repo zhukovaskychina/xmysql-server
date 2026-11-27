@@ -361,6 +361,16 @@ func (m *EnhancedBTreeManager) RebuildIndex(ctx context.Context, indexID uint64)
 	if m.storageManager == nil || m.storageManager.GetBufferPoolManager() == nil {
 		return fmt.Errorf("storage manager or buffer pool manager is not initialized")
 	}
+	// Keep the metadata object held by callers of GetIndexMetadata/GetMetadata
+	// live as well as the manager's replacement object. Rebuild swaps the
+	// loaded index, so without this synchronization callers observe stale
+	// state even though the rebuilt index is healthy.
+	var previousMetadata *IndexMetadata
+	m.mu.RLock()
+	if loaded, exists := m.loadedIndexes[indexID]; exists && loaded != nil {
+		previousMetadata = loaded.GetMetadata()
+	}
+	m.mu.RUnlock()
 
 	metadata.IndexState = EnhancedIndexStateBuilding
 	metadata.UpdateTime = time.Now()
@@ -408,7 +418,14 @@ func (m *EnhancedBTreeManager) RebuildIndex(ctx context.Context, indexID uint64)
 
 	metadata.IndexState = EnhancedIndexStateActive
 	metadata.IsLoaded = true
-	metadata.UpdateTime = time.Now()
+	updatedAt := time.Now()
+	if !updatedAt.After(metadata.UpdateTime) {
+		updatedAt = metadata.UpdateTime.Add(time.Nanosecond)
+	}
+	metadata.UpdateTime = updatedAt
+	if previousMetadata != nil && previousMetadata != metadata {
+		*previousMetadata = *metadata
+	}
 	atomic.StoreUint64(&m.stats.IndexesLoaded, uint64(m.GetLoadedIndexCount()))
 
 	logger.Debugf(" Rebuilt index %d '%s'\n", indexID, metadata.IndexName)
@@ -482,11 +499,9 @@ func (m *EnhancedBTreeManager) DropIndex(ctx context.Context, indexID uint64) er
 
 // Close 关闭管理器
 func (m *EnhancedBTreeManager) Close() error {
-	if atomic.LoadUint32(&m.isShutdown) == 1 {
+	if !atomic.CompareAndSwapUint32(&m.isShutdown, 0, 1) {
 		return nil
 	}
-
-	atomic.StoreUint32(&m.isShutdown, 1)
 
 	// 停止后台任务
 	close(m.stopChan)
@@ -783,6 +798,15 @@ func (m *EnhancedBTreeManager) cleanupUnusedIndexes() {
 // GetStats 获取管理器统计信息
 func (m *EnhancedBTreeManager) GetStats() *BTreeManagerStats {
 	return m.stats
+}
+
+// GetIndexCacheStats 返回索引缓存命中/未命中计数的原子快照。
+// 监控调用不应直接读取 GetStats 返回的可变结构体，否则会与后台访问计数竞争。
+func (m *EnhancedBTreeManager) GetIndexCacheStats() (uint64, uint64) {
+	if m == nil || m.stats == nil {
+		return 0, 0
+	}
+	return atomic.LoadUint64(&m.stats.IndexCacheHits), atomic.LoadUint64(&m.stats.IndexCacheMisses)
 }
 
 // GetLoadedIndexCount 获取已加载索引数量

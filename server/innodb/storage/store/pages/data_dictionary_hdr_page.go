@@ -54,12 +54,12 @@ func NewDataDictHeaderPage() *DataDictionaryHeaderSysPage {
 
 	var fileHeader = new(FileHeader)
 	//写入FSP文件头
-	copy(fileHeader.FilePageType[:], util.ConvertInt2Bytes(int32(common.FILE_PAGE_TYPE_SYS)))
+	copy(fileHeader.FilePageType[:], util.ConvertInt2Bytes(int32(common.FIL_PAGE_TYPE_SYS)))
 	copy(fileHeader.FilePagePrev[:], util.ConvertInt4Bytes(6))
 	copy(fileHeader.FilePageOffset[:], util.ConvertUInt4Bytes(uint32(7)))
 	//fileHeader.WritePageOffset(0)
 	//fileHeader.WritePagePrev(0)
-	fileHeader.WritePageFileType(int16(common.FILE_PAGE_TYPE_SYS))
+	fileHeader.WritePageFileType(int16(common.FIL_PAGE_TYPE_SYS))
 	fileHeader.WritePageNext(8)
 	fileHeader.WritePageLSN(0)
 	fileHeader.WritePageFileFlushLSN(0)
@@ -84,7 +84,7 @@ func NewDataDictHeaderPage() *DataDictionaryHeaderSysPage {
 
 	ddp.UnusedSpace = util.AppendByte(4)
 
-	ddp.SecondEmptySpace = util.AppendByte(16376 - 104)
+	ddp.SecondEmptySpace = util.AppendByte(common.PageSize - common.FileTrailerSize - 104)
 
 	ddp.FileTrailer = NewFileTrailer()
 
@@ -98,7 +98,7 @@ func ParseDataDictHrdPage(content []byte) *DataDictionaryHeaderSysPage {
 	fspBinary.FileTrailer = NewFileTrailer()
 
 	fspBinary.LoadFileHeader(content[0:38])
-	fspBinary.LoadFileTrailer(content[16384-8 : 16384])
+	fspBinary.LoadFileTrailer(content[common.PageSize-common.FileTrailerSize : common.PageSize])
 
 	fspBinary.DataDictHeader = DataDictHeader{
 		MaxRowId:             content[38:46],
@@ -115,7 +115,7 @@ func ParseDataDictHrdPage(content []byte) *DataDictionaryHeaderSysPage {
 
 	fspBinary.UnusedSpace = content[90:94]
 	fspBinary.SegmentHeader = content[94:104]
-	fspBinary.SecondEmptySpace = content[104:16376]
+	fspBinary.SecondEmptySpace = content[104 : common.PageSize-common.FileTrailerSize]
 
 	return fspBinary
 }

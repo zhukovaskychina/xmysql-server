@@ -3,6 +3,7 @@ package page
 import (
 	"errors"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
 )
 
@@ -31,6 +32,14 @@ func NewIBufFreeListPageWrapper(id, spaceID uint32) *IBufFreeListPageWrapper {
 	}
 }
 
+// NewIBufFreeListPageWrapperWithStorage creates a provider-backed insert
+// buffer free-list wrapper.
+func NewIBufFreeListPageWrapperWithStorage(id, spaceID uint32, storage basic.StorageProvider) *IBufFreeListPageWrapper {
+	page := NewIBufFreeListPageWrapper(id, spaceID)
+	page.storage = storage
+	return page
+}
+
 // 实现IPageWrapper接口
 
 // ParseFromBytes 从字节数据解析插入缓冲空闲列表页面
@@ -38,7 +47,7 @@ func (iflpw *IBufFreeListPageWrapper) ParseFromBytes(data []byte) error {
 	iflpw.Lock()
 	defer iflpw.Unlock()
 
-	if err := iflpw.BasePageWrapper.ParseFromBytes(data); err != nil {
+	if err := iflpw.BasePageWrapper.parseFromBytesLocked(data); err != nil {
 		return err
 	}
 
@@ -67,6 +76,28 @@ func (iflpw *IBufFreeListPageWrapper) ToBytes() ([]byte, error) {
 	return data, nil
 }
 
+// Read loads and decodes the insert-buffer free-list payload after the common
+// wrapper reads its durable 16KB image.
+func (iflpw *IBufFreeListPageWrapper) Read() error {
+	if err := iflpw.BasePageWrapper.Read(); err != nil {
+		return err
+	}
+
+	iflpw.Lock()
+	defer iflpw.Unlock()
+	return iflpw.ibufFreeListPage.Deserialize(append([]byte(nil), iflpw.content...))
+}
+
+// Write serializes the insert-buffer free-list payload before delegating
+// durable I/O to the common page wrapper.
+func (iflpw *IBufFreeListPageWrapper) Write() error {
+	iflpw.Lock()
+	iflpw.content = iflpw.ibufFreeListPage.Serialize()
+	iflpw.markDirtyLocked()
+	iflpw.Unlock()
+	return iflpw.BasePageWrapper.Write()
+}
+
 // 插入缓冲空闲列表页面特有的方法
 
 // AddFreePage 添加空闲页面
@@ -78,7 +109,7 @@ func (iflpw *IBufFreeListPageWrapper) AddFreePage(pageNo uint32) error {
 		return err
 	}
 
-	iflpw.MarkDirty()
+	iflpw.BasePageWrapper.markDirtyLocked()
 	return nil
 }
 
@@ -92,7 +123,7 @@ func (iflpw *IBufFreeListPageWrapper) AllocatePage() (uint32, error) {
 		return 0, err
 	}
 
-	iflpw.MarkDirty()
+	iflpw.BasePageWrapper.markDirtyLocked()
 	return pageNo, nil
 }
 
@@ -105,7 +136,7 @@ func (iflpw *IBufFreeListPageWrapper) FreePage(pageNo uint32) error {
 		return err
 	}
 
-	iflpw.MarkDirty()
+	iflpw.BasePageWrapper.markDirtyLocked()
 	return nil
 }
 
@@ -118,7 +149,7 @@ func (iflpw *IBufFreeListPageWrapper) MarkPageInUse(pageNo uint32) error {
 		return err
 	}
 
-	iflpw.MarkDirty()
+	iflpw.BasePageWrapper.markDirtyLocked()
 	return nil
 }
 
@@ -144,7 +175,7 @@ func (iflpw *IBufFreeListPageWrapper) SetNextListPage(pageNo uint32) {
 	defer iflpw.Unlock()
 
 	iflpw.ibufFreeListPage.SetNextListPage(pageNo)
-	iflpw.MarkDirty()
+	iflpw.BasePageWrapper.markDirtyLocked()
 }
 
 // GetNextListPage 获取下一个列表页面

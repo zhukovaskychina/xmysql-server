@@ -69,16 +69,24 @@ type DataDictionaryPageWrapper struct {
 
 // NewDataDictionaryPageWrapper 创建数据字典页面
 func NewDataDictionaryPageWrapper(id, spaceID uint32, bp *buffer_pool.BufferPool) *DataDictionaryPageWrapper {
+	return NewDataDictionaryPageWrapperWithStorage(id, spaceID, bp, nil)
+}
+
+// NewDataDictionaryPageWrapperWithStorage creates a data dictionary page with
+// an optional durable provider for the factory and direct provider-backed paths.
+func NewDataDictionaryPageWrapperWithStorage(id, spaceID uint32, bp *buffer_pool.BufferPool, storage basic.StorageProvider) *DataDictionaryPageWrapper {
 	base := NewBasePageWrapper(id, spaceID, common.FIL_PAGE_TYPE_SYS)
 	dictPage := pages.NewDataDictHeaderPage()
 
-	return &DataDictionaryPageWrapper{
+	page := &DataDictionaryPageWrapper{
 		BasePageWrapper: base,
 		bufferPool:      bp,
+		storageProvider: storage,
 		dictPage:        dictPage,
 		tables:          make(map[uint64]*TableDef),
 		indexMap:        make(map[uint64]dictIndexRecord),
 	}
+	return page
 }
 
 // SetStorageProvider 设置回退读取/写入的 storage 提供者
@@ -143,14 +151,14 @@ func (dw *DataDictionaryPageWrapper) ToBytes() ([]byte, error) {
 		return nil, fmt.Errorf("dictionary payload too large: %d > %d", len(payload), dw.getDictionaryPayloadCapacity())
 	}
 
-	if dictPayloadDataOffset+len(payload) > len(data)-pages.FileTrailerSize {
+	if dictPayloadDataOffset+len(payload) > len(data)-common.FileTrailerSize {
 		return nil, fmt.Errorf("dictionary payload offset overflow")
 	}
 
 	copy(data[dictPayloadDataOffset:], payload)
 	// 清空 payload 区域剩余字节，避免被历史脏数据污染
 	restStart := dictPayloadDataOffset + len(payload)
-	for i := restStart; i < len(data)-pages.FileTrailerSize; i++ {
+	for i := restStart; i < len(data)-common.FileTrailerSize; i++ {
 		data[i] = 0
 	}
 
@@ -164,7 +172,7 @@ func (dw *DataDictionaryPageWrapper) ToBytes() ([]byte, error) {
 }
 
 func (dw *DataDictionaryPageWrapper) updateSerializedChecksumLocked(data []byte) {
-	if len(data) < pages.FileHeaderSize+pages.FileTrailerSize {
+	if len(data) < common.FileHeaderSize+common.FileTrailerSize {
 		return
 	}
 
@@ -173,7 +181,7 @@ func (dw *DataDictionaryPageWrapper) updateSerializedChecksumLocked(data []byte)
 	binary.LittleEndian.PutUint32(data[0:4], checksum32)
 
 	dw.trailer.SetChecksum(uint64(checksum32))
-	copy(data[len(data)-pages.FileTrailerSize:], dw.trailer.FileTrailer[:])
+	copy(data[len(data)-common.FileTrailerSize:], dw.trailer.FileTrailer[:])
 }
 
 func (dw *DataDictionaryPageWrapper) markDirtyLocked() {
@@ -210,7 +218,7 @@ func (dw *DataDictionaryPageWrapper) parseDataDictContent(content []byte) error 
 	payloadLen := int(binary.LittleEndian.Uint32(header[8:12]))
 	payloadStart := dictPayloadDataOffset + dictPayloadHeaderSize
 	payloadEnd := payloadStart + payloadLen
-	if payloadLen <= 0 || payloadEnd > len(content)-pages.FileTrailerSize {
+	if payloadLen <= 0 || payloadEnd > len(content)-common.FileTrailerSize {
 		return nil
 	}
 
@@ -301,13 +309,18 @@ func (dw *DataDictionaryPageWrapper) parseAndCacheContent(content []byte) error 
 
 // Write 实现PageWrapper接口
 func (dw *DataDictionaryPageWrapper) Write() error {
+	if dw.storageProvider == nil && dw.bufferPool == nil {
+		return ErrPageStorageUnavailable
+	}
+
 	content, err := dw.ToBytes()
 	if err != nil {
 		return err
 	}
 
+	var bufferPage *buffer_pool.BufferPage
 	if dw.bufferPool != nil {
-		bufferPage, err := dw.bufferPool.GetPage(dw.GetSpaceID(), dw.GetPageID())
+		bufferPage, err = dw.bufferPool.GetPage(dw.GetSpaceID(), dw.GetPageID())
 		if err == nil && bufferPage != nil {
 			bufferPage.SetContent(content)
 			bufferPage.MarkDirty()
@@ -329,7 +342,7 @@ func (dw *DataDictionaryPageWrapper) Write() error {
 	}
 
 	if dw.bufferPool != nil {
-		return dw.bufferPool.FlushPage(buffer_pool.NewBufferPage(dw.GetSpaceID(), dw.GetPageID()))
+		return dw.bufferPool.FlushPage(bufferPage)
 	}
 
 	dw.Lock()
@@ -654,7 +667,7 @@ func (dw *DataDictionaryPageWrapper) buildPayload() ([]byte, error) {
 }
 
 func (dw *DataDictionaryPageWrapper) getDictionaryPayloadCapacity() int {
-	return common.PageSize - dictPayloadDataOffset - pages.FileTrailerSize
+	return common.PageSize - dictPayloadDataOffset - common.FileTrailerSize
 }
 
 // 内部方法：从storage读取

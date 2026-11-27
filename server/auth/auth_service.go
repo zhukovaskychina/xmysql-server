@@ -1,10 +1,14 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"strings"
+	"sync"
 	"time"
 
+	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 )
@@ -35,27 +39,84 @@ type AuthService interface {
 
 // AuthResult 认证结果
 type AuthResult struct {
-	Success      bool
-	User         string
-	Host         string
-	Database     string
-	Privileges   []common.PrivilegeType
-	ErrorCode    uint16
-	ErrorMessage string
+	Success           bool
+	User              string
+	Host              string
+	Database          string
+	PasswordExpired   bool
+	Privileges        []common.PrivilegeType
+	DynamicPrivileges []string
+	ActiveRoles       []string
+	ErrorCode         uint16
+	ErrorMessage      string
+}
+
+type expiredPasswordCapabilityKey struct{}
+
+// WithExpiredPasswordSupport marks an authentication attempt as coming from
+// a client that negotiated CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS.  The marker
+// is deliberately carried by context so existing AuthService callers retain
+// MySQL's default reject-on-login behavior.
+func WithExpiredPasswordSupport(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, expiredPasswordCapabilityKey{}, true)
+}
+
+// SupportsExpiredPassword reports whether the authentication context allows
+// MySQL's restricted expired-password session.
+func SupportsExpiredPassword(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	enabled, _ := ctx.Value(expiredPasswordCapabilityKey{}).(bool)
+	return enabled
+}
+
+// ResolveProxyUser resolves a PROXY grant for an authenticated account.  It
+// is intentionally additive to AuthService so lightweight test doubles and
+// external authentication adapters remain source compatible.
+func (as *AuthServiceImpl) ResolveProxyUser(ctx context.Context, user, host string) (string, string, bool, error) {
+	resolver, ok := as.engineAccess.(interface {
+		QueryProxyUser(context.Context, string, string) (string, string, bool, error)
+	})
+	if !ok {
+		return "", "", false, nil
+	}
+	return resolver.QueryProxyUser(ctx, user, host)
 }
 
 // UserInfo 用户信息
 type UserInfo struct {
-	User               string
-	Host               string
-	Password           string
-	PasswordExpired    bool
-	AccountLocked      bool
-	MaxConnections     int
-	MaxUserConnections int
-	GlobalPrivileges   []common.PrivilegeType
-	DatabasePrivileges map[string][]common.PrivilegeType
-	TablePrivileges    map[string]map[string][]common.PrivilegeType
+	User                    string
+	Host                    string
+	Password                string
+	AuthPlugin              string
+	TLSRequired             bool
+	X509Required            bool
+	PasswordExpired         bool
+	PasswordLastChanged     time.Time
+	PasswordLifetime        *int64
+	AccountLocked           bool
+	FailedLoginAttempts     *int64
+	PasswordLockTime        *int64
+	PasswordLockUnbounded   bool
+	FailedLoginCount        int64
+	PasswordLockedUntil     *time.Time
+	PasswordLockedUnbounded bool
+	MaxQuestions            int
+	MaxUpdates              int
+	MaxConnections          int
+	MaxUserConnections      int
+	GlobalPrivileges        []common.PrivilegeType
+	DynamicPrivileges       []string
+	DatabasePrivileges      map[string][]common.PrivilegeType
+	TablePrivileges         map[string]map[string][]common.PrivilegeType
+	ColumnPrivileges        map[string][]common.PrivilegeType
+	Restrictions            map[string][]common.PrivilegeType
+	Roles                   []string
+	DefaultRoles            []string
 }
 
 // DatabaseInfo 数据库信息
@@ -70,6 +131,8 @@ type DatabaseInfo struct {
 type AuthServiceImpl struct {
 	config            *conf.Cfg
 	engineAccess      EngineAccess
+	cacheMu           sync.RWMutex
+	cacheGeneration   uint64
 	userCache         map[string]*UserInfo
 	dbCache           map[string]*DatabaseInfo
 	cacheExpiry       time.Time
@@ -93,6 +156,11 @@ type EngineAccess interface {
 
 	// 查询表权限
 	QueryTablePrivileges(ctx context.Context, user, host, database, table string) ([]common.PrivilegeType, error)
+}
+
+type authenticationStateRecorder interface {
+	RecordAuthenticationFailure(user, host string) error
+	ResetAuthenticationFailures(user, host string) error
 }
 
 // NewAuthService 创建认证服务
@@ -125,21 +193,44 @@ func (as *AuthServiceImpl) AuthenticateUser(ctx context.Context, user, password,
 
 	// 2. 验证密码
 	sessionKey := fmt.Sprintf("%s@%s", user, host)
+	as.cacheMu.RLock()
 	challenge := as.challengeCache[sessionKey]
-	usedExactSessionKey := challenge != nil
 	challengeSessionKey := sessionKey
 	if len(challenge) == 0 && len(as.challengeCache) > 0 {
 		for k, c := range as.challengeCache {
 			if len(c) > 0 {
 				challenge = c
 				challengeSessionKey = k
-				usedExactSessionKey = false
 				break
 			}
 		}
 	}
+	challenge = append([]byte(nil), challenge...)
+	as.cacheMu.RUnlock()
 
-	if !as.passwordValidator.ValidatePassword(password, userInfo.Password, challenge) {
+	validator := as.passwordValidator
+	if userInfo.AuthPlugin != "" {
+		candidate := (&PasswordValidatorFactory{}).CreateValidator(userInfo.AuthPlugin)
+		if candidate == nil {
+			return &AuthResult{Success: false, ErrorCode: common.ErrPluginIsNotLoaded, ErrorMessage: fmt.Sprintf("Authentication plugin '%s' is not loaded", userInfo.AuthPlugin)}, nil
+		}
+		validator = candidate
+	}
+	if userInfo.PasswordLockedUnbounded || (userInfo.PasswordLockedUntil != nil && time.Now().UTC().Before(userInfo.PasswordLockedUntil.UTC())) {
+		// A denied login must not pin a lock snapshot after an administrator
+		// resets the account's failed-login state.
+		as.invalidateCachedUser(user, host)
+		return &AuthResult{
+			Success:      false,
+			ErrorCode:    common.ER_ACCESS_DENIED_ERROR,
+			ErrorMessage: fmt.Sprintf("Account '%s'@'%s' is temporarily locked", user, host),
+		}, nil
+	}
+	if !validator.ValidatePassword(password, userInfo.Password, challenge) {
+		if recorder, ok := as.engineAccess.(authenticationStateRecorder); ok {
+			_ = recorder.RecordAuthenticationFailure(user, host)
+			as.invalidateCachedUser(user, host)
+		}
 		return &AuthResult{
 			Success:      false,
 			ErrorCode:    common.ER_ACCESS_DENIED_ERROR,
@@ -156,12 +247,38 @@ func (as *AuthServiceImpl) AuthenticateUser(ctx context.Context, user, password,
 		}, nil
 	}
 
-	if userInfo.PasswordExpired {
+	passwordExpired := as.PasswordExpired(ctx, userInfo)
+	if passwordExpired && !SupportsExpiredPassword(ctx) {
 		return &AuthResult{
 			Success:      false,
-			ErrorCode:    common.ER_ACCESS_DENIED_ERROR,
+			ErrorCode:    common.ErrMustChangePasswordLogin,
 			ErrorMessage: "Your password has expired. To log in you must change it using a client that supports expired passwords.",
 		}, nil
+	}
+	if recorder, ok := as.engineAccess.(authenticationStateRecorder); ok {
+		_ = recorder.ResetAuthenticationFailures(user, host)
+		as.invalidateCachedUser(user, host)
+	}
+
+	// Password authentication belongs to the proxy account, while database
+	// access and the resulting session identity belong to the proxied account.
+	// Resolve this before validating an optional default database so both the
+	// legacy AuthService API and the decoupled protocol path agree on PROXY
+	// semantics.
+	if proxiedUser, proxiedHost, found, proxyErr := as.ResolveProxyUser(ctx, user, host); proxyErr != nil {
+		return &AuthResult{Success: false, ErrorCode: common.ER_ACCESS_DENIED_ERROR, ErrorMessage: proxyErr.Error()}, nil
+	} else if found {
+		proxiedInfo, lookupErr := as.getUserInfo(ctx, proxiedUser, proxiedHost)
+		if lookupErr != nil || proxiedInfo == nil {
+			if lookupErr == nil {
+				lookupErr = fmt.Errorf("PROXY target '%s'@'%s' does not exist", proxiedUser, proxiedHost)
+			}
+			return &AuthResult{Success: false, ErrorCode: common.ER_ACCESS_DENIED_ERROR, ErrorMessage: lookupErr.Error()}, nil
+		}
+		if proxiedInfo.AccountLocked {
+			return &AuthResult{Success: false, ErrorCode: common.ER_ACCESS_DENIED_ERROR, ErrorMessage: fmt.Sprintf("PROXY target '%s'@'%s' is locked", proxiedUser, proxiedHost)}, nil
+		}
+		user, host, userInfo = proxiedUser, proxiedHost, proxiedInfo
 	}
 
 	// 4. 验证数据库（如果指定了数据库）
@@ -186,56 +303,138 @@ func (as *AuthServiceImpl) AuthenticateUser(ctx context.Context, user, password,
 
 	// 5. 认证成功，清理挑战缓存
 	if len(challengeSessionKey) > 0 {
-		if usedExactSessionKey {
+		as.cacheMu.Lock()
+		// Remove only the challenge used by this attempt. Another connection
+		// may have generated or replaced a challenge while authentication ran.
+		if bytes.Equal(as.challengeCache[challengeSessionKey], challenge) {
 			delete(as.challengeCache, challengeSessionKey)
-		} else {
-			for k := range as.challengeCache {
-				if len(as.challengeCache[k]) > 0 {
-					delete(as.challengeCache, k)
-				}
-			}
 		}
+		as.cacheMu.Unlock()
 	}
 
 	// 6. 获取用户权限
-	privileges := userInfo.GlobalPrivileges
+	privileges := append([]common.PrivilegeType(nil), userInfo.GlobalPrivileges...)
 	if database != "" && userInfo.DatabasePrivileges[database] != nil {
 		privileges = append(privileges, userInfo.DatabasePrivileges[database]...)
 	}
 
+	activeRoles := append([]string(nil), userInfo.DefaultRoles...)
+	if roleProvider, ok := as.engineAccess.(interface {
+		MandatoryRoles(context.Context) []string
+		ActivateAllRolesOnLogin(context.Context) bool
+	}); ok && roleProvider.ActivateAllRolesOnLogin(ctx) {
+		activeRoles = append(activeRoles[:0], userInfo.Roles...)
+		activeRoles = append(activeRoles, roleProvider.MandatoryRoles(ctx)...)
+	}
+
 	return &AuthResult{
-		Success:    true,
-		User:       user,
-		Host:       host,
-		Database:   database,
-		Privileges: privileges,
+		Success:           true,
+		User:              user,
+		Host:              host,
+		Database:          database,
+		PasswordExpired:   passwordExpired,
+		Privileges:        privileges,
+		DynamicPrivileges: append([]string(nil), userInfo.DynamicPrivileges...),
+		ActiveRoles:       normalizeAuthRoleList(activeRoles),
 	}, nil
+}
+
+// PasswordExpired applies both the account's explicit PASSWORD EXPIRE state
+// and the configured password-lifetime policy.  It is exported as an
+// additive helper for protocol handlers that perform challenge-response
+// authentication directly instead of calling AuthenticateUser.
+func (as *AuthServiceImpl) PasswordExpired(ctx context.Context, userInfo *UserInfo) bool {
+	return userInfo != nil && (userInfo.PasswordExpired || as.passwordExpiredByLifetime(ctx, userInfo))
+}
+
+func (as *AuthServiceImpl) passwordExpiredByLifetime(ctx context.Context, userInfo *UserInfo) bool {
+	if userInfo == nil || userInfo.PasswordLastChanged.IsZero() {
+		return false
+	}
+	lifetime := int64(0)
+	if userInfo.PasswordLifetime != nil {
+		lifetime = *userInfo.PasswordLifetime
+	} else if provider, ok := as.engineAccess.(interface {
+		DefaultPasswordLifetime(context.Context) int64
+	}); ok {
+		lifetime = provider.DefaultPasswordLifetime(ctx)
+	}
+	if lifetime <= 0 {
+		return false
+	}
+	return !time.Now().UTC().Before(userInfo.PasswordLastChanged.UTC().Add(time.Duration(lifetime) * 24 * time.Hour))
+}
+
+func normalizeAuthRoleList(roles []string) []string {
+	result := make([]string, 0, len(roles))
+	seen := map[string]struct{}{}
+	for _, role := range roles {
+		role = strings.TrimSpace(role)
+		if role == "" {
+			continue
+		}
+		key := strings.ToLower(role)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, role)
+	}
+	return result
+}
+
+// CheckDynamicPrivilege checks a named MySQL dynamic privilege without
+// forcing it into the fixed common.PrivilegeType bitmask. Callers that gate
+// features such as BACKUP_ADMIN or SYSTEM_USER can use this additive API;
+// existing static privilege callers remain source-compatible.
+func (as *AuthServiceImpl) CheckDynamicPrivilege(ctx context.Context, user, host, privilege string) error {
+	userInfo, err := as.getUserInfo(ctx, user, host)
+	if err != nil {
+		return err
+	}
+	wanted := strings.ToUpper(strings.TrimSpace(privilege))
+	if !common.IsRegisteredDynamicPrivilege(wanted) {
+		return fmt.Errorf("unknown dynamic privilege %s", wanted)
+	}
+	for _, granted := range userInfo.DynamicPrivileges {
+		if strings.EqualFold(granted, wanted) {
+			return nil
+		}
+	}
+	return fmt.Errorf("access denied: user '%s'@'%s' lacks dynamic privilege %s", user, host, wanted)
 }
 
 // ValidateDatabase 验证数据库是否存在
 func (as *AuthServiceImpl) ValidateDatabase(ctx context.Context, database string) error {
-	// 检查缓存
-	if dbInfo, exists := as.dbCache[database]; exists && time.Now().Before(as.cacheExpiry) {
+	for {
+		as.cacheMu.RLock()
+		dbInfo, cached := as.dbCache[database]
+		valid := cached && time.Now().Before(as.cacheExpiry)
+		generation := as.cacheGeneration
+		as.cacheMu.RUnlock()
+		if !valid {
+			queried, err := as.engineAccess.QueryDatabase(ctx, database)
+			if err != nil {
+				return err
+			}
+			snapshot := *queried
+			dbInfo = &snapshot
+			as.cacheMu.Lock()
+			if generation != as.cacheGeneration {
+				as.cacheMu.Unlock()
+				if ctx != nil && ctx.Err() != nil {
+					return ctx.Err()
+				}
+				continue
+			}
+			as.dbCache[database] = dbInfo
+			as.cacheMu.Unlock()
+		}
 		if !dbInfo.Exists {
 			return fmt.Errorf("database '%s' does not exist", database)
 		}
 		return nil
 	}
-
-	// 从引擎查询
-	dbInfo, err := as.engineAccess.QueryDatabase(ctx, database)
-	if err != nil {
-		return err
-	}
-
-	// 更新缓存
-	as.dbCache[database] = dbInfo
-
-	if !dbInfo.Exists {
-		return fmt.Errorf("database '%s' does not exist", database)
-	}
-
-	return nil
 }
 
 // CheckPrivilege 检查用户权限
@@ -247,19 +446,25 @@ func (as *AuthServiceImpl) CheckPrivilege(ctx context.Context, user, host, datab
 
 	// 检查全局权限
 	for _, p := range userInfo.GlobalPrivileges {
-		if p == privilege || p == common.AllPriv {
+		if (p == privilege || p == common.AllPriv) && !hasPrivilege(userInfo.Restrictions[database], privilege) {
 			return nil
 		}
 	}
 
-	// 检查数据库权限
+	// 检查数据库权限。权限表是独立于 mysql.user 的 grant scope，不能只
+	// 依赖 QueryUser 返回的全局权限快照。
 	if database != "" {
 		if dbPrivs, exists := userInfo.DatabasePrivileges[database]; exists {
-			for _, p := range dbPrivs {
-				if p == privilege || p == common.AllPriv {
-					return nil
-				}
+			if hasPrivilege(dbPrivs, privilege) {
+				return nil
 			}
+		}
+		dbPrivs, dbErr := as.engineAccess.QueryDatabasePrivileges(ctx, user, host, database)
+		if dbErr != nil {
+			return dbErr
+		}
+		if hasPrivilege(dbPrivs, privilege) {
+			return nil
 		}
 	}
 
@@ -267,16 +472,56 @@ func (as *AuthServiceImpl) CheckPrivilege(ctx context.Context, user, host, datab
 	if table != "" && database != "" {
 		if dbTables, exists := userInfo.TablePrivileges[database]; exists {
 			if tablePrivs, exists := dbTables[table]; exists {
-				for _, p := range tablePrivs {
-					if p == privilege || p == common.AllPriv {
-						return nil
-					}
+				if hasPrivilege(tablePrivs, privilege) {
+					return nil
 				}
 			}
+		}
+		tablePrivs, tableErr := as.engineAccess.QueryTablePrivileges(ctx, user, host, database, table)
+		if tableErr != nil {
+			return tableErr
+		}
+		if hasPrivilege(tablePrivs, privilege) {
+			return nil
 		}
 	}
 
 	return fmt.Errorf("access denied: user '%s'@'%s' lacks %s privilege", user, host, privilege.String())
+}
+
+// CheckColumnPrivilege applies the same global/database/table precedence as
+// CheckPrivilege and then evaluates the persisted column grant. It is kept as
+// an additive API so existing dispatcher integrations remain source compatible.
+func (as *AuthServiceImpl) CheckColumnPrivilege(ctx context.Context, user, host, database, table, column string, privilege common.PrivilegeType) error {
+	if err := as.CheckPrivilege(ctx, user, host, database, table, privilege); err == nil {
+		return nil
+	}
+	if userInfo, err := as.getUserInfo(ctx, user, host); err == nil {
+		if hasPrivilege(userInfo.ColumnPrivileges[database+"."+table+"."+column], privilege) {
+			return nil
+		}
+	}
+	if access, ok := as.engineAccess.(interface {
+		queryPersistedColumnPrivileges(context.Context, string, string, string, string, string) ([]common.PrivilegeType, bool, error)
+	}); ok {
+		privileges, found, err := access.queryPersistedColumnPrivileges(ctx, user, host, database, table, column)
+		if err != nil {
+			return err
+		}
+		if found && hasPrivilege(privileges, privilege) {
+			return nil
+		}
+	}
+	return fmt.Errorf("access denied: user '%s'@'%s' lacks %s privilege on column '%s'", user, host, privilege.String(), column)
+}
+
+func hasPrivilege(privileges []common.PrivilegeType, required common.PrivilegeType) bool {
+	for _, privilege := range privileges {
+		if privilege == required || privilege == common.AllPriv {
+			return true
+		}
+	}
+	return false
 }
 
 // GetUserInfo 获取用户信息
@@ -284,8 +529,26 @@ func (as *AuthServiceImpl) GetUserInfo(ctx context.Context, user, host string) (
 	return as.getUserInfo(ctx, user, host)
 }
 
+func (as *AuthServiceImpl) invalidateCachedUser(user, host string) {
+	if as == nil {
+		return
+	}
+	as.cacheMu.Lock()
+	defer as.cacheMu.Unlock()
+	as.cacheGeneration++
+	prefix := fmt.Sprintf("%s@%s", user, host)
+	for key := range as.userCache {
+		if key == prefix || strings.HasPrefix(key, prefix+"#roles=") {
+			delete(as.userCache, key)
+		}
+	}
+}
+
 // FlushPrivileges 刷新权限缓存
 func (as *AuthServiceImpl) FlushPrivileges(ctx context.Context) error {
+	as.cacheMu.Lock()
+	defer as.cacheMu.Unlock()
+	as.cacheGeneration++
 	as.userCache = make(map[string]*UserInfo)
 	as.dbCache = make(map[string]*DatabaseInfo)
 	as.cacheExpiry = time.Now().Add(5 * time.Minute)
@@ -295,28 +558,42 @@ func (as *AuthServiceImpl) FlushPrivileges(ctx context.Context) error {
 // getUserInfo 获取用户信息（内部方法）
 func (as *AuthServiceImpl) getUserInfo(ctx context.Context, user, host string) (*UserInfo, error) {
 	key := fmt.Sprintf("%s@%s", user, host)
-
-	// 检查缓存
-	if userInfo, exists := as.userCache[key]; exists && time.Now().Before(as.cacheExpiry) {
-		return userInfo, nil
+	if roles, explicit := server.ActiveRoles(ctx); explicit {
+		key += "#roles=" + fmt.Sprint(roles)
 	}
 
-	// 从引擎查询
-	userInfo, err := as.engineAccess.QueryUser(ctx, user, host)
-	if err != nil {
-		return nil, err
+	for {
+		as.cacheMu.RLock()
+		userInfo, cached := as.userCache[key]
+		valid := cached && time.Now().Before(as.cacheExpiry)
+		generation := as.cacheGeneration
+		as.cacheMu.RUnlock()
+		if valid {
+			return cloneCachedUserInfo(userInfo), nil
+		}
+
+		queried, err := as.engineAccess.QueryUser(ctx, user, host)
+		if err != nil {
+			return nil, err
+		}
+		userInfo = cloneCachedUserInfo(queried)
+		globalPrivs, err := as.engineAccess.QueryUserPrivileges(ctx, user, host)
+		if err == nil {
+			userInfo.GlobalPrivileges = append([]common.PrivilegeType(nil), globalPrivs...)
+		}
+
+		as.cacheMu.Lock()
+		if generation != as.cacheGeneration {
+			as.cacheMu.Unlock()
+			if ctx != nil && ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			continue
+		}
+		as.userCache[key] = userInfo
+		as.cacheMu.Unlock()
+		return cloneCachedUserInfo(userInfo), nil
 	}
-
-	// 查询权限
-	globalPrivs, err := as.engineAccess.QueryUserPrivileges(ctx, user, host)
-	if err == nil {
-		userInfo.GlobalPrivileges = globalPrivs
-	}
-
-	// 更新缓存
-	as.userCache[key] = userInfo
-
-	return userInfo, nil
 }
 
 // GenerateChallenge 为会话生成挑战字符串
@@ -327,12 +604,16 @@ func (as *AuthServiceImpl) GenerateChallenge(sessionID string) ([]byte, error) {
 	}
 
 	// 缓存挑战字符串
-	as.challengeCache[sessionID] = challenge
+	as.cacheMu.Lock()
+	as.challengeCache[sessionID] = append([]byte(nil), challenge...)
+	as.cacheMu.Unlock()
 
 	return challenge, nil
 }
 
 // GetChallenge 获取会话的挑战字符串
 func (as *AuthServiceImpl) GetChallenge(sessionID string) []byte {
-	return as.challengeCache[sessionID]
+	as.cacheMu.RLock()
+	defer as.cacheMu.RUnlock()
+	return append([]byte(nil), as.challengeCache[sessionID]...)
 }

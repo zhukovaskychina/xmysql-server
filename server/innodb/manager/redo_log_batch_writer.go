@@ -31,6 +31,8 @@ type BatchWriter struct {
 	writeChan chan *WriteRequest // 写入请求通道
 	flushChan chan *FlushRequest // 刷新请求通道
 	stopChan  chan struct{}      // 停止信号
+	closeOnce sync.Once
+	closeErr  error
 
 	// LSN管理
 	lsnManager *LSNManager // LSN管理器
@@ -343,25 +345,32 @@ func (bw *BatchWriter) periodicFlushWorker() {
 
 // Close 关闭批量写入器
 func (bw *BatchWriter) Close() error {
-	// 发送停止信号
-	close(bw.stopChan)
+	bw.closeOnce.Do(func() {
+		// 发送停止信号
+		close(bw.stopChan)
 
-	// 等待协程结束
-	time.Sleep(100 * time.Millisecond)
+		// 等待协程结束
+		time.Sleep(100 * time.Millisecond)
 
-	bw.mu.Lock()
-	defer bw.mu.Unlock()
+		bw.mu.Lock()
+		defer bw.mu.Unlock()
 
-	// 刷新所有待写入数据
-	if len(bw.pendingBatch) > 0 {
-		bw.flushBatch()
-	}
-	if bw.currentSize > 0 {
-		bw.flushBuffer()
-	}
+		// 刷新所有待写入数据
+		if len(bw.pendingBatch) > 0 {
+			bw.closeErr = bw.flushBatch()
+		}
+		if bw.currentSize > 0 {
+			if err := bw.flushBuffer(); bw.closeErr == nil {
+				bw.closeErr = err
+			}
+		}
 
-	// 关闭文件
-	return bw.file.Close()
+		// 关闭文件，即使刷新失败也释放文件句柄。
+		if err := bw.file.Close(); bw.closeErr == nil {
+			bw.closeErr = err
+		}
+	})
+	return bw.closeErr
 }
 
 // GetStats 获取统计信息

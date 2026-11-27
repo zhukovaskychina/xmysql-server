@@ -37,8 +37,8 @@ import (
 
 // 系统页面常量
 const (
-	SystemHeaderSize = 32    // 系统头部大小
-	SystemDataSize   = 16306 // 系统数据区大小 (16384 - 38 - 32 - 8)
+	SystemHeaderSize = common.SystemPageHeaderSize // 系统头部大小
+	SystemDataSize   = common.SystemPageDataSize   // 系统数据区大小 (16384 - 38 - 32 - 8)
 )
 
 // 系统标志
@@ -90,7 +90,7 @@ func NewSystemPage(spaceID, pageNo uint32, systemID uint32) *SystemPage {
 			SystemID:     systemID,
 			Reserved:     0,
 		},
-		SystemData:  make([]byte, SystemDataSize),
+		SystemData:  make([]byte, common.SystemPageDataSize),
 		FileTrailer: NewFileTrailer(),
 	}
 
@@ -104,7 +104,7 @@ func NewSystemPage(spaceID, pageNo uint32, systemID uint32) *SystemPage {
 
 // SetSystemData 设置系统数据
 func (sp *SystemPage) SetSystemData(data []byte) error {
-	if len(data) > SystemDataSize {
+	if len(data) > common.SystemPageDataSize {
 		return ErrInvalidSystemData
 	}
 
@@ -189,15 +189,15 @@ func (sp *SystemPage) Serialize() []byte {
 
 	// 序列化文件头部
 	copy(data[offset:], sp.serializeFileHeader())
-	offset += FileHeaderSize
+	offset += common.FileHeaderSize
 
 	// 序列化系统头部
 	copy(data[offset:], sp.serializeSystemHeader())
-	offset += SystemHeaderSize
+	offset += common.SystemPageHeaderSize
 
 	// 序列化系统数据
 	copy(data[offset:], sp.SystemData)
-	offset += SystemDataSize
+	offset += common.SystemPageDataSize
 
 	// 序列化文件尾部
 	copy(data[offset:], sp.serializeFileTrailer())
@@ -214,23 +214,23 @@ func (sp *SystemPage) Deserialize(data []byte) error {
 	offset := 0
 
 	// 反序列化文件头部
-	if err := sp.deserializeFileHeader(data[offset : offset+FileHeaderSize]); err != nil {
+	if err := sp.deserializeFileHeader(data[offset : offset+common.FileHeaderSize]); err != nil {
 		return err
 	}
-	offset += FileHeaderSize
+	offset += common.FileHeaderSize
 
 	// 反序列化系统头部
-	if err := sp.deserializeSystemHeader(data[offset : offset+SystemHeaderSize]); err != nil {
+	if err := sp.deserializeSystemHeader(data[offset : offset+common.SystemPageHeaderSize]); err != nil {
 		return err
 	}
-	offset += SystemHeaderSize
+	offset += common.SystemPageHeaderSize
 
 	// 反序列化系统数据
-	copy(sp.SystemData, data[offset:offset+SystemDataSize])
-	offset += SystemDataSize
+	copy(sp.SystemData, data[offset:offset+common.SystemPageDataSize])
+	offset += common.SystemPageDataSize
 
 	// 反序列化文件尾部
-	if err := sp.deserializeFileTrailer(data[offset : offset+FileTrailerSize]); err != nil {
+	if err := sp.deserializeFileTrailer(data[offset : offset+common.FileTrailerSize]); err != nil {
 		return err
 	}
 
@@ -244,7 +244,7 @@ func (sp *SystemPage) serializeFileHeader() []byte {
 
 // serializeSystemHeader 序列化系统头部
 func (sp *SystemPage) serializeSystemHeader() []byte {
-	data := make([]byte, SystemHeaderSize)
+	data := make([]byte, common.SystemPageHeaderSize)
 
 	binary.LittleEndian.PutUint32(data[0:], sp.SystemHeader.Version)
 	binary.LittleEndian.PutUint32(data[4:], uint32(sp.SystemHeader.Flags))
@@ -268,7 +268,7 @@ func (sp *SystemPage) deserializeFileHeader(data []byte) error {
 
 // deserializeSystemHeader 反序列化系统头部
 func (sp *SystemPage) deserializeSystemHeader(data []byte) error {
-	if len(data) < SystemHeaderSize {
+	if len(data) < common.SystemPageHeaderSize {
 		return ErrInvalidPageSize
 	}
 

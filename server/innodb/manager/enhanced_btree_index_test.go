@@ -21,6 +21,7 @@ func TestEnhancedBTreeAdapterFullScanDoesNotReadSidecarWithoutIndex(t *testing.T
 		InnodbBufferPoolSize: 16 * 1024 * 1024,
 		InnodbPageSize:       16384,
 	})
+	t.Cleanup(func() { _ = storage.Close() })
 	adapter := NewEnhancedBTreeAdapter(storage, DefaultBTreeConfig)
 	adapter.spaceID = 7
 
@@ -207,4 +208,27 @@ func TestSimpleRow_SetTransactionId(t *testing.T) {
 	assert.Equal(t, byte(4), row.data[3])
 	assert.Equal(t, byte(5), row.data[4])
 	assert.Equal(t, uint64(12345), binary.LittleEndian.Uint64(row.data[5:13]))
+}
+
+func TestSimpleRowMaintainsRowHeaderAndValues(t *testing.T) {
+	row := &SimpleRow{data: []byte("value"), pageNo: 41}
+	row.SetNOwned(2)
+	row.SetNextRowOffset(19)
+	row.SetHeapNo(7)
+
+	if row.GetNOwned() != 2 || row.GetNextRowOffset() != 19 || row.GetHeapNo() != 7 {
+		t.Fatalf("row header = owned=%d next=%d heap=%d", row.GetNOwned(), row.GetNextRowOffset(), row.GetHeapNo())
+	}
+	if got := row.ReadValueByIndex(0).Bytes(); string(got) != string(row.data) {
+		t.Fatalf("ReadValueByIndex(0) = %v, want row bytes", got)
+	}
+	if !row.ReadValueByIndex(1).IsNull() {
+		t.Fatalf("ReadValueByIndex(1) should return NULL")
+	}
+	if got := row.GetPageNumber(); got != 41 {
+		t.Fatalf("GetPageNumber() = %d, want 41", got)
+	}
+	if !row.Less(&SimpleRow{data: []byte("zz")}) {
+		t.Fatal("Less should compare row bytes")
+	}
 }

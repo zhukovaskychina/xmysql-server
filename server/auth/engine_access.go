@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
@@ -17,8 +19,33 @@ import (
 
 // InnoDBEngineAccess InnoDB引擎访问实现
 type InnoDBEngineAccess struct {
-	config *conf.Cfg
-	engine *engine.XMySQLEngine
+	config         *conf.Cfg
+	engine         *engine.XMySQLEngine
+	accountWriteMu sync.Mutex
+}
+
+// DefaultPasswordLifetime exposes the live global password-lifetime policy to
+// the authentication service without widening the stable EngineAccess API.
+func (ea *InnoDBEngineAccess) DefaultPasswordLifetime(context.Context) int64 {
+	if ea == nil || ea.engine == nil || ea.engine.GetStorageManager() == nil || ea.engine.GetStorageManager().GetSystemVariablesManager() == nil {
+		return 0
+	}
+	value, err := ea.engine.GetStorageManager().GetSystemVariablesManager().GetVariable("", "default_password_lifetime", manager.GlobalScope)
+	if err != nil {
+		return 0
+	}
+	switch typed := value.(type) {
+	case int64:
+		return typed
+	case int:
+		return int64(typed)
+	case string:
+		parsed, parseErr := strconv.ParseInt(strings.TrimSpace(typed), 10, 64)
+		if parseErr == nil {
+			return parsed
+		}
+	}
+	return 0
 }
 
 // NewInnoDBEngineAccess 创建InnoDB引擎访问
@@ -29,6 +56,22 @@ func NewInnoDBEngineAccess(config *conf.Cfg, xmysqlEngine *engine.XMySQLEngine) 
 	}
 }
 
+// MandatoryRoles exposes the engine-level role set to authentication without
+// widening the stable EngineAccess interface used by lightweight test doubles.
+func (ea *InnoDBEngineAccess) MandatoryRoles(context.Context) []string {
+	if ea == nil || ea.engine == nil {
+		return nil
+	}
+	return ea.engine.GetMandatoryRoles()
+}
+
+func (ea *InnoDBEngineAccess) ActivateAllRolesOnLogin(context.Context) bool {
+	if ea == nil || ea.engine == nil {
+		return false
+	}
+	return ea.engine.ActivateAllRolesOnLogin()
+}
+
 // escapeStringLiteral 对SQL字符串字面量进行最小转义处理，避免认证查询中的拼接风险
 func escapeStringLiteral(value string) string {
 	value = strings.ReplaceAll(value, `\\`, `\\\\`)
@@ -37,7 +80,7 @@ func escapeStringLiteral(value string) string {
 
 // QueryUser 查询用户信息
 func (ea *InnoDBEngineAccess) QueryUser(ctx context.Context, user, host string) (*UserInfo, error) {
-	if userInfo, err := ea.queryUserFromStorage(user, host); err == nil {
+	if userInfo, err := ea.queryUserFromStorage(ctx, user, host); err == nil {
 		return userInfo, nil
 	}
 
@@ -47,7 +90,7 @@ func (ea *InnoDBEngineAccess) QueryUser(ctx context.Context, user, host string) 
 	// 构造查询SQL
 	sql := fmt.Sprintf(`
 		SELECT User, Host, authentication_string, account_locked, password_expired, 
-		       max_connections, max_user_connections
+		       max_connections, max_user_connections, password_lifetime, password_last_changed
 		FROM mysql.user 
 		WHERE User = '%s' AND Host = '%s'
 	`, escapedUser, escapedHost)
@@ -65,21 +108,28 @@ func (ea *InnoDBEngineAccess) QueryUser(ctx context.Context, user, host string) 
 
 	row := result.Rows[0]
 	userInfo := &UserInfo{
-		User:               user,
-		Host:               host,
-		Password:           ea.getString(row, 2),
-		AccountLocked:      ea.getBool(row, 3),
-		PasswordExpired:    ea.getBool(row, 4),
-		MaxConnections:     ea.getInt(row, 5),
-		MaxUserConnections: ea.getInt(row, 6),
-		DatabasePrivileges: make(map[string][]common.PrivilegeType),
-		TablePrivileges:    make(map[string]map[string][]common.PrivilegeType),
+		User:                user,
+		Host:                host,
+		Password:            ea.getString(row, 2),
+		AccountLocked:       ea.getBool(row, 3),
+		PasswordExpired:     ea.getBool(row, 4),
+		MaxConnections:      ea.getInt(row, 5),
+		MaxUserConnections:  ea.getInt(row, 6),
+		PasswordLifetime:    nullableAuthInt64(row, 7),
+		PasswordLastChanged: parseAuthTime(ea.getString(row, 8)),
+		DatabasePrivileges:  make(map[string][]common.PrivilegeType),
+		TablePrivileges:     make(map[string]map[string][]common.PrivilegeType),
 	}
 
 	return userInfo, nil
 }
 
-func (ea *InnoDBEngineAccess) queryUserFromStorage(user, host string) (*UserInfo, error) {
+func (ea *InnoDBEngineAccess) queryUserFromStorage(ctx context.Context, user, host string) (*UserInfo, error) {
+	if userInfo, found, err := ea.queryPersistedUserInfo(ctx, user, host); err != nil {
+		return nil, err
+	} else if found {
+		return userInfo, nil
+	}
 	if ea.engine == nil || ea.engine.GetStorageManager() == nil {
 		return nil, fmt.Errorf("storage manager unavailable")
 	}
@@ -128,17 +178,24 @@ func mysqlUserToUserInfo(mysqlUser *manager.MySQLUser) *UserInfo {
 	if mysqlUser == nil {
 		return nil
 	}
+	var passwordLifetime *int64
+	if mysqlUser.PasswordLifetime != nil {
+		value := int64(*mysqlUser.PasswordLifetime)
+		passwordLifetime = &value
+	}
 	return &UserInfo{
-		User:               mysqlUser.User,
-		Host:               mysqlUser.Host,
-		Password:           mysqlUser.AuthenticationString,
-		AccountLocked:      strings.EqualFold(mysqlUser.AccountLocked, "Y"),
-		PasswordExpired:    strings.EqualFold(mysqlUser.PasswordExpired, "Y"),
-		MaxConnections:     0,
-		MaxUserConnections: 0,
-		GlobalPrivileges:   mysqlUserGlobalPrivileges(mysqlUser),
-		DatabasePrivileges: make(map[string][]common.PrivilegeType),
-		TablePrivileges:    make(map[string]map[string][]common.PrivilegeType),
+		User:                mysqlUser.User,
+		Host:                mysqlUser.Host,
+		Password:            mysqlUser.AuthenticationString,
+		AccountLocked:       strings.EqualFold(mysqlUser.AccountLocked, "Y"),
+		PasswordExpired:     strings.EqualFold(mysqlUser.PasswordExpired, "Y"),
+		PasswordLastChanged: mysqlUser.PasswordLastChanged,
+		PasswordLifetime:    passwordLifetime,
+		MaxConnections:      0,
+		MaxUserConnections:  0,
+		GlobalPrivileges:    mysqlUserGlobalPrivileges(mysqlUser),
+		DatabasePrivileges:  make(map[string][]common.PrivilegeType),
+		TablePrivileges:     make(map[string]map[string][]common.PrivilegeType),
 	}
 }
 
@@ -189,7 +246,7 @@ func (ea *InnoDBEngineAccess) queryUserWithWildcard(ctx context.Context, user, h
 	// 查询所有可能匹配的用户
 	sql := fmt.Sprintf(`
 		SELECT User, Host, authentication_string, account_locked, password_expired, 
-		       max_connections, max_user_connections
+		       max_connections, max_user_connections, password_lifetime, password_last_changed
 		FROM mysql.user 
 		WHERE User = '%s'
 		ORDER BY Host DESC
@@ -200,23 +257,31 @@ func (ea *InnoDBEngineAccess) queryUserWithWildcard(ctx context.Context, user, h
 		return nil, fmt.Errorf("failed to query user with wildcard: %v", err)
 	}
 
-	// 查找最佳匹配
+	// 查找最佳匹配；不能依赖 mysql.user 的返回顺序，因为 ORDER BY
+	// Host DESC 并不等价于 MySQL 的 host specificity 规则。
+	var best *UserInfo
+	bestScore := -1
 	for _, row := range result.Rows {
 		hostPattern := ea.getString(row, 1)
-		if ea.matchHost(host, hostPattern) {
-			userInfo := &UserInfo{
-				User:               user,
-				Host:               hostPattern,
-				Password:           ea.getString(row, 2),
-				AccountLocked:      ea.getBool(row, 3),
-				PasswordExpired:    ea.getBool(row, 4),
-				MaxConnections:     ea.getInt(row, 5),
-				MaxUserConnections: ea.getInt(row, 6),
-				DatabasePrivileges: make(map[string][]common.PrivilegeType),
-				TablePrivileges:    make(map[string]map[string][]common.PrivilegeType),
+		if score := authHostMatchSpecificity(ea, host, hostPattern); score > bestScore {
+			best = &UserInfo{
+				User:                user,
+				Host:                hostPattern,
+				Password:            ea.getString(row, 2),
+				AccountLocked:       ea.getBool(row, 3),
+				PasswordExpired:     ea.getBool(row, 4),
+				MaxConnections:      ea.getInt(row, 5),
+				MaxUserConnections:  ea.getInt(row, 6),
+				PasswordLifetime:    nullableAuthInt64(row, 7),
+				PasswordLastChanged: parseAuthTime(ea.getString(row, 8)),
+				DatabasePrivileges:  make(map[string][]common.PrivilegeType),
+				TablePrivileges:     make(map[string]map[string][]common.PrivilegeType),
 			}
-			return userInfo, nil
+			bestScore = score
 		}
+	}
+	if best != nil {
+		return best, nil
 	}
 
 	return nil, fmt.Errorf("user '%s'@'%s' not found", user, host)
@@ -253,7 +318,7 @@ func (ea *InnoDBEngineAccess) QueryDatabase(ctx context.Context, database string
 
 // QueryUserPrivileges 查询用户全局权限
 func (ea *InnoDBEngineAccess) QueryUserPrivileges(ctx context.Context, user, host string) ([]common.PrivilegeType, error) {
-	if userInfo, err := ea.queryUserFromStorage(user, host); err == nil {
+	if userInfo, err := ea.queryUserFromStorage(ctx, user, host); err == nil {
 		return userInfo.GlobalPrivileges, nil
 	}
 
@@ -351,8 +416,38 @@ func (ea *InnoDBEngineAccess) QueryUserPrivileges(ctx context.Context, user, hos
 	return privileges, nil
 }
 
+// QueryProxyUser returns the proxied account selected by an exact PROXY grant
+// for the authenticated account.  A single deterministic target is required;
+// ambiguous grants are rejected instead of silently selecting one.
+func (ea *InnoDBEngineAccess) QueryProxyUser(ctx context.Context, user, host string) (string, string, bool, error) {
+	escapedUser := escapeStringLiteral(user)
+	escapedHost := escapeStringLiteral(host)
+	sql := fmt.Sprintf("SELECT Proxied_user, Proxied_host FROM mysql.proxies_priv WHERE User = '%s' AND Host = '%s'", escapedUser, escapedHost)
+	result, err := ea.executeQuery(ctx, sql, "mysql")
+	if err != nil {
+		return "", "", false, err
+	}
+	if len(result.Rows) == 0 {
+		return "", "", false, nil
+	}
+	if len(result.Rows) != 1 || len(result.Rows[0]) < 2 {
+		return "", "", false, fmt.Errorf("PROXY grant for '%s'@'%s' is ambiguous", user, host)
+	}
+	proxiedUser := strings.TrimSpace(ea.getString(result.Rows[0], 0))
+	proxiedHost := strings.TrimSpace(ea.getString(result.Rows[0], 1))
+	if proxiedUser == "" || proxiedHost == "" {
+		return "", "", false, fmt.Errorf("PROXY grant for '%s'@'%s' has an invalid target", user, host)
+	}
+	return proxiedUser, proxiedHost, true, nil
+}
+
 // QueryDatabasePrivileges 查询数据库权限
 func (ea *InnoDBEngineAccess) QueryDatabasePrivileges(ctx context.Context, user, host, database string) ([]common.PrivilegeType, error) {
+	if privileges, found, err := ea.queryPersistedGrantPrivileges(ctx, user, host, database, ""); err != nil {
+		return nil, err
+	} else if found {
+		return privileges, nil
+	}
 	escapedUser := escapeStringLiteral(user)
 	escapedHost := escapeStringLiteral(host)
 	escapedDatabase := escapeStringLiteral(database)
@@ -436,6 +531,11 @@ func (ea *InnoDBEngineAccess) QueryDatabasePrivileges(ctx context.Context, user,
 
 // QueryTablePrivileges 查询表权限
 func (ea *InnoDBEngineAccess) QueryTablePrivileges(ctx context.Context, user, host, database, table string) ([]common.PrivilegeType, error) {
+	if privileges, found, err := ea.queryPersistedGrantPrivileges(ctx, user, host, database, table); err != nil {
+		return nil, err
+	} else if found {
+		return privileges, nil
+	}
 	escapedUser := escapeStringLiteral(user)
 	escapedHost := escapeStringLiteral(host)
 	escapedDatabase := escapeStringLiteral(database)
@@ -500,8 +600,9 @@ func (ea *InnoDBEngineAccess) executeQuery(ctx context.Context, sql, database st
 
 	// 创建临时会话
 	session := &MockEngineSession{
-		sessionID: "auth-query",
-		database:  database,
+		sessionID:     "auth-query",
+		database:      database,
+		internalQuery: true,
 	}
 
 	logger.Debugf(" [executeQuery] 创建临时会话: %s", session.sessionID)
@@ -708,6 +809,48 @@ func (ea *InnoDBEngineAccess) getInt(row []interface{}, index int) int {
 	}
 }
 
+func nullableAuthInt64(row []interface{}, index int) *int64 {
+	if index < 0 || index >= len(row) || row[index] == nil {
+		return nil
+	}
+	var value int64
+	switch typed := row[index].(type) {
+	case int:
+		value = int64(typed)
+	case int64:
+		value = typed
+	case uint64:
+		value = int64(typed)
+	case string:
+		parsed, err := strconv.ParseInt(strings.TrimSpace(typed), 10, 64)
+		if err != nil {
+			return nil
+		}
+		value = parsed
+	case []byte:
+		parsed, err := strconv.ParseInt(strings.TrimSpace(string(typed)), 10, 64)
+		if err != nil {
+			return nil
+		}
+		value = parsed
+	default:
+		parsed, err := strconv.ParseInt(strings.TrimSpace(fmt.Sprint(typed)), 10, 64)
+		if err != nil {
+			return nil
+		}
+		value = parsed
+	}
+	return &value
+}
+
+func parseAuthTime(value string) time.Time {
+	parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(value))
+	if err != nil {
+		return time.Time{}
+	}
+	return parsed
+}
+
 // matchHost 匹配主机模式
 func (ea *InnoDBEngineAccess) matchHost(host, pattern string) bool {
 	if host == "" || pattern == "" {
@@ -737,9 +880,10 @@ func (ea *InnoDBEngineAccess) matchHost(host, pattern string) bool {
 
 // MockEngineSession 模拟引擎会话
 type MockEngineSession struct {
-	sessionID string
-	database  string
-	ctx       *server.SessionContext
+	sessionID     string
+	database      string
+	internalQuery bool
+	ctx           *server.SessionContext
 }
 
 func (s *MockEngineSession) GetSessionId() string {
@@ -763,6 +907,9 @@ func (s *MockEngineSession) SetParamByName(name string, value interface{}) {
 }
 
 func (s *MockEngineSession) GetParamByName(name string) interface{} {
+	if name == "__xmysql_internal_query" {
+		return s.internalQuery
+	}
 	return nil
 }
 

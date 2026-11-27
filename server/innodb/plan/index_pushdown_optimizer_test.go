@@ -118,6 +118,29 @@ func TestMultiColumnPrefix(t *testing.T) {
 	}
 }
 
+func TestQualifiedColumnUsesCompositeIndexPrefix(t *testing.T) {
+	table := createTestTable()
+	opt := NewIndexPushdownOptimizer()
+	setupTestStatistics(opt)
+
+	candidate, err := opt.OptimizeIndexAccess(table, []Expression{
+		&BinaryOperation{
+			Op:    OpEQ,
+			Left:  &Column{Name: "test_table.col1"},
+			Right: &Constant{Value: int64(1)},
+		},
+	}, []string{"col1"})
+	if err != nil {
+		t.Fatalf("OptimizeIndexAccess failed: %v", err)
+	}
+	if candidate == nil || candidate.KeyLength != 1 {
+		t.Fatalf("qualified column candidate = %#v, want one-column index prefix", candidate)
+	}
+	if candidate.Selectivity != 0.01 {
+		t.Fatalf("qualified column selectivity = %v, want 0.01 from col1 NDV", candidate.Selectivity)
+	}
+}
+
 // TestCoveringIndex 测试覆盖索引
 func TestCoveringIndex(t *testing.T) {
 	table := createTestTable()
@@ -152,6 +175,15 @@ func TestCoveringIndex(t *testing.T) {
 	// 覆盖索引的原因应该包含"覆盖索引"
 	if candidate.Reason == "" || !contains(candidate.Reason, "覆盖索引") {
 		t.Errorf("Expected reason to contain '覆盖索引', got: %s", candidate.Reason)
+	}
+}
+
+func TestCoveringIndexAcceptsQualifiedCaseInsensitiveColumns(t *testing.T) {
+	table := createTestTable()
+	index := table.Indices[2]
+
+	if !IsCoveringIndex(table, index, []string{"TEST_TABLE.COL1", "`test_table`.`COL2`"}) {
+		t.Fatal("qualified mixed-case columns should be covered by the composite index")
 	}
 }
 
@@ -219,6 +251,22 @@ func TestLikeFuzzyMatch(t *testing.T) {
 	}
 }
 
+func TestLikeWithWildcardAfterPrefixIsNotPushable(t *testing.T) {
+	table := createTestTable()
+	opt := NewIndexPushdownOptimizer()
+	setupTestStatistics(opt)
+
+	candidate, err := opt.OptimizeIndexAccess(table, []Expression{
+		&BinaryOperation{Op: OpLike, Left: &Column{Name: "name"}, Right: &Constant{Value: "abc%def"}},
+	}, []string{"name"})
+	if err != nil {
+		t.Fatalf("LIKE middle-wildcard optimization failed: %v", err)
+	}
+	if candidate != nil && len(candidate.Conditions) > 0 && candidate.Conditions[0].CanPush {
+		t.Fatalf("LIKE middle-wildcard candidate = %#v, want non-pushable residual filtering", candidate.Conditions[0])
+	}
+}
+
 // TestInCondition 测试IN条件
 func TestInCondition(t *testing.T) {
 	table := createTestTable()
@@ -250,6 +298,276 @@ func TestInCondition(t *testing.T) {
 	// IN条件应该可以下推
 	if !candidate.Conditions[0].CanPush {
 		t.Error("Expected IN condition to be pushable")
+	}
+}
+
+func TestStructuredRangeAndNullPredicatesUseIndexes(t *testing.T) {
+	table := createTestTable()
+	opt := NewIndexPushdownOptimizer()
+	setupTestStatistics(opt)
+
+	rangeCandidate, err := opt.OptimizeIndexAccess(table, []Expression{
+		&BetweenExpression{Column: &Column{Name: "col1"}, Lower: int64(10), Upper: int64(20)},
+	}, []string{"col1"})
+	if err != nil {
+		t.Fatalf("BETWEEN optimization failed: %v", err)
+	}
+	if rangeCandidate == nil || len(rangeCandidate.Conditions) != 2 {
+		t.Fatalf("BETWEEN candidate = %#v, want two range conditions", rangeCandidate)
+	}
+
+	nullCandidate, err := opt.OptimizeIndexAccess(table, []Expression{
+		&IsNullExpression{Column: &Column{Name: "col1"}, IsNull: true},
+	}, []string{"col1"})
+	if err != nil {
+		t.Fatalf("IS NULL optimization failed: %v", err)
+	}
+	if nullCandidate == nil || len(nullCandidate.Conditions) != 1 || nullCandidate.Conditions[0].Operator != "is_null" {
+		t.Fatalf("IS NULL candidate = %#v, want one IS NULL condition", nullCandidate)
+	}
+}
+
+func TestStructuredRangeWithConstantExpressionsUsesIndexes(t *testing.T) {
+	table := createTestTable()
+	opt := NewIndexPushdownOptimizer()
+	setupTestStatistics(opt)
+
+	candidate, err := opt.OptimizeIndexAccess(table, []Expression{
+		&BetweenExpression{
+			Column: &Column{Name: "col1"},
+			LowerExpr: &BinaryOperation{
+				Op:    OpAdd,
+				Left:  &Constant{Value: int64(2)},
+				Right: &Constant{Value: int64(3)},
+			},
+			UpperExpr: &Function{
+				FuncName: "CAST",
+				CastType: "SIGNED",
+				FuncArgs: []Expression{
+					&Constant{Value: "20"},
+					&Constant{Value: "SIGNED"},
+				},
+			},
+		},
+	}, []string{"col1"})
+	if err != nil {
+		t.Fatalf("expression BETWEEN optimization failed: %v", err)
+	}
+	if candidate == nil || len(candidate.Conditions) != 2 {
+		t.Fatalf("candidate = %#v, want two range conditions", candidate)
+	}
+	if candidate.Conditions[0].Value != int64(5) || candidate.Conditions[1].Value != int64(20) {
+		t.Fatalf("conditions = %#v, want bounds 5 and 20", candidate.Conditions)
+	}
+}
+
+func TestStructuredIsNotNullPredicateKeepsItsMeaning(t *testing.T) {
+	table := createTestTable()
+	opt := NewIndexPushdownOptimizer()
+	setupTestStatistics(opt)
+
+	candidate, err := opt.OptimizeIndexAccess(table, []Expression{
+		&IsNullExpression{Column: &Column{Name: "col1"}, IsNull: false},
+	}, []string{"col1"})
+	if err != nil {
+		t.Fatalf("IS NOT NULL optimization failed: %v", err)
+	}
+	if candidate == nil || len(candidate.Conditions) != 1 {
+		t.Fatalf("IS NOT NULL candidate = %#v, want one condition", candidate)
+	}
+	condition := candidate.Conditions[0]
+	if condition.Operator != "is_not_null" {
+		t.Fatalf("IS NOT NULL operator = %q, want is_not_null", condition.Operator)
+	}
+	if !condition.CanPush {
+		t.Fatal("IS NOT NULL condition should be pushable")
+	}
+}
+
+func TestNullSafeEqualityCanUseAnIndexWithoutChangingPredicateSemantics(t *testing.T) {
+	table := createTestTable()
+	opt := NewIndexPushdownOptimizer()
+	setupTestStatistics(opt)
+
+	candidate, err := opt.OptimizeIndexAccess(table, []Expression{
+		&BinaryOperation{Op: OpNullSafeEQ, Left: &Column{Name: "col1"}, Right: &Constant{Value: nil}},
+	}, []string{"col1"})
+	if err != nil {
+		t.Fatalf("NULL-safe equality optimization failed: %v", err)
+	}
+	if candidate == nil || len(candidate.Conditions) != 1 {
+		t.Fatalf("NULL-safe equality candidate = %#v, want one condition", candidate)
+	}
+	condition := candidate.Conditions[0]
+	if condition.Operator != "<=>" || !condition.CanPush {
+		t.Fatalf("NULL-safe equality condition = %#v, want pushable <=>", condition)
+	}
+}
+
+func TestStructuredInAndLikePredicatesUseIndexes(t *testing.T) {
+	table := createTestTable()
+	opt := NewIndexPushdownOptimizer()
+	setupTestStatistics(opt)
+
+	inCandidate, err := opt.OptimizeIndexAccess(table, []Expression{
+		&InExpression{Column: &Column{Name: "col1"}, Values: []interface{}{int64(1), int64(2)}},
+	}, []string{"col1"})
+	if err != nil {
+		t.Fatalf("IN optimization failed: %v", err)
+	}
+	if inCandidate == nil || len(inCandidate.Conditions) != 1 || inCandidate.Conditions[0].Operator != "IN" {
+		t.Fatalf("IN candidate = %#v, want one IN condition", inCandidate)
+	}
+
+	likeCandidate, err := opt.OptimizeIndexAccess(table, []Expression{
+		&LikeExpression{Column: &Column{Name: "name"}, Pattern: "abc%"},
+	}, []string{"name"})
+	if err != nil {
+		t.Fatalf("LIKE optimization failed: %v", err)
+	}
+	if likeCandidate == nil || len(likeCandidate.Conditions) != 1 || !likeCandidate.Conditions[0].CanPush {
+		t.Fatalf("LIKE candidate = %#v, want one pushable condition", likeCandidate)
+	}
+}
+
+func TestBinaryLikePredicatesUseIndexPushdown(t *testing.T) {
+	table := createTestTable()
+	opt := NewIndexPushdownOptimizer()
+	setupTestStatistics(opt)
+
+	candidate, err := opt.OptimizeIndexAccess(table, []Expression{
+		&BinaryOperation{Op: OpLike, Left: &Column{Name: "name"}, Right: &Constant{Value: "abc%"}},
+	}, []string{"name"})
+	if err != nil {
+		t.Fatalf("binary LIKE optimization failed: %v", err)
+	}
+	if candidate == nil || len(candidate.Conditions) != 1 {
+		t.Fatalf("binary LIKE candidate = %#v, want one condition", candidate)
+	}
+	condition := candidate.Conditions[0]
+	if condition.Operator != "LIKE" || !condition.CanPush {
+		t.Fatalf("binary LIKE condition = %#v, want pushable LIKE", condition)
+	}
+}
+
+func TestBinaryLikeEscapeDoesNotPushLiteralWildcardAsPrefix(t *testing.T) {
+	table := createTestTable()
+	opt := NewIndexPushdownOptimizer()
+	setupTestStatistics(opt)
+
+	candidate, err := opt.OptimizeIndexAccess(table, []Expression{
+		&BinaryOperation{
+			Op:     OpLike,
+			Left:   &Column{Name: "name"},
+			Right:  &Constant{Value: "abc#%"},
+			Escape: &Constant{Value: "#"},
+		},
+	}, []string{"name"})
+	if err != nil {
+		t.Fatalf("binary LIKE ESCAPE optimization failed: %v", err)
+	}
+	if candidate != nil {
+		t.Fatalf("binary LIKE ESCAPE candidate = %#v, want no prefix pushdown for literal wildcard", candidate)
+	}
+}
+
+func TestBinaryNotInPredicatesUseIndexPushdown(t *testing.T) {
+	table := createTestTable()
+	opt := NewIndexPushdownOptimizer()
+	setupTestStatistics(opt)
+
+	candidate, err := opt.OptimizeIndexAccess(table, []Expression{
+		&BinaryOperation{Op: OpNotIn, Left: &Column{Name: "col1"}, Right: &Constant{Value: []interface{}{int64(1), int64(2)}}},
+	}, []string{"col1"})
+	if err != nil {
+		t.Fatalf("binary NOT IN optimization failed: %v", err)
+	}
+	if candidate == nil || len(candidate.Conditions) != 1 {
+		t.Fatalf("binary NOT IN candidate = %#v, want one condition", candidate)
+	}
+	condition := candidate.Conditions[0]
+	if condition.Operator != "NOT IN" || !condition.CanPush {
+		t.Fatalf("binary NOT IN condition = %#v, want pushable NOT IN", condition)
+	}
+}
+
+func TestNormalizedNotInPredicatesUseIndexPushdown(t *testing.T) {
+	table := createTestTable()
+	opt := NewIndexPushdownOptimizer()
+	setupTestStatistics(opt)
+	normalized := NewExpressionNormalizer().Normalize(&BinaryOperation{
+		Op:    OpNotIn,
+		Left:  &Column{Name: "col1"},
+		Right: &Constant{Value: []interface{}{int64(1), int64(2)}},
+	})
+
+	candidate, err := opt.OptimizeIndexAccess(table, []Expression{normalized}, []string{"col1"})
+	if err != nil {
+		t.Fatalf("normalized NOT IN optimization failed: %v", err)
+	}
+	if candidate == nil || len(candidate.Conditions) != 2 {
+		t.Fatalf("normalized NOT IN candidate = %#v, want two conditions", candidate)
+	}
+	for _, condition := range candidate.Conditions {
+		if condition.Operator != "!=" || !condition.CanPush {
+			t.Fatalf("normalized NOT IN condition = %#v, want pushable !=", condition)
+		}
+	}
+}
+
+func TestBinaryNotLikePredicatesUseIndexPushdown(t *testing.T) {
+	table := createTestTable()
+	opt := NewIndexPushdownOptimizer()
+	setupTestStatistics(opt)
+
+	candidate, err := opt.OptimizeIndexAccess(table, []Expression{
+		&BinaryOperation{Op: OpNotLike, Left: &Column{Name: "name"}, Right: &Constant{Value: "abc%"}},
+	}, []string{"name"})
+	if err != nil {
+		t.Fatalf("binary NOT LIKE optimization failed: %v", err)
+	}
+	if candidate == nil || len(candidate.Conditions) != 1 {
+		t.Fatalf("binary NOT LIKE candidate = %#v, want one condition", candidate)
+	}
+	condition := candidate.Conditions[0]
+	if condition.Operator != "NOT LIKE" || !condition.CanPush {
+		t.Fatalf("binary NOT LIKE condition = %#v, want pushable NOT LIKE", condition)
+	}
+}
+
+func TestBinaryInPredicatesRequireConstantList(t *testing.T) {
+	table := createTestTable()
+	opt := NewIndexPushdownOptimizer()
+	setupTestStatistics(opt)
+
+	candidate, err := opt.OptimizeIndexAccess(table, []Expression{
+		&BinaryOperation{Op: OpIn, Left: &Column{Name: "col1"}, Right: &Constant{Value: int64(1)}},
+	}, []string{"col1"})
+	if err != nil {
+		t.Fatalf("invalid binary IN optimization failed: %v", err)
+	}
+	if candidate != nil {
+		t.Fatalf("binary IN candidate = %#v, want no candidate for scalar RHS", candidate)
+	}
+}
+
+func TestConstantLeftComparisonUsesReversedIndexCondition(t *testing.T) {
+	table := createTestTable()
+	opt := NewIndexPushdownOptimizer()
+	setupTestStatistics(opt)
+
+	candidate, err := opt.OptimizeIndexAccess(table, []Expression{
+		&BinaryOperation{Op: OpLT, Left: &Constant{Value: int64(10)}, Right: &Column{Name: "col1"}},
+	}, []string{"col1"})
+	if err != nil {
+		t.Fatalf("constant-left comparison optimization failed: %v", err)
+	}
+	if candidate == nil || len(candidate.Conditions) != 1 {
+		t.Fatalf("constant-left candidate = %#v, want one condition", candidate)
+	}
+	condition := candidate.Conditions[0]
+	if condition.Column != "col1" || condition.Operator != ">" || condition.Value != int64(10) || !condition.CanPush {
+		t.Fatalf("constant-left condition = %#v, want col1 > 10 pushdown", condition)
 	}
 }
 
@@ -398,6 +716,221 @@ func createTestTable() *metadata.Table {
 	table.AddIndex(idx3)
 
 	return table
+}
+
+func TestConstantArithmeticExpressionUsesIndexPushdown(t *testing.T) {
+	table := createTestTable()
+	opt := NewIndexPushdownOptimizer()
+	setupTestStatistics(opt)
+
+	candidate, err := opt.OptimizeIndexAccess(table, []Expression{
+		&BinaryOperation{
+			Op:   OpGE,
+			Left: &Column{Name: "col1"},
+			Right: &BinaryOperation{
+				Op:    OpAdd,
+				Left:  &Constant{Value: int64(1)},
+				Right: &Constant{Value: int64(2)},
+			},
+		},
+	}, []string{"col1"})
+	if err != nil {
+		t.Fatalf("constant arithmetic index optimization failed: %v", err)
+	}
+	if candidate == nil || len(candidate.Conditions) != 1 {
+		t.Fatalf("candidate = %#v, want one index condition", candidate)
+	}
+	condition := candidate.Conditions[0]
+	numeric, numericOK := numericComparableValue(condition.Value)
+	if condition.Operator != ">=" || !numericOK || numeric != 3 || !condition.CanPush {
+		t.Fatalf("condition = %#v, want pushable col1 >= 3", condition)
+	}
+}
+
+func TestConstantScalarFunctionExpressionUsesIndexPushdown(t *testing.T) {
+	table := createTestTable()
+	opt := NewIndexPushdownOptimizer()
+	setupTestStatistics(opt)
+
+	candidate, err := opt.OptimizeIndexAccess(table, []Expression{
+		&BinaryOperation{
+			Op:   OpGE,
+			Left: &Column{Name: "col1"},
+			Right: &Function{FuncName: "ABS", FuncArgs: []Expression{
+				&UnaryOperation{Operator: "-", Operand: &Constant{Value: int64(3)}},
+			}},
+		},
+	}, []string{"col1"})
+	if err != nil {
+		t.Fatalf("constant scalar function index optimization failed: %v", err)
+	}
+	if candidate == nil || len(candidate.Conditions) != 1 {
+		t.Fatalf("candidate = %#v, want one index condition", candidate)
+	}
+	condition := candidate.Conditions[0]
+	numeric, numericOK := numericComparableValue(condition.Value)
+	if condition.Operator != ">=" || !numericOK || numeric != 3 || !condition.CanPush {
+		t.Fatalf("condition = %#v, want pushable col1 >= 3", condition)
+	}
+}
+
+func TestConstantCastExpressionUsesIndexPushdown(t *testing.T) {
+	table := createTestTable()
+	opt := NewIndexPushdownOptimizer()
+	setupTestStatistics(opt)
+
+	candidate, err := opt.OptimizeIndexAccess(table, []Expression{
+		&BinaryOperation{
+			Op:   OpGE,
+			Left: &Column{Name: "col1"},
+			Right: &Function{
+				FuncName: "CAST",
+				CastType: "SIGNED",
+				FuncArgs: []Expression{
+					&Constant{Value: "42"},
+					&Constant{Value: "SIGNED"},
+				},
+			},
+		},
+	}, []string{"col1"})
+	if err != nil {
+		t.Fatalf("constant CAST index optimization failed: %v", err)
+	}
+	if candidate == nil || len(candidate.Conditions) != 1 {
+		t.Fatalf("candidate = %#v, want one index condition", candidate)
+	}
+	condition := candidate.Conditions[0]
+	numeric, numericOK := numericComparableValue(condition.Value)
+	if condition.Operator != ">=" || !numericOK || numeric != 42 || !condition.CanPush {
+		t.Fatalf("condition = %#v, want pushable col1 >= 42", condition)
+	}
+}
+
+func TestConstantExpressionTupleUsesInIndexPushdown(t *testing.T) {
+	table := createTestTable()
+	opt := NewIndexPushdownOptimizer()
+	setupTestStatistics(opt)
+
+	candidate, err := opt.OptimizeIndexAccess(table, []Expression{
+		&BinaryOperation{
+			Op:   OpIn,
+			Left: &Column{Name: "col1"},
+			Right: &TupleExpression{Exprs: []Expression{
+				&BinaryOperation{
+					Op:    OpAdd,
+					Left:  &Constant{Value: int64(2)},
+					Right: &Constant{Value: int64(3)},
+				},
+				&Function{
+					FuncName: "CAST",
+					CastType: "SIGNED",
+					FuncArgs: []Expression{
+						&Constant{Value: "20"},
+						&Constant{Value: "SIGNED"},
+					},
+				},
+			}},
+		},
+	}, []string{"col1"})
+	if err != nil {
+		t.Fatalf("constant tuple IN optimization failed: %v", err)
+	}
+	if candidate == nil || len(candidate.Conditions) != 1 {
+		t.Fatalf("candidate = %#v, want one IN condition", candidate)
+	}
+	condition := candidate.Conditions[0]
+	values, valuesOK := condition.Value.([]interface{})
+	if condition.Operator != "IN" || !valuesOK || len(values) != 2 || values[0] != int64(5) || values[1] != int64(20) || !condition.CanPush {
+		t.Fatalf("condition = %#v, want pushable col1 IN (5, 20)", condition)
+	}
+}
+
+func TestConstantCaseExpressionUsesIndexPushdown(t *testing.T) {
+	table := createTestTable()
+	opt := NewIndexPushdownOptimizer()
+	setupTestStatistics(opt)
+
+	candidate, err := opt.OptimizeIndexAccess(table, []Expression{
+		&BinaryOperation{
+			Op:   OpGE,
+			Left: &Column{Name: "col1"},
+			Right: &CaseExpression{
+				Whens: []CaseWhen{{
+					Condition: &BinaryOperation{
+						Op:    OpEQ,
+						Left:  &Constant{Value: int64(1)},
+						Right: &Constant{Value: int64(1)},
+					},
+					Value: &Constant{Value: int64(7)},
+				}},
+				Else: &Constant{Value: int64(8)},
+			},
+		},
+	}, []string{"col1"})
+	if err != nil {
+		t.Fatalf("constant CASE index optimization failed: %v", err)
+	}
+	if candidate == nil || len(candidate.Conditions) != 1 {
+		t.Fatalf("candidate = %#v, want one index condition", candidate)
+	}
+	condition := candidate.Conditions[0]
+	numeric, numericOK := numericComparableValue(condition.Value)
+	if condition.Operator != ">=" || !numericOK || numeric != 7 || !condition.CanPush {
+		t.Fatalf("condition = %#v, want pushable col1 >= 7", condition)
+	}
+}
+
+func TestConstantDateFunctionExpressionUsesIndexPushdown(t *testing.T) {
+	table := createTestTable()
+	opt := NewIndexPushdownOptimizer()
+	setupTestStatistics(opt)
+
+	candidate, err := opt.OptimizeIndexAccess(table, []Expression{
+		&BinaryOperation{
+			Op:   OpGE,
+			Left: &Column{Name: "col1"},
+			Right: &Function{FuncName: "DATE_FORMAT", FuncArgs: []Expression{
+				&Constant{Value: "2024-01-15"},
+				&Constant{Value: "%Y-%m-%d"},
+			}},
+		},
+	}, []string{"col1"})
+	if err != nil {
+		t.Fatalf("constant DATE_FORMAT index optimization failed: %v", err)
+	}
+	if candidate == nil || len(candidate.Conditions) != 1 {
+		t.Fatalf("candidate = %#v, want one index condition", candidate)
+	}
+	condition := candidate.Conditions[0]
+	if condition.Operator != ">=" || condition.Value != "2024-01-15" || !condition.CanPush {
+		t.Fatalf("condition = %#v, want pushable col1 >= 2024-01-15", condition)
+	}
+}
+
+func TestConstantDigestFunctionExpressionUsesIndexPushdown(t *testing.T) {
+	table := createTestTable()
+	opt := NewIndexPushdownOptimizer()
+	setupTestStatistics(opt)
+
+	candidate, err := opt.OptimizeIndexAccess(table, []Expression{
+		&BinaryOperation{
+			Op:   OpEQ,
+			Left: &Column{Name: "col1"},
+			Right: &Function{FuncName: "MD5", FuncArgs: []Expression{
+				&Constant{Value: "abc"},
+			}},
+		},
+	}, []string{"col1"})
+	if err != nil {
+		t.Fatalf("constant MD5 index optimization failed: %v", err)
+	}
+	if candidate == nil || len(candidate.Conditions) != 1 {
+		t.Fatalf("candidate = %#v, want one index condition", candidate)
+	}
+	condition := candidate.Conditions[0]
+	if condition.Operator != "=" || condition.Value != "900150983cd24fb0d6963f7d28e17f72" || !condition.CanPush {
+		t.Fatalf("condition = %#v, want pushable MD5 equality", condition)
+	}
 }
 
 func setupTestStatistics(opt *IndexPushdownOptimizer) {

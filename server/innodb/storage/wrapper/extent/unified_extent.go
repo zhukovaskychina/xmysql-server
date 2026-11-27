@@ -21,6 +21,7 @@ package extent
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"sync"
 	"time"
 
@@ -31,9 +32,9 @@ import (
 // Error variables are already defined in extent.go, so we don't redeclare them here
 
 const (
-	PagesPerExtent = 64    // 每个区64页
-	PageSize       = 16384 // 16KB per page
-	ExtentSize     = PagesPerExtent * PageSize
+	PagesPerExtent = 64              // 每个区64页
+	PageSize       = common.PageSize // 16KB per page
+	ExtentSize     = PagesPerExtent * common.PageSize
 )
 
 // UnifiedExtent is the unified extent implementation that combines all features
@@ -291,7 +292,7 @@ func (ue *UnifiedExtent) GetFreePages() []uint32 {
 func (ue *UnifiedExtent) GetFreeSpace() uint64 {
 	ue.mu.RLock()
 	defer ue.mu.RUnlock()
-	return uint64(ue.stats.FreePages) * PageSize
+	return uint64(ue.stats.FreePages) * common.PageSize
 }
 
 // IsFull returns true if the extent is full

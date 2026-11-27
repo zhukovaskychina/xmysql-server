@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"sync"
 )
@@ -69,6 +70,14 @@ func NewUndoLogPageWrapper(id, spaceID, pageNo uint32, bp *buffer_pool.BufferPoo
 	}
 }
 
+// NewUndoLogPageWrapperWithStorage creates an UNDO wrapper backed by a
+// storage provider when no buffer pool is available.
+func NewUndoLogPageWrapperWithStorage(id, spaceID, pageNo uint32, bp *buffer_pool.BufferPool, storage basic.StorageProvider) *UndoLogPageWrapper {
+	page := NewUndoLogPageWrapper(id, spaceID, pageNo, bp)
+	page.storage = storage
+	return page
+}
+
 // Read 实现PageWrapper接口
 func (uw *UndoLogPageWrapper) Read() error {
 	// 1. 尝试从buffer page读取
@@ -108,6 +117,10 @@ func (uw *UndoLogPageWrapper) Read() error {
 
 // Write 实现PageWrapper接口
 func (uw *UndoLogPageWrapper) Write() error {
+	if uw.storage == nil && uw.bufferPool == nil {
+		return ErrPageStorageUnavailable
+	}
+
 	// 1. 序列化内容
 	content, err := uw.ToBytes()
 	if err != nil {
@@ -129,7 +142,7 @@ func (uw *UndoLogPageWrapper) Write() error {
 	}
 
 	// 3. 根据策略决定是否写入磁盘
-	if uw.needFlush() {
+	if uw.storage != nil || uw.needFlush() {
 		return uw.writeToDisk(content)
 	}
 
@@ -291,6 +304,16 @@ func (uw *UndoLogPageWrapper) SetTransactionID(id uint64) {
 
 // 辅助方法
 func (uw *UndoLogPageWrapper) readFromDisk() ([]byte, error) {
+	if uw.storage != nil {
+		content, err := uw.storage.ReadPage(uw.GetSpaceID(), uw.GetPageID())
+		if err != nil {
+			return nil, err
+		}
+		if len(content) < common.PageSize {
+			return nil, ErrInvalidPageSize
+		}
+		return append([]byte(nil), content[:common.PageSize]...), nil
+	}
 	if uw.bufferPool == nil {
 		return nil, errors.New("buffer pool not configured for undo log page")
 	}
@@ -314,8 +337,16 @@ func (uw *UndoLogPageWrapper) readFromDisk() ([]byte, error) {
 }
 
 func (uw *UndoLogPageWrapper) writeToDisk(content []byte) error {
+	if uw.storage != nil {
+		pageContent := make([]byte, common.PageSize)
+		if len(content) > len(pageContent) {
+			return ErrInvalidPageSize
+		}
+		copy(pageContent, content)
+		return uw.storage.WritePage(uw.GetSpaceID(), uw.GetPageID(), pageContent)
+	}
 	if uw.bufferPool == nil {
-		return nil
+		return ErrPageStorageUnavailable
 	}
 
 	pageContent := make([]byte, common.PageSize)

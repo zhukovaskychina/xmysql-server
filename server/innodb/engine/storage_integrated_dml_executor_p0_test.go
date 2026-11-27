@@ -145,6 +145,7 @@ func TestXMySQLExecutorDMLRejectsMissingStorageIntegratedManagers(t *testing.T) 
 	if err != nil {
 		t.Fatalf("create transaction manager: %v", err)
 	}
+	t.Cleanup(func() { _ = txManager.Close() })
 	storageManager := &manager.StorageManager{}
 	storageManager.SetTransactionManager(txManager)
 

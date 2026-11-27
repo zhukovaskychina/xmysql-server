@@ -76,6 +76,7 @@ type Schema interface {
 // InfoTableStats 表统计信息
 type InfoTableStats struct {
 	RowCount    uint64           // 总行数
+	ModifyCount uint64           // 自上次统计刷新后的已提交修改次数
 	AvgRowSize  uint32           // 平均行大小
 	DataSize    uint64           // 数据大小
 	IndexSize   uint64           // 索引大小
@@ -85,9 +86,33 @@ type InfoTableStats struct {
 
 // Stats 统计信息
 type Stats struct {
-	DistinctCount uint64      // 不同值数量
-	NullCount     uint64      // 空值数量
-	AvgLength     float64     // 平均长度
-	MinValue      interface{} // 最小值
-	MaxValue      interface{} // 最大值
+	DistinctCount    uint64           // 不同值数量
+	NullCount        uint64           // 空值数量
+	AvgLength        float64          // 平均长度
+	MinValue         interface{}      // 最小值
+	MaxValue         interface{}      // 最大值
+	Histogram        *ColumnHistogram `json:"histogram,omitempty"`         // 可选的持久化列直方图
+	HistogramDropped bool             `json:"histogram_dropped,omitempty"` // 显式 DROP HISTOGRAM 后抑制 I_S 行
+}
+
+// ColumnHistogram is the durable, engine-neutral representation consumed by
+// INFORMATION_SCHEMA.COLUMN_STATISTICS.  The storage engine may collect a
+// bounded sample, but the JSON projection keeps the MySQL bucket contract at
+// the SQL boundary instead of leaking the internal representation.
+type ColumnHistogram struct {
+	Buckets                  []ColumnHistogramBucket `json:"buckets,omitempty"`
+	NullValues               float64                 `json:"null_values"`
+	SamplingRate             float64                 `json:"sampling_rate"`
+	HistogramType            string                  `json:"histogram_type"`
+	NumberOfBucketsSpecified int                     `json:"number_of_buckets_specified"`
+}
+
+// ColumnHistogramBucket is an equi-height/frequency-compatible bucket.  The
+// cumulative frequency is normalized to [0,1], matching MySQL's histogram
+// JSON representation; DistinctCount is retained for optimizer consumers.
+type ColumnHistogramBucket struct {
+	LowerBound          interface{} `json:"lower_bound"`
+	UpperBound          interface{} `json:"upper_bound"`
+	CumulativeFrequency float64     `json:"cumulative_frequency"`
+	DistinctCount       uint64      `json:"distinct_count"`
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"sync"
 )
@@ -46,6 +47,14 @@ func NewIBufBitmapPageWrapper(id, spaceID uint32, bp *buffer_pool.BufferPool) *I
 	}
 }
 
+// NewIBufBitmapPageWrapperWithStorage creates an insert-buffer bitmap
+// wrapper backed by a storage provider when no buffer pool is available.
+func NewIBufBitmapPageWrapperWithStorage(id, spaceID uint32, bp *buffer_pool.BufferPool, storage basic.StorageProvider) *IBufBitmapPageWrapper {
+	page := NewIBufBitmapPageWrapper(id, spaceID, bp)
+	page.storage = storage
+	return page
+}
+
 // 实现IPageWrapper接口
 
 // ParseFromBytes 从字节数据解析位图页面
@@ -53,7 +62,7 @@ func (bw *IBufBitmapPageWrapper) ParseFromBytes(data []byte) error {
 	bw.Lock()
 	defer bw.Unlock()
 
-	if err := bw.BasePageWrapper.ParseFromBytes(data); err != nil {
+	if err := bw.BasePageWrapper.parseFromBytesLocked(data); err != nil {
 		return err
 	}
 
@@ -380,6 +389,16 @@ func (bw *IBufBitmapPageWrapper) Validate() error {
 
 // 内部方法：从磁盘读取
 func (bw *IBufBitmapPageWrapper) readFromDisk() ([]byte, error) {
+	if bw.storage != nil {
+		content, err := bw.storage.ReadPage(bw.GetSpaceID(), bw.GetPageID())
+		if err != nil {
+			return nil, err
+		}
+		if len(content) < common.PageSize {
+			return nil, ErrInvalidPageSize
+		}
+		return append([]byte(nil), content[:common.PageSize]...), nil
+	}
 	if bw.bufferPool == nil {
 		return nil, errors.New("buffer pool not configured for ibuf bitmap page")
 	}
@@ -404,8 +423,14 @@ func (bw *IBufBitmapPageWrapper) readFromDisk() ([]byte, error) {
 
 // 内部方法：写入磁盘
 func (bw *IBufBitmapPageWrapper) writeToDisk(content []byte) error {
+	if bw.storage != nil {
+		if len(content) < common.PageSize {
+			return ErrInvalidPageSize
+		}
+		return bw.storage.WritePage(bw.GetSpaceID(), bw.GetPageID(), content[:common.PageSize])
+	}
 	if bw.bufferPool == nil {
-		return nil
+		return ErrPageStorageUnavailable
 	}
 
 	pageContent := make([]byte, common.PageSize)

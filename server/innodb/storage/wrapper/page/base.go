@@ -18,20 +18,20 @@ var (
 
 // File header field offsets
 const (
-	FHeaderSpaceID      = 34
-	FHeaderPageNo       = 4
-	FHeaderPreviousPage = 8
-	FHeaderNextPage     = 12
-	FHeaderLSN          = 16
-	FHeaderPageType     = 24
-	FHeaderFileSequence = 26
-	FHeaderPageVersion  = 28
+	FHeaderSpaceID      = common.LegacyPageBaseHeaderSpaceIDOffset
+	FHeaderPageNo       = common.LegacyPageBaseHeaderPageNoOffset
+	FHeaderPreviousPage = common.LegacyPageBaseHeaderPrevOffset
+	FHeaderNextPage     = common.LegacyPageBaseHeaderNextOffset
+	FHeaderLSN          = common.LegacyPageBaseHeaderLSNOffset
+	FHeaderPageType     = common.LegacyPageBaseHeaderPageTypeOffset
+	FHeaderFileSequence = common.LegacyPageBaseHeaderFileSequenceOffset
+	FHeaderPageVersion  = common.LegacyPageBaseHeaderPageVersionOffset
 )
 
 // File trailer field offsets
 const (
-	FTrailerChecksum = 0
-	FTrailerLSN      = 4
+	FTrailerChecksum = common.LegacyPageBaseTrailerChecksumOffset
+	FTrailerLSN      = common.LegacyPageBaseTrailerLSNOffset
 )
 
 // BasePage 基础页面实现
@@ -66,6 +66,7 @@ type BasePage struct {
 
 	// 缓存的完整页面内容
 	content []byte
+	storage basic.StorageProvider
 }
 
 // Ensure BasePage implements IPageWrapper
@@ -75,15 +76,22 @@ var _ IPageWrapper = (*BasePage)(nil)
 //
 // Deprecated: Use types.NewUnifiedPage instead
 func NewBasePage(spaceID, pageNo uint32, pageType common.PageType) *BasePage {
+	return NewBasePageWithStorage(spaceID, pageNo, pageType, nil)
+}
+
+// NewBasePageWithStorage creates the deprecated page wrapper with an optional
+// durable provider. NewBasePage remains source-compatible for legacy callers.
+func NewBasePageWithStorage(spaceID, pageNo uint32, pageType common.PageType, storage basic.StorageProvider) *BasePage {
 	bp := &BasePage{
 		rawPage: pageTypes.NewPageHeader(common.PageSize),
 		content: make([]byte, common.PageSize),
+		storage: storage,
 	}
 
 	// 初始化文件头信息
-	binary.BigEndian.PutUint32(bp.rawPage.FileHeader[FHeaderSpaceID:], spaceID)
-	binary.BigEndian.PutUint32(bp.rawPage.FileHeader[FHeaderPageNo:], pageNo)
-	binary.BigEndian.PutUint16(bp.rawPage.FileHeader[FHeaderPageType:], uint16(pageType))
+	binary.BigEndian.PutUint32(bp.rawPage.FileHeader[common.LegacyPageBaseHeaderSpaceIDOffset:], spaceID)
+	binary.BigEndian.PutUint32(bp.rawPage.FileHeader[common.LegacyPageBaseHeaderPageNoOffset:], pageNo)
+	binary.BigEndian.PutUint16(bp.rawPage.FileHeader[common.LegacyPageBaseHeaderPageTypeOffset:], uint16(pageType))
 
 	// 初始化状态
 	atomic.StoreUint32(&bp.state, uint32(common.PageStateInit))
@@ -104,27 +112,27 @@ func (bp *BasePage) GetPageID() uint32 {
 
 // GetSpaceID 实现IPageWrapper接口
 func (bp *BasePage) GetSpaceID() uint32 {
-	return binary.BigEndian.Uint32(bp.rawPage.FileHeader[FHeaderSpaceID:])
+	return binary.BigEndian.Uint32(bp.rawPage.FileHeader[common.LegacyPageBaseHeaderSpaceIDOffset:])
 }
 
 // GetPageNo 实现IPageWrapper接口
 func (bp *BasePage) GetPageNo() uint32 {
-	return binary.BigEndian.Uint32(bp.rawPage.FileHeader[FHeaderPageNo:])
+	return binary.BigEndian.Uint32(bp.rawPage.FileHeader[common.LegacyPageBaseHeaderPageNoOffset:])
 }
 
 // GetPageType 实现IPageWrapper接口
 func (bp *BasePage) GetPageType() common.PageType {
-	return common.PageType(binary.BigEndian.Uint16(bp.rawPage.FileHeader[FHeaderPageType:]))
+	return common.PageType(binary.BigEndian.Uint16(bp.rawPage.FileHeader[common.LegacyPageBaseHeaderPageTypeOffset:]))
 }
 
 // GetLSN 实现Page接口
 func (bp *BasePage) GetLSN() uint64 {
-	return binary.BigEndian.Uint64(bp.rawPage.FileHeader[FHeaderLSN:])
+	return binary.BigEndian.Uint64(bp.rawPage.FileHeader[common.LegacyPageBaseHeaderLSNOffset:])
 }
 
 // SetLSN 实现Page接口
 func (bp *BasePage) SetLSN(lsn uint64) {
-	binary.BigEndian.PutUint64(bp.rawPage.FileHeader[FHeaderLSN:], lsn)
+	binary.BigEndian.PutUint64(bp.rawPage.FileHeader[common.LegacyPageBaseHeaderLSNOffset:], lsn)
 	bp.MarkDirty()
 }
 
@@ -196,10 +204,29 @@ func (bp *BasePage) Read() error {
 
 	if bp.bufferPool != nil {
 		if page, err := bp.bufferPool.GetPage(bp.GetSpaceID(), bp.GetPageNo()); err == nil && page != nil {
-			return bp.ParseFromBytes(page.GetData())
+			if err := bp.ParseFromBytes(page.GetData()); err != nil {
+				return err
+			}
+			atomic.StoreUint32(&bp.state, uint32(common.PageStateLoaded))
+			return nil
 		}
 	}
 
+	if bp.storage == nil {
+		return ErrPageStorageUnavailable
+	}
+	data, err := bp.storage.ReadPage(bp.GetSpaceID(), bp.GetPageNo())
+	if err != nil {
+		return err
+	}
+	if len(data) < common.PageSize {
+		return ErrInvalidPage
+	}
+	if err := bp.ParseFromBytes(data[:common.PageSize]); err != nil {
+		return err
+	}
+	atomic.StoreUint32(&bp.dirty, 0)
+	atomic.StoreUint32(&bp.state, uint32(common.PageStateLoaded))
 	return nil
 }
 
@@ -228,6 +255,13 @@ func (bp *BasePage) Write() error {
 			bufPage.SetDirty(true)
 		}
 	}
+	if bp.storage != nil {
+		if err := bp.storage.WritePage(bp.GetSpaceID(), bp.GetPageNo(), data); err != nil {
+			return err
+		}
+	} else if bp.bufferPool == nil {
+		return ErrPageStorageUnavailable
+	}
 
 	atomic.StoreUint32(&bp.dirty, 0)
 	return nil
@@ -248,6 +282,11 @@ func (bp *BasePage) Flush() error {
 			// 但 basic.IBufferPool 接口可能没有 Flush 方法
 			// 所以我们只是确保页面被标记为脏页
 			bufPage.SetDirty(true)
+		}
+	}
+	if bp.storage != nil {
+		if err := bp.storage.Sync(bp.GetSpaceID()); err != nil {
+			return err
 		}
 	}
 
@@ -341,7 +380,7 @@ func (bp *BasePage) UpdateChecksum() {
 	for _, b := range bp.content[:len(bp.content)-common.FileTrailerSize] {
 		sum += uint64(b)
 	}
-	binary.BigEndian.PutUint64(bp.rawPage.FileTrailer[FTrailerChecksum:], sum)
+	binary.BigEndian.PutUint64(bp.rawPage.FileTrailer[common.LegacyPageBaseTrailerChecksumOffset:], sum)
 	copy(bp.content[len(bp.content)-common.FileTrailerSize:], bp.rawPage.FileTrailer)
 }
 
@@ -351,6 +390,6 @@ func (bp *BasePage) ValidateChecksum() bool {
 	for _, b := range bp.content[:len(bp.content)-common.FileTrailerSize] {
 		sum += uint64(b)
 	}
-	stored := binary.BigEndian.Uint64(bp.rawPage.FileTrailer[FTrailerChecksum:])
+	stored := binary.BigEndian.Uint64(bp.rawPage.FileTrailer[common.LegacyPageBaseTrailerChecksumOffset:])
 	return sum == stored
 }

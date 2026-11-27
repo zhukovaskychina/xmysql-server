@@ -64,6 +64,7 @@ type ExtentReuseManager struct {
 
 	// 停止信号
 	stopChan chan struct{}
+	stopOnce sync.Once
 
 	mu sync.RWMutex
 }
@@ -563,5 +564,5 @@ func (erm *ExtentReuseManager) GetPoolUtilization() float64 {
 
 // Stop 停止管理器
 func (erm *ExtentReuseManager) Stop() {
-	close(erm.stopChan)
+	erm.stopOnce.Do(func() { close(erm.stopChan) })
 }

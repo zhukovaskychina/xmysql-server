@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
+	"github.com/zhukovaskychina/xmysql-server/server/replication"
 )
 
 func TestXMySQLEngine_resolveDmlDatabaseName(t *testing.T) {
@@ -33,6 +34,60 @@ func TestXMySQLEngine_resolveDmlDatabaseName(t *testing.T) {
 	// 明确参数为空时，优先使用会话库
 	got = engine.resolveDmlDatabaseName(session, "", "")
 	assert.Equal(t, "p0e_db", got)
+}
+
+func TestXMySQLEngineCloseReleasesTableFiles(t *testing.T) {
+	tmp := t.TempDir()
+	engine := newTestStorageIntegratedExecutor(t, tmp)
+	mustExecSQL(t, engine, "", "create database app")
+	mustExecSQL(t, engine, "app", "create table users (id int primary key, name varchar(20))")
+
+	require.NoError(t, engine.Close())
+	require.NoError(t, os.RemoveAll(tmp))
+}
+
+func TestXMySQLEngineCloseStopsUtilityBackgroundManagers(t *testing.T) {
+	engine := NewXMySQLEngine(&conf.Cfg{
+		DataDir:              t.TempDir(),
+		InnodbBufferPoolSize: 16 * 1024 * 1024,
+		InnodbPageSize:       16384,
+	})
+	require.NotNil(t, engine.ibufManager)
+
+	require.NoError(t, engine.Close())
+
+	assert.False(t, engine.ibufManager.IsBackgroundMergeRunning())
+}
+
+func TestEngineDerivesNativeEndpointFromConcreteSQLListener(t *testing.T) {
+	engine := NewXMySQLEngine(&conf.Cfg{
+		DataDir:                  t.TempDir(),
+		InnodbBufferPoolSize:     16 * 1024 * 1024,
+		ReplicationRole:          "source",
+		ReplicationListenAddress: "127.0.0.1:4419",
+		BindAddress:              "127.0.0.1",
+		Port:                     3319,
+	})
+	t.Cleanup(func() { require.NoError(t, engine.Close()) })
+
+	status, ok := engine.ReplicationStatus().(replication.StatusSnapshot)
+	require.True(t, ok)
+	assert.Equal(t, "mysql://127.0.0.1:3319", status.NativeEndpoint)
+}
+
+func TestEngineDoesNotAdvertiseWildcardNativeEndpoint(t *testing.T) {
+	engine := NewXMySQLEngine(&conf.Cfg{
+		DataDir:              t.TempDir(),
+		InnodbBufferPoolSize: 16 * 1024 * 1024,
+		ReplicationRole:      "source",
+		BindAddress:          "0.0.0.0",
+		Port:                 3319,
+	})
+	t.Cleanup(func() { require.NoError(t, engine.Close()) })
+
+	status, ok := engine.ReplicationStatus().(replication.StatusSnapshot)
+	require.True(t, ok)
+	assert.Empty(t, status.NativeEndpoint)
 }
 
 func TestXMySQLEngine_extractTableExprSchema(t *testing.T) {
@@ -65,4 +120,28 @@ func TestXMySQLEngineExecuteQueryAlterTableAddColumn(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join(dbPath, "users.frm"))
 	require.NoError(t, err)
 	require.Contains(t, string(raw), `"name": "name"`)
+}
+
+func TestXMySQLEngineExecuteQuerySQLPreparedStatement(t *testing.T) {
+	engine := newTestStorageIntegratedExecutor(t, t.TempDir())
+	session := newTestMySQLSession()
+
+	mustExecSessionSQL(t, engine, session, "", "prepare xmysql_stmt from 'select ? + 1'")
+	mustExecSessionSQL(t, engine, session, "", "set @xmysql_value = 41")
+	result := mustSelectResultSessionSQL(t, engine, session, "", "execute xmysql_stmt using @xmysql_value")
+	require.Equal(t, [][]interface{}{{"42"}}, selectResultRows(result))
+
+	mustExecSessionSQL(t, engine, session, "", "deallocate prepare xmysql_stmt")
+}
+
+func TestXMySQLEngineReadinessLifecycle(t *testing.T) {
+	var nilEngine *XMySQLEngine
+	assert.False(t, nilEngine.IsReady())
+
+	engine := &XMySQLEngine{}
+	assert.False(t, engine.IsReady())
+	engine.ready.Store(true)
+	assert.True(t, engine.IsReady())
+	require.NoError(t, engine.Close())
+	assert.False(t, engine.IsReady())
 }

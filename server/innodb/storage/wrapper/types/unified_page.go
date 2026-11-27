@@ -26,29 +26,29 @@ var (
 
 // File header field offsets (InnoDB format)
 const (
-	FIL_PAGE_SPACE_OR_CHKSUM = 0  // Checksum (4 bytes)
-	FIL_PAGE_OFFSET          = 4  // Page number (4 bytes)
-	FIL_PAGE_PREV            = 8  // Previous page (4 bytes)
-	FIL_PAGE_NEXT            = 12 // Next page (4 bytes)
-	FIL_PAGE_LSN             = 16 // LSN (8 bytes)
-	FIL_PAGE_TYPE            = 24 // Page type (2 bytes)
-	FIL_PAGE_FILE_FLUSH_LSN  = 26 // Flush LSN (8 bytes)
-	FIL_PAGE_SPACE_ID        = 34 // Space ID (4 bytes)
-	FIL_PAGE_DATA            = 38 // Start of page body
+	FIL_PAGE_SPACE_OR_CHKSUM = common.InnoDBFileHeaderChecksumOffset // Checksum (4 bytes)
+	FIL_PAGE_OFFSET          = common.InnoDBFileHeaderPageNoOffset   // Page number (4 bytes)
+	FIL_PAGE_PREV            = common.InnoDBFileHeaderPrevOffset     // Previous page (4 bytes)
+	FIL_PAGE_NEXT            = common.InnoDBFileHeaderNextOffset     // Next page (4 bytes)
+	FIL_PAGE_LSN             = common.InnoDBFileHeaderLSNOffset      // LSN (8 bytes)
+	FIL_PAGE_TYPE            = common.InnoDBFileHeaderPageTypeOffset // Page type (2 bytes)
+	FIL_PAGE_FILE_FLUSH_LSN  = common.InnoDBFileHeaderFlushLSNOffset // Flush LSN (8 bytes)
+	FIL_PAGE_SPACE_ID        = common.InnoDBFileHeaderSpaceIDOffset  // Space ID (4 bytes)
+	FIL_PAGE_DATA            = common.FileHeaderSize                 // Start of page body
 )
 
 // File trailer field offsets
 const (
-	FIL_PAGE_END_LSN_OLD_CHKSUM = 0 // Old checksum (4 bytes)
-	FIL_PAGE_LSN_LOW            = 4 // Low 32 bits of LSN (4 bytes)
+	FIL_PAGE_END_LSN_OLD_CHKSUM = common.InnoDBFileTrailerChecksumOffset // Old checksum (4 bytes)
+	FIL_PAGE_LSN_LOW            = common.InnoDBFileTrailerLSNLowOffset   // Low 32 bits of LSN (4 bytes)
 )
 
 // Page size constants
 const (
-	FileHeaderSize  = 38    // File header size
-	FileTrailerSize = 8     // File trailer size
-	DefaultPageSize = 16384 // 16KB default page size
-	PageBodySize    = DefaultPageSize - FileHeaderSize - FileTrailerSize
+	FileHeaderSize  = common.FileHeaderSize  // File header size
+	FileTrailerSize = common.FileTrailerSize // File trailer size
+	DefaultPageSize = common.PageSize        // 16KB default page size
+	PageBodySize    = common.PageSize - common.FileHeaderSize - common.FileTrailerSize
 )
 
 // FileHeader represents the InnoDB file header structure
@@ -110,17 +110,26 @@ type UnifiedPage struct {
 
 	// Buffer pool integration
 	bufferPage *buffer_pool.BufferPage // Associated buffer page
+	storage    basic.StorageProvider   // Optional durable page provider
 }
 
 // NewUnifiedPage creates a new unified page
 func NewUnifiedPage(spaceID, pageNo uint32, pageType common.PageType) *UnifiedPage {
+	return NewUnifiedPageWithStorage(spaceID, pageNo, pageType, nil)
+}
+
+// NewUnifiedPageWithStorage creates a unified page with an optional durable
+// storage provider. Existing callers can continue using NewUnifiedPage for
+// in-memory compatibility behavior.
+func NewUnifiedPageWithStorage(spaceID, pageNo uint32, pageType common.PageType, storage basic.StorageProvider) *UnifiedPage {
 	page := &UnifiedPage{
 		spaceID:  spaceID,
 		pageNo:   pageNo,
 		pageType: pageType,
-		size:     DefaultPageSize,
+		size:     common.PageSize,
 		body:     make([]byte, PageBodySize),
-		rawData:  make([]byte, DefaultPageSize),
+		rawData:  make([]byte, common.PageSize),
+		storage:  storage,
 	}
 
 	// Initialize file header
@@ -364,22 +373,22 @@ func (p *UnifiedPage) Serialize() ([]byte, error) {
 // serializeInternal performs serialization without locking (internal use)
 func (p *UnifiedPage) serializeInternal() error {
 	// Write file header
-	binary.BigEndian.PutUint32(p.rawData[FIL_PAGE_SPACE_OR_CHKSUM:], p.header.Checksum)
-	binary.BigEndian.PutUint32(p.rawData[FIL_PAGE_OFFSET:], p.header.PageNo)
-	binary.BigEndian.PutUint32(p.rawData[FIL_PAGE_PREV:], p.header.PrevPage)
-	binary.BigEndian.PutUint32(p.rawData[FIL_PAGE_NEXT:], p.header.NextPage)
-	binary.BigEndian.PutUint64(p.rawData[FIL_PAGE_LSN:], p.header.LSN)
-	binary.BigEndian.PutUint16(p.rawData[FIL_PAGE_TYPE:], p.header.PageType)
-	binary.BigEndian.PutUint64(p.rawData[FIL_PAGE_FILE_FLUSH_LSN:], p.header.FlushLSN)
-	binary.BigEndian.PutUint32(p.rawData[FIL_PAGE_SPACE_ID:], p.header.SpaceID)
+	binary.BigEndian.PutUint32(p.rawData[common.InnoDBFileHeaderChecksumOffset:], p.header.Checksum)
+	binary.BigEndian.PutUint32(p.rawData[common.InnoDBFileHeaderPageNoOffset:], p.header.PageNo)
+	binary.BigEndian.PutUint32(p.rawData[common.InnoDBFileHeaderPrevOffset:], p.header.PrevPage)
+	binary.BigEndian.PutUint32(p.rawData[common.InnoDBFileHeaderNextOffset:], p.header.NextPage)
+	binary.BigEndian.PutUint64(p.rawData[common.InnoDBFileHeaderLSNOffset:], p.header.LSN)
+	binary.BigEndian.PutUint16(p.rawData[common.InnoDBFileHeaderPageTypeOffset:], p.header.PageType)
+	binary.BigEndian.PutUint64(p.rawData[common.InnoDBFileHeaderFlushLSNOffset:], p.header.FlushLSN)
+	binary.BigEndian.PutUint32(p.rawData[common.InnoDBFileHeaderSpaceIDOffset:], p.header.SpaceID)
 
 	// Write page body
-	copy(p.rawData[FileHeaderSize:FileHeaderSize+len(p.body)], p.body)
+	copy(p.rawData[common.FileHeaderSize:common.FileHeaderSize+len(p.body)], p.body)
 
 	// Write file trailer
-	trailerOffset := int(p.size) - FileTrailerSize
-	binary.BigEndian.PutUint32(p.rawData[trailerOffset+FIL_PAGE_END_LSN_OLD_CHKSUM:], p.trailer.OldChecksum)
-	binary.BigEndian.PutUint32(p.rawData[trailerOffset+FIL_PAGE_LSN_LOW:], p.trailer.LSNLow)
+	trailerOffset := int(p.size) - common.FileTrailerSize
+	binary.BigEndian.PutUint32(p.rawData[trailerOffset+common.InnoDBFileTrailerChecksumOffset:], p.trailer.OldChecksum)
+	binary.BigEndian.PutUint32(p.rawData[trailerOffset+common.InnoDBFileTrailerLSNLowOffset:], p.trailer.LSNLow)
 
 	return nil
 }
@@ -399,22 +408,22 @@ func (p *UnifiedPage) Deserialize(data []byte) error {
 // deserializeInternal performs deserialization without locking (internal use)
 func (p *UnifiedPage) deserializeInternal(data []byte) error {
 	// Parse file header
-	p.header.Checksum = binary.BigEndian.Uint32(data[FIL_PAGE_SPACE_OR_CHKSUM:])
-	p.header.PageNo = binary.BigEndian.Uint32(data[FIL_PAGE_OFFSET:])
-	p.header.PrevPage = binary.BigEndian.Uint32(data[FIL_PAGE_PREV:])
-	p.header.NextPage = binary.BigEndian.Uint32(data[FIL_PAGE_NEXT:])
-	p.header.LSN = binary.BigEndian.Uint64(data[FIL_PAGE_LSN:])
-	p.header.PageType = binary.BigEndian.Uint16(data[FIL_PAGE_TYPE:])
-	p.header.FlushLSN = binary.BigEndian.Uint64(data[FIL_PAGE_FILE_FLUSH_LSN:])
-	p.header.SpaceID = binary.BigEndian.Uint32(data[FIL_PAGE_SPACE_ID:])
+	p.header.Checksum = binary.BigEndian.Uint32(data[common.InnoDBFileHeaderChecksumOffset:])
+	p.header.PageNo = binary.BigEndian.Uint32(data[common.InnoDBFileHeaderPageNoOffset:])
+	p.header.PrevPage = binary.BigEndian.Uint32(data[common.InnoDBFileHeaderPrevOffset:])
+	p.header.NextPage = binary.BigEndian.Uint32(data[common.InnoDBFileHeaderNextOffset:])
+	p.header.LSN = binary.BigEndian.Uint64(data[common.InnoDBFileHeaderLSNOffset:])
+	p.header.PageType = binary.BigEndian.Uint16(data[common.InnoDBFileHeaderPageTypeOffset:])
+	p.header.FlushLSN = binary.BigEndian.Uint64(data[common.InnoDBFileHeaderFlushLSNOffset:])
+	p.header.SpaceID = binary.BigEndian.Uint32(data[common.InnoDBFileHeaderSpaceIDOffset:])
 
 	// Parse page body
-	copy(p.body, data[FileHeaderSize:len(data)-FileTrailerSize])
+	copy(p.body, data[common.FileHeaderSize:len(data)-common.FileTrailerSize])
 
 	// Parse file trailer
-	trailerOffset := len(data) - FileTrailerSize
-	p.trailer.OldChecksum = binary.BigEndian.Uint32(data[trailerOffset+FIL_PAGE_END_LSN_OLD_CHKSUM:])
-	p.trailer.LSNLow = binary.BigEndian.Uint32(data[trailerOffset+FIL_PAGE_LSN_LOW:])
+	trailerOffset := len(data) - common.FileTrailerSize
+	p.trailer.OldChecksum = binary.BigEndian.Uint32(data[trailerOffset+common.InnoDBFileTrailerChecksumOffset:])
+	p.trailer.LSNLow = binary.BigEndian.Uint32(data[trailerOffset+common.InnoDBFileTrailerLSNLowOffset:])
 
 	// Update metadata
 	p.pageNo = p.header.PageNo
@@ -481,7 +490,7 @@ func (p *UnifiedPage) updateChecksumInternal() {
 
 	checksum := crc32.ChecksumIEEE(data)
 	p.header.Checksum = checksum
-	binary.BigEndian.PutUint32(p.rawData[FIL_PAGE_SPACE_OR_CHKSUM:], checksum)
+	binary.BigEndian.PutUint32(p.rawData[common.InnoDBFileHeaderChecksumOffset:], checksum)
 }
 
 // IsCorrupted checks if the page is corrupted
@@ -494,8 +503,8 @@ func (p *UnifiedPage) GetFileHeader() []byte {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	header := make([]byte, FileHeaderSize)
-	copy(header, p.rawData[:FileHeaderSize])
+	header := make([]byte, common.FileHeaderSize)
+	copy(header, p.rawData[:common.FileHeaderSize])
 	return header
 }
 
@@ -504,8 +513,8 @@ func (p *UnifiedPage) GetFileTrailer() []byte {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	trailer := make([]byte, FileTrailerSize)
-	trailerOffset := int(p.size) - FileTrailerSize
+	trailer := make([]byte, common.FileTrailerSize)
+	trailerOffset := int(p.size) - common.FileTrailerSize
 	copy(trailer, p.rawData[trailerOffset:])
 	return trailer
 }
@@ -514,7 +523,7 @@ func (p *UnifiedPage) GetFileTrailer() []byte {
 func (p *UnifiedPage) GetFileHeaderStruct() *pages.FileHeader {
 	header := pages.NewFileHeader()
 	headerBytes := p.GetFileHeader()
-	if len(headerBytes) >= pages.FileHeaderSize {
+	if len(headerBytes) >= common.FileHeaderSize {
 		_ = header.ParseFileHeader(headerBytes)
 	}
 	return &header
@@ -561,6 +570,25 @@ func (p *UnifiedPage) Read() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	if p.storage != nil {
+		data, err := p.storage.ReadPage(p.spaceID, p.pageNo)
+		if err != nil {
+			return err
+		}
+		if len(data) < int(p.size) {
+			return ErrUnifiedInvalidPageSize
+		}
+		if err := p.deserializeInternal(data[:p.size]); err != nil {
+			return err
+		}
+		p.rawData = append(p.rawData[:0], data[:p.size]...)
+		p.stats.ReadCount++
+		p.stats.LastAccessed = uint64(time.Now().UnixNano())
+		atomic.StoreUint32(&p.state, uint32(basic.PageStateLoaded))
+		atomic.StoreUint32(&p.dirty, 0)
+		return nil
+	}
+
 	p.stats.ReadCount++
 	p.stats.LastAccessed = uint64(time.Now().UnixNano())
 
@@ -577,6 +605,18 @@ func (p *UnifiedPage) Read() error {
 func (p *UnifiedPage) Write() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	if p.storage != nil {
+		p.updateChecksumInternal()
+		if err := p.storage.WritePage(p.spaceID, p.pageNo, p.rawData); err != nil {
+			return err
+		}
+		p.stats.WriteCount++
+		p.stats.LastModified = uint64(time.Now().UnixNano())
+		atomic.StoreUint32(&p.dirty, 0)
+		atomic.StoreUint32(&p.state, uint32(basic.PageStateClean))
+		return nil
+	}
 
 	p.stats.WriteCount++
 	p.stats.LastModified = uint64(time.Now().UnixNano())
@@ -597,6 +637,11 @@ func (p *UnifiedPage) Write() error {
 func (p *UnifiedPage) Flush() error {
 	if err := p.Write(); err != nil {
 		return err
+	}
+	if p.storage != nil {
+		if err := p.storage.Sync(p.spaceID); err != nil {
+			return err
+		}
 	}
 
 	p.ClearDirty()

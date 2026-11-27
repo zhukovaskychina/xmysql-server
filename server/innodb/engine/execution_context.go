@@ -2,10 +2,15 @@ package engine
 
 import (
 	"context"
+	"strings"
+	"sync"
+	"sync/atomic"
+
 	"github.com/pelletier/go-toml/query"
 	"github.com/zhukovaskychina/xmysql-server/logger"
+	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
-	"sync"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 // 定义查询上下文环境，
@@ -27,8 +32,198 @@ type ExecutionContext struct {
 	DatabaseName string
 
 	RawQuery string
+	// Parsed is the immutable parse result for RawQuery when the statement
+	// has entered the staged execution-parser path. Child statements use their
+	// own context and never overwrite the parent result.
+	Parsed *sqlparser.ParsedStatement
+
+	Session              server.MySQLServerSession
+	Warnings             []Warning
+	AdminResult          *Result
+	ViewSecurityRequired bool
+	// triggerStack carries the active AFTER-trigger call chain through nested
+	// SQL execution. It is intentionally context-local so recursive trigger
+	// cycles are rejected without leaking state across connections.
+	triggerStack []string
+
+	// SpatialCandidateKeys is an optional storage-key set produced by the
+	// spatial MBR index. Select execution can use it to avoid decoding rows
+	// that cannot satisfy the spatial predicate.
+	SpatialCandidateKeys map[string]struct{}
+
+	// ddlWriteLocks tracks re-entrant compound ALTER calls. The outer ALTER
+	// owns the actual table lock; inner clause execution only increments this
+	// counter so it cannot self-deadlock on the same table.
+	ddlWriteLocks map[string]int
 
 	Cfg *conf.Cfg
+
+	statementRowsAffected        atomic.Int64
+	statementRowsSent            atomic.Int64
+	statementRowsExamined        atomic.Int64
+	statementSelectScan          atomic.Int64
+	statementSelectRange         atomic.Int64
+	statementSelectFullJoin      atomic.Int64
+	statementSelectFullRangeJoin atomic.Int64
+	statementSelectRangeCheck    atomic.Int64
+	statementNoIndexUsed         atomic.Int64
+	statementNoGoodIndexUsed     atomic.Int64
+	statementSortRows            atomic.Int64
+	statementSortScan            atomic.Int64
+	statementSortRange           atomic.Int64
+	statementWarnings            atomic.Int64
+	statementCPUTime             atomic.Int64
+	statementCPUTimeCaptured     atomic.Bool
+	// statementMetricsDeferred is used by ExecuteWithQuery, whose result
+	// forwarding goroutine owns result accounting. The worker must not publish
+	// statement history before that accounting has completed.
+	statementMetricsDeferred bool
+	// statementResultObserver is used by internal statement owners that need
+	// to publish a lifecycle boundary before executeQuery finishes its
+	// deferred metrics cleanup. It is intentionally unexported so normal
+	// client result delivery keeps its existing behavior.
+	statementResultObserver func(*Result)
+	// errorMetricsDeferred is used by stored-routine child statements. The
+	// routine boundary records the raised/handled error with its final SQL
+	// handler outcome, while the child still publishes its statement summary.
+	errorMetricsDeferred bool
+	// statementParseError selects MySQL's dedicated statement/sql/error
+	// instrument for parser failures. Execution errors remain attributed to
+	// their parsed statement instrument.
+	statementParseError   bool
+	statementMetricStatus string
+	statementIndexNames   []string
+}
+
+func (ctx *ExecutionContext) recordIndexAccessPath(path string) {
+	if ctx == nil {
+		return
+	}
+	path = strings.TrimSpace(path)
+	if path == "" || path == "table_scan" || path == "partitioned_table_scan" {
+		return
+	}
+	if colon := strings.IndexByte(path, ':'); colon >= 0 {
+		path = path[colon+1:]
+	}
+	path = strings.TrimSuffix(path, "_skip_scan")
+	for _, name := range strings.Split(path, ",") {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		seen := false
+		for _, existing := range ctx.statementIndexNames {
+			if strings.EqualFold(existing, name) {
+				seen = true
+				break
+			}
+		}
+		if !seen {
+			ctx.statementIndexNames = append(ctx.statementIndexNames, name)
+		}
+	}
+}
+
+func (ctx *ExecutionContext) indexNames() []string {
+	if ctx == nil || len(ctx.statementIndexNames) == 0 {
+		return nil
+	}
+	return append([]string(nil), ctx.statementIndexNames...)
+}
+
+func (ctx *ExecutionContext) observeStatementResult(result *Result) {
+	if ctx == nil || ctx.statementResultObserver == nil {
+		return
+	}
+	ctx.statementResultObserver(result)
+}
+
+func (ctx *ExecutionContext) recordStatementResult(result *Result) {
+	if ctx == nil {
+		return
+	}
+	accounting := statementResultAccountingFor(result)
+	ctx.statementRowsAffected.Add(accounting.rowsAffected)
+	ctx.statementRowsSent.Add(accounting.rowsSent)
+	ctx.statementWarnings.Add(accounting.warnings)
+}
+
+func (ctx *ExecutionContext) recordRowsExamined(rows int64) {
+	if ctx == nil || rows <= 0 {
+		return
+	}
+	ctx.statementRowsExamined.Add(rows)
+}
+
+func (ctx *ExecutionContext) recordSelectScan(scans int64) {
+	if ctx == nil || scans <= 0 {
+		return
+	}
+	ctx.statementSelectScan.Add(scans)
+}
+
+func (ctx *ExecutionContext) recordSelectRange(ranges int64) {
+	if ctx == nil || ranges <= 0 {
+		return
+	}
+	ctx.statementSelectRange.Add(ranges)
+}
+
+func (ctx *ExecutionContext) recordSelectFullJoin(joins int64) {
+	if ctx == nil || joins <= 0 {
+		return
+	}
+	ctx.statementSelectFullJoin.Add(joins)
+}
+
+func (ctx *ExecutionContext) recordSelectFullRangeJoin(joins int64) {
+	if ctx == nil || joins <= 0 {
+		return
+	}
+	ctx.statementSelectFullRangeJoin.Add(joins)
+}
+
+func (ctx *ExecutionContext) recordSelectRangeCheck(checks int64) {
+	if ctx == nil || checks <= 0 {
+		return
+	}
+	ctx.statementSelectRangeCheck.Add(checks)
+}
+
+func (ctx *ExecutionContext) recordNoIndexUsed(used bool) {
+	if ctx == nil || !used {
+		return
+	}
+	ctx.statementNoIndexUsed.Store(1)
+}
+
+func (ctx *ExecutionContext) recordNoGoodIndexUsed(used bool) {
+	if ctx == nil || !used {
+		return
+	}
+	ctx.statementNoGoodIndexUsed.Add(1)
+}
+
+func (ctx *ExecutionContext) recordSortRows(rows int64) {
+	if ctx == nil || rows <= 0 {
+		return
+	}
+	ctx.statementSortRows.Add(rows)
+}
+
+func (ctx *ExecutionContext) recordSortScan(scans int64) {
+	if ctx == nil || scans <= 0 {
+		return
+	}
+	ctx.statementSortScan.Add(scans)
+}
+
+func (ctx *ExecutionContext) recordSortRange(ranges int64) {
+	if ctx == nil || ranges <= 0 {
+		return
+	}
+	ctx.statementSortRange.Add(ranges)
 }
 
 func (ctx *ExecutionContext) watch() {

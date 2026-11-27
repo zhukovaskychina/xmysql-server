@@ -12,6 +12,7 @@ import (
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/engine"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/manager"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser"
 )
 
 // SQLDispatcher SQL查询分发器，负责将SQL查询路由到合适的引擎
@@ -22,11 +23,47 @@ type SQLDispatcher struct {
 	mutex   sync.RWMutex
 }
 
+// ResetSession delegates COM_RESET_CONNECTION to the registered SQL engine
+// without making the network layer depend on a concrete engine instance.
+func (d *SQLDispatcher) ResetSession(session server.MySQLServerSession) error {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+	for _, registered := range d.engines {
+		if resetter, ok := registered.(interface {
+			ResetSession(server.MySQLServerSession) error
+		}); ok {
+			return resetter.ResetSession(session)
+		}
+	}
+	return nil
+}
+
+// CleanupTemporaryTables delegates connection-close cleanup to the registered
+// SQL engine without coupling the network layer to a concrete engine.
+func (d *SQLDispatcher) CleanupTemporaryTables(session server.MySQLServerSession) error {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+	for _, registered := range d.engines {
+		if cleaner, ok := registered.(interface {
+			CleanupTemporaryTables(server.MySQLServerSession) error
+		}); ok {
+			return cleaner.CleanupTemporaryTables(session)
+		}
+	}
+	return nil
+}
+
 // SQLEngine SQL引擎接口
 type SQLEngine interface {
 	ExecuteQuery(session server.MySQLServerSession, query string, databaseName string) <-chan *SQLResult
 	Name() string
 	CanHandle(query string) bool
+}
+
+// ParsedSQLEngine is an optional extension. Existing engines remain source
+// compatible; engines that implement it receive one complete AST per query.
+type ParsedSQLEngine interface {
+	ExecuteParsedQuery(session server.MySQLServerSession, parsed *sqlparser.ParsedStatement, databaseName string) <-chan *SQLResult
 }
 
 // SQLRouter SQL路由器接口
@@ -45,6 +82,7 @@ type SQLResult struct {
 	Rows         [][]interface{}
 	AffectedRows uint64
 	LastInsertID uint64
+	WarningCount uint16
 }
 
 // NewSQLDispatcher 创建SQL分发器
@@ -65,6 +103,25 @@ func NewSQLDispatcher(config *conf.Cfg) *SQLDispatcher {
 
 // NewSQLDispatcherWithStorageManager 创建带存储管理器的SQL分发器
 func NewSQLDispatcherWithStorageManager(config *conf.Cfg, storageManager interface{}) *SQLDispatcher {
+	return newSQLDispatcher(config, NewInnoDBSQLEngine(config), storageManager)
+}
+
+// NewSQLDispatcherWithXMySQLEngine creates a dispatcher that reuses the
+// server-owned engine. The network server already starts one engine before it
+// builds the protocol handler; creating a second engine here leaves duplicate
+// tablespace file handles open on Windows and makes DROP DATABASE fail.
+func NewSQLDispatcherWithXMySQLEngine(config *conf.Cfg, xmysqlEngine *engine.XMySQLEngine, storageManager interface{}) *SQLDispatcher {
+	if xmysqlEngine == nil {
+		return NewSQLDispatcherWithStorageManager(config, storageManager)
+	}
+	return newSQLDispatcher(config, &InnoDBSQLEngine{
+		name:         "innodb",
+		config:       config,
+		xmysqlEngine: xmysqlEngine,
+	}, storageManager)
+}
+
+func newSQLDispatcher(config *conf.Cfg, innodbEngine SQLEngine, storageManager interface{}) *SQLDispatcher {
 	dispatcher := &SQLDispatcher{
 		engines: make(map[string]SQLEngine),
 		config:  config,
@@ -75,7 +132,6 @@ func NewSQLDispatcherWithStorageManager(config *conf.Cfg, storageManager interfa
 	logger.Debugf(" [NewSQLDispatcherWithStorageManager] storageManager是否为nil: %v", storageManager == nil)
 
 	// 注册默认的InnoDB引擎
-	innodbEngine := NewInnoDBSQLEngine(config)
 	dispatcher.RegisterEngine(innodbEngine)
 	logger.Debugf(" [NewSQLDispatcherWithStorageManager] 注册InnoDB引擎: %s", innodbEngine.Name())
 
@@ -174,6 +230,15 @@ func (d *SQLDispatcher) Dispatch(session server.MySQLServerSession, query string
 
 	logger.Debugf("🚀 [SQLDispatcher.Dispatch] 使用引擎 %s 执行查询", engine.Name())
 
+	// Prefer the shared complete AST when this engine exposes the optional
+	// boundary. Unsupported families retain the existing text entry point.
+	if parsedEngine, ok := engine.(ParsedSQLEngine); ok {
+		if parsed, parseErr := sqlparser.ParseForExecution(query); parseErr == nil {
+			if stored, isCall := parsed.AST.(*sqlparser.StoredObjectStatement); !isCall || !strings.EqualFold(stored.ObjectType, "call") {
+				return parsedEngine.ExecuteParsedQuery(session, parsed, databaseName)
+			}
+		}
+	}
 	// 执行查询
 	return engine.ExecuteQuery(session, query, databaseName)
 }
@@ -211,10 +276,23 @@ func (e *InnoDBSQLEngine) Name() string {
 	return e.name
 }
 
+func (e *InnoDBSQLEngine) ResetSession(session server.MySQLServerSession) error {
+	if e == nil || e.xmysqlEngine == nil {
+		return nil
+	}
+	return e.xmysqlEngine.ResetSession(session)
+}
+
 // CanHandle 检查是否能处理该查询
 func (e *InnoDBSQLEngine) CanHandle(query string) bool {
 	if engine.IsTransactionCommand(query) {
 		return true
+	}
+	if family, err := sqlparser.ClassifyStatement(query); err == nil {
+		switch family {
+		case sqlparser.StatementFamilySelect, sqlparser.StatementFamilyInsert, sqlparser.StatementFamilyUpdate, sqlparser.StatementFamilyDelete, sqlparser.StatementFamilyDDL, sqlparser.StatementFamilyAlter, sqlparser.StatementFamilyShow, sqlparser.StatementFamilyExplain, sqlparser.StatementFamilyUse, sqlparser.StatementFamilySet, sqlparser.StatementFamilyAdmin, sqlparser.StatementFamilyPrepared, sqlparser.StatementFamilyHandler, sqlparser.StatementFamilyComponent, sqlparser.StatementFamilyAccount, sqlparser.StatementFamilyView, sqlparser.StatementFamilyStoredObject:
+			return true
+		}
 	}
 
 	query = strings.TrimSpace(strings.ToUpper(query))
@@ -247,6 +325,7 @@ func (e *InnoDBSQLEngine) ExecuteQuery(session server.MySQLServerSession, query 
 		// 转换结果格式
 		for xmysqlResult := range xmysqlResultChan {
 			sqlResult := e.convertResult(xmysqlResult)
+			persistSessionExecutionState(session, xmysqlResult)
 			resultChan <- sqlResult
 		}
 	}()
@@ -254,11 +333,56 @@ func (e *InnoDBSQLEngine) ExecuteQuery(session server.MySQLServerSession, query 
 	return resultChan
 }
 
+func (e *InnoDBSQLEngine) ExecuteParsedQuery(session server.MySQLServerSession, parsed *sqlparser.ParsedStatement, databaseName string) <-chan *SQLResult {
+	resultChan := make(chan *SQLResult, 1)
+	go func() {
+		defer close(resultChan)
+		if e == nil || e.xmysqlEngine == nil {
+			resultChan <- &SQLResult{Err: fmt.Errorf("innodb engine is unavailable")}
+			return
+		}
+		for result := range e.xmysqlEngine.ExecuteParsedQuery(session, parsed, databaseName) {
+			resultChan <- e.convertResult(result)
+			persistSessionExecutionState(session, result)
+		}
+	}()
+	return resultChan
+}
+
+func persistSessionLastInsertID(session server.MySQLServerSession, result *engine.Result) {
+	if session == nil || result == nil {
+		return
+	}
+	dmlResult, ok := result.Data.(*engine.DMLResult)
+	if !ok || dmlResult.LastInsertId == 0 {
+		return
+	}
+	session.SetParamByName("last_insert_id", dmlResult.LastInsertId)
+}
+
+func persistSessionExecutionState(session server.MySQLServerSession, result *engine.Result) {
+	if session == nil || result == nil || result.Err != nil {
+		return
+	}
+	if dmlResult, ok := result.Data.(*engine.DMLResult); ok {
+		session.SetParamByName("row_count", int64(dmlResult.AffectedRows))
+		persistSessionLastInsertID(session, result)
+		return
+	}
+	switch result.ResultType {
+	case common.RESULT_TYPE_SELECT:
+		session.SetParamByName("row_count", int64(-1))
+	case common.RESULT_TYPE_DDL, common.RESULT_TYPE_SET, common.RESULT_TYPE_QUERY, "QUERY":
+		session.SetParamByName("row_count", int64(0))
+	}
+}
+
 // convertResult 将XMySQLEngine的结果转换为SQLResult
 func (e *InnoDBSQLEngine) convertResult(xmysqlResult *engine.Result) *SQLResult {
 	result := &SQLResult{
-		Err:  xmysqlResult.Err,
-		Data: xmysqlResult.Data,
+		Err:          xmysqlResult.Err,
+		Data:         xmysqlResult.Data,
+		WarningCount: uint16(len(xmysqlResult.Warnings)),
 	}
 
 	// 转换结果类型
@@ -287,6 +411,7 @@ func (e *InnoDBSQLEngine) convertResult(xmysqlResult *engine.Result) *SQLResult 
 				result.Message = dmlResult.Message
 				result.AffectedRows = uint64(dmlResult.AffectedRows)
 				result.LastInsertID = dmlResult.LastInsertId
+				result.WarningCount = uint16(len(dmlResult.Warnings))
 				result.Columns = []string{}
 				result.Rows = [][]interface{}{}
 			} else if xmysqlResult.Data == nil && xmysqlResult.Message != "" {
@@ -435,7 +560,6 @@ func (r *DefaultSQLRouter) Route(session server.MySQLServerSession, query string
 		logger.Debugf(" [DefaultSQLRouter] information_schema metadata query routes to innodb")
 		return "innodb"
 	}
-
 	query = strings.TrimSpace(strings.ToUpper(query))
 
 	logger.Debugf(" [DefaultSQLRouter] 路由查询: %s", query)
@@ -488,6 +612,9 @@ func (r *DefaultSQLRouter) Route(session server.MySQLServerSession, query string
 		}
 		return "innodb"
 	default:
+		if _, err := sqlparser.ClassifyStatement(query); err == nil {
+			return "innodb"
+		}
 		logger.Debugf("🔄 [DefaultSQLRouter] 未识别的查询类型，使用默认innodb引擎")
 		return "innodb" // 默认使用InnoDB引擎
 	}
@@ -507,7 +634,7 @@ func (r *DefaultSQLRouter) isSystemVariableQuery(query string) bool {
 	// 检查常见的系统函数
 	systemFunctions := []string{
 		"USER()", "DATABASE()", "VERSION()", "CONNECTION_ID()",
-		"CURRENT_USER()", "SESSION_USER()", "SYSTEM_USER()",
+		"CURRENT_USER()", "SESSION_USER()", "SYSTEM_USER()", "CURRENT_ROLE()", "ROLES_GRAPHML()", "LAST_INSERT_ID(", "ROW_COUNT(",
 	}
 
 	for _, function := range systemFunctions {
@@ -551,7 +678,7 @@ func (r *DefaultSQLRouter) containsSystemVariableExpression(query string) bool {
 	// 检查系统函数调用
 	systemFunctions := []string{
 		"USER()", "DATABASE()", "VERSION()", "CONNECTION_ID()",
-		"CURRENT_USER()", "SESSION_USER()", "SYSTEM_USER()",
+		"CURRENT_USER()", "SESSION_USER()", "SYSTEM_USER()", "CURRENT_ROLE()", "ROLES_GRAPHML()", "LAST_INSERT_ID(", "ROW_COUNT(",
 	}
 
 	for _, function := range systemFunctions {
@@ -574,6 +701,7 @@ func (r *DefaultSQLRouter) isShowSystemVariable(query string) bool {
 		"SHOW GLOBAL STATUS",
 		"SHOW ENGINES",
 		"SHOW CHARSET",
+		"SHOW CHARACTER SET",
 		"SHOW COLLATION",
 	}
 
@@ -606,7 +734,7 @@ func (r *DefaultSQLRouter) isSetSystemVariable(query string) bool {
 	// 检查常见的系统变量设置
 	commonSystemVars := []string{
 		"AUTOCOMMIT", "SQL_MODE", "TIME_ZONE", "CHARACTER_SET",
-		"COLLATION", "FOREIGN_KEY_CHECKS", "UNIQUE_CHECKS",
+		"COLLATION", "FOREIGN_KEY_CHECKS", "CHECK_CONSTRAINT_CHECKS", "UNIQUE_CHECKS",
 	}
 
 	for _, sysVar := range commonSystemVars {

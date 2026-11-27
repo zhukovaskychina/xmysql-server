@@ -226,7 +226,11 @@ func (up *UndoPurger) segmentNeededByActiveSnapshot(segment *UndoSegment) bool {
 		if readView == nil {
 			continue
 		}
-		if txID < readView.GetHighWaterMark() {
+		// Versions created before a snapshot's low watermark are visible to
+		// every active snapshot and no longer need their undo segment. Keep
+		// only the transaction-ID interval that the snapshot could still
+		// distinguish (low <= txID < high).
+		if txID >= readView.GetLowWaterMark() && txID < readView.GetHighWaterMark() {
 			return true
 		}
 	}

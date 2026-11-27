@@ -44,6 +44,15 @@ func TestBasePageWrapperPinAndStats(t *testing.T) {
 	require.False(t, p.IsDirty())
 }
 
+func TestBasePageWrapperRequiresStorageForWriteAndFlush(t *testing.T) {
+	p := NewBasePageWrapper(101, 1, common.FIL_PAGE_INDEX)
+	p.MarkDirty()
+
+	require.ErrorIs(t, p.Write(), ErrPageStorageUnavailable)
+	require.ErrorIs(t, p.Flush(), ErrPageStorageUnavailable)
+	require.True(t, p.IsDirty(), "failed writes must not report a clean persisted page")
+}
+
 func TestRollbackPageWrapperParseFromBytes(t *testing.T) {
 	t.Parallel()
 

@@ -1,6 +1,8 @@
 package plan
 
 import (
+	"strings"
+
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
 )
 
@@ -52,10 +54,10 @@ func (joo *JoinOrderOptimizer) estimateTableScanCost(
 func (joo *JoinOrderOptimizer) hasJoinCondition(
 	left, right uint64,
 	joinConditions []Expression,
-	numTables int,
+	tables []*metadata.Table,
 ) bool {
 	for _, cond := range joinConditions {
-		if joo.connectsSets(cond, left, right, numTables) {
+		if joo.connectsSets(cond, left, right, tables) {
 			return true
 		}
 	}
@@ -66,41 +68,22 @@ func (joo *JoinOrderOptimizer) hasJoinCondition(
 func (joo *JoinOrderOptimizer) connectsSets(
 	cond Expression,
 	left, right uint64,
-	numTables int,
+	tables []*metadata.Table,
 ) bool {
-	// 提取条件中涉及的列
-	columns := joo.extractColumns(cond)
-
-	leftHas := false
-	rightHas := false
-
-	for _, col := range columns {
-		// 简化实现：假设列名就是表名（实际应该解析表名）
-		// TODO: 实现正确的表名解析
-		_ = col
-		for i := 0; i < numTables; i++ {
-			if (left & (1 << i)) != 0 {
-				leftHas = true
-			}
-			if (right & (1 << i)) != 0 {
-				rightHas = true
-			}
-		}
-	}
-
-	return leftHas && rightHas
+	mentioned := joo.tableBitsForExpression(cond, tables)
+	return mentioned&left != 0 && mentioned&right != 0
 }
 
 // extractJoinConditions 提取连接两个表集合的条件
 func (joo *JoinOrderOptimizer) extractJoinConditions(
 	left, right uint64,
 	joinConditions []Expression,
-	numTables int,
+	tables []*metadata.Table,
 ) []Expression {
 	var result []Expression
 
 	for _, cond := range joinConditions {
-		if joo.connectsSets(cond, left, right, numTables) {
+		if joo.connectsSets(cond, left, right, tables) {
 			result = append(result, cond)
 		}
 	}
@@ -120,16 +103,24 @@ func (joo *JoinOrderOptimizer) estimateJoinSelectivity(
 
 	selectivity := 1.0
 
-	if joo.selectivityEstimator != nil {
-		for _, cond := range conditions {
-			// 简化实现：假设每个条件的选择率为0.1
-			// TODO: 实现更精确的连接选择率估算
-			_ = cond
-			selectivity *= 0.1
+	for _, cond := range conditions {
+		if equi, ok := cond.(*BinaryOperation); ok && equi.Op == OpEQ {
+			leftColumn, leftOK := equi.Left.(*Column)
+			rightColumn, rightOK := equi.Right.(*Column)
+			if leftOK && rightOK && joo.statsCollector != nil {
+				leftNDV := joo.columnDistinctCount(leftColumn)
+				rightNDV := joo.columnDistinctCount(rightColumn)
+				if leftNDV > 0 && rightNDV > 0 {
+					maxNDV := leftNDV
+					if rightNDV > maxNDV {
+						maxNDV = rightNDV
+					}
+					selectivity *= 1.0 / float64(maxNDV)
+					continue
+				}
+			}
 		}
-	} else {
-		// 默认选择率
-		selectivity = 0.1
+		selectivity *= 0.1
 	}
 
 	return selectivity
@@ -137,29 +128,100 @@ func (joo *JoinOrderOptimizer) estimateJoinSelectivity(
 
 // involvesTable 检查表达式是否涉及指定表
 func (joo *JoinOrderOptimizer) involvesTable(expr Expression, table *metadata.Table) bool {
-	columns := joo.extractColumns(expr)
-
-	for _, col := range columns {
-		// 简化实现：假设列名包含表名前缀
-		// TODO: 实现更精确的表名匹配
-		_ = col
-		return true // 暂时返回true
+	for _, col := range joo.extractColumns(expr) {
+		if joo.columnBelongsToTable(col, table) {
+			return true
+		}
 	}
-
 	return false
 }
 
 // involvesJoinedTables 检查表达式是否涉及已连接的表
 func (joo *JoinOrderOptimizer) involvesJoinedTables(expr Expression, joinNode *JoinNode) bool {
-	columns := joo.extractColumns(expr)
-
-	for _, col := range columns {
-		// 简化实现
-		_ = col
-		return true // 暂时返回true
+	if joinNode == nil {
+		return false
 	}
-
+	for _, col := range joo.extractColumns(expr) {
+		if joo.columnBelongsToJoinTree(col, joinNode) {
+			return true
+		}
+	}
 	return false
+}
+
+func (joo *JoinOrderOptimizer) columnDistinctCount(column *Column) int64 {
+	if column == nil || joo.statsCollector == nil {
+		return 0
+	}
+	tableName, columnName := splitQualifiedColumnName(column.Name)
+	if tableName == "" {
+		return 0
+	}
+	if stats, ok := joo.statsCollector.GetColumnStatistics(tableName, columnName); ok && stats != nil {
+		return stats.DistinctCount
+	}
+	return 0
+}
+
+func (joo *JoinOrderOptimizer) tableBitsForExpression(expr Expression, tables []*metadata.Table) uint64 {
+	var bits uint64
+	for _, column := range joo.extractColumns(expr) {
+		for index, table := range tables {
+			if joo.columnBelongsToTable(column, table) {
+				bits |= 1 << index
+			}
+		}
+	}
+	return bits
+}
+
+func (joo *JoinOrderOptimizer) columnBelongsToTable(column *Column, table *metadata.Table) bool {
+	if column == nil || table == nil {
+		return false
+	}
+	qualifier, columnName := splitQualifiedColumnName(column.Name)
+	if qualifier != "" {
+		if !strings.EqualFold(qualifier, table.Name) {
+			return false
+		}
+		// Some planner callers provide only table identity and load column
+		// metadata later. A qualified reference still identifies the table in
+		// that case; once columns are present, validate the column name too.
+		return len(table.Columns) == 0 || tableHasColumn(table, columnName)
+	}
+	return tableHasColumn(table, columnName)
+}
+
+func (joo *JoinOrderOptimizer) columnBelongsToJoinTree(column *Column, node *JoinNode) bool {
+	if node == nil {
+		return false
+	}
+	if node.NodeType == "TABLE" {
+		return joo.columnBelongsToTable(column, node.Table)
+	}
+	return joo.columnBelongsToJoinTree(column, node.LeftChild) || joo.columnBelongsToJoinTree(column, node.RightChild)
+}
+
+func tableHasColumn(table *metadata.Table, columnName string) bool {
+	if table == nil {
+		return false
+	}
+	for _, column := range table.Columns {
+		if column != nil && strings.EqualFold(column.Name, columnName) {
+			return true
+		}
+	}
+	return false
+}
+
+func splitQualifiedColumnName(name string) (qualifier, column string) {
+	name = strings.Trim(strings.TrimSpace(name), "`")
+	if dot := strings.LastIndex(name, "."); dot >= 0 {
+		qualifier = strings.Trim(strings.TrimSpace(name[:dot]), "`")
+		column = strings.Trim(strings.TrimSpace(name[dot+1:]), "`")
+		return qualifier, column
+	}
+	return "", name
 }
 
 // extractColumns 从表达式中提取列

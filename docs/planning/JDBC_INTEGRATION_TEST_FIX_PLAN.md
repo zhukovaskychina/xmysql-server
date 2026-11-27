@@ -124,7 +124,7 @@
 | 任务                  | 说明                                                                                                                                                                                                                                                                                                                                                          |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 4.1 CI 建议           | PR 阶段跑 `mvn test -Pjdbc-connectivity`；全量 `mvn test` 夜间或主干门禁                                                                                                                                                                                                                                                                                                 |
-| 4.2 文档交叉引用（**已落地**） | `jdbc_client/TEST_README.md`、`快速参考.md`、`测试总结.md`；根 `README.md`；`docs/README.md`、`DOCUMENTATION_INDEX.md`；`protocol/` 两修复文 + `PROTOCOL_DOCUMENTATION_INDEX.md`；`protocol-reports/JDBC_PROTOCOL_ANALYSIS.md`；`SESSION_`*、`SHOW_DROP`、`HANDSHAKE`、`ADVANCED_PROTOCOL`、`development/JDBC_DDL_TEST_RESULTS.md` — 均链至本文并注明 `jdbc-connectivity` / `jdbc_local.ini` |
+| 4.2 文档交叉引用（**已落地**） | `jdbc_client/TEST_README.md`、`快速参考.md`、`测试总结.md`；根 `README.md`；`docs/README.md`；`protocol/` 两修复文 + `PROTOCOL_DOCUMENTATION_INDEX.md`；`protocol-reports/JDBC_PROTOCOL_ANALYSIS.md`；`SESSION_`*、`SHOW_DROP`、`HANDSHAKE`、`ADVANCED_PROTOCOL` — 均链至本文并注明 `jdbc-connectivity` / `jdbc_local.ini` |
 | 4.3 与路线图对齐          | 若存在 TXN/EXE/STG 任务 ID，在实现 PR 中引用                                                                                                                                                                                                                                                                                                                            |
 
 
@@ -174,8 +174,8 @@
 - 本地联调配置：`conf/jdbc_local.ini`  
 - Surefire 报告：`jdbc_client/target/surefire-reports/TEST-*.xml`  
 - 测试说明与速查：`jdbc_client/TEST_README.md`、`jdbc_client/快速参考.md`、`jdbc_client/测试总结.md`；交互菜单 `jdbc_client/run-tests.sh` / `run-tests.bat`（选项 **13** = `jdbc-connectivity`）  
-- 仓库入口：`README.md`；文档中心：`docs/README.md`、`docs/DOCUMENTATION_INDEX.md`  
+- 仓库入口：`README.md`；文档中心：`docs/README.md`
 - 协议与 JDBC：`docs/protocol/PROTOCOL_DOCUMENTATION_INDEX.md`、`JDBC_CONNECTION_FIX_SUMMARY.md`、`JDBC_CONNECTION_COMMUNICATION_FIX.md`；`docs/protocol-reports/JDBC_PROTOCOL_ANALYSIS.md`  
 - 会话与 DDL 上下文：`docs/SESSION_STATE_AND_PROTOCOL.md`、`docs/SESSION_CONTEXT_DESIGN.md`、`docs/SHOW_DROP_IMPLEMENTATION.md`、`docs/HANDSHAKE_FILES_MERGE.md`、`docs/ADVANCED_PROTOCOL_FEATURES.md`  
-- 历史 DDL 结果（与全量现状对照）：`docs/development/JDBC_DDL_TEST_RESULTS.md`
+- 历史 DDL 结果文件已删除，当前状态以本文和 P0 证据为准
 

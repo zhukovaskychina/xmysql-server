@@ -42,7 +42,7 @@ func (s *DefaultPageSerializer) Serialize(page IPage) ([]byte, error) {
 	}
 
 	// 计算并设置校验和
-	if len(data) >= FileHeaderSize+8 {
+	if len(data) >= common.FileHeaderSize+8 {
 		checksum := s.integrityChecker.CalculateChecksum(data)
 		data[0] = byte(checksum)
 		data[1] = byte(checksum >> 8)
@@ -62,7 +62,7 @@ func (s *DefaultPageSerializer) Serialize(page IPage) ([]byte, error) {
 
 // Deserialize 反序列化页面
 func (s *DefaultPageSerializer) Deserialize(data []byte) (IPage, error) {
-	if len(data) < FileHeaderSize {
+	if len(data) < common.FileHeaderSize {
 		return nil, errors.New("invalid page data size")
 	}
 
@@ -76,7 +76,7 @@ func (s *DefaultPageSerializer) Deserialize(data []byte) (IPage, error) {
 
 	// 根据页面类型创建相应的页面对象
 	switch pageType {
-	case int16(common.FILE_PAGE_INDEX):
+	case int16(common.FIL_PAGE_INDEX):
 		return s.deserializeIndexPage(data)
 	case int16(common.FIL_PAGE_TYPE_FSP_HDR):
 		return s.deserializeFSPPage(data)
@@ -98,20 +98,20 @@ func (s *DefaultPageSerializer) Deserialize(data []byte) (IPage, error) {
 
 // deserializeIndexPage 反序列化索引页面
 func (s *DefaultPageSerializer) deserializeIndexPage(data []byte) (IPage, error) {
-	if len(data) < FileHeaderSize+56 { // 文件头+页面头
+	if len(data) < common.FileHeaderSize+56 { // 文件头+页面头
 		return nil, errors.New("invalid index page size")
 	}
 
 	page := &IndexPage{}
 
 	// 加载文件头部
-	page.LoadFileHeader(data[:FileHeaderSize])
+	page.LoadFileHeader(data[:common.FileHeaderSize])
 
 	// 解析页面头部
-	page.ParsePageHeader(data[FileHeaderSize : FileHeaderSize+56])
+	page.ParsePageHeader(data[common.FileHeaderSize : common.FileHeaderSize+56])
 
 	// 解析infimum/supremum记录
-	page.ParseInfimumSupermum(data[FileHeaderSize+56 : FileHeaderSize+56+26])
+	page.ParseInfimumSupermum(data[common.FileHeaderSize+56 : common.FileHeaderSize+56+26])
 
 	// 解析页面目录
 	page.ParsePageSlots(data)
@@ -187,7 +187,7 @@ func (s *DefaultPageSerializer) deserializeInodePage(data []byte) (IPage, error)
 func (s *DefaultPageSerializer) deserializeSystemPage(data []byte) (IPage, error) {
 	sp := &SystemPage{}
 	// 确保内部缓冲分配
-	sp.SystemData = make([]byte, SystemDataSize)
+	sp.SystemData = make([]byte, common.SystemPageDataSize)
 	if err := sp.Deserialize(data); err != nil {
 		return nil, err
 	}
@@ -196,7 +196,7 @@ func (s *DefaultPageSerializer) deserializeSystemPage(data []byte) (IPage, error
 
 // deserializeBlobConcrete 反序列化BLOB页面（具体类型）
 func (s *DefaultPageSerializer) deserializeBlobConcrete(data []byte) (IPage, error) {
-	bp := &BlobPage{Data: make([]byte, BlobDataSize)}
+	bp := &BlobPage{Data: make([]byte, common.BlobDataSize)}
 	if err := bp.Deserialize(data); err != nil {
 		return nil, err
 	}
@@ -214,7 +214,7 @@ func (s *DefaultPageSerializer) deserializeCompressedPage(data []byte) (IPage, e
 
 // deserializeEncryptedPage 反序列化加密页面
 func (s *DefaultPageSerializer) deserializeEncryptedPage(data []byte) (IPage, error) {
-	ep := &EncryptedPage{EncryptedData: make([]byte, MaxEncryptedDataSize)}
+	ep := &EncryptedPage{EncryptedData: make([]byte, common.MaxEncryptedDataSize)}
 	if err := ep.Deserialize(data); err != nil {
 		return nil, err
 	}
@@ -223,7 +223,7 @@ func (s *DefaultPageSerializer) deserializeEncryptedPage(data []byte) (IPage, er
 
 func (s *DefaultPageSerializer) deserializeBlobPage(data []byte) (IPage, error) {
 	page := &AbstractPage{}
-	page.LoadFileHeader(data[:FileHeaderSize])
+	page.LoadFileHeader(data[:common.FileHeaderSize])
 	page.LoadFileTrailer(data[len(data)-8:])
 	return page, nil
 }
@@ -231,7 +231,7 @@ func (s *DefaultPageSerializer) deserializeBlobPage(data []byte) (IPage, error) 
 // deserializeBasePage 反序列化基础页面
 func (s *DefaultPageSerializer) deserializeBasePage(data []byte) (IPage, error) {
 	page := &AbstractPage{}
-	page.LoadFileHeader(data[:FileHeaderSize])
+	page.LoadFileHeader(data[:common.FileHeaderSize])
 	page.LoadFileTrailer(data[len(data)-8:])
 	return page, nil
 }

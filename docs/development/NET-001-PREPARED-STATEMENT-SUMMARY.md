@@ -1,7 +1,7 @@
 # NET-001: 预处理语句实现总结
 
 > **2026-04-11 代码核对**：`server/net/decoupled_handler.go` 已处理 `COM_STMT_PREPARE` / `COM_STMT_EXECUTE` / `COM_STMT_CLOSE`（及错误路径）；`server/protocol/prepared_statement_manager.go` 等负责编解码。下文若仍写「仅框架/待 Go 1.20+」多为历史记录，实现细节以当前仓库代码为准。  
-> **合并说明**：`docs/protocol-reports/PREPARED_STATEMENT_IMPLEMENTATION_SUMMARY.md` 已改为跳转页，**预处理语句叙述以本文为权威**；协议总索引见 [../protocol/PROTOCOL_DOCUMENTATION_INDEX.md](../protocol/PROTOCOL_DOCUMENTATION_INDEX.md)。
+> **合并说明**：`docs/protocol-reports/PREPARED_STATEMENT_IMPLEMENTATION_SUMMARY.md` 已删除，**预处理语句叙述以本文为权威**；协议总索引见 [../protocol/PROTOCOL_DOCUMENTATION_INDEX.md](../protocol/PROTOCOL_DOCUMENTATION_INDEX.md)。
 
 ## 📋 任务概览
 

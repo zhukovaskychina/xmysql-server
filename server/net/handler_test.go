@@ -18,11 +18,15 @@
 package net
 
 import (
+	"fmt"
 	"strings"
+	"sync"
 	"testing"
 
+	"github.com/zhukovaskychina/xmysql-server/server"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
+	"github.com/zhukovaskychina/xmysql-server/server/dispatcher"
 )
 
 func TestMySQLMessageHandlerUnsupportedCommandWritesErrorPacket(t *testing.T) {
@@ -43,7 +47,6 @@ func TestMySQLMessageHandlerUnsupportedCommandWritesErrorPacket(t *testing.T) {
 		common.COM_STMT_EXECUTE,
 		common.COM_STMT_CLOSE,
 		common.COM_STMT_RESET,
-		common.COM_RESET_CONNECTION,
 	}
 
 	for i, cmd := range commands {
@@ -90,6 +93,57 @@ func TestMySQLMessageHandlerUnsupportedCommandWritesErrorPacket(t *testing.T) {
 	}
 }
 
+func TestMySQLMessageHandlerPreservesClassifiedQueryError(t *testing.T) {
+	handler := &MySQLMessageHandler{}
+	session := NewMockSession("test_simple_handler_query_error")
+	resultChan := make(chan *dispatcher.SQLResult, 1)
+	resultChan <- &dispatcher.SQLResult{Err: fmt.Errorf("table xmysql_missing does not exist")}
+	close(resultChan)
+
+	if err := handler.handleQueryResults(session, resultChan); err != nil {
+		t.Fatalf("handleQueryResults failed: %v", err)
+	}
+	if len(session.written) != 1 {
+		t.Fatalf("expected one error packet, got %d", len(session.written))
+	}
+	packet := session.written[0]
+	if len(packet) < 13 || packet[4] != 0xFF {
+		t.Fatalf("expected MySQL error packet, got %v", packet)
+	}
+	if got := uint16(packet[5]) | uint16(packet[6])<<8; got != common.ErrNoSuchTable {
+		t.Fatalf("expected unknown-table errno %d, got %d", common.ErrNoSuchTable, got)
+	}
+	if got := string(packet[8:13]); got != "42S02" {
+		t.Fatalf("expected unknown-table SQLSTATE 42S02, got %s", got)
+	}
+}
+
+func TestMySQLMessageHandlerResetConnectionClearsSessionState(t *testing.T) {
+	handler := NewMySQLMessageHandler(conf.NewCfg())
+	session := NewMockSession("test_simple_handler_reset")
+	if err := handler.OnOpen(session); err != nil {
+		t.Fatalf("OnOpen failed: %v", err)
+	}
+	session.SetAttribute("auth_status", "success")
+	current := handler.sessionMap[session]
+	current.SetParamByName("autocommit", "0")
+	current.SetParamByName("database", "app")
+	before := len(session.written)
+	pkt := &MySQLPackage{Header: MySQLPkgHeader{PacketLength: []byte{1, 0, 0}}, Body: []byte{common.COM_RESET_CONNECTION}}
+	if err := handler.handleMessage(session, &current, pkt); err != nil {
+		t.Fatalf("reset failed: %v", err)
+	}
+	if len(session.written) != before+1 {
+		t.Fatalf("expected one reset response packet")
+	}
+	if got := current.GetParamByName("autocommit"); got != "1" {
+		t.Fatalf("autocommit was not reset: %v", got)
+	}
+	if got := current.GetParamByName("database"); got != "" {
+		t.Fatalf("database was not reset: %v", got)
+	}
+}
+
 func TestMySQLMessageHandlerQuitClosesSession(t *testing.T) {
 	config := conf.NewCfg()
 	handler := NewMySQLMessageHandler(config)
@@ -116,3 +170,32 @@ func TestMySQLMessageHandlerQuitClosesSession(t *testing.T) {
 	}
 }
 
+func TestMySQLMessageHandlerConcurrentClose(t *testing.T) {
+	handler := &MySQLMessageHandler{sessionMap: make(map[Session]server.MySQLServerSession)}
+
+	const sessionCount = 32
+	sessions := make([]*MockSession, sessionCount)
+	handler.rwlock.Lock()
+	for i := range sessions {
+		sessions[i] = NewMockSession(fmt.Sprintf("legacy-concurrent-close-%d", i))
+		handler.sessionMap[sessions[i]] = NewMySQLServerSession(sessions[i])
+	}
+	handler.rwlock.Unlock()
+
+	var wg sync.WaitGroup
+	for _, session := range sessions {
+		wg.Add(1)
+		go func(session *MockSession) {
+			defer wg.Done()
+			handler.OnClose(session)
+		}(session)
+	}
+	wg.Wait()
+
+	handler.rwlock.RLock()
+	remaining := len(handler.sessionMap)
+	handler.rwlock.RUnlock()
+	if remaining != 0 {
+		t.Fatalf("session map retained %d sessions after concurrent close", remaining)
+	}
+}

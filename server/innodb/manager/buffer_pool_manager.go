@@ -2,6 +2,7 @@ package manager
 
 import (
 	"fmt"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -12,13 +13,13 @@ import (
 )
 
 const (
-	DEFAULT_BUFFER_POOL_SIZE = 16384       // 默认缓冲池大小（页数）
-	PAGE_SIZE                = 16384       // 页大小（字节）
-	FLUSH_INTERVAL           = time.Second // 刷新间隔
-	MAX_DIRTY_RATIO          = 0.25        // 最大脏页比例
-	YOUNG_LIST_RATIO         = 0.75        // young list比例
-	OLD_LIST_RATIO           = 0.25        // old list比例
-	OLD_BLOCK_TIME           = 1000        // old区块时间（毫秒）
+	DEFAULT_BUFFER_POOL_SIZE = 16384           // 默认缓冲池大小（页数）
+	PAGE_SIZE                = common.PageSize // 页大小（字节）
+	FLUSH_INTERVAL           = time.Second     // 刷新间隔
+	MAX_DIRTY_RATIO          = 0.25            // 最大脏页比例
+	YOUNG_LIST_RATIO         = 0.75            // young list比例
+	OLD_LIST_RATIO           = 0.25            // old list比例
+	OLD_BLOCK_TIME           = 1000            // old区块时间（毫秒）
 
 	// 自适应刷新参数
 	MIN_FLUSH_INTERVAL      = 100 * time.Millisecond // 最小刷新间隔
@@ -81,6 +82,8 @@ type BufferPoolManager struct {
 	// 后台线程控制
 	stopChan    chan struct{}
 	flushTicker *time.Ticker
+	closeOnce   sync.Once
+	closeErr    error
 
 	// 自适应刷新控制
 	currentFlushInterval time.Duration // 当前刷新间隔
@@ -104,7 +107,7 @@ func NewBufferPoolManager(config *BufferPoolConfig) (*BufferPoolManager, error) 
 		config.PoolSize = DEFAULT_BUFFER_POOL_SIZE
 	}
 	if config.PageSize == 0 {
-		config.PageSize = PAGE_SIZE
+		config.PageSize = common.PageSize
 	}
 	if config.FlushInterval == 0 {
 		config.FlushInterval = FLUSH_INTERVAL
@@ -383,15 +386,30 @@ func (bpm *BufferPoolManager) adjustFlushInterval(dirtyRatio float64) {
 func (bpm *BufferPoolManager) GetStats() map[string]interface{} {
 	dirtyPages := bpm.bufferPool.GetDirtyPages()
 	dirtyRatio := float64(len(dirtyPages)) / float64(bpm.config.PoolSize)
+	hits := atomic.LoadUint64(&bpm.stats.hits)
+	misses := atomic.LoadUint64(&bpm.stats.misses)
+	requests := hits + misses
+	hitRate := float64(0)
+	if requests > 0 {
+		hitRate = float64(hits) / float64(requests)
+	}
+	cacheSize := uint32(0)
+	if bpm.bufferPool != nil {
+		cacheSize = bpm.bufferPool.CachedPageCount()
+	}
 
 	return map[string]interface{}{
-		"hits":                   atomic.LoadUint64(&bpm.stats.hits),
-		"misses":                 atomic.LoadUint64(&bpm.stats.misses),
+		"hits":                   hits,
+		"misses":                 misses,
+		"hit_rate":               hitRate,
+		"young_hits":             atomic.LoadUint64(&bpm.stats.youngHits),
+		"old_hits":               atomic.LoadUint64(&bpm.stats.oldHits),
 		"evictions":              atomic.LoadUint64(&bpm.stats.evictions),
 		"flushes":                atomic.LoadUint64(&bpm.stats.flushes),
 		"page_reads":             atomic.LoadUint64(&bpm.stats.pageReads),
 		"page_writes":            atomic.LoadUint64(&bpm.stats.pageWrites),
 		"dirty_pages":            len(dirtyPages),
+		"cache_size":             cacheSize,
 		"dirty_ratio":            dirtyRatio,
 		"total_pages":            bpm.config.PoolSize,
 		"current_flush_interval": bpm.currentFlushInterval.String(),
@@ -467,12 +485,17 @@ func (bpm *BufferPoolManager) evictPage() *buffer_pool.BufferBlock {
 
 // Close 关闭缓冲池管理器
 func (bpm *BufferPoolManager) Close() error {
-	// 停止后台线程
-	close(bpm.stopChan)
-	bpm.flushTicker.Stop()
+	bpm.closeOnce.Do(func() {
+		// 停止后台线程
+		close(bpm.stopChan)
+		if bpm.flushTicker != nil {
+			bpm.flushTicker.Stop()
+		}
 
-	// 刷新所有脏页
-	return bpm.FlushAllPages()
+		// 刷新所有脏页
+		bpm.closeErr = bpm.FlushAllPages()
+	})
+	return bpm.closeErr
 }
 
 // startBackgroundThreads 启动后台线程

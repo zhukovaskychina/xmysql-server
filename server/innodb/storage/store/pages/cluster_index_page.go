@@ -174,7 +174,7 @@ func NewIndexPage(pageNo uint32, spaceId uint32) *IndexPage {
 	var fileHeader = NewFileHeader()
 	fileHeader.WritePageLSN(0)
 	fileHeader.WritePageOffset(pageNo)
-	fileHeader.WritePageFileType(int16(common.FILE_PAGE_INDEX))
+	fileHeader.WritePageFileType(int16(common.FIL_PAGE_INDEX))
 	fileHeader.WritePageArch(spaceId)
 	fileHeader.WritePageSpaceCheckSum(nil)
 	fileHeader.WritePageNext(0)
@@ -191,7 +191,7 @@ func NewIndexPage(pageNo uint32, spaceId uint32) *IndexPage {
 		PageHeader:      *pageHeader,
 		InfimumSupermum: INFIMUM_SURERMUM_COMPACT,
 		UserRecords:     util.AppendByte(0),
-		FreeSpace:       util.AppendByte(16384 - 38 - 8 - 26 - 56),
+		FreeSpace:       util.AppendByte(common.PageSize - common.FileHeaderSize - common.FileTrailerSize - common.InfimumSupremumSize - common.PageHeaderSize),
 		PageDirectory:   util.AppendByte(0),
 	}
 }
@@ -199,14 +199,14 @@ func NewIndexPageWithParams(pageNo uint32, spaceId uint32) IndexPage {
 	var fileHeader = NewFileHeader()
 	fileHeader.WritePageLSN(0)
 	fileHeader.WritePageOffset(pageNo)
-	fileHeader.WritePageFileType(int16(common.FILE_PAGE_INDEX))
+	fileHeader.WritePageFileType(int16(common.FIL_PAGE_INDEX))
 	fileHeader.WritePageArch(spaceId)
 	return IndexPage{
 		AbstractPage:    AbstractPage{},
 		PageHeader:      PageHeader{},
 		InfimumSupermum: INFIMUM_SURERMUM_COMPACT,
 		UserRecords:     util.AppendByte(0),
-		FreeSpace:       util.AppendByte(16384 - 38 - 8 - 26 - 56),
+		FreeSpace:       util.AppendByte(common.PageSize - common.FileHeaderSize - common.FileTrailerSize - common.InfimumSupremumSize - common.PageHeaderSize),
 		PageDirectory:   util.AppendByte(0),
 	}
 }
@@ -235,7 +235,7 @@ func (ip *IndexPage) ParseInfimumSupermum(content []byte) {
 func (ip *IndexPage) ParsePageSlots(content []byte) {
 	pnd := ip.PageHeader.PageNDirSlots
 	_, pncnt := util.ReadUB2(pnd, 0)
-	ip.PageDirectory = content[16384-8-pncnt*2 : 16384-8]
+	ip.PageDirectory = content[common.PageSize-common.FileTrailerSize-pncnt*2 : common.PageSize-common.FileTrailerSize]
 
 }
 
@@ -250,7 +250,7 @@ func (ip *IndexPage) ParseUserRecordsAndFreeSpace(content []byte) {
 
 	if pageDirLength == 0 {
 		ip.UserRecords = make([]byte, 0)
-		ip.FreeSpace = content[38+56+26 : 16384-8-len(ip.PageDirectory)]
+		ip.FreeSpace = content[common.FileHeaderSize+common.PageHeaderSize+common.InfimumSupremumSize : common.PageSize-common.FileTrailerSize-len(ip.PageDirectory)]
 		return
 	}
 	//计算最大值偏移量
@@ -259,9 +259,9 @@ func (ip *IndexPage) ParseUserRecordsAndFreeSpace(content []byte) {
 
 	supermumOffsetValue := util.ReadUB2Byte2Int(supremOffset)
 
-	ip.UserRecords = content[38+56+26 : supermumOffsetValue+5+8]
+	ip.UserRecords = content[common.FileHeaderSize+common.PageHeaderSize+common.InfimumSupremumSize : supermumOffsetValue+5+8]
 
-	ip.FreeSpace = content[38+56+26+supermumOffsetValue+5+8 : 16384-8-len(ip.PageDirectory)]
+	ip.FreeSpace = content[common.FileHeaderSize+common.PageHeaderSize+common.InfimumSupremumSize+supermumOffsetValue+5+8 : common.PageSize-common.FileTrailerSize-len(ip.PageDirectory)]
 }
 
 func (ip *IndexPage) SerializeBytes() []byte {

@@ -1,7 +1,13 @@
 package protocol
 
 import (
+	"encoding/binary"
+	"sync"
 	"testing"
+	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/observability/compatibility"
 )
 
 func TestPreparedStatementManager_Prepare(t *testing.T) {
@@ -32,6 +38,11 @@ func TestPreparedStatementManager_Prepare(t *testing.T) {
 			sql:            "SELECT * FROM users",
 			expectedParams: 0,
 		},
+		{
+			name:           "Question marks inside literals and comments are not parameters",
+			sql:            "SELECT '?' AS literal, \"?\" AS quoted, `?` AS identifier /* ? */ -- ?\nFROM users WHERE id = ? # ?\n",
+			expectedParams: 1,
+		},
 	}
 
 	for _, tt := range tests {
@@ -57,6 +68,42 @@ func TestPreparedStatementManager_Prepare(t *testing.T) {
 				t.Errorf("Expected %d params, got %d", tt.expectedParams, len(stmt.Params))
 			}
 		})
+	}
+}
+
+func TestPreparedStatementManagerRecordsExecutionAccounting(t *testing.T) {
+	mgr := NewPreparedStatementManager()
+	stmt, err := mgr.Prepare("select ?")
+	if err != nil {
+		t.Fatalf("Prepare() error = %v", err)
+	}
+	if _, err := mgr.Get(stmt.ID); err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if err := mgr.RecordExecution(stmt.ID, compatibility.PreparedStatementExecutionStats{
+		Duration:     2 * time.Millisecond,
+		Failed:       true,
+		Warnings:     3,
+		RowsAffected: 4,
+		RowsSent:     5,
+		RowsExamined: 6,
+	}); err != nil {
+		t.Fatalf("RecordExecution() error = %v", err)
+	}
+
+	snapshot := mgr.Snapshot()
+	if len(snapshot) != 1 {
+		t.Fatalf("Snapshot() length = %d, want 1", len(snapshot))
+	}
+	got := snapshot[0]
+	if got.ExecuteCount != 1 {
+		t.Fatalf("ExecuteCount = %d, want 1", got.ExecuteCount)
+	}
+	if got.ExecuteTimeTotal != 2*time.Millisecond || got.ExecuteTimeMin != 2*time.Millisecond || got.ExecuteTimeMax != 2*time.Millisecond {
+		t.Fatalf("execution timers = total %s min %s max %s, want 2ms", got.ExecuteTimeTotal, got.ExecuteTimeMin, got.ExecuteTimeMax)
+	}
+	if got.ErrorCount != 1 || got.WarningCount != 3 || got.RowsAffected != 4 || got.RowsSent != 5 || got.RowsExamined != 6 {
+		t.Fatalf("execution counters = errors %d warnings %d affected %d sent %d examined %d", got.ErrorCount, got.WarningCount, got.RowsAffected, got.RowsSent, got.RowsExamined)
 	}
 }
 
@@ -87,6 +134,32 @@ func TestPreparedStatementManager_Get(t *testing.T) {
 	_, err = mgr.Get(99999)
 	if err == nil {
 		t.Error("Expected error when getting non-existent statement")
+	}
+}
+
+func TestPreparedStatementManager_ConcurrentGetTracksUsage(t *testing.T) {
+	mgr := NewPreparedStatementManager()
+	stmt, err := mgr.Prepare("select ?")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const executions = 64
+	var wg sync.WaitGroup
+	for i := 0; i < executions; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := mgr.Get(stmt.ID); err != nil {
+				t.Errorf("concurrent Get() error = %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	if got := stmt.ExecuteCount; got != executions {
+		t.Fatalf("ExecuteCount = %d, want %d", got, executions)
+	}
+	if stmt.LastUsedAt.IsZero() {
+		t.Fatal("LastUsedAt was not updated")
 	}
 }
 
@@ -135,6 +208,39 @@ func TestPreparedStatementManager_Count(t *testing.T) {
 	}
 }
 
+func TestPreparedStatementManager_SnapshotIsStableAndSorted(t *testing.T) {
+	mgr := NewPreparedStatementManager()
+	first, err := mgr.Prepare("select first")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := mgr.Prepare("select second")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mgr.Get(second.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	snapshot := mgr.Snapshot()
+	if len(snapshot) != 2 {
+		t.Fatalf("expected two prepared statements, got %#v", snapshot)
+	}
+	if snapshot[0].ID != first.ID || snapshot[1].ID != second.ID {
+		t.Fatalf("snapshot order = %#v, want IDs %d then %d", snapshot, first.ID, second.ID)
+	}
+	if snapshot[1].ExecuteCount != 1 || snapshot[1].SQL != "select second" {
+		t.Fatalf("snapshot did not capture execution metadata: %#v", snapshot[1])
+	}
+
+	if err := mgr.Close(first.ID); err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot) != 2 {
+		t.Fatal("snapshot was not independent of manager state")
+	}
+}
+
 func TestPreparedStatementManager_Concurrent(t *testing.T) {
 	mgr := NewPreparedStatementManager()
 
@@ -157,6 +263,95 @@ func TestPreparedStatementManager_Concurrent(t *testing.T) {
 
 	if mgr.Count() != 10 {
 		t.Errorf("Expected count = 10, got %d", mgr.Count())
+	}
+}
+
+func TestPreparedStatementManager_CursorLifecycle(t *testing.T) {
+	mgr := NewPreparedStatementManager()
+	stmt, err := mgr.Prepare("select id from users")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := &MessageQueryResult{Columns: []string{"id"}, ColumnTypes: []string{"int"}, Rows: [][]interface{}{{1}, {2}, {3}}, Type: "select"}
+	if err := mgr.SetCursorResult(stmt.ID, result); err != nil {
+		t.Fatal(err)
+	}
+	first, done, err := mgr.FetchCursor(stmt.ID, 2)
+	if err != nil || done || len(first.Rows) != 2 {
+		t.Fatalf("first cursor fetch = %#v, done=%v, err=%v", first, done, err)
+	}
+	second, done, err := mgr.FetchCursor(stmt.ID, 2)
+	if err != nil || !done || len(second.Rows) != 1 {
+		t.Fatalf("second cursor fetch = %#v, done=%v, err=%v", second, done, err)
+	}
+	if _, _, err := mgr.FetchCursor(stmt.ID, 1); err == nil {
+		t.Fatal("expected exhausted cursor to be closed")
+	}
+}
+
+func TestPreparedStatementManager_ZeroRowFetchDoesNotAdvanceCursor(t *testing.T) {
+	mgr := NewPreparedStatementManager()
+	stmt, err := mgr.Prepare("select id from users")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := &MessageQueryResult{Columns: []string{"id"}, ColumnTypes: []string{"int"}, Rows: [][]interface{}{{1}, {2}}, Type: "select"}
+	if err := mgr.SetCursorResult(stmt.ID, result); err != nil {
+		t.Fatal(err)
+	}
+
+	empty, done, err := mgr.FetchCursor(stmt.ID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if done || len(empty.Rows) != 0 {
+		t.Fatalf("zero-row fetch = %#v, done=%v; want an empty non-terminal batch", empty, done)
+	}
+
+	first, done, err := mgr.FetchCursor(stmt.ID, 1)
+	if err != nil || done || len(first.Rows) != 1 || first.Rows[0][0] != 1 {
+		t.Fatalf("cursor advanced after zero-row fetch: %#v, done=%v, err=%v", first, done, err)
+	}
+}
+
+func TestPreparedStatementManager_RejectsReplacingOpenCursor(t *testing.T) {
+	mgr := NewPreparedStatementManager()
+	stmt, err := mgr.Prepare("select id from users")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := &MessageQueryResult{Columns: []string{"id"}, Rows: [][]interface{}{{1}, {2}}, Type: "select"}
+	if err := mgr.SetCursorResult(stmt.ID, result); err != nil {
+		t.Fatal(err)
+	}
+	if err := mgr.SetCursorResult(stmt.ID, result); err == nil {
+		t.Fatal("expected replacing an open cursor to fail")
+	}
+}
+
+func TestEncodeBinaryRowPacketUsesNullBitmapAndColumnTypes(t *testing.T) {
+	encoder := NewMySQLResultSetEncoder()
+	columns := []*ColumnDefinition{
+		encoder.CreateColumnDefinition("id", MYSQL_TYPE_LONG, 0),
+		encoder.CreateColumnDefinition("name", MYSQL_TYPE_VAR_STRING, 0),
+		encoder.CreateColumnDefinition("missing", MYSQL_TYPE_LONGLONG, 0),
+	}
+	packet := encoder.EncodeBinaryRowPacket([]interface{}{int64(42), "hello", nil}, columns, 7)
+	if len(packet) < 4 {
+		t.Fatalf("binary row packet too short: %d", len(packet))
+	}
+	payload := packet[4:]
+	if payload[0] != 0x00 {
+		t.Fatalf("binary row marker = %#x, want 0x00", payload[0])
+	}
+	if payload[1] != 0x10 {
+		t.Fatalf("null bitmap = %#x, want bit 4 set for column 3", payload[1])
+	}
+	if got := binary.LittleEndian.Uint32(payload[2:6]); got != 42 {
+		t.Fatalf("binary int = %d, want 42", got)
+	}
+	if payload[6] != 5 || string(payload[7:12]) != "hello" {
+		t.Fatalf("binary string encoding = %v, want lenenc hello", payload[6:12])
 	}
 }
 
@@ -246,10 +441,28 @@ func TestBindParameters(t *testing.T) {
 			expected: "SELECT * FROM users WHERE name = 'O''Brien'",
 		},
 		{
+			name:     "String with backslash and control characters",
+			sql:      "SELECT ?",
+			params:   []interface{}{"C:\\tmp\nline\r\x00\x1a"},
+			expected: "SELECT 'C:\\\\tmp\\nline\\r\\0\\Z'",
+		},
+		{
 			name:     "No parameters",
 			sql:      "SELECT * FROM users",
 			params:   []interface{}{},
 			expected: "SELECT * FROM users",
+		},
+		{
+			name:     "Only bind executable placeholders",
+			sql:      "SELECT '?' AS literal, \"?\" AS quoted, `?` AS identifier /* ? */ WHERE id = ? -- ?\n",
+			params:   []interface{}{int32(7)},
+			expected: "SELECT '?' AS literal, \"?\" AS quoted, `?` AS identifier /* ? */ WHERE id = 7 -- ?\n",
+		},
+		{
+			name:     "Backslash escaped quote keeps placeholder scanning in the string",
+			sql:      "SELECT 'it\\'s ?' AS literal, ?",
+			params:   []interface{}{int32(9)},
+			expected: "SELECT 'it\\'s ?' AS literal, 9",
 		},
 	}
 
@@ -306,5 +519,45 @@ func TestReadLengthEncodedInteger(t *testing.T) {
 				t.Errorf("Expected bytes = %d, got %d", tt.expectedBytes, bytes)
 			}
 		})
+	}
+}
+
+func TestParseBinaryStmtExecuteParamsHonorsUnsignedIntegerTypes(t *testing.T) {
+	data := []byte{
+		0x00, 0x01,
+		common.COLUMN_TYPE_LONG, 0x80,
+		common.COLUMN_TYPE_LONGLONG, 0x80,
+		0xff, 0xff, 0xff, 0xff,
+		0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+	}
+	params, _, err := ParseBinaryStmtExecuteParams(data, 2, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := params[0], uint32(0xffffffff); got != want {
+		t.Fatalf("unsigned LONG = %#v (%T), want %#v", got, got, want)
+	}
+	if got, want := params[1], uint64(0xffffffffffffffff); got != want {
+		t.Fatalf("unsigned LONGLONG = %#v (%T), want %#v", got, got, want)
+	}
+}
+
+func TestParseBinaryStmtExecuteParamsDecodesTemporalTypes(t *testing.T) {
+	data := []byte{
+		0x00, 0x01,
+		common.COLUMN_TYPE_DATE, 0x00,
+		common.COLUMN_TYPE_DATETIME, 0x00,
+		4, 0xe8, 0x07, 3, 5,
+		7, 0xe8, 0x07, 3, 5, 14, 6, 7,
+	}
+	params, _, err := ParseBinaryStmtExecuteParams(data, 2, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := params[0], "2024-03-05"; got != want {
+		t.Fatalf("DATE = %#v, want %#v", got, want)
+	}
+	if got, want := params[1], "2024-03-05 14:06:07"; got != want {
+		t.Fatalf("DATETIME = %#v, want %#v", got, want)
 	}
 }

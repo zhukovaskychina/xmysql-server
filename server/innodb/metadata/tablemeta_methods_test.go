@@ -18,6 +18,20 @@ func TestTableMeta_AddColumnAndGetColumn(t *testing.T) {
 	}
 }
 
+func TestDefaultTableRowColumnLookupIsCaseInsensitive(t *testing.T) {
+	table := CreateTableMeta("test_table")
+	table.AddColumn(&ColumnMeta{Name: "UserID", Type: TypeInt})
+	row := NewDefaultTableRow(table)
+
+	column, index := row.GetColumnDescInfo("userid")
+	if index != 0 {
+		t.Fatalf("GetColumnDescInfo() index = %d, want 0", index)
+	}
+	if column.Name != "UserID" {
+		t.Fatalf("GetColumnDescInfo() name = %q, want UserID", column.Name)
+	}
+}
+
 func TestTableMeta_AddIndex(t *testing.T) {
 	table := CreateTableMeta("test_table")
 	table.AddColumn(&ColumnMeta{Name: "id", Type: TypeInt})
@@ -80,5 +94,24 @@ func TestTableMeta_Validate_IndexUnknownColumn(t *testing.T) {
 	err := table.Validate()
 	if err == nil {
 		t.Errorf("expected error for index referencing unknown column, got nil")
+	}
+}
+
+func TestGeometryColumnMetadataIsFirstClass(t *testing.T) {
+	column := &ColumnMeta{Name: "shape", Type: TypeGeometry, IsNullable: true}
+
+	if err := column.Validate(); err != nil {
+		t.Fatalf("geometry column should validate: %v", err)
+	}
+	if got := column.SQLType(); got != "GEOMETRY" {
+		t.Fatalf("SQLType() = %q, want GEOMETRY", got)
+	}
+	value, err := column.ConvertToBasicValue([]byte{1, 2, 3})
+	if err != nil {
+		t.Fatalf("ConvertToBasicValue() failed: %v", err)
+	}
+	bytes, ok := value.Raw().([]byte)
+	if !ok || string(bytes) != string([]byte{1, 2, 3}) {
+		t.Fatalf("geometry bytes = %#v", value.Raw())
 	}
 }

@@ -3,10 +3,21 @@ package page
 import (
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
-func TestDataDictWrapperPlaceholder(t *testing.T) {
-	t.Skip("需要完整数据字典和buffer_pool测试环境，当前保持占位以免误报")
+func TestDataDictionaryWrapperProviderRoundTrip(t *testing.T) {
+	storage := newPageWrapperStorage()
+	writer := NewDataDictionaryPageWrapperWithStorage(2, 9, nil, storage)
+	require.NoError(t, writer.AddTableDef(&TableDef{ID: 11, Name: "users"}))
+	require.NoError(t, writer.Write())
+
+	reader := NewDataDictionaryPageWrapperWithStorage(2, 9, nil, storage)
+	require.NoError(t, reader.Read())
+	table, err := reader.GetTableDef(11)
+	require.NoError(t, err)
+	require.Equal(t, "users", table.Name)
 }
 
 func TestDataDictionaryPageWrapperToBytesDoesNotDeadlock(t *testing.T) {

@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
@@ -83,6 +84,54 @@ func (adapter *EnhancedBTreeAdapter) Init(ctx context.Context, spaceId uint32, r
 	adapter.rootPageNo = metadata.RootPageNo
 
 	return nil
+}
+
+// RootPageNo returns the current root page selected during Init.
+func (adapter *EnhancedBTreeAdapter) RootPageNo() uint32 {
+	if adapter == nil {
+		return 0
+	}
+	return adapter.rootPageNo
+}
+
+// Reset replaces the default clustered index with a fresh empty root without
+// tearing down the manager or its background workers.
+func (adapter *EnhancedBTreeAdapter) Reset(ctx context.Context) (uint32, error) {
+	if adapter == nil || adapter.enhancedManager == nil {
+		return 0, fmt.Errorf("btree adapter is not initialized")
+	}
+	manager := adapter.enhancedManager
+	metadata, err := manager.metadataManager.GetIndexMetadata(adapter.defaultIndexID)
+	if err != nil {
+		return 0, err
+	}
+	if current, getErr := manager.GetIndex(adapter.defaultIndexID); getErr == nil && current != nil {
+		if err := current.Flush(ctx); err != nil {
+			return 0, fmt.Errorf("flush current index before reset failed: %v", err)
+		}
+	}
+	rootPageNo, err := manager.allocateRootPage(ctx, adapter.spaceID)
+	if err != nil {
+		return 0, err
+	}
+	metadata.RootPageNo = rootPageNo
+	metadata.RecordCount = 0
+	metadata.PageCount = 1
+	metadata.IndexState = EnhancedIndexStateBuilding
+	metadata.IsLoaded = true
+	fresh := NewEnhancedBTreeIndex(metadata, manager.storageManager, manager.config)
+	if err := fresh.InitializeEmptyIndex(ctx); err != nil {
+		return 0, err
+	}
+	manager.mu.Lock()
+	manager.loadedIndexes[adapter.defaultIndexID] = fresh
+	if len(manager.indexLoadOrder) == 0 || manager.indexLoadOrder[len(manager.indexLoadOrder)-1] != adapter.defaultIndexID {
+		manager.indexLoadOrder = append(manager.indexLoadOrder, adapter.defaultIndexID)
+	}
+	manager.mu.Unlock()
+	metadata.IndexState = EnhancedIndexStateActive
+	adapter.rootPageNo = rootPageNo
+	return rootPageNo, nil
 }
 
 // GetAllLeafPages 遍历所有叶子页号
@@ -220,6 +269,27 @@ func (adapter *EnhancedBTreeAdapter) GetFirstLeafPage(ctx context.Context) (uint
 	return enhancedIndex.GetFirstLeafPage(ctx)
 }
 
+// CheckConsistency validates the default clustered index exposed through the
+// legacy BPlusTreeManager adapter. This keeps CHECK TABLE on the same durable
+// index path as normal scans instead of treating a successful row count as a
+// complete structural check.
+func (adapter *EnhancedBTreeAdapter) CheckConsistency(ctx context.Context) error {
+	if adapter == nil || adapter.enhancedManager == nil {
+		return fmt.Errorf("enhanced btree manager is not initialized")
+	}
+	index, err := adapter.enhancedManager.GetIndex(adapter.defaultIndexID)
+	if err != nil {
+		return fmt.Errorf("get default index for consistency check: %w", err)
+	}
+	if index == nil {
+		return fmt.Errorf("default index is not initialized")
+	}
+	if err := index.CheckConsistency(ctx); err != nil {
+		return fmt.Errorf("check default index consistency: %w", err)
+	}
+	return nil
+}
+
 // convertKeyToBytes 将 interface{} 类型的 key 转换为 []byte
 func (adapter *EnhancedBTreeAdapter) convertKeyToBytes(key interface{}) ([]byte, error) {
 	switch v := key.(type) {
@@ -252,8 +322,10 @@ type IndexRecordRowAdapter struct {
 }
 
 func (r *IndexRecordRowAdapter) Less(than basic.Row) bool {
-	// 简化实现，实际应该根据具体的比较逻辑
-	return false
+	if r == nil || r.record == nil || than == nil {
+		return false
+	}
+	return bytes.Compare(r.record.Key, than.GetPrimaryKey().Bytes()) < 0
 }
 
 func (r *IndexRecordRowAdapter) ToByte() []byte {

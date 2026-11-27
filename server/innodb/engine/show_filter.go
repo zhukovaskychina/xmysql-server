@@ -5,6 +5,7 @@ import (
 	"strings"
 )
 
+// regexp-value: retained. LIKE patterns are matched as values after the SQL structure is known.
 func filterShowRowsByLike(rows [][]interface{}, like string) [][]interface{} {
 	if strings.TrimSpace(like) == "" {
 		return rows

@@ -1,57 +1,167 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="AIAssistantCustomInstructionsStorage">
+    <option name="instructions">
+      <map>
+        <entry key="AIAssistant.VCS.GenerateCommitMessage">
+          <value>
+            <AIAssistantStoredInstruction>
+              <option name="actionId" value="AIAssistant.VCS.GenerateCommitMessage" />
+              <option name="content" value="从 $GIT_BRANCH_NAME 中提取工单号&#10;使消息尽可能简短&#10;使用中文回答&#10;使用常规提交格式&#10;使用项目符号进行多项更改" />
+            </AIAssistantStoredInstruction>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
   <component name="AutoImportSettings">
     <option name="autoReloadType" value="ALL" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="cebb430f-c076-4984-8043-b00b7330fdf5" name="Changes" comment="clean some files">
+    <list default="true" id="cebb430f-c076-4984-8043-b00b7330fdf5" name="Changes" comment="clean some files&#10;&#10;Signed-off-by: zhukovasky &lt;zhukovasky@163.com&gt;">
+      <change afterPath="$PROJECT_DIR$/server/innodb/engine/routine_statement_scan.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/shelf/_2026_10_14_13_30___Changes_1.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/shelf/在进行签出之前于_2026_10_14_13_30_取消提交了更改_[Changes]1/shelved.patch" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/jdbc_client/src/test/java/com/xmysql/server/test/JdbcConnectionTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/src/test/java/com/xmysql/server/test/JdbcConnectionTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/planning/2026-10-16-sql-regex-audit-ci-scope.json" beforeDir="false" afterPath="$PROJECT_DIR$/docs/planning/2026-10-16-sql-regex-audit-ci-scope.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/planning/2026-10-16-sql-regex-residual-classification.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/planning/2026-10-16-sql-regex-residual-classification.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/planning/2026-10-16-sqlparser-upgrade-validation.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/planning/2026-10-16-sqlparser-upgrade-validation.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/planning/2026-10-17-sql-regex-remaining-inventory.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/planning/2026-10-17-sql-regex-remaining-inventory.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/planning/2026-10-17-sql-regex-site-closure.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/planning/2026-10-17-sql-regex-site-closure.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/planning/2026-10-18-sql-regex-ast-migration-progress.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/planning/2026-10-18-sql-regex-ast-migration-progress.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/superpowers/plans/2026-10-16-sqlparser-upgrade-implementation-plan.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/superpowers/plans/2026-10-16-sqlparser-upgrade-implementation-plan.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/DDLTestDemo.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/DDLTestDemo.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/InsertDataTestDemo.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/InsertDataTestDemo.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/InsertTestDemo.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/InsertTestDemo.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/MySQLDemo.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/MySQLDemo.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/SQLParserTestDemo.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/SQLParserTestDemo.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/SystemVariableTestDemo.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/classes/com/xmysql/server/demo/SystemVariableTestDemo.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/maven-status/maven-compiler-plugin/compile/default-compile/inputFiles.lst" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/maven-status/maven-compiler-plugin/compile/default-compile/inputFiles.lst" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/maven-status/maven-compiler-plugin/testCompile/default-testCompile/inputFiles.lst" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/maven-status/maven-compiler-plugin/testCompile/default-testCompile/inputFiles.lst" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/jdbc_client/target/surefire-reports/TEST-com.xmysql.server.test.JdbcConnectionTest.xml" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/surefire-reports/TEST-com.xmysql.server.test.JdbcConnectionTest.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/jdbc_client/target/surefire-reports/com.xmysql.server.test.JdbcConnectionTest.txt" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/surefire-reports/com.xmysql.server.test.JdbcConnectionTest.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/AllTestsSuite.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/AllTestsSuite.class" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/BaseIntegrationTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/BaseIntegrationTest.class" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/DDLOperationsTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/DDLOperationsTest.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/DMLOperationsTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/DMLOperationsTest.class" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/DataTypeTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/DataTypeTest.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/IndexAndConstraintTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/IndexAndConstraintTest.class" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/JdbcConnectionTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/JdbcConnectionTest.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/JoinQueryTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/JoinQueryTest.class" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/PerformanceTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/PerformanceTest.class" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/PreparedStatementTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/PreparedStatementTest.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/SelectQueryTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/SelectQueryTest.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/SystemVariableTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/SystemVariableTest.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/TransactionTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/TransactionTest.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/SQLParserUpgradeTest.class" beforeDir="false" afterPath="$PROJECT_DIR$/jdbc_client/target/test-classes/com/xmysql/server/test/SQLParserUpgradeTest.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/redo/redo.log" beforeDir="false" afterPath="$PROJECT_DIR$/redo/redo.log" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/sql-regex-audit/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/sql-regex-audit/main.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/dispatcher/enhanced_message_handler.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/dispatcher/enhanced_message_handler.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/dispatcher/feature_privilege_routing_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/dispatcher/feature_privilege_routing_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/dispatcher/query_dispatcher.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/dispatcher/query_dispatcher.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/server/dispatcher/system_variable_engine.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/dispatcher/system_variable_engine.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/server/dispatcher/system_variable_engine_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/dispatcher/system_variable_engine_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/account_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/account_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/account_metadata_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/account_metadata_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/admin_ast.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/admin_ast.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/admin_ast_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/admin_ast_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/admin_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/admin_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/alter_operation_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/alter_operation_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/alter_operation_compatibility_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/alter_operation_compatibility_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/check_runtime.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/check_runtime.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/component_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/component_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/correlated_derived_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/correlated_derived_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/correlated_dml_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/correlated_dml_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/correlated_predicate_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/correlated_predicate_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/correlated_predicate_multiple_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/correlated_predicate_multiple_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/correlated_scalar_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/correlated_scalar_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/correlated_subquery_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/correlated_subquery_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/create_as_select_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/create_as_select_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/create_index_visibility_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/create_index_visibility_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/create_like_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/create_like_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/create_like_compatibility_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/create_like_compatibility_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/cte_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/cte_compatibility.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/server/innodb/engine/data/_xmysql_auto_increment.json" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/data/_xmysql_auto_increment.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/date_extract_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/date_extract_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/ddl_lock_coordinator.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/ddl_lock_coordinator.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/ddl_lock_coordinator_parsed_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/ddl_lock_coordinator_parsed_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/dml_result_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/dml_result_compatibility.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/server/innodb/engine/enginx.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/enginx.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/execution_context.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/execution_context.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/server/innodb/engine/executor.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/executor.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/innodb/engine/executor_ddl_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/executor_ddl_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/fulltext_spatial_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/fulltext_spatial_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/fulltext_spatial_compatibility_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/fulltext_spatial_compatibility_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/handler_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/handler_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/index_ddl_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/index_ddl_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/information_schema_aux_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/information_schema_aux_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/information_schema_catalog_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/information_schema_catalog_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/information_schema_innodb_runtime_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/information_schema_innodb_runtime_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/information_schema_registry.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/information_schema_registry.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/information_schema_spatial_resource_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/information_schema_spatial_resource_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/innodb_foreign_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/innodb_foreign_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/innodb_metrics_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/innodb_metrics_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/innodb_tablespaces_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/innodb_tablespaces_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/innodb_trx_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/innodb_trx_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/json_value_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/json_value_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/metadata_ast_filters_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/metadata_ast_filters_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/mysql_system_tables_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/mysql_system_tables_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/optimizer_cost_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/optimizer_cost_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/partition_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/partition_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/partition_routing.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/partition_routing.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/partitioned_btree_manager.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/partitioned_btree_manager.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/performance_schema_io_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/performance_schema_io_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/performance_schema_registry.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/performance_schema_registry.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/persisted_variables_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/persisted_variables_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/replication_system_variables_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/replication_system_variables_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/select_executor.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/select_executor.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/select_join_executor.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/select_join_executor.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/session_expression_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/session_expression_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/show_binlog_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/show_binlog_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/show_create_database_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/show_create_database_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/show_filter.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/show_filter.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/show_parsing.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/show_parsing.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/show_relaylog_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/show_relaylog_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/show_replica_status_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/show_replica_status_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/sql_event_runtime.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/sql_event_runtime.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/sql_prepared_statement_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/sql_prepared_statement_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/storage_integrated_dml_helper.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/storage_integrated_dml_helper.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/stored_object_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/stored_object_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/stored_object_compatibility_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/stored_object_compatibility_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/structured_alter_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/structured_alter_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/table_ddl_ast_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/table_ddl_ast_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/table_import_discard_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/table_import_discard_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/table_tablespace_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/table_tablespace_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/tablespace_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/tablespace_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/temporary_table_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/temporary_table_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/trigger_runtime.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/trigger_runtime.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/view_ast.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/view_ast.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/warning_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/warning_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/window_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/window_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/engine/window_query_compatibility.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/engine/window_query_compatibility.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/manager/optimizer_manager.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/manager/optimizer_manager.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/manager/storage_manager.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/manager/storage_manager.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/manager/system_variable_analyzer.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/manager/system_variable_analyzer.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/account_upgrade_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/account_upgrade_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/admin_upgrade_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/admin_upgrade_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/alter_upgrade_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/alter_upgrade_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/ast.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/ast.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/ast_account.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/ast_account.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/ast_admin.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/ast_admin.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/ast_alter.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/ast_alter.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/ast_prepared.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/ast_prepared.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/ast_set_options.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/ast_set_options.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/ast_show_options.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/ast_show_options.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/ast_stored_object.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/ast_stored_object.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/ast_stored_program.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/ast_stored_program.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/ast_table_ddl.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/ast_table_ddl.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/ast_view.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/ast_view.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/execution_parse.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/execution_parse.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/sql.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/sql.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/sql.y" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/sql.y" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/table_ddl_upgrade_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/table_ddl_upgrade_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/token.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/token.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/variable_upgrade_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/variable_upgrade_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/sqlparser/view_upgrade_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/sqlparser/view_upgrade_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/innodb/storage/store/ibd/ibd_file.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/innodb/storage/store/ibd/ibd_file.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/server/net/data/mysql/user.ibd" beforeDir="false" afterPath="$PROJECT_DIR$/server/net/data/mysql/user.ibd" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/data/p0e_db/db.opt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/data/p0e_db/t1.frm" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/data/p0e_db/t1.ibd" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_alter_test/db.opt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_alter_test/test_table_alter.frm" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_alter_test/test_table_alter.ibd" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_drop_test/db.opt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_drop_test/test_table_drop.frm" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_drop_test/test_table_drop.ibd" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_fk_test/db.opt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_fk_test/orders.frm" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_fk_test/orders.ibd" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_fk_test/users.frm" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_fk_test/users.ibd" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_index_test/db.opt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_index_test/test_table_indexed.frm" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_index_test/test_table_indexed.ibd" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_table_test/db.opt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_table_test/test_table_basic.frm" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_table_test/test_table_basic.ibd" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_truncate_test/db.opt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_truncate_test/test_table_truncate.frm" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/net/data/test_ddl_db_truncate_test/test_table_truncate.ibd" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/decoupled_handler.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/net/decoupled_handler.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/net/decoupled_handler_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/net/decoupled_handler_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/observability/metrics/runtime.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/observability/metrics/runtime.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/replication/runtime.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/replication/runtime.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/replication/runtime_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/replication/runtime_test.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -72,6 +182,9 @@
       <entry key="chat-panel" value="GPT-5.4" />
     </selectedModels>
   </component>
+  <component name="EmbeddingIndexingInfo">
+    <option name="cachedIndexableFilesCount" value="2191" />
+  </component>
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
       <list>
@@ -79,14 +192,20 @@
       </list>
     </option>
   </component>
-  <component name="GOROOT" url="file://$USER_HOME$/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.3.darwin-amd64" />
+  <component name="GOROOT" url="file://$USER_HOME$/go/go1.27.2" />
   <component name="Git.Settings">
+    <option name="PREVIOUS_COMMIT_AUTHORS">
+      <list>
+        <option value="zhukovasky &lt;zhukovasky@163.com&gt;" />
+      </list>
+    </option>
     <option name="RECENT_BRANCH_BY_REPOSITORY">
       <map>
         <entry key="$PROJECT_DIR$" value="main" />
       </map>
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="SIGN_OFF_COMMIT" value="true" />
   </component>
   <component name="GitHubPullRequestSearchHistory">{
   &quot;lastFilter&quot;: {
@@ -97,19 +216,82 @@
   <component name="GithubPullRequestsUISettings">{
   &quot;selectedUrlAndAccountId&quot;: {
     &quot;url&quot;: &quot;https://github.com/zhukovaskychina/xmysql-server.git&quot;,
-    &quot;accountId&quot;: &quot;002448ed-9f28-4727-8558-6e54404cefb2&quot;
+    &quot;accountId&quot;: &quot;7cf24035-6aed-4de0-945e-d2184338f608&quot;
   }
 }</component>
   <component name="HttpClientEndpointsTabState">
     <option name="cachedRequestData" value="&lt;CachedHttpClientTabRequests /&gt;" />
   </component>
-  <component name="HttpClientOnboardingState"><![CDATA[{
-  "isOnboardingCommentShown": true
-}]]></component>
+  <component name="HttpClientOnboardingState">{
+  &quot;isOnboardingCommentShown&quot;: true
+}</component>
   <component name="KubernetesApiPersistence">{}</component>
   <component name="KubernetesApiProvider">{
   &quot;isMigrated&quot;: true
 }</component>
+  <component name="McpProjectServerCommands">
+    <commands />
+    <urls />
+  </component>
+  <component name="NextEditCompletionFeaturesState">
+    <decayedCancelled>
+      <entry key="MS100" value="1.0003258047882486" />
+      <entry key="MS500" value="1.283777083338761" />
+      <entry key="S2" value="2.7139385949761987" />
+      <entry key="S5" value="5.100441646640164" />
+      <entry key="S10" value="7.388251482485645" />
+      <entry key="S30" value="10.074998618733016" />
+      <entry key="S60" value="11.16128075882527" />
+      <entry key="M2" value="13.387239291976307" />
+      <entry key="M5" value="21.154636368123423" />
+      <entry key="M10" value="30.595932203569074" />
+      <entry key="M15" value="36.518016218981835" />
+      <entry key="M30" value="45.459118927829515" />
+      <entry key="H1" value="52.7267207521704" />
+      <entry key="H2" value="63.208525807064795" />
+      <entry key="H4" value="84.59079503726026" />
+      <entry key="D1" value="236.98784274181477" />
+      <entry key="W1" value="427.0518857056524" />
+    </decayedCancelled>
+    <decayedSelected>
+      <entry key="MS100" value="0.0" />
+      <entry key="MS500" value="0.0" />
+      <entry key="S2" value="0.0" />
+      <entry key="S5" value="0.0" />
+      <entry key="S10" value="0.0" />
+      <entry key="S30" value="0.0" />
+      <entry key="S60" value="0.0" />
+      <entry key="M2" value="1.9533431449782667E-187" />
+      <entry key="M5" value="2.0716263057685746E-75" />
+      <entry key="M10" value="4.55151217263954E-38" />
+      <entry key="M15" value="1.2747855706585001E-25" />
+      <entry key="M30" value="3.570413940509571E-13" />
+      <entry key="H1" value="5.97529416261252E-7" />
+      <entry key="H2" value="7.731246477904869E-4" />
+      <entry key="H4" value="0.028301634235358086" />
+      <entry key="D1" value="1.0521734015894404" />
+      <entry key="W1" value="2.5597351328286306" />
+    </decayedSelected>
+    <decayedShown>
+      <entry key="MS100" value="0.9529379183322265" />
+      <entry key="MS500" value="1.2700066649824908" />
+      <entry key="S2" value="2.7060102574551608" />
+      <entry key="S5" value="5.09455452285388" />
+      <entry key="S10" value="7.38402796954274" />
+      <entry key="S30" value="10.073091647245532" />
+      <entry key="S60" value="11.160229549125559" />
+      <entry key="M2" value="13.386622840218845" />
+      <entry key="M5" value="21.154225330000816" />
+      <entry key="M10" value="30.595575745759632" />
+      <entry key="M15" value="36.51770382574312" />
+      <entry key="M30" value="45.45890236674302" />
+      <entry key="H1" value="52.72658968016507" />
+      <entry key="H2" value="63.20922159820277" />
+      <entry key="H4" value="84.61904612154956" />
+      <entry key="D1" value="238.03997555670858" />
+      <entry key="W1" value="429.61160824596743" />
+    </decayedShown>
+  </component>
   <component name="ProjectColorInfo">{
   &quot;customColor&quot;: &quot;&quot;,
   &quot;associatedIndex&quot;: 6
@@ -119,41 +301,62 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;DefaultGoTemplateProperty&quot;: &quot;Go Application&quot;,
-    &quot;Go Build.go build github.com/zhukovaskychina/xmysql-server.executor&quot;: &quot;Run&quot;,
-    &quot;Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/demo_executor.executor&quot;: &quot;Run&quot;,
-    &quot;Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/demo_space_manager_optimization.executor&quot;: &quot;Run&quot;,
-    &quot;Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/mysql_test_client.executor&quot;: &quot;Run&quot;,
-    &quot;Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/query_optimizer_demo.executor&quot;: &quot;Run&quot;,
-    &quot;Go Test.go test github.com/zhukovaskychina/xmysql-server/cmd/demo_mysql_client_test.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.GoLinterPluginOnboarding&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.GoLinterPluginStorageMigration&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.go.analysis.ui.options.defaults&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.go.formatter.settings.were.checked&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.go.migrated.go.modules.settings&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.go.modules.go.list.on.any.changes.was.set&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;dev&quot;,
-    &quot;go.import.settings.migrated&quot;: &quot;true&quot;,
-    &quot;go.sdk.automatically.set&quot;: &quot;true&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/Users/zhukovasky/GolandProjects/xmysql-server&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;run.configurations.included.in.services&quot;: &quot;true&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;,
-    &quot;应用程序.DDLTestDemo.executor&quot;: &quot;Run&quot;,
-    &quot;应用程序.InsertDataTestDemo.executor&quot;: &quot;Run&quot;,
-    &quot;应用程序.MySQLDemo.executor&quot;: &quot;Debug&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "DefaultGoTemplateProperty": "Go Application",
+    "Go Build.go build github.com/zhukovaskychina/xmysql-server.executor": "Run",
+    "Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/demo_executor.executor": "Run",
+    "Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/demo_space_manager_optimization.executor": "Run",
+    "Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/mysql_test_client.executor": "Run",
+    "Go Build.go build github.com/zhukovaskychina/xmysql-server/cmd/query_optimizer_demo.executor": "Run",
+    "Go Test.go test github.com/zhukovaskychina/xmysql-server/cmd/demo_mysql_client_test.executor": "Run",
+    "Go 构建.go build github.com/zhukovaskychina/xmysql-server/cmd/cluster_smoke_client.executor": "Run",
+    "Go 构建.go build github.com/zhukovaskychina/xmysql-server/cmd/demo_btree_dead_lock.executor": "Run",
+    "Go 构建.go build github.com/zhukovaskychina/xmysql-server/cmd/demo_table_mapping.executor": "Run",
+    "Go 构建.go build github.com/zhukovaskychina/xmysql-server/cmd/integration_demo.executor": "Run",
+    "Go 构建.go build github.com/zhukovaskychina/xmysql-server/cmd/mysql_test_client.executor": "Run",
+    "Go 构建.go build github.com/zhukovaskychina/xmysql-server/cmd/p0_metrics_endpoint.executor": "Run",
+    "Go 测试.github.com/zhukovaskychina/xmysql-server/server/innodb/engine 中的 TestExtractCompoundUnitsExecuteThroughEngine.executor": "Debug",
+    "Go 测试.github.com/zhukovaskychina/xmysql-server/server/innodb/engine 中的 TestNestedLoopJoin_FullOuterJoin.executor": "Run",
+    "Go 测试.github.com/zhukovaskychina/xmysql-server/server/innodb/engine 中的 TestSubqueryOperatorCachesUncorrelatedNullScalar.executor": "Run",
+    "Go 测试.github.com/zhukovaskychina/xmysql-server/server/innodb/engine 中的 TestVolcanoExecutorExecutesRecursivePhysicalCTEPlan.executor": "Run",
+    "Go 测试.github.com/zhukovaskychina/xmysql-server/server/innodb/engine 中的 TestXMySQLEngineCloseStopsUtilityBackgroundManagers.executor": "Run",
+    "KEY_CHAT_IN_TOOLWINDOW": "false",
+    "PowerShell.agent-command-720.ps1.executor": "Run",
+    "RunOnceActivity.GoLinterPluginOnboarding": "true",
+    "RunOnceActivity.GoLinterPluginOnboardingV2": "true",
+    "RunOnceActivity.GoLinterPluginStorageMigration": "true",
+    "RunOnceActivity.GoOptimizationToolWindowEnableInLayout.v333333": "true",
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.go.analysis.ui.options.defaults": "true",
+    "RunOnceActivity.go.formatter.settings.were.checked": "true",
+    "RunOnceActivity.go.migrated.go.modules.settings": "true",
+    "RunOnceActivity.go.modules.go.list.on.any.changes.was.set": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "dev",
+    "go.import.settings.migrated": "true",
+    "go.sdk.automatically.set": "true",
+    "ignore.virus.scanning.warn.message": "true",
+    "junie.onboarding.icon.badge.shown": "true",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "C:/Users/zx187",
+    "node.js.detected.package.eslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "run.configurations.included.in.services": "true",
+    "settings.editor.selected.configurable": "ml.llm.LLMThirdPartyAiProvidersConfigurable",
+    "to.speed.mode.migration.done": "true",
+    "vue.rearranger.settings.migration": "true",
+    "应用程序.DDLTestDemo.executor": "Run",
+    "应用程序.InsertDataTestDemo.executor": "Run",
+    "应用程序.MySQLDemo.executor": "Debug"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/docs" />
@@ -171,79 +374,491 @@
           <value>
             <map>
               <entry key="go build github.com/zhukovaskychina/xmysql-server" value="STOPPED" />
-              <entry key="go build github.com/zhukovaskychina/xmysql-server/cmd/demo_executor" value="FAILED" />
-              <entry key="go build github.com/zhukovaskychina/xmysql-server/cmd/query_optimizer_demo" value="STOPPED" />
+              <entry key="go build github.com/zhukovaskychina/xmysql-server/cmd/cluster_smoke_client" value="FAILED" />
+              <entry key="go build github.com/zhukovaskychina/xmysql-server/cmd/demo_btree_dead_lock" value="STOPPED" />
+              <entry key="go build github.com/zhukovaskychina/xmysql-server/cmd/demo_table_mapping" value="STOPPED" />
+              <entry key="go build github.com/zhukovaskychina/xmysql-server/cmd/integration_demo" value="FAILED" />
+              <entry key="go build github.com/zhukovaskychina/xmysql-server/cmd/mysql_test_client" value="STOPPED" />
+              <entry key="go build github.com/zhukovaskychina/xmysql-server/cmd/p0_metrics_endpoint" value="STOPPED" />
             </map>
           </value>
         </entry>
       </map>
     </option>
   </component>
-  <component name="RunManager" selected="Go Build.go build github.com/zhukovaskychina/xmysql-server">
-    <configuration name="InsertDataTestDemo" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
-      <option name="MAIN_CLASS_NAME" value="com.xmysql.server.demo.InsertDataTestDemo" />
-      <module name="mysql-connect-demo" />
-      <extension name="coverage">
-        <pattern>
-          <option name="PATTERN" value="com.xmysql.server.demo.*" />
-          <option name="ENABLED" value="true" />
-        </pattern>
-      </extension>
-      <method v="2">
-        <option name="Make" enabled="true" />
-      </method>
-    </configuration>
-    <configuration name="MySQLDemo" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
-      <option name="MAIN_CLASS_NAME" value="com.xmysql.server.demo.MySQLDemo" />
-      <module name="mysql-connect-demo" />
-      <extension name="coverage">
-        <pattern>
-          <option name="PATTERN" value="com.xmysql.server.demo.*" />
-          <option name="ENABLED" value="true" />
-        </pattern>
-      </extension>
-      <method v="2">
-        <option name="Make" enabled="true" />
-      </method>
-    </configuration>
-    <configuration name="go build github.com/zhukovaskychina/xmysql-server" type="GoApplicationRunConfiguration" factoryName="Go Application" temporary="true" nameIsGenerated="true">
+  <component name="RunManager" selected="Go 测试.github.com/zhukovaskychina/xmysql-server/server/innodb/engine 中的 TestNestedLoopJoin_FullOuterJoin">
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
       <module name="xmysql-server" />
       <working_directory value="$PROJECT_DIR$" />
       <kind value="PACKAGE" />
       <package value="github.com/zhukovaskychina/xmysql-server" />
       <directory value="$PROJECT_DIR$" />
-      <filePath value="$PROJECT_DIR$/main.go" />
+      <auto_managed_config_id value="$PROJECT_DIR$" />
       <method v="2" />
     </configuration>
-    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/demo_executor" type="GoApplicationRunConfiguration" factoryName="Go Application" temporary="true" nameIsGenerated="true">
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/client_compatibility/go" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/client_compatibility/go" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/client_compatibility/go" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/cluster_smoke_client" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/cluster_smoke_client" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/cluster_smoke_client" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/demo_btree_dead_lock" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/demo_btree_dead_lock" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/demo_btree_dead_lock" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/demo_buffer_pool" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/demo_buffer_pool" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/demo_buffer_pool" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/demo_create_mysql_user" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/demo_create_mysql_user" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/demo_create_mysql_user" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/demo_executor" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
       <module name="xmysql-server" />
       <working_directory value="$PROJECT_DIR$" />
       <kind value="PACKAGE" />
       <package value="github.com/zhukovaskychina/xmysql-server/cmd/demo_executor" />
       <directory value="$PROJECT_DIR$" />
-      <filePath value="$PROJECT_DIR$/cmd/demo_executor/test_select_simple.go" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/demo_executor" />
       <method v="2" />
     </configuration>
-    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/query_optimizer_demo" type="GoApplicationRunConfiguration" factoryName="Go Application" temporary="true" nameIsGenerated="true">
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/demo_final_architecture" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/demo_final_architecture" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/demo_final_architecture" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/demo_mysql_user" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/demo_mysql_user" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/demo_mysql_user" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/demo_space_init" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/demo_space_init" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/demo_space_init" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/demo_space_manager_optimization" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/demo_space_manager_optimization" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/demo_space_manager_optimization" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/demo_storage_architecture" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/demo_storage_architecture" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/demo_storage_architecture" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/demo_table_mapping" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/demo_table_mapping" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/demo_table_mapping" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/integration_demo" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/integration_demo" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/integration_demo" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/mysql_test_client" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/mysql_test_client" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/mysql_test_client" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/p0_metrics_endpoint" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/p0_metrics_endpoint" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/p0_metrics_endpoint" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/p0_metrics_export" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/p0_metrics_export" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/p0_metrics_export" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/p0_structured_log_export" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/p0_structured_log_export" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/p0_structured_log_export" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/persistence_demo" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/persistence_demo" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/persistence_demo" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/query_optimizer_demo" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
       <module name="xmysql-server" />
       <working_directory value="$PROJECT_DIR$" />
       <kind value="PACKAGE" />
       <package value="github.com/zhukovaskychina/xmysql-server/cmd/query_optimizer_demo" />
       <directory value="$PROJECT_DIR$" />
-      <filePath value="$PROJECT_DIR$/cmd/query_optimizer_demo/main.go" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/query_optimizer_demo" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/recovery_drill_client" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/recovery_drill_client" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/recovery_drill_client" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/sql_test_client" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/sql_test_client" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/sql_test_client" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/test" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/test" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/test" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/test_client" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/test_client" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/test_client" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/test_cnf_converter" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/test_cnf_converter" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/test_cnf_converter" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/test_fix" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/test_fix" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/test_fix" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/test_schemata" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/test_schemata" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/test_schemata" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/test_set_names" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/test_set_names" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/test_set_names" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/test_set_names_fixed" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/test_set_names_fixed" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/test_set_names_fixed" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/test_simple_protocol" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/test_simple_protocol" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/test_simple_protocol" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/test_system_var" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/test_system_var" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/test_system_var" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/test_sysvar_simple" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/test_sysvar_simple" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/test_sysvar_simple" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/test_tx_read_only" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/test_tx_read_only" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/test_tx_read_only" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/tmp_acceptance" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/tmp_acceptance" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/tmp_acceptance" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/cmd/tmp_acl_acceptance" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/cmd/tmp_acl_acceptance" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/cmd/tmp_acl_acceptance" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/scripts/common_constants_audit" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/scripts/common_constants_audit" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/scripts/common_constants_audit" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/scripts/compatibility" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/scripts/compatibility" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/scripts/compatibility" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/scripts/sql-regex-audit" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/scripts/sql-regex-audit" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/scripts/sql-regex-audit" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/scripts/zz_acceptance_client" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/scripts/zz_acceptance_client" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/scripts/zz_acceptance_client" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/scripts/zz_event_matrix" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/scripts/zz_event_matrix" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/scripts/zz_event_matrix" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/scripts/zz_fixture_audit" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/scripts/zz_fixture_audit" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/scripts/zz_fixture_audit" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/scripts/zz_restart_check" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/scripts/zz_restart_check" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/scripts/zz_restart_check" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/scripts/zz_restart_client" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/scripts/zz_restart_client" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/scripts/zz_restart_client" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build github.com/zhukovaskychina/xmysql-server/scripts/zz_service_matrix" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/scripts/zz_service_matrix" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/scripts/zz_service_matrix" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go build xmysql-client" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$/client" />
+      <kind value="PACKAGE" />
+      <package value="xmysql-client" />
+      <directory value="$PROJECT_DIR$" />
+      <auto_managed_config_id value="$PROJECT_DIR$/client" />
+      <method v="2" />
+    </configuration>
+    <configuration name="github.com/zhukovaskychina/xmysql-server/server/innodb/engine 中的 TestExtractCompoundUnitsExecuteThroughEngine" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$/server/innodb/engine" />
+      <root_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/server/innodb/engine" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <framework value="gotest" />
+      <pattern value="^\QTestExtractCompoundUnitsExecuteThroughEngine\E$" />
+      <method v="2" />
+    </configuration>
+    <configuration name="github.com/zhukovaskychina/xmysql-server/server/innodb/engine 中的 TestNestedLoopJoin_FullOuterJoin" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$/server/innodb/engine" />
+      <root_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/server/innodb/engine" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <framework value="gotest" />
+      <pattern value="^\QTestNestedLoopJoin_FullOuterJoin\E$" />
+      <method v="2" />
+    </configuration>
+    <configuration name="github.com/zhukovaskychina/xmysql-server/server/innodb/engine 中的 TestVolcanoExecutorExecutesRecursivePhysicalCTEPlan" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$/server/innodb/engine" />
+      <root_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/server/innodb/engine" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <framework value="gotest" />
+      <pattern value="^\QTestVolcanoExecutorExecutesRecursivePhysicalCTEPlan\E$" />
+      <method v="2" />
+    </configuration>
+    <configuration name="github.com/zhukovaskychina/xmysql-server/server/innodb/engine 中的 TestXMySQLEngineCloseStopsUtilityBackgroundManagers" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="xmysql-server" />
+      <working_directory value="$PROJECT_DIR$/server/innodb/engine" />
+      <root_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/zhukovaskychina/xmysql-server/server/innodb/engine" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <framework value="gotest" />
+      <pattern value="^\QTestXMySQLEngineCloseStopsUtilityBackgroundManagers\E$" />
+      <method v="2" />
+    </configuration>
+    <configuration name="agent-command-720.ps1" type="PowerShellRunType" factoryName="PowerShell" temporary="true" scriptUrl="/agent-command-720.ps1" executablePath="C:/WINDOWS/System32/WindowsPowerShell/v1.0/powershell.exe">
+      <envs />
       <method v="2" />
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Go Build.go build github.com/zhukovaskychina/xmysql-server" />
+        <item itemvalue="Go 测试.github.com/zhukovaskychina/xmysql-server/server/innodb/engine 中的 TestNestedLoopJoin_FullOuterJoin" />
+        <item itemvalue="Go 测试.github.com/zhukovaskychina/xmysql-server/server/innodb/engine 中的 TestXMySQLEngineCloseStopsUtilityBackgroundManagers" />
+        <item itemvalue="Go 测试.github.com/zhukovaskychina/xmysql-server/server/innodb/engine 中的 TestVolcanoExecutorExecutesRecursivePhysicalCTEPlan" />
+        <item itemvalue="Go 测试.github.com/zhukovaskychina/xmysql-server/server/innodb/engine 中的 TestExtractCompoundUnitsExecuteThroughEngine" />
+        <item itemvalue="PowerShell.agent-command-720.ps1" />
       </list>
     </recent_temporary>
   </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-gosdk-72a9cf600ed8-3105c3b11fe0-org.jetbrains.plugins.go.sharedIndexes.bundled-GO-261.22158.291" />
-        <option value="bundled-js-predefined-d6986cc7102b-3bd3a6803838-JavaScript-GO-261.22158.291" />
+        <option value="bundled-gosdk-63c95d513abe-08e7ff217c2b-org.jetbrains.plugins.go.sharedIndexes.bundled-GO-262.10968.67" />
+        <option value="bundled-js-predefined-d6986cc7102b-4abd2a77f808-JavaScript-GO-262.10968.67" />
       </set>
     </attachedChunks>
   </component>
@@ -359,7 +974,24 @@
     <MESSAGE value="###  提交摘要&#10;feat(mysql): implement MySQL package handler for protocol data processing&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：mysql_pkg_handler.go, mysql_pkg_handler_test.go&#10;- 主要改动：新增 MySQLPkgHandler 结构体，支持 MySQL 协议数据包的编解码，包含 Read 和 Write 方法。&#10;&#10;###  修改原因&#10;此次修改旨在实现对 MySQL 协议数据包的处理，提供灵活的读取和写入功能，以支持后续的数据库操作。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MySQL 数据包处理&#10;- 受影响接口或服务：所有使用 MySQLPkgHandler 的地方&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证 MySQLPkgHandler 的正确性&#10;- 更新相关文档以反映新的数据包处理逻辑" />
     <MESSAGE value="###  提交摘要&#10;feat(mysql): implement MySQL session context for enhanced state management&#10;&#10;###  详细修改内容&#10;- 修改文件或模块：decoupled_handler.go, engine_access.go, enhanced_message_handler.go, message_handler.go, session.go, session_context.go&#10;- 主要改动：引入 SessionContext 结构体，优化 MySQL 会话状态管理，确保在处理 COM_INIT_DB 和 COM_QUERY 时使用同一会话实例。&#10;&#10;###  修改原因&#10;此次修改旨在提升 MySQL 协议处理的准确性和一致性，通过引入 SessionContext 来集中管理会话状态，避免因使用不同会话实例导致的状态不一致问题。&#10;&#10;### ⚙️ 改动影响分析&#10;- 影响模块：MySQL 协议处理、会话管理&#10;- 受影响接口或服务：所有涉及会话状态的操作，如数据库切换、查询执行等&#10;- 向后兼容性：兼容&#10;- 风险等级：中&#10;&#10;### ✅ 后续计划 / TODO&#10;- 进行全面的单元测试以验证 SessionContext 的正确性&#10;- 更新相关文档以反映新的会话管理逻辑" />
     <MESSAGE value="clean some files" />
-    <option name="LAST_COMMIT_MESSAGE" value="clean some files" />
+    <MESSAGE value="clean some files&#10;&#10;Signed-off-by: zhukovasky &lt;zhukovasky@163.com&gt;" />
+    <option name="LAST_COMMIT_MESSAGE" value="clean some files&#10;&#10;Signed-off-by: zhukovasky &lt;zhukovasky@163.com&gt;" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/server/innodb/plan/stub_cursor.go</url>
+          <line>14</line>
+          <option name="timeStamp" value="2" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/server/innodb/engine/date_extract_compatibility_test.go</url>
+          <line>30</line>
+          <option name="timeStamp" value="4" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>

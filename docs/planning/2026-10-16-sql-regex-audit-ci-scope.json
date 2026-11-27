@@ -1,0 +1,312 @@
+{
+  "root": "D:\\workspaces\\GolandProjects\\xmysql-server",
+  "go_files": 1086,
+  "regexp_import_files": [
+    "server/auth/engine_access.go",
+    "server/common/dynamic_privileges.go",
+    "server/innodb/engine/account_compatibility.go",
+    "server/innodb/engine/dml_result_compatibility.go",
+    "server/innodb/engine/fulltext_spatial_compatibility.go",
+    "server/innodb/engine/select_join_executor.go",
+    "server/innodb/engine/show_filter.go",
+    "server/innodb/engine/storage_integrated_dml_helper.go",
+    "server/innodb/manager/schema_manager.go",
+    "server/innodb/plan/expression.go",
+    "server/observability/metrics/statement_digest.go",
+    "server/replication/runtime.go"
+  ],
+  "sites": [
+    {
+      "file": "server/auth/engine_access.go",
+      "line": 868,
+      "api": "QuoteMeta",
+      "function": "func matchHost",
+      "category": "value_match_or_escaping",
+      "argument": "pattern"
+    },
+    {
+      "file": "server/auth/engine_access.go",
+      "line": 872,
+      "api": "MatchString",
+      "function": "func matchHost",
+      "category": "syntax_candidate_or_value_match",
+      "argument": "regexPattern"
+    },
+    {
+      "file": "server/common/dynamic_privileges.go",
+      "line": 63,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition",
+      "argument": "`^[A-Z][A-Z0-9_]*$`"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 627,
+      "api": "QuoteMeta",
+      "function": "func accountHostMatches",
+      "category": "value_match_or_escaping",
+      "argument": "string(char)"
+    },
+    {
+      "file": "server/innodb/engine/account_compatibility.go",
+      "line": 631,
+      "api": "MatchString",
+      "function": "func accountHostMatches",
+      "category": "syntax_candidate_or_value_match",
+      "argument": "builder.String()"
+    },
+    {
+      "file": "server/innodb/engine/dml_result_compatibility.go",
+      "line": 177,
+      "api": "MustCompile",
+      "function": "func zeroTemporalColumnValue",
+      "category": "pattern_definition",
+      "argument": "`^0{4}-0{2}-0{2}(?:[ T]0{2}:0{2}:0{2})?$`"
+    },
+    {
+      "file": "server/innodb/engine/dml_result_compatibility.go",
+      "line": 178,
+      "api": "MustCompile",
+      "function": "func zeroTemporalColumnValue",
+      "category": "pattern_definition",
+      "argument": "`^(?:\\d{4}-00-\\d{2}|\\d{4}-\\d{2}-00)(?:[ T].*)?$`"
+    },
+    {
+      "file": "server/innodb/engine/fulltext_spatial_compatibility.go",
+      "line": 1493,
+      "api": "MustCompile",
+      "function": "func spatialBounds",
+      "category": "pattern_definition",
+      "argument": "`[-+]?[0-9]*\\.?[0-9]+\\s+[-+]?[0-9]*\\.?[0-9]+`"
+    },
+    {
+      "file": "server/innodb/engine/fulltext_spatial_compatibility.go",
+      "line": 1511,
+      "api": "MustCompile",
+      "function": "func spatialPoint",
+      "category": "pattern_definition",
+      "argument": "`[-+]?[0-9]*\\.?[0-9]+\\s+[-+]?[0-9]*\\.?[0-9]+`"
+    },
+    {
+      "file": "server/innodb/engine/select_join_executor.go",
+      "line": 522,
+      "api": "MatchString",
+      "function": "func evalJoinComparisonTruth",
+      "category": "syntax_candidate_or_value_match",
+      "argument": "fmt.Sprint(right)"
+    },
+    {
+      "file": "server/innodb/engine/show_filter.go",
+      "line": 43,
+      "api": "QuoteMeta",
+      "function": "func sqlLikeMatch",
+      "category": "value_match_or_escaping",
+      "argument": "string(r)"
+    },
+    {
+      "file": "server/innodb/engine/show_filter.go",
+      "line": 47,
+      "api": "Compile",
+      "function": "func sqlLikeMatch",
+      "category": "pattern_definition",
+      "argument": "b.String()"
+    },
+    {
+      "file": "server/innodb/engine/storage_integrated_dml_helper.go",
+      "line": 2289,
+      "api": "MatchString",
+      "function": "func evalPredicateTruth",
+      "category": "syntax_candidate_or_value_match",
+      "argument": "fmt.Sprint(right)"
+    },
+    {
+      "file": "server/innodb/engine/storage_integrated_dml_helper.go",
+      "line": 2425,
+      "api": "QuoteMeta",
+      "function": "func sqlLikePatternMatchWithEscape",
+      "category": "value_match_or_escaping",
+      "argument": "string(r)"
+    },
+    {
+      "file": "server/innodb/engine/storage_integrated_dml_helper.go",
+      "line": 2439,
+      "api": "QuoteMeta",
+      "function": "func sqlLikePatternMatchWithEscape",
+      "category": "value_match_or_escaping",
+      "argument": "string(r)"
+    },
+    {
+      "file": "server/innodb/engine/storage_integrated_dml_helper.go",
+      "line": 2443,
+      "api": "QuoteMeta",
+      "function": "func sqlLikePatternMatchWithEscape",
+      "category": "value_match_or_escaping",
+      "argument": "\"\\\\\""
+    },
+    {
+      "file": "server/innodb/engine/storage_integrated_dml_helper.go",
+      "line": 2446,
+      "api": "Compile",
+      "function": "func sqlLikePatternMatchWithEscape",
+      "category": "pattern_definition",
+      "argument": "b.String()"
+    },
+    {
+      "file": "server/innodb/manager/schema_manager.go",
+      "line": 1135,
+      "api": "MustCompile",
+      "function": "func validateDatabaseName",
+      "category": "pattern_definition",
+      "argument": "`^[a-zA-Z0-9_$]+$`"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 1503,
+      "api": "MustCompile",
+      "function": "func parseFixedTimezoneOffset",
+      "category": "pattern_definition",
+      "argument": "`^([+-])(\\d{2})(?::?(\\d{2}))?$`"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 1530,
+      "api": "MustCompile",
+      "function": "func evalTimeConversionFunction",
+      "category": "pattern_definition",
+      "argument": "`^([+-]?)([0-9]+):([0-5][0-9]):([0-5][0-9])(?:\\.([0-9]{1,6}))?$`"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 2440,
+      "api": "MustCompile",
+      "function": "func evalNetworkAndDigestFunction",
+      "category": "pattern_definition",
+      "argument": "`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 2967,
+      "api": "Compile",
+      "function": "func compileMySQLRegexp",
+      "category": "pattern_definition",
+      "argument": "patternText"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 3589,
+      "api": "MatchString",
+      "function": "func validateJSONSchemaCompatibility",
+      "category": "syntax_candidate_or_value_match",
+      "argument": "pattern"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 4479,
+      "api": "QuoteMeta",
+      "function": "func jsonSearchPattern",
+      "category": "value_match_or_escaping",
+      "argument": "string(char)"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 4483,
+      "api": "QuoteMeta",
+      "function": "func jsonSearchPattern",
+      "category": "value_match_or_escaping",
+      "argument": "escape"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 4486,
+      "api": "Compile",
+      "function": "func jsonSearchPattern",
+      "category": "pattern_definition",
+      "argument": "builder.String()"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 5133,
+      "api": "MatchString",
+      "function": "func evalRegexp",
+      "category": "syntax_candidate_or_value_match",
+      "argument": "fmt.Sprint(right)"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 5422,
+      "api": "MatchString",
+      "function": "func evalLike",
+      "category": "syntax_candidate_or_value_match",
+      "argument": "pattern"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 5438,
+      "api": "MatchString",
+      "function": "func evalLikeWithEscape",
+      "category": "syntax_candidate_or_value_match",
+      "argument": "pattern"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 5455,
+      "api": "QuoteMeta",
+      "function": "func sqlLikePatternRegexWithEscape",
+      "category": "value_match_or_escaping",
+      "argument": "string(character)"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 5469,
+      "api": "QuoteMeta",
+      "function": "func sqlLikePatternRegexWithEscape",
+      "category": "value_match_or_escaping",
+      "argument": "string(character)"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 5473,
+      "api": "QuoteMeta",
+      "function": "func sqlLikePatternRegexWithEscape",
+      "category": "value_match_or_escaping",
+      "argument": "string(escapeCharacter)"
+    },
+    {
+      "file": "server/innodb/plan/expression.go",
+      "line": 5959,
+      "api": "MatchString",
+      "function": "func Eval",
+      "category": "syntax_candidate_or_value_match",
+      "argument": "pattern"
+    },
+    {
+      "file": "server/observability/metrics/statement_digest.go",
+      "line": 11,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition",
+      "argument": "`::digest\\d+|:digest\\d+`"
+    },
+    {
+      "file": "server/replication/runtime.go",
+      "line": 2822,
+      "api": "MustCompile",
+      "function": "package",
+      "category": "pattern_definition",
+      "argument": "`(?i)\\berror\\s+([0-9]{1,6})\\b`"
+    }
+  ],
+  "parse_errors": null,
+  "skipped_dirs": [
+    ".ai",
+    ".codex",
+    ".git",
+    ".github",
+    ".idea",
+    ".superpowers",
+    "client",
+    "cmd",
+    "docs/client"
+  ]
+}

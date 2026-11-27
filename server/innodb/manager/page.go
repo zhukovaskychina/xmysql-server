@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"sync/atomic"
 )
@@ -166,7 +167,7 @@ func (p *defaultPage) Write() error {
 // 页面类型检查
 // ========================================
 func (p *defaultPage) IsLeafPage() bool {
-	return p.pageType == basic.PageTypeIndex
+	return p.pageType == common.FIL_PAGE_INDEX
 }
 
 // ========================================

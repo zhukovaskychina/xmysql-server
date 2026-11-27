@@ -169,9 +169,9 @@ func (c *ColumnMeta) Validate() error {
 		if c.Length <= 0 {
 			return fmt.Errorf("column %s: length must be positive for type %v", c.Name, c.Type)
 		}
-	case TypeTinyInt, TypeSmallInt, TypeMediumInt, TypeInt, TypeBigInt,
+	case TypeTinyInt, TypeSmallInt, TypeMediumInt, TypeInt, TypeBigInt, TypeBit,
 		TypeFloat, TypeDouble, TypeDecimal, TypeDate, TypeTime,
-		TypeDateTime, TypeTimestamp, TypeYear, TypeJSON:
+		TypeDateTime, TypeTimestamp, TypeYear, TypeJSON, TypeGeometry:
 		// These types don't require length validation
 	case TypeTinyBlob, TypeBlob, TypeMediumBlob, TypeLongBlob,
 		TypeTinyText, TypeText, TypeMediumText, TypeLongText:
@@ -202,6 +202,11 @@ func (c *ColumnMeta) SQLType() string {
 		return "INT"
 	case TypeBigInt:
 		return "BIGINT"
+	case TypeBit:
+		if c.Length > 0 {
+			return fmt.Sprintf("BIT(%d)", c.Length)
+		}
+		return "BIT"
 	case TypeFloat:
 		return "FLOAT"
 	case TypeDouble:
@@ -244,13 +249,26 @@ func (c *ColumnMeta) SQLType() string {
 		return "LONGTEXT"
 	case TypeEnum:
 		// ENUM 常量在当前实现不保留取值列表，返回标准类型名用于 DDL 语义保持
-		return "ENUM"
+		return enumSetSQLType("ENUM", c.EnumValues)
 	case TypeSet:
 		// 集合类型使用值列表语义；当前未保留值列表时返回标准类型表示
-		return "SET"
+		return enumSetSQLType("SET", c.EnumValues)
 	case TypeJSON:
 		return "JSON"
+	case TypeGeometry:
+		return "GEOMETRY"
 	default:
 		return "UNKNOWN"
 	}
+}
+
+func enumSetSQLType(kind string, values []string) string {
+	if len(values) == 0 {
+		return kind
+	}
+	quoted := make([]string, 0, len(values))
+	for _, value := range values {
+		quoted = append(quoted, "'"+strings.ReplaceAll(value, "'", "''")+"'")
+	}
+	return kind + "(" + strings.Join(quoted, ",") + ")"
 }

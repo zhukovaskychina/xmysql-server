@@ -3,6 +3,8 @@ package protocol
 import (
 	"encoding/binary"
 	"fmt"
+
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 )
 
 // MySQL协议包序号管理说明：
@@ -31,7 +33,7 @@ func EncodeOKPacket(info []byte, affectedRows, lastInsertId uint64, warnings []b
 
 	// 服务器状态标志 (2字节，小端序)
 	// SERVER_STATUS_AUTOCOMMIT = 0x0002
-	payload = append(payload, 0x02, 0x00)
+	payload = append(payload, byte(common.SERVER_STATUS_AUTOCOMMIT), byte(common.SERVER_STATUS_AUTOCOMMIT>>8))
 
 	// 警告数量 (2字节，小端序)
 	warningCount := uint16(0)

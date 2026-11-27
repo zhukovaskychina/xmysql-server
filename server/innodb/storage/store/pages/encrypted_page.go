@@ -44,9 +44,9 @@ import (
 
 // 加密页面常量
 const (
-	EncryptionHeaderSize = 32    // 加密头部大小
-	MaxEncryptedDataSize = 16306 // 最大加密数据大小 (16384 - 38 - 32 - 8)
-	IVSize               = 16    // 初始化向量大小
+	EncryptionHeaderSize = common.EncryptionHeaderSize // 加密头部大小
+	MaxEncryptedDataSize = common.MaxEncryptedDataSize // 最大加密数据大小 (16384 - 38 - 32 - 8)
+	IVSize               = 16                          // 初始化向量大小
 )
 
 // 加密算法类型
@@ -99,7 +99,7 @@ func NewEncryptedPage(spaceID, pageNo uint32, algorithm EncryptionAlgorithm, key
 			KeyID:      keyID,
 			Reserved:   0,
 		},
-		EncryptedData: make([]byte, MaxEncryptedDataSize),
+		EncryptedData: make([]byte, common.MaxEncryptedDataSize),
 		FileTrailer:   NewFileTrailer(),
 	}
 
@@ -126,7 +126,7 @@ func (ep *EncryptedPage) EncryptData(originalData []byte, key []byte) error {
 		return ErrInvalidEncryptedData
 	}
 
-	if len(originalData) > MaxEncryptedDataSize {
+	if len(originalData) > common.MaxEncryptedDataSize {
 		return ErrInvalidEncryptedData
 	}
 
@@ -353,15 +353,15 @@ func (ep *EncryptedPage) Serialize() []byte {
 
 	// 序列化文件头部
 	copy(data[offset:], ep.serializeFileHeader())
-	offset += FileHeaderSize
+	offset += common.FileHeaderSize
 
 	// 序列化加密头部
 	copy(data[offset:], ep.serializeEncryptionHeader())
-	offset += EncryptionHeaderSize
+	offset += common.EncryptionHeaderSize
 
 	// 序列化加密数据
 	copy(data[offset:], ep.EncryptedData)
-	offset += MaxEncryptedDataSize
+	offset += common.MaxEncryptedDataSize
 
 	// 序列化文件尾部
 	copy(data[offset:], ep.serializeFileTrailer())
@@ -378,23 +378,23 @@ func (ep *EncryptedPage) Deserialize(data []byte) error {
 	offset := 0
 
 	// 反序列化文件头部
-	if err := ep.deserializeFileHeader(data[offset : offset+FileHeaderSize]); err != nil {
+	if err := ep.deserializeFileHeader(data[offset : offset+common.FileHeaderSize]); err != nil {
 		return err
 	}
-	offset += FileHeaderSize
+	offset += common.FileHeaderSize
 
 	// 反序列化加密头部
-	if err := ep.deserializeEncryptionHeader(data[offset : offset+EncryptionHeaderSize]); err != nil {
+	if err := ep.deserializeEncryptionHeader(data[offset : offset+common.EncryptionHeaderSize]); err != nil {
 		return err
 	}
-	offset += EncryptionHeaderSize
+	offset += common.EncryptionHeaderSize
 
 	// 反序列化加密数据
-	copy(ep.EncryptedData, data[offset:offset+MaxEncryptedDataSize])
-	offset += MaxEncryptedDataSize
+	copy(ep.EncryptedData, data[offset:offset+common.MaxEncryptedDataSize])
+	offset += common.MaxEncryptedDataSize
 
 	// 反序列化文件尾部
-	if err := ep.deserializeFileTrailer(data[offset : offset+FileTrailerSize]); err != nil {
+	if err := ep.deserializeFileTrailer(data[offset : offset+common.FileTrailerSize]); err != nil {
 		return err
 	}
 
@@ -408,7 +408,7 @@ func (ep *EncryptedPage) serializeFileHeader() []byte {
 
 // serializeEncryptionHeader 序列化加密头部
 func (ep *EncryptedPage) serializeEncryptionHeader() []byte {
-	data := make([]byte, EncryptionHeaderSize)
+	data := make([]byte, common.EncryptionHeaderSize)
 
 	binary.LittleEndian.PutUint16(data[0:], uint16(ep.EncryptionHeader.Algorithm))
 	binary.LittleEndian.PutUint32(data[2:], ep.EncryptionHeader.KeyVersion)
@@ -432,7 +432,7 @@ func (ep *EncryptedPage) deserializeFileHeader(data []byte) error {
 
 // deserializeEncryptionHeader 反序列化加密头部
 func (ep *EncryptedPage) deserializeEncryptionHeader(data []byte) error {
-	if len(data) < EncryptionHeaderSize {
+	if len(data) < common.EncryptionHeaderSize {
 		return ErrInvalidPageSize
 	}
 

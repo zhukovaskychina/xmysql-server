@@ -29,7 +29,9 @@ function Assert-NonEmptyString {
         [string]$Context
     )
 
-    if (-not ($Value -is [string]) -or [string]::IsNullOrWhiteSpace($Value)) {
+    $IsDateValue = $Value -is [DateTime] -or $Value -is [DateTimeOffset]
+    $Text = if ($Value -is [string]) { $Value } elseif ($IsDateValue) { $Value.ToString("o", [Globalization.CultureInfo]::InvariantCulture) } else { "" }
+    if ([string]::IsNullOrWhiteSpace($Text)) {
         throw "$Context must be a non-empty string."
     }
 }

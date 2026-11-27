@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"path"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/conf"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/buffer_pool"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/metadata"
@@ -246,7 +248,9 @@ func (d *SimpleDatabase) loadTableFromFilesystem(tableName string) (*metadata.Ta
 		col := &metadata.Column{
 			Name:            colMeta.Name,
 			DataType:        colMeta.Type,
+			EnumValues:      normalizeEnumValues(colMeta.EnumValues),
 			CharMaxLength:   colMeta.Length,
+			IsUnsigned:      colMeta.IsUnsigned,
 			IsNullable:      colMeta.IsNullable,
 			IsAutoIncrement: colMeta.IsAutoIncrement,
 			DefaultValue:    colMeta.DefaultValue,
@@ -307,22 +311,34 @@ func (d *SimpleDatabase) loadAllTablesFromFilesystem() {
 		}
 
 		fileName := file.Name()
-		// 检查是否是表定义文件
-		if strings.HasSuffix(fileName, ".json") {
-			tableName := strings.TrimSuffix(fileName, ".json")
-
-			// 加载表定义
-			d.mu.Unlock()
-			table, err := d.loadTableFromFilesystem(tableName)
-			d.mu.Lock()
-
-			if err != nil {
-				logger.Warnf("Failed to load table %s: %v", tableName, err)
-				continue
-			}
-
-			d.tables[tableName] = table
+		// The executor persists table definitions as .frm JSON files, while
+		// the legacy SimpleDatabase writer uses .json.  Restart recovery must
+		// discover both formats; otherwise INFORMATION_SCHEMA can still list a
+		// table through another path while storage mappings are never rebuilt.
+		tableName := ""
+		switch {
+		case strings.HasSuffix(fileName, ".json"):
+			tableName = strings.TrimSuffix(fileName, ".json")
+		case strings.HasSuffix(fileName, ".frm"):
+			tableName = strings.TrimSuffix(fileName, ".frm")
+		default:
+			continue
 		}
+		if _, exists := d.tables[tableName]; exists {
+			continue
+		}
+
+		// 加载表定义
+		d.mu.Unlock()
+		table, err := d.loadTableFromFilesystem(tableName)
+		d.mu.Lock()
+
+		if err != nil {
+			logger.Warnf("Failed to load table %s: %v", tableName, err)
+			continue
+		}
+
+		d.tables[tableName] = table
 	}
 }
 
@@ -342,6 +358,7 @@ func (d *SimpleDatabase) buildTableFromDDL(stmt *sqlparser.DDL) (*metadata.Table
 			col := &metadata.Column{
 				Name:       colDef.Name.String(),
 				IsNullable: true, // 默认可空
+				EnumValues: normalizeEnumValues(colDef.Type.EnumValues),
 			}
 
 			// 解析列类型
@@ -350,6 +367,11 @@ func (d *SimpleDatabase) buildTableFromDDL(stmt *sqlparser.DDL) (*metadata.Table
 				if colDef.Type.Length != nil {
 					// 简化处理，实际需要解析sqlparser.SQLVal
 					col.CharMaxLength = 255
+				}
+				if colDef.Type.Scale != nil {
+					if parsed, err := strconv.Atoi(strings.TrimSpace(sqlparser.String(colDef.Type.Scale))); err == nil {
+						col.Scale = parsed
+					}
 				}
 			}
 
@@ -417,14 +439,17 @@ func (d *SimpleDatabase) createTableFile(tableName string, table *metadata.Table
 			Name:            col.Name,
 			Type:            col.DataType,
 			Length:          col.CharMaxLength,
+			Scale:           col.Scale,
 			IsNullable:      col.IsNullable,
 			IsPrimary:       isPrimary,
 			IsUnique:        isUnique,
 			IsAutoIncrement: col.IsAutoIncrement,
+			IsUnsigned:      col.IsUnsigned,
 			DefaultValue:    col.DefaultValue,
 			Charset:         col.Charset,
 			Collation:       col.Collation,
 			Comment:         col.Comment,
+			EnumValues:      normalizeEnumValues(col.EnumValues),
 		}
 		tableMeta.Columns = append(tableMeta.Columns, colMeta)
 	}
@@ -442,6 +467,17 @@ func (d *SimpleDatabase) createTableFile(tableName string, table *metadata.Table
 	}
 
 	return nil
+}
+
+func normalizeEnumValues(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		result = append(result, strings.Trim(strings.TrimSpace(value), "'\""))
+	}
+	return result
 }
 
 // deleteTableFile 删除表定义文件
@@ -851,16 +887,7 @@ func (m *SchemaManager) loadSingleDatabase(name, dbPath string) {
 // validateCharsetAndCollation 验证字符集和排序规则
 func (m *SchemaManager) validateCharsetAndCollation(charset, collation string) error {
 	// MySQL标准字符集验证
-	validCharsets := map[string][]string{
-		"utf8mb4": {"utf8mb4_general_ci", "utf8mb4_unicode_ci", "utf8mb4_bin", "utf8mb4_0900_ai_ci"},
-		"utf8":    {"utf8_general_ci", "utf8_unicode_ci", "utf8_bin"},
-		"latin1":  {"latin1_swedish_ci", "latin1_general_ci", "latin1_bin"},
-		"ascii":   {"ascii_general_ci", "ascii_bin"},
-		"binary":  {"binary"},
-	}
-
-	// 检查字符集是否支持
-	collations, exists := validCharsets[charset]
+	collations, exists := common.SchemaCharsetCollations(charset)
 	if !exists {
 		return fmt.Errorf("unsupported charset '%s'", charset)
 	}

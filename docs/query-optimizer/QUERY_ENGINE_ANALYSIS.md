@@ -1,7 +1,7 @@
 # XMySQL Server 查询引擎功能分析
 
 > **2026-04 维护说明**：本文为较早的**缺口与方向分析**，其中「谓词下推/列裁剪未实现」等判断已与当前代码不一致。  
-> **实现与集成请以** [query_optimizer_p0_implementation.md](./query_optimizer_p0_implementation.md)（含 CNF、ICP 等）、[query_optimizer_integration_summary.md](./query_optimizer_integration_summary.md) **及** [development/DEVELOPMENT_ROADMAP_TASKS.md](../development/DEVELOPMENT_ROADMAP_TASKS.md) **为准**；下文保留作历史架构参考。
+> **实现与集成请以** [query_optimizer_p0_implementation.md](./query_optimizer_p0_implementation.md)（含 CNF、ICP 等）、[query_optimizer_integration_summary.md](./query_optimizer_integration_summary.md) **及** [能力优先级索引](../planning/CAPABILITY_PRIORITY_INDEX_20260715.md) **为准**；下文保留作历史架构参考。
 
 ##  当前实现状况
 

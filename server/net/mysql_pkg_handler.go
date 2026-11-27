@@ -2,8 +2,10 @@ package net
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/zhukovaskychina/xmysql-server/logger"
+	"github.com/zhukovaskychina/xmysql-server/server/protocol"
 	"github.com/zhukovaskychina/xmysql-server/util"
 )
 
@@ -12,6 +14,12 @@ import (
 // Read 支持粘包/半包，一次只返回一个 *MySQLPackage
 // Write 支持 *MySQLPackage 和 []byte（已经编码好的原始 MySQL 包）
 type MySQLPkgHandler struct{}
+
+const (
+	mysqlCompressionEnabledKey  = "mysql_compression_enabled"
+	mysqlCompressionWriteSeqKey = "mysql_compression_write_sequence"
+	mysqlCompressionPendingKey  = "mysql_compression_pending_packets"
+)
 
 // NewMySQLPkgHandler 创建一个新的 MySQLPkgHandler 实例
 func NewMySQLPkgHandler() ReadWriter {
@@ -26,6 +34,13 @@ func NewMySQLPkgHandler() ReadWriter {
 //
 // data 为当前缓冲区中的所有可读字节，不保证只包含一个包
 func (h *MySQLPkgHandler) Read(session Session, data []byte) (interface{}, int, error) {
+	if mysqlCompressionEnabled(session) {
+		return h.readCompressed(session, data)
+	}
+	return h.readPlain(data)
+}
+
+func (h *MySQLPkgHandler) readPlain(data []byte) (interface{}, int, error) {
 	// 至少需要 4 字节头部: 3 字节长度 + 1 字节序号
 	if len(data) < 4 {
 		// 半包：头部都不完整
@@ -67,6 +82,108 @@ func (h *MySQLPkgHandler) Read(session Session, data []byte) (interface{}, int, 
 	return pkt, totalLen, nil
 }
 
+// ReadPending drains ordinary MySQL packets grouped in one compressed
+// transport frame. The session loop consumes the compressed frame once and
+// then calls this hook before reading the next TCP frame.
+func (h *MySQLPkgHandler) ReadPending(session Session) (interface{}, bool, error) {
+	if session == nil {
+		return nil, false, nil
+	}
+	pending, _ := session.GetAttribute(mysqlCompressionPendingKey).([]*MySQLPackage)
+	if len(pending) == 0 {
+		return nil, false, nil
+	}
+	pkg := pending[0]
+	if len(pending) == 1 {
+		session.RemoveAttribute(mysqlCompressionPendingKey)
+	} else {
+		session.SetAttribute(mysqlCompressionPendingKey, pending[1:])
+	}
+	return pkg, true, nil
+}
+
+func (h *MySQLPkgHandler) readCompressed(session Session, data []byte) (interface{}, int, error) {
+	if len(data) < protocol.CompressedHeaderSize {
+		return nil, 0, nil
+	}
+	compressedLength, _, _, err := protocol.ParseCompressedHeader(data[:protocol.CompressedHeaderSize])
+	if err != nil {
+		return nil, 0, err
+	}
+	totalLength := protocol.CompressedHeaderSize + compressedLength
+	if totalLength < protocol.CompressedHeaderSize {
+		return nil, 0, fmt.Errorf("compressed packet length overflow")
+	}
+	if len(data) < totalLength {
+		return nil, 0, nil
+	}
+	decompressed, _, err := protocol.NewCompressionHandler(true).DecompressPacket(data[:totalLength])
+	if err != nil {
+		return nil, 0, err
+	}
+	packets, err := decodePlainMySQLPackets(decompressed)
+	if err != nil {
+		return nil, 0, err
+	}
+	if len(packets) == 0 {
+		return nil, 0, fmt.Errorf("compressed packet contains no MySQL packets")
+	}
+	if packets[0].Header.PacketId == 0 && len(packets[0].Body) > 0 {
+		session.SetAttribute(mysqlCompressionWriteSeqKey, uint8(0))
+	}
+	if len(packets) > 1 {
+		session.SetAttribute(mysqlCompressionPendingKey, packets[1:])
+	}
+	return packets[0], totalLength, nil
+}
+
+func decodePlainMySQLPackets(data []byte) ([]*MySQLPackage, error) {
+	packets := make([]*MySQLPackage, 0, 1)
+	for offset := 0; offset < len(data); {
+		if len(data)-offset < 4 {
+			return nil, fmt.Errorf("compressed payload contains incomplete MySQL header")
+		}
+		_, payloadLen := util.ReadUB3(data, offset)
+		totalLength := int(payloadLen) + 4
+		if totalLength < 4 || len(data)-offset < totalLength {
+			return nil, fmt.Errorf("compressed payload contains incomplete MySQL packet")
+		}
+		header := []byte{data[offset], data[offset+1], data[offset+2]}
+		body := make([]byte, int(payloadLen))
+		copy(body, data[offset+4:offset+totalLength])
+		packets = append(packets, &MySQLPackage{
+			Header: MySQLPkgHeader{PacketLength: header, PacketId: data[offset+3]},
+			Body:   body,
+		})
+		offset += totalLength
+	}
+	return packets, nil
+}
+
+func mysqlCompressionEnabled(session Session) bool {
+	if session == nil {
+		return false
+	}
+	enabled, _ := session.GetAttribute(mysqlCompressionEnabledKey).(bool)
+	return enabled
+}
+
+func compressMySQLTransportPayload(session Session, payload []byte) ([]byte, error) {
+	if !mysqlCompressionEnabled(session) {
+		return payload, nil
+	}
+	sequence := uint8(0)
+	if raw, ok := session.GetAttribute(mysqlCompressionWriteSeqKey).(uint8); ok {
+		sequence = raw
+	}
+	compressed, err := protocol.NewCompressionHandler(true).CompressPacket(payload, sequence)
+	if err != nil {
+		return nil, err
+	}
+	session.SetAttribute(mysqlCompressionWriteSeqKey, sequence+1)
+	return compressed, nil
+}
+
 // Write 将业务层的包编码为字节流
 // 支持：
 //   - *MySQLPackage: 根据 Header.PacketLength/PacketId 和 Body 进行编码
@@ -82,7 +199,7 @@ func (h *MySQLPkgHandler) Write(session Session, pkg interface{}) ([]byte, error
 		return buf.Bytes(), nil
 
 	case []byte:
-		// 已经编码好的 MySQL 包，直接下发
+		// 已经编码好的普通 MySQL 包；传输压缩在 Session 发送层统一处理。
 		return v, nil
 
 	default:

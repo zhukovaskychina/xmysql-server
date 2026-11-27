@@ -135,6 +135,23 @@ func (tm *TableManager) DropTable(ctx context.Context, schemaName, tableName str
 	return nil
 }
 
+// InvalidateTableMetadata removes the table-manager caches for a logical table
+// without touching the underlying information schema.  DDL operations that
+// move or replace the durable table definition use this when the table is not
+// represented in the dictionary manager (the normal .frm-backed path).
+func (tm *TableManager) InvalidateTableMetadata(schemaName, tableName string) error {
+	if tm == nil {
+		return nil
+	}
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+	cacheKey := tm.getCacheKey(schemaName, tableName)
+	delete(tm.tableMetaCache, cacheKey)
+	delete(tm.tableStatsCache, cacheKey)
+	delete(tm.tableIndexCache, cacheKey)
+	return nil
+}
+
 // GetTableMetadata 获取表的元数据
 func (tm *TableManager) GetTableMetadata(ctx context.Context, schemaName, tableName string) (*metadata.TableMeta, error) {
 	tm.mu.RLock()
@@ -193,6 +210,27 @@ func (tm *TableManager) GetTableStats(ctx context.Context, schemaName, tableName
 	return stats, nil
 }
 
+// InvalidateTableStats drops both the table-manager cache and the underlying
+// information-schema cache after a committed DML change.
+func (tm *TableManager) InvalidateTableStats(ctx context.Context, schemaName, tableName string) error {
+	if tm == nil {
+		return nil
+	}
+	if tm.schemaManager != nil {
+		if invalidator, ok := tm.schemaManager.(interface {
+			InvalidateTableStats(context.Context, string, string) error
+		}); ok {
+			if err := invalidator.InvalidateTableStats(ctx, schemaName, tableName); err != nil {
+				return err
+			}
+		}
+	}
+	tm.mu.Lock()
+	delete(tm.tableStatsCache, tm.getCacheKey(schemaName, tableName))
+	tm.mu.Unlock()
+	return nil
+}
+
 // GetTableIndices 获取表的索引
 func (tm *TableManager) GetTableIndices(ctx context.Context, schemaName, tableName string) ([]*Index, error) {
 	tm.mu.RLock()
@@ -213,9 +251,11 @@ func (tm *TableManager) GetTableIndices(ctx context.Context, schemaName, tableNa
 	var indices []*Index
 	for _, indexMeta := range metadata.Indices {
 		idx := &Index{
-			Name:     indexMeta.Name,
-			Columns:  convertColumnsFromMeta(indexMeta.Columns),
-			IsUnique: indexMeta.Unique,
+			Name:          indexMeta.Name,
+			Columns:       convertColumnsFromMeta(indexMeta.Columns),
+			IsUnique:      indexMeta.Unique,
+			IsVisible:     indexMeta.IsVisible,
+			VisibilitySet: indexMeta.VisibilitySet,
 		}
 		indices = append(indices, idx)
 	}
@@ -260,9 +300,11 @@ func (tm *TableManager) RefreshTableMetadata(ctx context.Context, schemaName, ta
 	var indices []*Index
 	for _, indexMeta := range metadata.Indices {
 		idx := &Index{
-			Name:     indexMeta.Name,
-			Columns:  convertColumnsFromMeta(indexMeta.Columns),
-			IsUnique: indexMeta.Unique,
+			Name:          indexMeta.Name,
+			Columns:       convertColumnsFromMeta(indexMeta.Columns),
+			IsUnique:      indexMeta.Unique,
+			IsVisible:     indexMeta.IsVisible,
+			VisibilitySet: indexMeta.VisibilitySet,
 		}
 		indices = append(indices, idx)
 	}

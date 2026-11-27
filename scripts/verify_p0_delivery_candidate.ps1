@@ -290,8 +290,32 @@ foreach ($ExpectedRawLogText in @(
     }
 }
 
-if (-not $RawLogContent.Contains([string]$Report.started_at)) {
-    throw "Candidate raw log does not match candidate started_at '$($Report.started_at)'."
+$RawLogStartedAtMatch = [regex]::Match($RawLogContent, '(?m)^=== P0 delivery candidate (?<started_at>.+) ===\r?$')
+if (-not $RawLogStartedAtMatch.Success) {
+    throw "Candidate raw log is missing the candidate start timestamp header."
+}
+
+try {
+    # ConvertFrom-Json may materialize an ISO-8601 timestamp as a localized
+    # DateTime object. Compare parsed instants instead of comparing its
+    # culture-dependent string representation with the raw ISO header.
+    $ReportStartedAt = [DateTimeOffset]::Parse(
+        [string]$Report.started_at,
+        [Globalization.CultureInfo]::InvariantCulture,
+        [Globalization.DateTimeStyles]::RoundtripKind
+    )
+    $RawLogStartedAt = [DateTimeOffset]::Parse(
+        $RawLogStartedAtMatch.Groups["started_at"].Value,
+        [Globalization.CultureInfo]::InvariantCulture,
+        [Globalization.DateTimeStyles]::RoundtripKind
+    )
+}
+catch {
+    throw "Candidate start timestamp cannot be parsed from report/raw log: $($_.Exception.Message)"
+}
+
+if ([Math]::Abs(($ReportStartedAt - $RawLogStartedAt).TotalSeconds) -gt 2) {
+    throw "Candidate raw log start timestamp does not match candidate started_at '$($Report.started_at)'."
 }
 
 foreach ($ExpectedRawLogValue in @(

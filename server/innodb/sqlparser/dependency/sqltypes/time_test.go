@@ -16,7 +16,7 @@ import (
 	querypb "github.com/zhukovaskychina/xmysql-server/server/innodb/sqlparser/dependency/querypb"
 )
 
-func testVal(tp querypb.Type, s string) Value {
+func testTimeVal(tp querypb.Type, s string) Value {
 	return MakeTrusted(tp, []byte(s))
 }
 
@@ -26,43 +26,43 @@ func TestTimeToNumeric(t *testing.T) {
 		out interface{}
 	}{
 		{
-			in:  testVal(Timestamp, "2012-02-24 23:19:43"),
+			in:  testTimeVal(Timestamp, "2012-02-24 23:19:43"),
 			out: int64(20120224231943),
 		},
 		{
-			in:  testVal(Timestamp, "2012-02-24 23:19:43.120"),
+			in:  testTimeVal(Timestamp, "2012-02-24 23:19:43.120"),
 			out: float64(20120224231943.120),
 		},
 		{
-			in:  testVal(Time, "-23:19:43.120"),
+			in:  testTimeVal(Time, "-23:19:43.120"),
 			out: float64(-231943.120),
 		},
 		{
-			in:  testVal(Time, "-63:19:43"),
+			in:  testTimeVal(Time, "-63:19:43"),
 			out: int64(-631943),
 		},
 		{
-			in:  testVal(Datetime, "0000-00-00 00:00:00"),
+			in:  testTimeVal(Datetime, "0000-00-00 00:00:00"),
 			out: int64(0),
 		},
 		{
-			in:  testVal(Datetime, "2012-02-24 23:19:43.000012"),
+			in:  testTimeVal(Datetime, "2012-02-24 23:19:43.000012"),
 			out: float64(20120224231943.000012),
 		},
 		{
-			in:  testVal(Date, "0000-00-00"),
+			in:  testTimeVal(Date, "0000-00-00"),
 			out: int64(0),
 		},
 		{
-			in:  testVal(Date, "2012-02-24"),
+			in:  testTimeVal(Date, "2012-02-24"),
 			out: int64(20120224),
 		},
 		{
-			in:  testVal(Year, "2012"),
+			in:  testTimeVal(Year, "2012"),
 			out: uint64(2012),
 		},
 		{
-			in:  testVal(Year, "12"),
+			in:  testTimeVal(Year, "12"),
 			out: uint64(12),
 		},
 	}

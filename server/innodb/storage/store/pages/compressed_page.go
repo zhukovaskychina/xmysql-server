@@ -46,8 +46,8 @@ import (
 
 // 压缩页面常量
 const (
-	CompressionHeaderSize = 16    // 压缩头部大小
-	MaxCompressedDataSize = 16322 // 最大压缩数据大小 (16384 - 38 - 16 - 8)
+	CompressionHeaderSize = common.CompressionHeaderSize // 压缩头部大小
+	MaxCompressedDataSize = common.MaxCompressedDataSize // 最大压缩数据大小 (16384 - 38 - 16 - 8)
 )
 
 // 压缩算法类型
@@ -143,7 +143,7 @@ func (cp *CompressedPage) CompressData(originalData []byte) error {
 	cp.CompressedData = compressedData
 
 	// 计算需要的填充大小
-	usedSize := FileHeaderSize + CompressionHeaderSize + len(compressedData) + FileTrailerSize
+	usedSize := common.FileHeaderSize + common.CompressionHeaderSize + len(compressedData) + common.FileTrailerSize
 	paddingSize := common.PageSize - usedSize
 	if paddingSize > 0 {
 		cp.Padding = make([]byte, paddingSize)
@@ -313,11 +313,11 @@ func (cp *CompressedPage) Serialize() []byte {
 
 	// 序列化文件头部
 	copy(data[offset:], cp.serializeFileHeader())
-	offset += FileHeaderSize
+	offset += common.FileHeaderSize
 
 	// 序列化压缩头部
 	copy(data[offset:], cp.serializeCompressionHeader())
-	offset += CompressionHeaderSize
+	offset += common.CompressionHeaderSize
 
 	// 序列化压缩数据
 	copy(data[offset:], cp.CompressedData)
@@ -328,7 +328,7 @@ func (cp *CompressedPage) Serialize() []byte {
 	offset += len(cp.Padding)
 
 	// 序列化文件尾部
-	copy(data[len(data)-FileTrailerSize:], cp.serializeFileTrailer())
+	copy(data[len(data)-common.FileTrailerSize:], cp.serializeFileTrailer())
 
 	return data
 }
@@ -342,16 +342,16 @@ func (cp *CompressedPage) Deserialize(data []byte) error {
 	offset := 0
 
 	// 反序列化文件头部
-	if err := cp.deserializeFileHeader(data[offset : offset+FileHeaderSize]); err != nil {
+	if err := cp.deserializeFileHeader(data[offset : offset+common.FileHeaderSize]); err != nil {
 		return err
 	}
-	offset += FileHeaderSize
+	offset += common.FileHeaderSize
 
 	// 反序列化压缩头部
-	if err := cp.deserializeCompressionHeader(data[offset : offset+CompressionHeaderSize]); err != nil {
+	if err := cp.deserializeCompressionHeader(data[offset : offset+common.CompressionHeaderSize]); err != nil {
 		return err
 	}
-	offset += CompressionHeaderSize
+	offset += common.CompressionHeaderSize
 
 	// 反序列化压缩数据
 	compressedDataSize := int(cp.CompressionHeader.CompressedSize)
@@ -360,14 +360,14 @@ func (cp *CompressedPage) Deserialize(data []byte) error {
 	offset += compressedDataSize
 
 	// 反序列化填充数据
-	paddingSize := common.PageSize - FileHeaderSize - CompressionHeaderSize - compressedDataSize - FileTrailerSize
+	paddingSize := common.PageSize - common.FileHeaderSize - common.CompressionHeaderSize - compressedDataSize - common.FileTrailerSize
 	if paddingSize > 0 {
 		cp.Padding = make([]byte, paddingSize)
 		copy(cp.Padding, data[offset:offset+paddingSize])
 	}
 
 	// 反序列化文件尾部
-	if err := cp.deserializeFileTrailer(data[len(data)-FileTrailerSize:]); err != nil {
+	if err := cp.deserializeFileTrailer(data[len(data)-common.FileTrailerSize:]); err != nil {
 		return err
 	}
 
@@ -381,7 +381,7 @@ func (cp *CompressedPage) serializeFileHeader() []byte {
 
 // serializeCompressionHeader 序列化压缩头部
 func (cp *CompressedPage) serializeCompressionHeader() []byte {
-	data := make([]byte, CompressionHeaderSize)
+	data := make([]byte, common.CompressionHeaderSize)
 
 	binary.LittleEndian.PutUint32(data[0:], cp.CompressionHeader.OriginalSize)
 	binary.LittleEndian.PutUint32(data[4:], cp.CompressionHeader.CompressedSize)
@@ -404,7 +404,7 @@ func (cp *CompressedPage) deserializeFileHeader(data []byte) error {
 
 // deserializeCompressionHeader 反序列化压缩头部
 func (cp *CompressedPage) deserializeCompressionHeader(data []byte) error {
-	if len(data) < CompressionHeaderSize {
+	if len(data) < common.CompressionHeaderSize {
 		return ErrInvalidPageSize
 	}
 

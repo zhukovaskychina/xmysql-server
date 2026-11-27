@@ -2,7 +2,7 @@
 
 ## 📚 文档概览
 
-本文档集提供了XMySQL Server B+树核心功能完善项目的完整指南，包括设计、实施计划、架构说明、开发指引和任务追踪。`btree/` 下各 Markdown 文首（2026-04）均含返回本索引与路线图 `DEVELOPMENT_ROADMAP_TASKS.md` 的导航。
+本文档集提供了XMySQL Server B+树核心功能完善项目的完整指南，包括设计、实施计划、架构说明、开发指引和任务追踪。`btree/` 下各 Markdown 文首（2026-04）均含返回本索引与能力优先级 `CAPABILITY_PRIORITY_INDEX_20260715.md` 的导航。
 
 ---
 
@@ -130,7 +130,7 @@ B+树核心功能实施文档/
 **受众**: 开发者、项目经理  
 **用途**: 记录特定开发会话后的分裂/合并等进度（**与 V1 摘要互补，非替代**）
 
-**说明**: 文内百分比为历史快照；**当前完成度**请对照 [DEVELOPMENT_ROADMAP_TASKS.md](../development/DEVELOPMENT_ROADMAP_TASKS.md)。
+**说明**: 文内百分比为历史快照；**当前状态**请对照 [能力优先级索引](../planning/CAPABILITY_PRIORITY_INDEX_20260715.md)。
 
 ---
 

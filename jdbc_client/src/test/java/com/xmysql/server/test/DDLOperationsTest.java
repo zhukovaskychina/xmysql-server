@@ -156,9 +156,47 @@ public class DDLOperationsTest extends BaseIntegrationTest {
             dropDatabaseIfExists(dbName);
         }
     }
-    
+
     @Test
     @Order(9)
+    @DisplayName("DatabaseMetaData columns and indexes reflect created table")
+    public void testDatabaseMetaDataColumnsAndIndexes() throws SQLException {
+        String dbName = "p0_meta_columns_db";
+
+        try {
+            try (Statement stmt = connection.createStatement()) {
+                stmt.executeUpdate("CREATE DATABASE IF NOT EXISTS " + dbName);
+                stmt.executeUpdate("USE " + dbName);
+                stmt.executeUpdate("CREATE TABLE IF NOT EXISTS meta_columns (id INT PRIMARY KEY, name VARCHAR(50), UNIQUE KEY uk_meta_columns_name (name))");
+            }
+
+            DatabaseMetaData meta = connection.getMetaData();
+            try (ResultSet rs = meta.getColumns(dbName, null, "meta_columns", "%")) {
+                assertThat(rs.next()).isTrue();
+                assertThat(rs.getString("TABLE_NAME")).isEqualTo("meta_columns");
+                assertThat(rs.getString("COLUMN_NAME")).isEqualTo("id");
+            }
+            try (ResultSet rs = meta.getPrimaryKeys(dbName, null, "meta_columns")) {
+                assertThat(rs.next()).isTrue();
+                assertThat(rs.getString("COLUMN_NAME")).isEqualTo("id");
+            }
+            try (ResultSet rs = meta.getIndexInfo(dbName, null, "meta_columns", false, false)) {
+                boolean foundUniqueName = false;
+                while (rs.next()) {
+                    if ("uk_meta_columns_name".equals(rs.getString("INDEX_NAME"))) {
+                        foundUniqueName = true;
+                        break;
+                    }
+                }
+                assertThat(foundUniqueName).isTrue();
+            }
+        } finally {
+            dropDatabaseIfExists(dbName);
+        }
+    }
+
+    @Test
+    @Order(11)
     @DisplayName("测试创建表 - 基本类型")
     public void testCreateTableBasicTypes() throws SQLException {
         String dbName = TEST_DB_PREFIX + "table_test";
@@ -214,7 +252,7 @@ public class DDLOperationsTest extends BaseIntegrationTest {
     }
     
     @Test
-    @Order(11)
+    @Order(12)
     @DisplayName("测试创建表 - 外键约束")
     public void testCreateTableWithForeignKey() throws SQLException {
         String dbName = TEST_DB_PREFIX + "fk_test";
@@ -249,7 +287,7 @@ public class DDLOperationsTest extends BaseIntegrationTest {
     }
     
     @Test
-    @Order(12)
+    @Order(13)
     @DisplayName("测试删除表")
     public void testDropTable() throws SQLException {
         String dbName = TEST_DB_PREFIX + "drop_test";
@@ -286,7 +324,7 @@ public class DDLOperationsTest extends BaseIntegrationTest {
     }
     
     @Test
-    @Order(13)
+    @Order(14)
     @DisplayName("测试ALTER TABLE - 添加列")
     public void testAlterTableAddColumn() throws SQLException {
         String dbName = TEST_DB_PREFIX + "alter_test";
@@ -315,7 +353,7 @@ public class DDLOperationsTest extends BaseIntegrationTest {
     }
     
     @Test
-    @Order(14)
+    @Order(15)
     @DisplayName("测试TRUNCATE TABLE")
     public void testTruncateTable() throws SQLException {
         String dbName = TEST_DB_PREFIX + "truncate_test";

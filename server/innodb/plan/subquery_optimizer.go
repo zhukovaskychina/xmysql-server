@@ -42,7 +42,48 @@ func (opt *SubqueryOptimizer) optimizeSubqueryRecursive(plan LogicalPlan) Logica
 	switch v := plan.(type) {
 	case *LogicalSubquery:
 		opt.stats.TotalSubqueries++
-		return opt.optimizeSubqueryNode(v)
+		// A standalone subquery has no outer row source to become the left
+		// child of an Apply/Join.  Flattening it here would create a one-child
+		// Apply that cannot be converted into a valid physical plan.  Keep the
+		// boundary intact and optimize only the inner query; callers that own
+		// both row sources can still invoke the explicit IN/EXISTS rewrites.
+		if v.Subplan != nil {
+			v.Subplan = opt.optimizeSubqueryRecursive(v.Subplan)
+		}
+		return v
+
+	case *LogicalCTE:
+		// CTE.Query is a named plan field rather than a guaranteed child. Walk
+		// it explicitly so subqueries inside a CTE definition are not skipped
+		// when the builder keeps the definition separate from Children().
+		if v.Query != nil {
+			v.Query = opt.optimizeSubqueryRecursive(v.Query)
+		}
+		return opt.optimizeSubqueryChildren(v, v.Query)
+
+	case *LogicalRecursiveCTE:
+		// Anchor and Recursive are likewise independent plan fields. Both must
+		// be optimized, but a child reference that points at either field must
+		// not be visited a second time.
+		if v.Anchor != nil {
+			v.Anchor = opt.optimizeSubqueryRecursive(v.Anchor)
+		}
+		if v.Recursive != nil {
+			v.Recursive = opt.optimizeSubqueryRecursive(v.Recursive)
+		}
+		return opt.optimizeSubqueryChildren(v, v.Anchor, v.Recursive)
+
+	case *LogicalCTEStatement:
+		// Definitions and Body are the authoritative CTE statement fields. A
+		// few callers also mirror them into Children(), so deduplicate those
+		// references to keep optimizer statistics stable.
+		for i, definition := range v.Definitions {
+			v.Definitions[i] = opt.optimizeSubqueryRecursive(definition)
+		}
+		if v.Body != nil {
+			v.Body = opt.optimizeSubqueryRecursive(v.Body)
+		}
+		return opt.optimizeSubqueryChildren(v, append(append([]LogicalPlan{}, v.Definitions...), v.Body)...)
 
 	case *LogicalApply:
 		return opt.optimizeApplyNode(v)
@@ -87,12 +128,45 @@ func (opt *SubqueryOptimizer) optimizeSubqueryRecursive(plan LogicalPlan) Logica
 	}
 }
 
+// optimizeSubqueryChildren recursively visits only children that are not
+// already represented by an owning plan field. Logical CTE nodes historically
+// used both representations, and visiting the same pointer twice would make
+// optimization counters depend on how a plan was assembled.
+func (opt *SubqueryOptimizer) optimizeSubqueryChildren(plan LogicalPlan, owned ...LogicalPlan) LogicalPlan {
+	if plan == nil {
+		return nil
+	}
+	children := plan.Children()
+	if len(children) == 0 {
+		return plan
+	}
+	optimized := make([]LogicalPlan, len(children))
+	for i, child := range children {
+		alreadyOwned := false
+		for _, field := range owned {
+			if field != nil && child == field {
+				alreadyOwned = true
+				break
+			}
+		}
+		if alreadyOwned {
+			optimized[i] = child
+			continue
+		}
+		optimized[i] = opt.optimizeSubqueryRecursive(child)
+	}
+	plan.SetChildren(optimized)
+	return plan
+}
+
 // optimizeSubqueryNode 优化子查询节点
 func (opt *SubqueryOptimizer) optimizeSubqueryNode(subquery *LogicalSubquery) LogicalPlan {
 	// 1. 如果是关联子查询，尝试去关联
 	if subquery.Correlated {
 		if decorrelated := opt.decorrelateSubquery(subquery); decorrelated != nil {
-			opt.stats.DecorrelatedSubqueries++
+			if decorrelated != subquery {
+				opt.stats.DecorrelatedSubqueries++
+			}
 			return decorrelated
 		}
 	}
@@ -112,38 +186,19 @@ func (opt *SubqueryOptimizer) optimizeSubqueryNode(subquery *LogicalSubquery) Lo
 	}
 }
 
-// decorrelateSubquery 去关联子查询
-// 将关联子查询转换为非关联子查询 + JOIN
+// decorrelateSubquery 去关联子查询。
+//
+// This helper only receives the subquery node, not the enclosing query's row
+// source. It therefore cannot safely construct an Apply/Join: doing so would
+// create a one-child plan and lose the outer-row binding required by the
+// correlation. The enclosing-plan rewrites are responsible for supplying both
+// row sources; until then the correlated boundary must remain intact.
 func (opt *SubqueryOptimizer) decorrelateSubquery(subquery *LogicalSubquery) LogicalPlan {
 	if !subquery.Correlated || len(subquery.OuterRefs) == 0 {
 		return nil
 	}
 
-	// 1. 识别关联列
-	correlatedCols := subquery.OuterRefs
-
-	// 2. 将关联列转换为JOIN条件
-	joinConditions := make([]Expression, 0, len(correlatedCols))
-	for _, col := range correlatedCols {
-		// 创建等值连接条件: outer.col = inner.col
-		joinConditions = append(joinConditions, &BinaryOperation{
-			Op:    OpEQ,
-			Left:  &Column{Name: "outer_" + col},
-			Right: &Column{Name: "inner_" + col},
-		})
-	}
-
-	// 3. 创建Apply算子（关联JOIN）
-	apply := &LogicalApply{
-		BaseLogicalPlan: BaseLogicalPlan{
-			children: []LogicalPlan{subquery.Subplan},
-		},
-		ApplyType:  "INNER",
-		Correlated: false, // 去关联后变为非关联
-		JoinConds:  joinConditions,
-	}
-
-	return apply
+	return subquery
 }
 
 // optimizeInSubquery 优化IN子查询
@@ -154,19 +209,11 @@ func (opt *SubqueryOptimizer) optimizeInSubquery(subquery *LogicalSubquery) Logi
 	// 转换为:
 	// SELECT * FROM t1 SEMI JOIN t2 ON t1.id = t2.id
 
-	opt.stats.InToSemiJoin++
-
-	// 创建SEMI JOIN
-	semiJoin := &LogicalApply{
-		BaseLogicalPlan: BaseLogicalPlan{
-			children: []LogicalPlan{subquery.Subplan},
-		},
-		ApplyType:  "SEMI",
-		Correlated: subquery.Correlated,
-		JoinConds:  []Expression{}, // 需要从IN条件中提取
-	}
-
-	return semiJoin
+	// This helper receives only the subquery node. Without the enclosing
+	// outer-row source it cannot construct a valid two-child Apply, and a
+	// one-child Apply would lose the IN predicate's outer binding. The caller
+	// that owns both sides must perform the SEMI rewrite explicitly.
+	return subquery
 }
 
 // optimizeExistsSubquery 优化EXISTS子查询
@@ -177,19 +224,10 @@ func (opt *SubqueryOptimizer) optimizeExistsSubquery(subquery *LogicalSubquery) 
 	// 转换为:
 	// SELECT * FROM t1 SEMI JOIN t2 ON t1.id = t2.id
 
-	opt.stats.ExistsToSemiJoin++
-
-	// 创建SEMI JOIN
-	semiJoin := &LogicalApply{
-		BaseLogicalPlan: BaseLogicalPlan{
-			children: []LogicalPlan{subquery.Subplan},
-		},
-		ApplyType:  "SEMI",
-		Correlated: subquery.Correlated,
-		JoinConds:  []Expression{}, // 需要从EXISTS条件中提取
-	}
-
-	return semiJoin
+	// As with IN, this node-only helper has no outer child to bind. Preserve
+	// the boundary; an enclosing-plan rewrite is required before a SEMI Apply
+	// can be materialized safely.
+	return subquery
 }
 
 // optimizeScalarSubquery 优化标量子查询
@@ -217,10 +255,28 @@ func (opt *SubqueryOptimizer) optimizeQuantifiedSubquery(subquery *LogicalSubque
 func (opt *SubqueryOptimizer) optimizeApplyNode(apply *LogicalApply) LogicalPlan {
 	// 如果Apply不是关联的，可以转换为普通JOIN
 	if !apply.Correlated {
+		// A Join/Apply rewrite requires both row sources. Preserve malformed or
+		// standalone boundaries instead of manufacturing a one-child Join that
+		// later physical planning cannot execute safely.
+		if len(apply.Children()) != 2 {
+			for i, child := range apply.Children() {
+				children := apply.Children()
+				children[i] = opt.optimizeSubqueryRecursive(child)
+				apply.SetChildren(children)
+			}
+			return apply
+		}
 		joinType := apply.ApplyType
 		if joinType == "SEMI" || joinType == "ANTI" {
-			// 保持SEMI/ANTI JOIN
-			joinType = "INNER" // 简化处理
+			// SEMI/ANTI only return the outer side and must not be lowered to
+			// INNER, which would duplicate rows and expose inner columns. Keep
+			// the two-child Apply so the executor can preserve its semantics.
+			for i, child := range apply.Children() {
+				children := apply.Children()
+				children[i] = opt.optimizeSubqueryRecursive(child)
+				apply.SetChildren(children)
+			}
+			return apply
 		}
 
 		join := &LogicalJoin{
@@ -228,7 +284,7 @@ func (opt *SubqueryOptimizer) optimizeApplyNode(apply *LogicalApply) LogicalPlan
 				children: apply.Children(),
 			},
 			JoinType:   joinType,
-			Conditions: apply.JoinConds,
+			Conditions: splitConjunctiveConditions(apply.JoinConds),
 		}
 
 		opt.stats.PulledUpSubqueries++

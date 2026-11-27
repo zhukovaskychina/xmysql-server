@@ -1,6 +1,7 @@
 package blocks
 
 import (
+	"github.com/zhukovaskychina/xmysql-server/server/common"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"os"
 	"path"
@@ -77,8 +78,8 @@ func (bf *BlockFile) ReadPage(pageNo uint32) ([]byte, error) {
 		}
 	}
 
-	offset := int64(pageNo) * 16384 // 16KB pages
-	buf := make([]byte, 16384)
+	offset := int64(pageNo) * common.PageSize // 16KB pages
+	buf := make([]byte, common.PageSize)
 
 	n, err := bf.file.ReadAt(buf, offset)
 	if err != nil {
@@ -99,7 +100,7 @@ func (bf *BlockFile) WritePage(pageNo uint32, content []byte) error {
 		}
 	}
 
-	offset := int64(pageNo) * 16384 // 16KB pages
+	offset := int64(pageNo) * common.PageSize // 16KB pages
 	_, err := bf.file.WriteAt(content, offset)
 	return err
 }

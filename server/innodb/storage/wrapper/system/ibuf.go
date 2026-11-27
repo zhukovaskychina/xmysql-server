@@ -5,6 +5,8 @@ import (
 	"errors"
 	"sync/atomic"
 	"time"
+
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 )
 
 var (
@@ -46,8 +48,13 @@ type IBufPage struct {
 
 // NewIBufPage 创建IBuf页面
 func NewIBufPage(spaceID, pageNo uint32) *IBufPage {
+	return NewIBufPageWithStorage(spaceID, pageNo, nil)
+}
+
+// NewIBufPageWithStorage creates an insert-buffer page backed by a durable provider.
+func NewIBufPageWithStorage(spaceID, pageNo uint32, storage basic.StorageProvider) *IBufPage {
 	ip := &IBufPage{
-		BaseSystemPage: NewBaseSystemPage(spaceID, pageNo, SystemPageTypeIBuf),
+		BaseSystemPage: NewBaseSystemPageWithStorage(spaceID, pageNo, SystemPageTypeIBuf, storage),
 		freeList:       make([]uint16, 0),
 		dirtyList:      make([]uint16, 0),
 	}

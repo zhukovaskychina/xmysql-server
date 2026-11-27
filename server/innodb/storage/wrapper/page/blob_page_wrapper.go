@@ -3,6 +3,7 @@ package page
 import (
 	"errors"
 	"github.com/zhukovaskychina/xmysql-server/server/common"
+	"github.com/zhukovaskychina/xmysql-server/server/innodb/basic"
 	"github.com/zhukovaskychina/xmysql-server/server/innodb/storage/store/pages"
 )
 
@@ -30,6 +31,13 @@ func NewBlobPageWrapper(id, spaceID uint32, segmentID uint64) *BlobPageWrapper {
 	}
 }
 
+// NewBlobPageWrapperWithStorage creates a provider-backed BLOB wrapper.
+func NewBlobPageWrapperWithStorage(id, spaceID uint32, segmentID uint64, storage basic.StorageProvider) *BlobPageWrapper {
+	page := NewBlobPageWrapper(id, spaceID, segmentID)
+	page.storage = storage
+	return page
+}
+
 // 实现IPageWrapper接口
 
 // ParseFromBytes 从字节数据解析BLOB页面
@@ -37,7 +45,7 @@ func (bpw *BlobPageWrapper) ParseFromBytes(data []byte) error {
 	bpw.Lock()
 	defer bpw.Unlock()
 
-	if err := bpw.BasePageWrapper.ParseFromBytes(data); err != nil {
+	if err := bpw.BasePageWrapper.parseFromBytesLocked(data); err != nil {
 		return err
 	}
 
@@ -66,6 +74,28 @@ func (bpw *BlobPageWrapper) ToBytes() ([]byte, error) {
 	return data, nil
 }
 
+// Read loads and decodes the BLOB-specific page payload after the common page
+// wrapper has read the durable 16KB image.
+func (bpw *BlobPageWrapper) Read() error {
+	if err := bpw.BasePageWrapper.Read(); err != nil {
+		return err
+	}
+
+	bpw.Lock()
+	defer bpw.Unlock()
+	return bpw.blobPage.Deserialize(append([]byte(nil), bpw.content...))
+}
+
+// Write serializes the BLOB-specific payload before delegating durable I/O to
+// the common page wrapper.
+func (bpw *BlobPageWrapper) Write() error {
+	bpw.Lock()
+	bpw.content = bpw.blobPage.Serialize()
+	bpw.markDirtyLocked()
+	bpw.Unlock()
+	return bpw.BasePageWrapper.Write()
+}
+
 // BLOB页面特有的方法
 
 // SetBlobData 设置BLOB数据
@@ -77,7 +107,7 @@ func (bpw *BlobPageWrapper) SetBlobData(data []byte, totalLength uint32, offset 
 		return err
 	}
 
-	bpw.MarkDirty()
+	bpw.BasePageWrapper.markDirtyLocked()
 	return nil
 }
 
