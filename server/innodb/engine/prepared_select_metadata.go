@@ -329,6 +329,9 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 		return nil
 	case *sqlparser.FuncExpr:
 		name := strings.ToUpper(strings.Trim(node.Name.String(), "` "))
+		if name == "COUNT" && isPreparedCountStar(node) {
+			return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, IsNullable: false}
+		}
 		arguments := make([]sqlparser.Expr, 0, len(node.Exprs))
 		for _, selectExpression := range node.Exprs {
 			aliased, ok := selectExpression.(*sqlparser.AliasedExpr)
@@ -341,6 +344,11 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 			return d.preparedConcatMetadata(expression, shape, resultType, name, arguments)
 		}
 		switch name {
+		case "COUNT":
+			if len(arguments) == 0 {
+				return nil
+			}
+			return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, IsNullable: false}
 		case "IF":
 			if len(arguments) == 3 {
 				return d.preparedMergedExpressionMetadata(expression, shape, resultType, arguments[1:])
@@ -416,6 +424,14 @@ func (d *preparedSelectDescriber) preparedMergedExpressionMetadata(expression sq
 		return nil
 	}
 	return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: preparedMinInt(precision, 65), Scale: maximumScale, IsNullable: true}
+}
+
+func isPreparedCountStar(function *sqlparser.FuncExpr) bool {
+	if function == nil || !strings.EqualFold(strings.Trim(function.Name.String(), "` "), "COUNT") || len(function.Exprs) != 1 {
+		return false
+	}
+	star, ok := function.Exprs[0].(*sqlparser.StarExpr)
+	return ok && star != nil && star.TableName.IsEmpty()
 }
 
 func (d *preparedSelectDescriber) preparedMergedStringMetadata(expression sqlparser.Expr, shape joinResultShape, resultType metadata.DataType, values []sqlparser.Expr) *metadata.ColumnMeta {
@@ -1360,6 +1376,9 @@ func (d *preparedSelectDescriber) expressionType(expression sqlparser.Expr, shap
 
 func (d *preparedSelectDescriber) builtinFunctionResultType(function *sqlparser.FuncExpr, shape joinResultShape, ctes map[string][]joinOutputColumn, depth int) (metadata.DataType, bool, error) {
 	name := strings.ToUpper(strings.Trim(function.Name.String(), "` "))
+	if name == "COUNT" && isPreparedCountStar(function) {
+		return metadata.TypeBigInt, true, nil
+	}
 	arguments := make([]sqlparser.Expr, 0, len(function.Exprs))
 	for _, expression := range function.Exprs {
 		aliased, ok := expression.(*sqlparser.AliasedExpr)
