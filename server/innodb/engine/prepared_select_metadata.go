@@ -305,6 +305,27 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 				}
 			}
 		}
+	case *sqlparser.BinaryExpr:
+		if resultType != metadata.TypeDecimal {
+			return nil
+		}
+		leftScale, leftKnown := d.preparedNumericExpressionScale(node.Left, shape, 0)
+		rightScale, rightKnown := d.preparedNumericExpressionScale(node.Right, shape, 0)
+		if !leftKnown || !rightKnown {
+			return nil
+		}
+		scale := 0
+		switch strings.ToLower(strings.TrimSpace(node.Operator)) {
+		case "+", "-", "%":
+			scale = maxInt(leftScale, rightScale)
+		case "*":
+			scale = preparedCapDecimalScale(leftScale + rightScale)
+		case "/":
+			scale = preparedCapDecimalScale(leftScale + d.divisionPrecisionIncrement())
+		default:
+			return nil
+		}
+		return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Scale: scale, IsNullable: true}
 	case *sqlparser.FuncExpr:
 		name := strings.ToUpper(strings.Trim(node.Name.String(), "` "))
 		arguments := make([]sqlparser.Expr, 0, len(node.Exprs))
@@ -736,6 +757,104 @@ func preparedExactDecimalLiteralShape(value []byte) (precision, scale int, ok bo
 		return 0, 0, false
 	}
 	return precision, scale, true
+}
+
+func (d *preparedSelectDescriber) preparedNumericExpressionScale(expression sqlparser.Expr, shape joinResultShape, depth int) (int, bool) {
+	if expression == nil || depth > 64 {
+		return 0, false
+	}
+	typ, err := d.expressionType(expression, shape, nil, depth+1)
+	if err != nil {
+		return 0, false
+	}
+	if typ == metadata.TypeTinyInt || typ == metadata.TypeSmallInt || typ == metadata.TypeMediumInt || typ == metadata.TypeInt || typ == metadata.TypeBigInt || typ == metadata.TypeBit || typ == metadata.TypeYear {
+		return 0, true
+	}
+	if typ != metadata.TypeDecimal {
+		return 0, false
+	}
+	switch node := expression.(type) {
+	case *sqlparser.SQLVal:
+		if node.Type == sqlparser.IntVal {
+			return 0, true
+		}
+		if node.Type == sqlparser.FloatVal {
+			_, scale, ok := preparedExactDecimalLiteralShape(node.Val)
+			return scale, ok
+		}
+	case *sqlparser.ColName:
+		columns := shape.columns
+		if !node.Qualifier.IsEmpty() {
+			columns = shape.qualified[strings.ToLower(node.Qualifier.Name.String())]
+		}
+		for _, column := range columns {
+			if strings.EqualFold(column.name, node.Name.String()) && column.typ == metadata.TypeDecimal && column.meta != nil {
+				return column.meta.Scale, true
+			}
+		}
+	case *sqlparser.ParenExpr:
+		return d.preparedNumericExpressionScale(node.Expr, shape, depth+1)
+	case *sqlparser.UnaryExpr:
+		switch strings.ToLower(strings.TrimSpace(node.Operator)) {
+		case "+", "-":
+			return d.preparedNumericExpressionScale(node.Expr, shape, depth+1)
+		}
+	case *sqlparser.ConvertExpr:
+		if node.Type == nil || !strings.EqualFold(strings.TrimSpace(node.Type.Type), "DECIMAL") && !strings.EqualFold(strings.TrimSpace(node.Type.Type), "NUMERIC") {
+			return 0, false
+		}
+		if node.Type.Scale == nil {
+			return 0, true
+		}
+		scale, err := strconv.Atoi(string(node.Type.Scale.Val))
+		return scale, err == nil && scale >= 0 && scale <= 30
+	case *sqlparser.BinaryExpr:
+		leftScale, leftKnown := d.preparedNumericExpressionScale(node.Left, shape, depth+1)
+		rightScale, rightKnown := d.preparedNumericExpressionScale(node.Right, shape, depth+1)
+		if !leftKnown || !rightKnown {
+			return 0, false
+		}
+		switch strings.ToLower(strings.TrimSpace(node.Operator)) {
+		case "+", "-", "%":
+			return maxInt(leftScale, rightScale), true
+		case "*":
+			return preparedCapDecimalScale(leftScale + rightScale), true
+		case "/":
+			return preparedCapDecimalScale(leftScale + d.divisionPrecisionIncrement()), true
+		}
+	}
+	return 0, false
+}
+
+func (d *preparedSelectDescriber) divisionPrecisionIncrement() int {
+	if d != nil && d.ctx != nil && d.ctx.Session != nil {
+		switch value := d.ctx.Session.GetParamByName("div_precision_increment").(type) {
+		case string:
+			if parsed, err := strconv.Atoi(strings.TrimSpace(value)); err == nil && parsed >= 0 && parsed <= 30 {
+				return parsed
+			}
+		case int:
+			if value >= 0 && value <= 30 {
+				return value
+			}
+		case int64:
+			if value >= 0 && value <= 30 {
+				return int(value)
+			}
+		case uint64:
+			if value <= 30 {
+				return int(value)
+			}
+		}
+	}
+	return 4
+}
+
+func preparedCapDecimalScale(scale int) int {
+	if scale > 30 {
+		return 30
+	}
+	return scale
 }
 
 func (d *preparedSelectDescriber) expressionType(expression sqlparser.Expr, shape joinResultShape, ctes map[string][]joinOutputColumn, depth int) (metadata.DataType, error) {
