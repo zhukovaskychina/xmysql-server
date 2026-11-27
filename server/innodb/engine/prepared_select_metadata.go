@@ -316,14 +316,17 @@ func (d *preparedSelectDescriber) preparedExpressionMetadata(expression sqlparse
 			}
 		}
 	case *sqlparser.BinaryExpr:
-		if resultType != metadata.TypeDecimal {
-			return nil
-		}
 		numericShape, known := d.preparedNumericExpressionShape(expression, shape, 0)
 		if !known {
 			return nil
 		}
-		return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: numericShape.precision, Scale: numericShape.scale, IsUnsigned: numericShape.unsigned, IsNullable: true}
+		if resultType == metadata.TypeDecimal {
+			return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: numericShape.precision, Scale: numericShape.scale, IsUnsigned: numericShape.unsigned, IsNullable: true}
+		}
+		if resultType == metadata.TypeBigInt {
+			return &metadata.ColumnMeta{Name: sqlparser.String(expression), Type: resultType, Length: preparedIntegerMetadataLength(numericShape.unsigned), IsUnsigned: numericShape.unsigned, IsNullable: true}
+		}
+		return nil
 	case *sqlparser.FuncExpr:
 		name := strings.ToUpper(strings.Trim(node.Name.String(), "` "))
 		arguments := make([]sqlparser.Expr, 0, len(node.Exprs))
@@ -813,6 +816,25 @@ func (d *preparedSelectDescriber) preparedNumericExpressionShape(expression sqlp
 				}
 				return numericShape, known
 			}
+		case *sqlparser.BinaryExpr:
+			left, leftKnown := d.preparedNumericExpressionShape(node.Left, shape, depth+1)
+			right, rightKnown := d.preparedNumericExpressionShape(node.Right, shape, depth+1)
+			if !leftKnown || !rightKnown {
+				return preparedNumericShape{}, false
+			}
+			unsigned := false
+			switch strings.ToLower(strings.TrimSpace(node.Operator)) {
+			case "+", "*", "div":
+				unsigned = left.unsigned || right.unsigned
+			case "-":
+				unsigned = (left.unsigned || right.unsigned) && !d.noUnsignedSubtractionMode()
+			case "%":
+				unsigned = left.unsigned
+			default:
+				return preparedNumericShape{}, false
+			}
+			precision, _ := preparedIntegerPrecision(typ, unsigned)
+			return preparedNumericShape{precision: precision, unsigned: unsigned}, true
 		case *sqlparser.ConvertExpr:
 			if node.Type == nil {
 				return preparedNumericShape{}, false
@@ -987,6 +1009,22 @@ func preparedIntegerLiteralNeedsDecimal(value []byte) bool {
 	return err != nil
 }
 
+func preparedIntegerUnaryMinusNeedsDecimal(expression sqlparser.Expr) bool {
+	for {
+		parenthesized, ok := expression.(*sqlparser.ParenExpr)
+		if !ok || parenthesized == nil {
+			break
+		}
+		expression = parenthesized.Expr
+	}
+	literal, ok := expression.(*sqlparser.SQLVal)
+	if !ok || literal == nil || literal.Type != sqlparser.IntVal {
+		return false
+	}
+	value, err := strconv.ParseUint(strings.TrimLeft(string(literal.Val), "0"), 10, 64)
+	return err == nil && value > uint64(1)<<63
+}
+
 func preparedIntegerMetadataLength(unsigned bool) int {
 	if unsigned {
 		return 20
@@ -1143,6 +1181,9 @@ func (d *preparedSelectDescriber) expressionType(expression sqlparser.Expr, shap
 		switch strings.ToLower(strings.TrimSpace(expr.Operator)) {
 		case "+", "-":
 			if isSetOperationNumeric(operand) {
+				if strings.TrimSpace(expr.Operator) == "-" && operand == metadata.TypeBigInt && preparedIntegerUnaryMinusNeedsDecimal(expr.Expr) {
+					return metadata.TypeDecimal, nil
+				}
 				return operand, nil
 			}
 			return metadata.TypeDouble, nil
